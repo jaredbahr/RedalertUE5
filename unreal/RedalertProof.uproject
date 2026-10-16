@@ -2,7 +2,7 @@
   "FileVersion": 3,
   "EngineAssociation": "5.7",
   "Category": "",
-  "Description": "Original RTS silhouette blockout review scene; generated content is local.",
+  "Description": "Original RTS blockout and native command/replication proof; generated content remains local.",
   "Plugins": [
     {
       "Name": "PythonScriptPlugin",
@@ -15,6 +15,13 @@
     {
       "Name": "AndroidFileServer",
       "Enabled": false
+    }
+  ],
+  "Modules": [
+    {
+      "LoadingPhase": "Default",
+      "Type": "Runtime",
+      "Name": "RedalertProof"
     }
   ]
 }
