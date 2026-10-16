@@ -218,18 +218,36 @@ void AProofRTSPawn::TickInputBindingFixture(float DeltaSeconds)
         AdvanceInputFixture(11); return;
     case 11:
         if (!InputFixtureCheck(!PC->IsInputKeyDown(EKeys::LeftControl), TEXT("control_modifier_released"))) return;
-        if (!Point(FVector(-1800.f, -800.f, 0.f))) return;
+        if (!Point(FVector(-2100.f, -1100.f, 0.f))) return;
+        if (!InputFixtureCheck(FindUnitUnderCursor(true) == INDEX_NONE, TEXT("selection_clear_pointer_has_no_owned_unit"))) return;
         QueueInputFixtureClick(EKeys::LeftMouseButton); AdvanceInputFixture(12); return;
     case 12:
         if (!InputFixtureCheck(Selected({}), TEXT("native_empty_ground_clears_selection"))) return;
         QueueInputFixtureClick(InputFixtureGroup == 1 ? EKeys::One : InputFixtureGroup == 2 ? EKeys::Two : EKeys::Three);
         AdvanceInputFixture(13); return;
     case 13:
-        if (!InputFixtureCheck(Selected(InputFixtureCombatIds), TEXT("native_group_exact_recall"))) return;
+    {
+        const TArray<int32> Wanted = InputFixtureGroup == 1 ? InputFixtureCombatIds
+            : TArray<int32>{InputFixtureCombatIds[InputFixtureGroup - 2]};
+        if (!InputFixtureCheck(Selected(Wanted), TEXT("native_group_exact_recall"))) return;
         if (++InputFixtureRepeat < 3) { AdvanceInputFixture(11); return; }
         InputFixtureRepeat = 0;
-        if (++InputFixtureGroup <= 3) { AdvanceInputFixture(10); return; }
+        if (++InputFixtureGroup <= 3)
+        {
+            // Give each slot different contents using the native click path.
+            if (!Point(UnitById(InputFixtureCombatIds[InputFixtureGroup - 2])->Position)) return;
+            QueueInputFixtureClick(EKeys::LeftMouseButton); AdvanceInputFixture(37); return;
+        }
         if (!InputFixtureCheck(ManualGroupPresses == 12, TEXT("three_groups_repeated_binding_callbacks"))) return;
+        QueueInputFixtureClick(EKeys::One); AdvanceInputFixture(38); return;
+    }
+    case 37:
+        if (!InputFixtureCheck(Selected({InputFixtureCombatIds[InputFixtureGroup - 2]}), TEXT("group_single_member_selected_before_assignment"))) return;
+        QueueInputFixtureClick(InputFixtureGroup == 2 ? EKeys::Two : EKeys::Three, EKeys::LeftControl);
+        AdvanceInputFixture(11); return;
+    case 38:
+        if (!InputFixtureCheck(Selected(InputFixtureCombatIds) && ManualGroupPresses == 13,
+            TEXT("three_groups_independent_contents_recalled"))) return;
         CaptureInputFixture(TEXT("01-selected-group"));
         if (!Point(HQ->Position)) return;
         QueueInputFixtureClick(EKeys::LeftMouseButton, EKeys::LeftShift); AdvanceInputFixture(14); return;
