@@ -55,6 +55,8 @@ The native proof and small match are a foundation using generic units and placeh
 
 No paid infrastructure, hosted workflow runs, roster expansion or new asset generation is needed to review the current branch. Internet conditions, authenticated reconnect, final unit scale, visual approval and practical army budgets remain separate open gates.
 
+The [fidelity baseline](FIDELITY_BASELINE.md) now records manual-supported behavior separately from prototype values and exact idle-fire test evidence. Production/economy calibration remains the next reference-measurement task. The [engine input automation plan](INPUT_AUTOMATION_PLAN.md) defines a synthetic binding test for the controls gap without claiming real desktop focus or hardware input.
+
 ## Evidence discipline
 
 The [first proof](FIRST_PROOF.md) supplies partial pipeline evidence, but no milestone is fully passed: art approval and the UE gameplay/network/bot/performance gates remain open. Record accepted results and deviations in [Decisions](DECISIONS.md); link future captures/logs without committing generated output or private information. Passing a small test does not establish final roster completeness, unlimited scale, or production readiness.

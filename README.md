@@ -24,6 +24,7 @@ The prototype now includes finite harvesting, base building, unit production and
 
 ## Project documents
 
+- [Fidelity baseline](docs/FIDELITY_BASELINE.md): sourced economy/combat behavior, explicit prototype defaults, and tested stationary idle fire. [Input automation plan](docs/INPUT_AUTOMATION_PLAN.md) separates synthetic binding coverage from physical/focus acceptance.
 - [Selection groups and camera pan](docs/GROUP_CONTROLS.md): controls, exact tested source, retained failures, and remaining human acceptance.
 - [Project brief](docs/PROJECT_BRIEF.md): goals, initial scope, constraints, and storage policy.
 - [Art direction](docs/ART_DIRECTION.md): reference workflow and the first visual approval gate.
