@@ -21,9 +21,9 @@ AProofGameMode::AProofGameMode()
 void AProofGameMode::BeginPlay()
 {
     Super::BeginPlay();
-    Model.AddPlayer(100);
-    BotMover = Model.SeedUnit(100, FVector(0.f, 1000.f, 0.f));
-    BotAttacker = Model.SeedUnit(100, FVector(0.f, 150.f, 0.f));
+    Model.AddPlayer(ProofOwnerIds::Bot);
+    BotMover = Model.SeedUnit(ProofOwnerIds::Bot, FVector(0.f, 1000.f, 0.f));
+    BotAttacker = Model.SeedUnit(ProofOwnerIds::Bot, FVector(0.f, 150.f, 0.f));
     InitialPositions.Add(BotMover, FVector(0.f, 1000.f, 0.f));
     InitialPositions.Add(BotAttacker, FVector(0.f, 150.f, 0.f));
     Publish();
@@ -36,7 +36,15 @@ void AProofGameMode::PostLogin(APlayerController* NewPlayer)
     if (AProofPlayerController* Controller = Cast<AProofPlayerController>(NewPlayer))
     {
         // Connection order is fixture identity only; there is no login/authentication implementation.
-        Controller->OwnerId = NextOwnerId++;
+        int32 OwnerId = INDEX_NONE;
+        if (!HumanOwnerIds.TryAllocate(OwnerId))
+        {
+            // No model player, resources or unit is created on exhaustion.
+            UE_LOG(LogTemp, Warning, TEXT("PROOF_PLAYER_REJECT reason=owner-id-exhausted"));
+            Controller->Destroy();
+            return;
+        }
+        Controller->OwnerId = OwnerId;
         const FVector Position(Controller->OwnerId == 1 ? -600.f : 600.f,
             (Controller->OwnerId - 1) / 2 * 600.f, 0.f);
         Model.AddPlayer(Controller->OwnerId);
@@ -51,9 +59,9 @@ void AProofGameMode::PostLogin(APlayerController* NewPlayer)
 FProofCommandResult AProofGameMode::SubmitForOwner(int32 TrustedOwnerId, const FProofCommand& Command)
 {
     FProofCommandResult Result = Model.Submit(TrustedOwnerId, Command);
-    if (TrustedOwnerId == 100 && Result.bAccepted) ++BotAccepted;
-    if (TrustedOwnerId != 100 && Result.bAccepted) ++HumanAccepted;
-    if (TrustedOwnerId != 100 && Command.Sequence == 4 && !Result.bAccepted && Result.Reason == TEXT("ownership")) ++RejectedOwnership;
+    if (TrustedOwnerId == ProofOwnerIds::Bot && Result.bAccepted) ++BotAccepted;
+    if (TrustedOwnerId != ProofOwnerIds::Bot && Result.bAccepted) ++HumanAccepted;
+    if (TrustedOwnerId != ProofOwnerIds::Bot && Command.Sequence == 4 && !Result.bAccepted && Result.Reason == TEXT("ownership")) ++RejectedOwnership;
     UE_LOG(LogTemp, Display, TEXT("PROOF_HOST_RESULT owner=%d sequence=%lld accepted=%d reason=%s"),
         TrustedOwnerId, static_cast<long long>(Result.Sequence), Result.bAccepted, *Result.Reason);
     return Result;
@@ -65,7 +73,7 @@ void AProofGameMode::StartBotIfReady()
     const FProofSnapshot Snapshot = Model.GetSnapshot();
     int32 HumanCount = 0, Target = INDEX_NONE;
     for (const FProofPlayerRecord& Player : Snapshot.Players)
-        if (Player.OwnerId != 100) ++HumanCount;
+        if (!ProofOwnerIds::IsReserved(Player.OwnerId)) ++HumanCount;
     if (HumanCount < 2) return;
     for (const FProofUnitRecord& Unit : Snapshot.Units)
         if (Unit.OwnerId == 1) { Target = Unit.UnitId; break; }
@@ -77,13 +85,13 @@ void AProofGameMode::StartBotIfReady()
     Move.Type = EProofCommandType::Move;
     Move.UnitId = BotMover;
     Move.Destination = FVector(1000.f, 1000.f, 0.f);
-    SubmitForOwner(100, Move);
+    SubmitForOwner(ProofOwnerIds::Bot, Move);
     FProofCommand Attack;
     Attack.Sequence = ++BotSequence;
     Attack.Type = EProofCommandType::Attack;
     Attack.UnitId = BotAttacker;
     Attack.TargetUnitId = Target;
-    SubmitForOwner(100, Attack);
+    SubmitForOwner(ProofOwnerIds::Bot, Attack);
 }
 
 void AProofGameMode::Publish()
@@ -120,7 +128,9 @@ void AProofGameMode::Tick(float DeltaSeconds)
     const bool bStartupTimedOut = !bBotStarted && Lifetime >= 60.f;
     if (bActiveWindowComplete || bStartupTimedOut)
     {
-        const bool bPass = NextOwnerId >= 3 && HumanAccepted >= 6 && RejectedOwnership >= 2 &&
+        const bool bFixtureOwnersPresent = Snapshot.Players.ContainsByPredicate([](const FProofPlayerRecord& Player) { return Player.OwnerId == 1; })
+            && Snapshot.Players.ContainsByPredicate([](const FProofPlayerRecord& Player) { return Player.OwnerId == 2; });
+        const bool bPass = bFixtureOwnersPresent && HumanAccepted >= 6 && RejectedOwnership >= 2 &&
             BotAccepted >= 2 && bMoved && bDamaged && bProduced;
         UE_LOG(LogTemp, Display, TEXT("PROOF_AUTOMATION_COMPLETE role=host owner=0 status=%s humanAccepted=%d rejectedOwnership=%d botAccepted=%d moved=%d damaged=%d produced=%d"),
             bPass ? TEXT("pass") : TEXT("fail"), HumanAccepted, RejectedOwnership, BotAccepted, bMoved, bDamaged, bProduced);
