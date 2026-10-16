@@ -21,4 +21,25 @@ $output = Join-Path (Get-Location) 'generated'
 # -run=pythonscript -script=<absolute unreal/Scripts/probe_negative_assets.py>
 ```
 
-Cheap validation: `python -m unittest discover -s tools/art -p test_evidence.py -v` includes export-report success/run/source/hash mismatches and actual-entrypoint malformed-input invalidation. Engine/Blender execution remains pending; API presence, material-slot naming and fixture behavior must be measured before publishing a pass claim. No rendered art approval, visual semantic-facing result, network result or scale result follows from these tests.
+Cheap validation: four tests pass with `python -m unittest discover -s tools/art -p test_evidence.py -v`, including export-report success/run/source/hash mismatches, actual-entrypoint malformed-input invalidation and fixture-index preservation. No rendered art approval, visual semantic-facing result, network result or scale result follows from these tests.
+
+## Observed root execution
+
+The reusable runner is `unreal/Scripts/test-asset-negative.ps1`. It records exact HEAD/dirty state, UTC timings, per-stage process outcomes, source/run identity, all three cases and verified restoration under ignored `generated/negative-run/`.
+
+| Evidence | Observed result |
+| --- | --- |
+| Tested source | `d99a6931d1a194986c7c22d68074d1197d8dd62d`, clean working tree |
+| Time | 2026-10-16 04:52:39.670 UTC to 04:53:57.861 UTC; 78.190 seconds total |
+| Run | `1a93a1f6a31a4b13b899d85bb77d0b4d` |
+| Palette | Actual Red slots on all three UE meshes changed from approximately `(0.53,0.035,0.025,1)` to `(0.025,0.55,0.8,1)` through the explicit generated material contract. |
+| Vertex fixture | Reimported tank vertices had lower Z=1 m rather than 0; Blender gate rejected them. |
+| Pivot fixture | Reimported tank pivot had Z=1 m rather than 0 while world geometry stayed in place; Blender gate rejected it. |
+| UE negative attempts | Both refused the failed matching FBX round-trip report and left import success false, before UE mutation. |
+| Restoration | Original manifest, export report, all three FBX byte sequences and baseline material colors restored; unrelated generic material package hash unchanged. |
+
+The retained runner result is `generated/negative-run/20261016T045239670Z-b1f6f947608d4cdbbbab44c9cf74d093/result.json`; detailed observations are in `generated/ue_negative_probe.json`. Source hash is `541baf195e89f8c49e92e79452caa7f02d9237f9f28eeae015f69319a2fc0f01`.
+
+An earlier clean run at `e1c61c2` passed Blender stages but failed before UE imports because `material_search_location` was set on `FbxImportUI`. Installed engine headers place it on `texture_import_data`; the corrected call was committed before the successful full rerun. That earlier run is not acceptance evidence. A timeout or killed process can interrupt restoration; failed runs must be inspected before reuse.
+
+Independent evidence review verified current source/FBX hashes, exact byte restoration against the retained input archive, the external package hash and all three cases. A subsequent PowerShell-only correction removes a redundant parameterless `WaitForExit()` after `HasExited`, preventing redirect drain from escaping the deadline. Syntax/review checks cover that correction; the measured full run above remains explicitly attributed to `d99a693`, with unchanged Python source and acceptance gates.

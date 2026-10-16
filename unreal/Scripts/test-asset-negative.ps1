@@ -58,7 +58,8 @@ function Invoke-BoundedStage([string]$Name, [string]$Executable, [string[]]$Argu
             }
             throw "Stage $Name exceeded its bounded deadline; inspect restoration state before reuse"
         }
-        $process.WaitForExit()
+        # HasExited already guarantees ExitCode is available. Do not wait without
+        # a deadline for inherited redirect handles to drain after process exit.
         $stage.exit_code = $process.ExitCode
         if ($process.ExitCode -ne 0) { throw "Stage $Name failed with exit $($process.ExitCode)" }
     } finally {
