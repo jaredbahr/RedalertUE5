@@ -1,7 +1,8 @@
 param(
     [string]$EngineRoot = 'D:\Epic Games\UE_5.7',
     [ValidateRange(20000,60000)][int]$Port = 28879,
-    [ValidateRange(45,90)][int]$TimeoutSeconds = 90
+    [ValidateRange(45,90)][int]$TimeoutSeconds = 90,
+    [ValidateRange(15,180)][int]$WarmupTimeoutSeconds = 180
 )
 $ErrorActionPreference = 'Stop'
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
@@ -16,18 +17,20 @@ try { $probe.Client.ExclusiveAddressUse=$true; $probe.Client.Bind([Net.IPEndPoin
 finally { $probe.Dispose() }
 $run = Join-Path $repoRoot ('generated\controls-' + [DateTime]::UtcNow.ToString('yyyyMMdd-HHmmss-fff'))
 $images = Join-Path $run 'screenshots'
-New-Item -ItemType Directory -Force -Path $run,$images,(Join-Path $run 'cache'),(Join-Path $run 'temp') | Out-Null
+$cache = Join-Path $repoRoot 'generated\controls-cache'
+New-Item -ItemType Directory -Force -Path $run,$images,$cache,(Join-Path $run 'temp') | Out-Null
 $watch = [Diagnostics.Stopwatch]::StartNew()
+$scenarioWatch = $null
 $head = (& git -C $repoRoot rev-parse HEAD).Trim()
 if ($LASTEXITCODE -ne 0) { throw 'Cannot record tested HEAD.' }
 $dirty = [bool](& git -C $repoRoot status --porcelain)
-$result = [ordered]@{passed=$false;head=$head;dirtyWorkingTree=$dirty;startedUtc=[DateTime]::UtcNow.ToString('o');finishedUtc=$null;elapsedSeconds=0;stages=[ordered]@{};observedCounts=@{};runDirectory=$run;topology='one dedicated UE server, one rendered controls client, one NullRHI passive observer';transport='UE native UDP loopback';physicalMouseAndFocusVerified=$false;internetTest=$false;performanceTest=$false;port=$Port;screenshots=@();commonRevisions=@();error=$null}
+$result = [ordered]@{passed=$false;head=$head;dirtyWorkingTree=$dirty;startedUtc=[DateTime]::UtcNow.ToString('o');finishedUtc=$null;elapsedSeconds=0;scenarioElapsedSeconds=0;warmup=[ordered]@{passed=$false;startedUtc=$null;finishedUtc=$null;elapsedSeconds=0;timeoutSeconds=$WarmupTimeoutSeconds;screenshotAcceptance=$false};scenarioTimeoutSeconds=$TimeoutSeconds;totalTimeoutBudgetSeconds=($WarmupTimeoutSeconds+$TimeoutSeconds);cachePath=$cache;stages=[ordered]@{};observedCounts=@{};runDirectory=$run;topology='one dedicated UE server, one rendered controls client, one NullRHI passive observer (after standalone graphical warmup)';transport='UE native UDP loopback';physicalMouseAndFocusVerified=$false;internetTest=$false;performanceTest=$false;port=$Port;screenshots=@();commonRevisions=@();error=$null}
 $prior=@{}; $processes=[Collections.Generic.List[object]]::new()
 $names=@('UE-LocalDataCachePath','UE-SharedDataCachePath','TEMP','TMP')
 function Mark-Stage([string]$Name) { $result.stages[$Name]=[ordered]@{utc=[DateTime]::UtcNow.ToString('o');elapsedSeconds=[math]::Round($watch.Elapsed.TotalSeconds,3)} }
 try {
     foreach ($n in $names) { $prior[$n]=[Environment]::GetEnvironmentVariable($n,'Process') }
-    [Environment]::SetEnvironmentVariable('UE-LocalDataCachePath',(Join-Path $run 'cache'),'Process')
+    [Environment]::SetEnvironmentVariable('UE-LocalDataCachePath',$cache,'Process')
     [Environment]::SetEnvironmentVariable('UE-SharedDataCachePath','None','Process')
     [Environment]::SetEnvironmentVariable('TEMP',(Join-Path $run 'temp'),'Process')
     [Environment]::SetEnvironmentVariable('TMP',(Join-Path $run 'temp'),'Process')
@@ -43,25 +46,48 @@ try {
             $content=if(Test-Path -LiteralPath $Entry.Log){Get-Content -LiteralPath $Entry.Log -Raw}else{''}
             if ($content -match $Pattern) { return }
             if ($Entry.Process.HasExited) { throw "$($Entry.Role) exited before $Pattern." }
-            if ($watch.Elapsed.TotalSeconds -ge $TimeoutSeconds) { throw "Timed out waiting for $Pattern." }
+            if ($scenarioWatch.Elapsed.TotalSeconds -ge $TimeoutSeconds) { throw "Scenario timed out waiting for $Pattern." }
             Start-Sleep -Milliseconds 200
         } while ($true)
     }
+    # ExecCmds is queued in UEngine::Init and executed by the engine loop's
+    # TickDeferredCommands after initialization. This warms startup shaders/RHI;
+    # it is neither a screenshot check nor controls acceptance.
+    $result.warmup.startedUtc=[DateTime]::UtcNow.ToString('o')
+    $warmupWatch=[Diagnostics.Stopwatch]::StartNew()
+    Start-Controls 'warmup' '/Game/CommandProofGenerated/Maps/CommandProof' @('-game','-RenderOffscreen','-windowed','-ResX=1280','-ResY=720','-ExecCmds="quit"')
+    try {
+        while(-not $processes[0].Process.HasExited) {
+            if($warmupWatch.Elapsed.TotalSeconds -ge $WarmupTimeoutSeconds) { throw 'Graphics warmup timed out before the controls scenario started.' }
+            Start-Sleep -Milliseconds 200
+        }
+        if($processes[0].Process.ExitCode -ne 0) { throw "Graphics warmup exited $($processes[0].Process.ExitCode)." }
+        $warmupLog=Get-Content -LiteralPath $processes[0].Log -Raw
+        if($warmupLog -notmatch 'LogRHI:.*(Using Default RHI|RHI Name)' -or $warmupLog -notmatch 'LogLoad:.*LoadMap') { throw 'Warmup exited without expected RHI/map initialization evidence.' }
+        $result.warmup.passed=$true
+        Mark-Stage 'warmupCompleted'
+    } finally {
+        $result.warmup.finishedUtc=[DateTime]::UtcNow.ToString('o')
+        $result.warmup.elapsedSeconds=[math]::Round($warmupWatch.Elapsed.TotalSeconds,3)
+    }
+    $scenarioWatch=[Diagnostics.Stopwatch]::StartNew()
+    Mark-Stage 'scenarioClockStarted'
     Start-Controls 'host' '/Game/CommandProofGenerated/Maps/CommandProof' @('-server','-nullrhi','-MULTIHOME=127.0.0.1','-ProofControlsAutomation')
-    Wait-Marker $processes[0] 'PROOF_READY'
+    Wait-Marker $processes[1] 'PROOF_READY'
     Mark-Stage 'hostReady'
     Start-Controls 'rendered' ('127.0.0.1:'+$Port) @('-game','-RenderOffscreen','-windowed','-ResX=1280','-ResY=720','-ProofControlsAutomation',('-ProofControlsOutput="'+$images+'"'))
     # Admission is deliberately ordered: the slower graphics client must own 1.
-    Wait-Marker $processes[1] 'PROOF_CONTROLS_VIEW_READY owner=1 width=1280 height=720'
+    Wait-Marker $processes[2] 'PROOF_CONTROLS_VIEW_READY owner=1 width=1280 height=720'
     Mark-Stage 'renderedProjectionReady'
     Start-Controls 'observer' ('127.0.0.1:'+$Port) @('-game','-nullrhi','-ProofControlsObserver')
     while (@($processes | Where-Object {-not $_.Process.HasExited}).Count) {
-        if ($watch.Elapsed.TotalSeconds -ge $TimeoutSeconds) { throw 'Controls proof exceeded its total timeout.' }
+        if ($scenarioWatch.Elapsed.TotalSeconds -ge $TimeoutSeconds) { throw 'Controls scenario exceeded its strict timeout.' }
         Start-Sleep -Milliseconds 200
     }
     Mark-Stage 'processesExited'
     $maps=@()
     foreach ($entry in $processes) {
+        if ($entry.Role -eq 'warmup') { continue }
         if ($entry.Process.ExitCode -ne 0) { throw "$($entry.Role) exited $($entry.Process.ExitCode)." }
         $log=Get-Content -LiteralPath $entry.Log -Raw
         if ($log -match 'PROOF_CONTROLS_(CHECK|COMPLETE)[^\r\n]*status=fail') { throw "$($entry.Role) reported controls failure." }
@@ -126,6 +152,7 @@ finally {
     }
     foreach($n in $names) { if($prior.ContainsKey($n)) { [Environment]::SetEnvironmentVariable($n,$prior[$n],'Process') } }
     $result.finishedUtc=[DateTime]::UtcNow.ToString('o'); $result.elapsedSeconds=[math]::Round($watch.Elapsed.TotalSeconds,3)
+    if($scenarioWatch) { $result.scenarioElapsedSeconds=[math]::Round($scenarioWatch.Elapsed.TotalSeconds,3) }
     $result | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $run 'result.json') -Encoding utf8
 }
 if(-not $result.passed) { throw "$($result.error) See $run\result.json" }
