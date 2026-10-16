@@ -10,7 +10,9 @@ import unreal
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'tools' / 'art'))
-from evidence import invalidate_report, validate_geometry, verify_inputs, write_json
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from palette_materials import apply_palette
+from evidence import invalidate_report, require_export_validation, validate_geometry, verify_inputs, write_json
 
 DEST = "/Game/BlockoutGenerated"
 ASSETS = ["SM_TeslaReactor_Blockout", "SM_RhinoTank_Blockout", "SM_Conscript_Blockout"]
@@ -21,12 +23,14 @@ def run():
     invalidate_report(evidence)
     # Every import attempt supersedes prior preservation/mutation evidence, even in this run.
     invalidate_report(ROOT / 'generated' / 'ue_asset_probe.json')
+    invalidate_report(ROOT / 'generated' / 'ue_negative_probe.json')
     manifest = json.loads((ROOT / 'generated' / 'blockout_manifest.json').read_text(encoding='utf-8'))
     identity = {key: manifest[key] for key in ('run_id', 'source_sha256')}
     invalidate_report(evidence, identity)
     if manifest['generation_status'] != 'complete':
         raise ValueError('Generation did not complete')
     verify_inputs(ROOT / 'generated', manifest, ROOT)
+    require_export_validation(ROOT / 'generated', manifest)
     asset_records = {Path(asset['file']).stem: asset for asset in manifest['assets']}
     files = [ROOT / "generated" / "assets" / (name + ".fbx") for name in ASSETS]
     missing = [str(p) for p in files if not p.is_file()]
@@ -39,6 +43,8 @@ def run():
         options.set_editor_property("import_as_skeletal", False)
         options.set_editor_property("import_animations", False)
         options.set_editor_property("import_materials", True)
+        texture_data = options.get_editor_property("texture_import_data")
+        texture_data.set_editor_property("material_search_location", unreal.MaterialSearchLocation.LOCAL)
         options.set_editor_property("import_textures", False)
         options.set_editor_property("automated_import_should_detect_type", False)
         options.set_editor_property("mesh_type_to_import", unreal.FBXImportType.FBXIT_STATIC_MESH)
@@ -60,6 +66,7 @@ def run():
         tasks.append(task)
     unreal.AssetToolsHelpers.get_asset_tools().import_asset_tasks(tasks)
     meshes = []
+    palette_evidence = {}
     for name, task in zip(ASSETS, tasks):
         package_path = DEST + "/Meshes/" + name
         object_path = package_path + "." + name
@@ -69,6 +76,7 @@ def run():
         mesh = unreal.load_asset(object_path)
         if not isinstance(mesh, unreal.StaticMesh):
             raise RuntimeError("Imported object is not a StaticMesh: " + object_path)
+        palette_evidence[name] = apply_palette(mesh, manifest['palette'])
         meshes.append(mesh)
 
     level = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
@@ -111,6 +119,7 @@ def run():
             "actor_minus_y_world": [-right.x, -right.y, -right.z],
             "actor_plus_z_world": [up.x, up.y, up.z],
             "semantic_mesh_front": "source -Y expected at UE +Y; signed bounds gate only, not visual semantic proof",
+            "material_palette": palette_evidence[name],
             "material_slots": [str(slot.material_slot_name) for slot in mesh.static_materials]})
     floor = spawn(unreal.StaticMeshActor, unreal.Vector(0, 0, -15))
     floor.set_actor_label("Proof ground")
