@@ -59,9 +59,19 @@ $result.cpuPolicy.lastPollElapsedSeconds = -1.0
 function Get-OwnedLiveProcess($Entry) {
     $candidate = Get-Process -Id $Entry.Process.Id -ErrorAction SilentlyContinue
     if (-not $candidate) { return $null }
-    try { if ($candidate.StartTime -eq $Entry.Started -and $candidate.Path -eq $Entry.Path) { return $candidate } }
-    catch { if ($candidate.HasExited) { return $null }; throw }
-    return $null
+    try {
+        if ($candidate.StartTime -ne $Entry.Started) { return $null }
+        # During an immediate startup failure MainModule/Path may not yet be
+        # available. Retry briefly, never silently declare a live owned PID gone.
+        for ($attempt=0; $attempt -lt 20; $attempt++) {
+            $candidate.Refresh()
+            if ($candidate.HasExited) { return $null }
+            if ($candidate.Path -eq $Entry.Path) { return $candidate }
+            if ($candidate.Path) { return $null }
+            Start-Sleep -Milliseconds 100
+        }
+        throw 'Cannot verify executable path of a live owned startup process.'
+    } catch { if ($candidate.HasExited) { return $null }; throw }
 }
 function Apply-OwnedCpuPolicy($Entry) {
     $live = Get-OwnedLiveProcess $Entry
