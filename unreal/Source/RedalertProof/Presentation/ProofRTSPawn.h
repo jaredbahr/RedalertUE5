@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "InputCoreTypes.h"
 #include "GameFramework/Pawn.h"
 #include "Presentation/ProofSelectionState.h"
 #include "Presentation/ProofGroupOrderQueue.h"
@@ -144,4 +145,42 @@ private:
     void FinishControls(bool bPass, const TCHAR* Reason);
     void CaptureControls(const TCHAR* Name);
     void TickGraphicsWarmup();
+    // Opt-in engine injection. These fields never affect normal sessions.
+    bool bInputBindingFixture = false;
+    bool bInputFixtureFinished = false;
+    bool bInputFixtureVirtualPan = false;
+    bool bInputFixtureRealFocusSuppressed = false;
+    bool bInputFixtureVirtualFocusUsed = false;
+    bool bInputFixtureSimulatedFocusLoss = false;
+    FString InputFixtureOutput;
+    int32 InputFixtureStage = 0;
+    int32 InputFixtureGroup = 1;
+    int32 InputFixtureRepeat = 0;
+    int32 InputFixtureEpoch = INDEX_NONE;
+    int32 InputFixtureHQ = INDEX_NONE;
+    int32 InputFixtureHarvester = INDEX_NONE;
+    int32 InputFixtureEnemyHQ = INDEX_NONE;
+    int32 InputFixtureSequenceStart = 0;
+    int32 InputFixtureCallbackBefore = 0;
+    int32 InputFixtureEdgesSent = 0;
+    int32 InputFixtureDeviceId = INDEX_NONE;
+    int32 InputFixtureUserId = INDEX_NONE;
+    double InputFixtureStart = 0.0;
+    double InputFixtureStageStart = 0.0;
+    double InputFixtureNextEdge = 0.0;
+    float InputFixtureZoom = 0.f;
+    FVector InputFixtureHQPosition = FVector::ZeroVector;
+    FVector InputFixtureHarvesterPosition = FVector::ZeroVector;
+    FVector InputFixturePanBefore = FVector::ZeroVector;
+    TArray<int32> InputFixtureCombatIds;
+    TMap<int32, FVector> InputFixtureMoveStart;
+    TArray<TPair<FKey, bool>> InputFixtureEdges;
+    TArray<FString> InputFixtureChecks;
+    void TickInputBindingFixture(float DeltaSeconds);
+    void ApplyCameraPan(float DeltaSeconds, bool bFocused, bool bForeground);
+    void QueueInputFixtureClick(FKey Key, FKey Modifier = FKey());
+    bool InputFixtureCheck(bool bCondition, const TCHAR* Evidence);
+    void AdvanceInputFixture(int32 Stage);
+    void FinishInputBindingFixture(bool bPass, const TCHAR* Reason);
+    void CaptureInputFixture(const TCHAR* Name);
 };
