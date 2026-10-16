@@ -4,7 +4,7 @@ $tokens=$null; $errors=$null
 $runner=Join-Path $PSScriptRoot 'test-controls-proof.ps1'
 $ast=[System.Management.Automation.Language.Parser]::ParseFile($runner,[ref]$tokens,[ref]$errors)
 if($errors.Count) { throw 'Runner parse failed.' }
-foreach($name in @('Get-OwnedLiveProcess','Apply-OwnedCpuPolicy','Maintain-OwnedCpuPolicy','Stop-OwnedEntry','Stop-OwnedProcesses')) {
+foreach($name in @('Get-OwnedLiveProcess','Apply-OwnedCpuPolicy','Maintain-OwnedCpuPolicy','Stop-OwnedEntry','Stop-OwnedProcesses','Get-PakCacheEvidence')) {
     $definition=$ast.Find({param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name},$true)
     if(-not $definition) { throw "Missing helper $name" }
     . ([scriptblock]::Create($definition.Extent.Text))
@@ -61,4 +61,13 @@ $mockProcesses[101]=$child
 function Stop-Process { [CmdletBinding()]param([int]$Id,[switch]$Force) $mockProcesses.Remove($Id); throw 'Mock already exited' }
 Stop-OwnedEntry $ownedWorkers[0]
 if($result.cleanup.ignoredExitRaces -ne 1 -or $result.cleanup.errors.Count -ne 1) { throw 'Normal cleanup exit race was misreported.' }
-[pscustomobject]@{passed=$true;tests=@('owned_parent_and_child_policy','foreign_worker_untouched','affinity_reset_repaired_and_recorded','reused_pid_untouched','metadata_failure_closed','cleanup_failure_continues_parent_first_and_restores','cleanup_exit_race_ignored');realProcessesMutated=$false;ueLaunched=$false} | ConvertTo-Json
+$cacheSample=@'
+LogDerivedDataCache: Verbose: ../../../Engine/DerivedDataCache/Compressed.ddp: Cache hit for GlobalShaderMap/key from 'GlobalShaderMap Fixture'
+LogDerivedDataCache: Verbose: D:/UE/Engine/DerivedDataCache/Compressed.ddp: Cache hit for MaterialShaderMap/key from 'Material Fixture'
+LogDerivedDataCache: Verbose: D:/UE/Engine/DerivedDataCache/DDC.ddp: Cache hit for Other/key from 'Texture Fixture'
+LogDerivedDataCache: Verbose: D:/OtherProject/Cache.ddp: Cache hit for GlobalShaderMap/key from 'Foreign Fixture'
+LogDerivedDataCache: D:/UE/Engine/DerivedDataCache/Compressed.ddp opened for reading
+'@
+$cacheEvidence=Get-PakCacheEvidence $cacheSample
+if($cacheEvidence.allDdpHitCount -ne 4 -or $cacheEvidence.enginePakHitCount -ne 3 -or $cacheEvidence.globalShaderHitCount -ne 1 -or $cacheEvidence.materialShaderHitCount -ne 1 -or $cacheEvidence.otherEnginePakHitCount -ne 1) { throw 'Pak hit diagnostics counted opens/foreign paths or misclassified examples.' }
+[pscustomobject]@{passed=$true;tests=@('owned_parent_and_child_policy','foreign_worker_untouched','affinity_reset_repaired_and_recorded','reused_pid_untouched','metadata_failure_closed','cleanup_failure_continues_parent_first_and_restores','cleanup_exit_race_ignored','actual_pak_hit_diagnostics_exclude_open_and_foreign_path');realProcessesMutated=$false;ueLaunched=$false} | ConvertTo-Json

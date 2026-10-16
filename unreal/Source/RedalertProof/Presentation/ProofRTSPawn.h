@@ -36,6 +36,8 @@ private:
     bool bControlsCursor = false;
     FVector2D ControlsCursor = FVector2D::ZeroVector;
     int32 LastRequestedSequence = 0;
+    FString LastRequestedType;
+    TSet<FString> ControlsPassedEvidence;
     int32 ControlsStep = 0;
     int32 ControlsOwnUnit = INDEX_NONE;
     int32 ControlsTargetUnit = INDEX_NONE;
@@ -46,7 +48,7 @@ private:
     float ControlsScenarioReady = -1.f;
     float ControlsStageTime = 0.f;
     bool bControlsFinished = false;
-    FVector ControlsDestination = FVector(-250.f, 0.f, 0.f);
+    FVector ControlsDestination = FVector(-300.f, -300.f, 0.f);
     FVector ControlsInitialPosition = FVector::ZeroVector;
     FString ControlsOutput;
     FString RequestStatus = TEXT("Select one of your live units.");

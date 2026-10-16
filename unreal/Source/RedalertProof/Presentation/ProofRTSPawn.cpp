@@ -252,6 +252,14 @@ void AProofRTSPawn::Request(FProofCommand Command)
     }
     PC->ServerSubmitCommand(Command);
     LastRequestedSequence = Command.Sequence;
+    LastRequestedType = Command.Type == EProofCommandType::Move ? TEXT("Move")
+        : Command.Type == EProofCommandType::Attack ? TEXT("Attack") : TEXT("Produce");
+    if (PC->IsControlsAutomation())
+    {
+        UE_LOG(LogTemp, Display, TEXT("PROOF_CONTROLS_REQUEST owner=%d sequence=%d type=%s unit=%d target=%d destinationX=%.3f destinationY=%.3f destinationZ=%.3f"),
+            PC->OwnerId, Command.Sequence, *LastRequestedType, Command.UnitId, Command.TargetUnitId,
+            Command.Destination.X, Command.Destination.Y, Command.Destination.Z);
+    }
     RequestStatus = FString::Printf(TEXT("Request #%d sent; only host snapshots change units/credits."), Command.Sequence);
 }
 
@@ -271,6 +279,8 @@ bool AProofRTSPawn::SetControlsCursorFromWorld(const FVector& Position)
 
 bool AProofRTSPawn::ControlsCheck(bool bCondition, const TCHAR* Evidence)
 {
+    if (bCondition && ControlsPassedEvidence.Contains(Evidence)) return true;
+    if (bCondition) ControlsPassedEvidence.Add(Evidence);
     UE_LOG(LogTemp, Display, TEXT("PROOF_CONTROLS_CHECK step=%d status=%s evidence=%s elapsed=%.3f"),
         ControlsStep, bCondition ? TEXT("pass") : TEXT("fail"), Evidence, ControlsElapsed);
     if (!bCondition) FinishControls(false, Evidence);
@@ -370,10 +380,12 @@ void AProofRTSPawn::TickControlsAutomation(float DeltaSeconds)
     else if (ControlsStep == 1 && ControlsElapsed - ControlsStageTime > 1.f)
     {
         if (!ControlsCheck(SetControlsCursorFromWorld(ControlsDestination), TEXT("move_destination_projected"))) return;
+        if (!ControlsCheck(FindUnitUnderCursor(false) == INDEX_NONE, TEXT("move_destination_empty_pick"))) return;
         FVector RoundTrip;
         if (!ControlsCheck(CursorGroundPoint(RoundTrip) && FVector::Dist(RoundTrip, ControlsDestination) < 2.f,
             TEXT("actual_viewport_projection_deprojection_roundtrip_lt2cm"))) return;
         OrderUnderCursor();
+        if (!ControlsCheck(LastRequestedSequence == 1 && LastRequestedType == TEXT("Move"), TEXT("move_request_type"))) return;
         ControlsStep = 2;
     }
     else if (ControlsStep == 2 && bHasReceipt)
@@ -382,7 +394,9 @@ void AProofRTSPawn::TickControlsAutomation(float DeltaSeconds)
         if (FVector::Dist(Own->Position, ControlsDestination) > 2.f) return;
         if (!ControlsCheck(FVector::Dist(Own->Position, ControlsInitialPosition) > 100.f, TEXT("move_replicated_destination_reached"))) return;
         if (!ControlsCheck(SetControlsCursorFromWorld(Target->Position), TEXT("attack_target_projected"))) return;
+        if (!ControlsCheck(FindUnitUnderCursor(false) == ControlsTargetUnit, TEXT("attack_target_pick_matches_snapshot"))) return;
         OrderUnderCursor();
+        if (!ControlsCheck(LastRequestedSequence == 2 && LastRequestedType == TEXT("Attack"), TEXT("attack_request_type"))) return;
         ControlsStep = 3;
     }
     else if (ControlsStep == 3 && bHasReceipt)
@@ -391,6 +405,7 @@ void AProofRTSPawn::TickControlsAutomation(float DeltaSeconds)
         if (Target->HitPoints >= 99.f) return;
         if (!ControlsCheck(Target->HitPoints > 0.f, TEXT("attack_replicated_target_damage"))) return;
         Produce();
+        if (!ControlsCheck(LastRequestedSequence == 3 && LastRequestedType == TEXT("Produce"), TEXT("produce_request_type"))) return;
         ControlsStep = 4;
     }
     else if (ControlsStep == 4 && bHasReceipt)
@@ -402,8 +417,10 @@ void AProofRTSPawn::TickControlsAutomation(float DeltaSeconds)
         if (!ControlsCheck(true, TEXT("produce_replicated_unit_and_credit_delta"))) return;
         // Move the original unit away from the spawn through the same handler,
         // keeping both proxy markers readable without a presentation-only offset.
-        SetControlsCursorFromWorld(FVector(-700.f, -450.f, 0.f));
+        if (!ControlsCheck(SetControlsCursorFromWorld(FVector(-700.f, -450.f, 0.f)), TEXT("separation_destination_projected"))) return;
+        if (!ControlsCheck(FindUnitUnderCursor(false) == INDEX_NONE, TEXT("separation_destination_empty_pick"))) return;
         OrderUnderCursor();
+        if (!ControlsCheck(LastRequestedSequence == 4 && LastRequestedType == TEXT("Move"), TEXT("separation_request_type"))) return;
         ControlsStep = 5;
     }
     else if (ControlsStep == 5 && bHasReceipt)

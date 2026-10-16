@@ -51,6 +51,8 @@ $result.cpuPolicy.events=@()
 $result.cpuPolicy.eventsTruncated=$false
 $result.cpuPolicy.discoveryError=$null
 $result.cleanup=[ordered]@{errors=@();ignoredExitRaces=0;parentsFirst=$true}
+$result.commandRequests=@()
+$result.cacheDiagnostics=[ordered]@{verboseEnabled=$true;diagnosticOnly=$true;classification='Engine/DerivedDataCache/*.ddp path; global/material request-name or key text';byProcess=@{};readErrors=@()}
 $workerExe=Join-Path $EngineRoot 'Engine\Binaries\Win64\ShaderCompileWorker.exe'
 $names=@('UE-LocalDataCachePath','UE-SharedDataCachePath','TEMP','TMP')
 function Mark-Stage([string]$Name) { $result.stages[$Name]=[ordered]@{utc=[DateTime]::UtcNow.ToString('o');elapsedSeconds=[math]::Round($watch.Elapsed.TotalSeconds,3)} }
@@ -130,6 +132,28 @@ function Stop-OwnedProcesses {
     foreach($entry in $processes) { Stop-OwnedEntry $entry }
     foreach($worker in $ownedWorkers) { Stop-OwnedEntry $worker }
 }
+function Get-PakCacheEvidence([string]$Log) {
+    $hits=[regex]::Matches($Log,"(?m)^.*LogDerivedDataCache:\s*(?:Verbose:\s*)?(?<path>[^\r\n]*?\.ddp): Cache hit for (?<key>\S+) from '(?<request>[^']*)'")
+    $evidence=[ordered]@{allDdpHitCount=$hits.Count;enginePakHitCount=0;globalShaderHitCount=0;materialShaderHitCount=0;otherEnginePakHitCount=0;globalExamples=@();materialExamples=@();otherExamples=@()}
+    foreach($hit in $hits) {
+        $path=$hit.Groups['path'].Value.Replace('\','/').Trim()
+        if($path -notmatch '(^|/)Engine/DerivedDataCache/(Compressed|DDC)\.ddp$') { continue }
+        $evidence.enginePakHitCount++
+        $key=$hit.Groups['key'].Value; $request=$hit.Groups['request'].Value
+        $example=@{cachePath=$path;key=$key;request=$request}
+        if(($key+' '+$request) -match 'global.?shader') {
+            $evidence.globalShaderHitCount++
+            if($evidence.globalExamples.Count -lt 3){$evidence.globalExamples+=$example}
+        } elseif(($key+' '+$request) -match 'material') {
+            $evidence.materialShaderHitCount++
+            if($evidence.materialExamples.Count -lt 3){$evidence.materialExamples+=$example}
+        } else {
+            $evidence.otherEnginePakHitCount++
+            if($evidence.otherExamples.Count -lt 3){$evidence.otherExamples+=$example}
+        }
+    }
+    return $evidence
+}
 function Check-StorageBudget([switch]$Force) {
     if(-not $Force -and $watch.Elapsed.TotalSeconds - $storageGuard.lastCheckElapsedSeconds -lt 10) { return }
     $cacheBytes=[int64](Get-ChildItem -LiteralPath $cache -File -Recurse -Force | Measure-Object -Property Length -Sum).Sum
@@ -151,7 +175,7 @@ try {
     [Environment]::SetEnvironmentVariable('TMP',(Join-Path $run 'temp'),'Process')
     function Start-Controls([string]$Role,[string]$Destination,[string[]]$Mode,[int]$CoreLimit=2) {
         $log=Join-Path $run ($Role+'.log')
-        $launchArguments=@(('"'+$project+'"'),$Destination)+$Mode+@('-unattended','-nosound','-nosplash','-NoSourceControl','-NoP4','-ddc=BlockoutDDC',('-CoreLimit='+$CoreLimit),'-FPS=30',('-port='+$Port),('-abslog="'+$log+'"'))
+        $launchArguments=@(('"'+$project+'"'),$Destination)+$Mode+@('-unattended','-nosound','-nosplash','-NoSourceControl','-NoP4','-ddc=BlockoutDDC','-logcmds="LogDerivedDataCache Verbose"',('-CoreLimit='+$CoreLimit),'-FPS=30',('-port='+$Port),('-abslog="'+$log+'"'))
         # One Engine override string prevents duplicate -ini:Engine switches
         # from shadowing warmup worker settings or shader optimization mode.
         $engineOverrides=@('[DevOptions.Shaders]:WorkerProcessPriority=0')
@@ -253,7 +277,16 @@ try {
             foreach($check in @('enemy_not_selected','owned_unit_selected','empty_clears_selection','zoom_in_changes_camera','zoom_out_restores_camera','actual_viewport_projection_deprojection_roundtrip_lt2cm','move_host_receipt_accepted','move_replicated_destination_reached','attack_host_receipt_accepted','attack_replicated_target_damage','produce_host_receipt_accepted','produce_replicated_unit_and_credit_delta','separation_move_host_receipt_accepted','engine_rendered_screenshots_written')) {
                 if($log -notmatch ('PROOF_CONTROLS_CHECK[^\r\n]*status=pass evidence='+$check+'\b')) { throw "Missing controls assertion: $check" }
             }
-            foreach($seq in 1..4) { if($log -notmatch "PROOF_RESULT owner=1 sequence=$seq accepted=1") { throw "Missing accepted host receipt $seq." } }
+            foreach($check in @('move_destination_empty_pick','move_request_type','attack_target_pick_matches_snapshot','attack_request_type','produce_request_type','separation_destination_empty_pick','separation_request_type')) {
+                if($log -notmatch ('PROOF_CONTROLS_CHECK[^\r\n]*status=pass evidence='+$check+'\b')) { throw "Missing command-path assertion: $check" }
+            }
+            $expectedTypes=@('Move','Attack','Produce','Move')
+            foreach($seq in 1..4) {
+                if($log -notmatch "PROOF_RESULT owner=1 sequence=$seq accepted=1") { throw "Missing accepted host receipt $seq." }
+                $request=[regex]::Match($log,("PROOF_CONTROLS_REQUEST owner=1 sequence=$seq type=(\w+)\b[^\r\n]*"))
+                if(-not $request.Success -or $request.Groups[1].Value -ne $expectedTypes[$seq-1]) { throw "Request $seq did not use expected $($expectedTypes[$seq-1]) command path." }
+                $result.commandRequests+=@{sequence=$seq;type=$request.Groups[1].Value;line=$request.Value}
+            }
         }
         $map=@{}
         foreach($m in [regex]::Matches($log,'PROOF_SNAPSHOT role=(host|client) owner=\d+ revision=(\d+) digest=([A-Za-z0-9]+)')) {
@@ -293,6 +326,12 @@ finally {
                 }
             }
         } finally {
+            foreach($entry in $processes) {
+                if(Test-Path -LiteralPath $entry.Log) {
+                    try { $result.cacheDiagnostics.byProcess[$entry.Role]=Get-PakCacheEvidence (Get-Content -LiteralPath $entry.Log -Raw) }
+                    catch { $result.cacheDiagnostics.readErrors+=@{role=$entry.Role;message=$_.Exception.Message} }
+                }
+            }
             $result.finishedUtc=[DateTime]::UtcNow.ToString('o'); $result.elapsedSeconds=[math]::Round($watch.Elapsed.TotalSeconds,3)
             if($scenarioWatch) { $result.scenarioElapsedSeconds=[math]::Round($scenarioWatch.Elapsed.TotalSeconds,3) }
             $result | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $run 'result.json') -Encoding utf8
