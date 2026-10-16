@@ -1,6 +1,15 @@
 #include "Commands/ProofCommandModel.h"
 
 #include "Misc/SecureHash.h"
+#include <cmath>
+
+namespace
+{
+bool IsWithinProofAttackRange(const FVector& A, const FVector& B)
+{
+    return FVector::DistSquared(A, B) <= FMath::Square(static_cast<double>(FProofCommandModel::AttackRange));
+}
+}
 
 FString FProofSnapshot::ComputeDigest() const
 {
@@ -157,10 +166,36 @@ void FProofCommandModel::Advance(float DeltaSeconds)
         }
         const FVector Offset = Destination - Unit.Position;
         const double Distance = Offset.Size();
-        if (Distance > StopDistance && Distance > UE_SMALL_NUMBER)
+        const bool bAttackOrder = Order->Type == EProofCommandType::Attack;
+        const bool bNeedsMovement = bAttackOrder ? !IsWithinProofAttackRange(Unit.Position, Destination) : Distance > StopDistance;
+        if (bNeedsMovement && Distance > UE_SMALL_NUMBER)
         {
-            const double Step = FMath::Min(static_cast<double>(MovementSpeed) * DeltaSeconds, Distance - StopDistance);
-            State.Units[Index].Position = Unit.Position + Offset * (Step / Distance);
+            const double Remaining = FMath::Max(0.0, Distance - StopDistance);
+            const double Step = FMath::Min(static_cast<double>(MovementSpeed) * DeltaSeconds, Remaining);
+            FVector Landing = Unit.Position + Offset * (Step / Distance);
+            if (bAttackOrder && Step == Remaining)
+            {
+                // Projection can round just outside the closed attack sphere,
+                // including when sqrt rounds Distance to exactly StopDistance.
+                // Correct only the reached endpoint by representable steps
+                // inward; the strict range predicate itself never gets slack.
+                // Bound work even if a future numeric/platform change prevents
+                // correction; a later tick can retry rather than spin forever.
+                for (int32 Correction = 0; Correction < 8 && !IsWithinProofAttackRange(Landing, Destination); ++Correction)
+                {
+                    for (int32 Axis = 0; Axis < 3; ++Axis)
+                    {
+                        if (Landing[Axis] == Destination[Axis]) { continue; }
+                        const double Relative = Landing[Axis] - Destination[Axis];
+                        const double Inward = Destination[Axis] + std::nextafter(Relative, 0.0);
+                        // Relative reconstruction avoids subnormal steps near
+                        // zero; absolute fallback handles a large target origin
+                        // rounding that reconstruction back to the same point.
+                        Landing[Axis] = Inward != Landing[Axis] ? Inward : std::nextafter(Landing[Axis], Destination[Axis]);
+                    }
+                }
+            }
+            State.Units[Index].Position = Landing;
         }
     }
 
@@ -172,10 +207,7 @@ void FProofCommandModel::Advance(float DeltaSeconds)
         const FOrder* Order = Orders.Find(Unit.UnitId);
         if (Unit.HitPoints <= 0.f || !Order || Order->Type != EProofCommandType::Attack) { continue; }
         const FProofUnitRecord* Target = State.Units.FindByPredicate([Order](const FProofUnitRecord& U) { return U.UnitId == Order->TargetUnitId && U.HitPoints > 0.f; });
-        // Use the same linear-distance boundary as pursuit. Squaring the range
-        // can disagree at a rounded diagonal endpoint and strand an attacker
-        // that has stopped moving but is never allowed to deal damage.
-        if (Target && FVector::Dist(Unit.Position, Target->Position) <= AttackRange)
+        if (Target && IsWithinProofAttackRange(Unit.Position, Target->Position))
         {
             Damage.FindOrAdd(Target->UnitId) += static_cast<double>(DamagePerSecond) * DeltaSeconds;
         }

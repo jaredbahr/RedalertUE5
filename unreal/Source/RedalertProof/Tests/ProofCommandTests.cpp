@@ -101,10 +101,13 @@ bool FProofSimulationTest::RunTest(const FString&)
         for (int32 Tick = 1; Tick < 20; ++Tick) { Approach.Advance(.1f); }
         const auto Reached = Approach.GetSnapshot();
         const float HealthAtRange = Find(Reached, Target)->HitPoints;
-        TestTrue(TEXT("Diagonal pursuit reaches and damages target"), HealthAtRange < 100.f && HealthAtRange > 0.f);
+        const FVector AtRange = Find(Reached, Attacker)->Position;
+        const FString RangeContext = FString::Printf(TEXT("offset=%.17g position=(%.17g,%.17g,%.17g) distanceSquared=%.17g health=%.9g"),
+            Offset, AtRange.X, AtRange.Y, AtRange.Z, FVector::DistSquared(AtRange, Find(Reached, Target)->Position), static_cast<double>(HealthAtRange));
+        TestTrue(FString::Printf(TEXT("Diagonal pursuit reaches and damages target [%s]"), *RangeContext), HealthAtRange < 100.f && HealthAtRange > 0.f);
         Approach.Advance(.1f);
         const auto Continuing = Approach.GetSnapshot();
-        TestTrue(TEXT("Settled diagonal attacker continues dealing damage"), Find(Continuing, Target)->HitPoints < HealthAtRange);
+        TestTrue(FString::Printf(TEXT("Settled diagonal attacker continues dealing damage [%s]"), *RangeContext), Find(Continuing, Target)->HitPoints < HealthAtRange);
         TestTrue(TEXT("Attacker remains settled while firing"), Find(Continuing, Attacker)->Position.Equals(Find(Reached, Attacker)->Position, 1.e-9));
     }
 
