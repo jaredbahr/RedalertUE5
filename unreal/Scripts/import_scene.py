@@ -5,14 +5,29 @@ assets within /Game/BlockoutGenerated. Never touches another content folder.
 """
 from pathlib import Path
 import json
+import sys
 import unreal
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / 'tools' / 'art'))
+from evidence import invalidate_report, validate_geometry, verify_inputs, write_json
+
 DEST = "/Game/BlockoutGenerated"
 ASSETS = ["SM_TeslaReactor_Blockout", "SM_RhinoTank_Blockout", "SM_Conscript_Blockout"]
 
 
 def run():
+    evidence = ROOT / 'generated' / 'ue_import_report.json'
+    invalidate_report(evidence)
+    # Every import attempt supersedes prior preservation/mutation evidence, even in this run.
+    invalidate_report(ROOT / 'generated' / 'ue_asset_probe.json')
+    manifest = json.loads((ROOT / 'generated' / 'blockout_manifest.json').read_text(encoding='utf-8'))
+    identity = {key: manifest[key] for key in ('run_id', 'source_sha256')}
+    invalidate_report(evidence, identity)
+    if manifest['generation_status'] != 'complete':
+        raise ValueError('Generation did not complete')
+    verify_inputs(ROOT / 'generated', manifest, ROOT)
+    asset_records = {Path(asset['file']).stem: asset for asset in manifest['assets']}
     files = [ROOT / "generated" / "assets" / (name + ".fbx") for name in ASSETS]
     missing = [str(p) for p in files if not p.is_file()]
     if missing:
@@ -72,16 +87,31 @@ def run():
         actor = actors.spawn_actor_from_class(actor_class, location, rotation)
         actor.set_editor_property("tags", ["RedalertProofGenerated"])
         return actor
-    report = {"engine": unreal.SystemLibrary.get_engine_version(), "assets": [],
+    report = {**identity, "status": "checking", "passed": False, "engine": unreal.SystemLibrary.get_engine_version(), "assets": [],
               "warning": "Unapproved silhouettes; no gameplay, multiplayer, bot or scale proof."}
     for name, mesh, x in zip(ASSETS, meshes, [-750.0, 100.0, 550.0]):
         actor = spawn(unreal.StaticMeshActor, unreal.Vector(x, 0, 0))
         actor.set_actor_label(name)
         actor.static_mesh_component.set_static_mesh(mesh)
         origin, extent = actor.get_actor_bounds(False)
-        report["assets"].append({"name": name, "full_bounds_cm": [extent.x * 2, extent.y * 2, extent.z * 2]})
-        if extent.z < 10 or extent.z > 5000:
-            raise RuntimeError("Unexpected asset scale for " + name + ": " + str(extent))
+        lower = [origin.x - extent.x, origin.y - extent.y, origin.z - extent.z]
+        upper = [origin.x + extent.x, origin.y + extent.y, origin.z + extent.z]
+        location = actor.get_actor_location()
+        # Check actor-local basis only; mesh semantic front is a separate conversion/visual question.
+        right = actor.get_actor_right_vector()
+        up = actor.get_actor_up_vector()
+        validate_geometry(asset_records[name], lower, upper, [location.x, location.y, location.z],
+                          placement=[x, 0, 0], actor_minus_y=[-right.x, -right.y, -right.z],
+                          actor_plus_z=[up.x, up.y, up.z])
+        report["assets"].append({"name": name,
+            "sha256": asset_records[name]['sha256'],
+            "full_bounds_cm": [extent.x * 2, extent.y * 2, extent.z * 2],
+            "bounds_min_cm": lower, "bounds_max_cm": upper,
+            "pivot_cm": [location.x, location.y, location.z],
+            "actor_minus_y_world": [-right.x, -right.y, -right.z],
+            "actor_plus_z_world": [up.x, up.y, up.z],
+            "semantic_mesh_front": "source -Y expected at UE +Y; signed bounds gate only, not visual semantic proof",
+            "material_slots": [str(slot.material_slot_name) for slot in mesh.static_materials]})
     floor = spawn(unreal.StaticMeshActor, unreal.Vector(0, 0, -15))
     floor.set_actor_label("Proof ground")
     floor.static_mesh_component.set_static_mesh(unreal.load_asset("/Engine/BasicShapes/Cube"))
@@ -108,7 +138,7 @@ def run():
     if not level.save_current_level():
         raise RuntimeError("Cannot save generated proof level")
     unreal.EditorAssetLibrary.save_directory(DEST, only_if_is_dirty=False, recursive=True)
-    evidence = ROOT / "generated" / "ue_import_report.json"
+    report["status"], report["passed"] = "passed", True
     evidence.write_text(json.dumps(report, indent=2), encoding="utf-8")
     unreal.log("REDALERT_PROOF_OK " + str(evidence))
 
