@@ -32,6 +32,7 @@ private:
     bool bControlsAutomation = false;
     bool bSkirmish = false;
     bool bSkirmishFixtureHost = false;
+    bool bSkirmishFixtureStarted = false;
     bool bSkirmishTerminalPublished = false;
     bool bSkirmishFixtureFinished = false;
     bool bSkirmishHumanRefinery = false;

@@ -229,6 +229,21 @@ void AProofGameMode::Tick(float DeltaSeconds)
     Super::Tick(DeltaSeconds);
     Lifetime += DeltaSeconds;
     Accumulator += DeltaSeconds;
+    if (bSkirmishFixtureHost && !bSkirmishFixtureStarted)
+    {
+        // The harness launches clients serially. Do not give the bot a loading-
+        // time head start; this is a fixture roster barrier, not a manual lobby.
+        const FProofSnapshot Waiting = Model.GetSnapshot();
+        const bool bOwner1 = Waiting.Players.ContainsByPredicate([](const FProofPlayerRecord& P) { return P.OwnerId == 1 && P.TeamId == 0; });
+        const bool bOwner2 = Waiting.Players.ContainsByPredicate([](const FProofPlayerRecord& P) { return P.OwnerId == 2 && P.TeamId == 0; });
+        Accumulator = 0.f;
+        if (bOwner1 && bOwner2)
+        {
+            bSkirmishFixtureStarted = true;
+            UE_LOG(LogTemp, Display, TEXT("PROOF_SKIRMISH_FIXTURE_START owners=1,2 simulationSeconds=0"));
+        }
+        // Lifetime and the fixture timeout still advance while waiting.
+    }
     if (!bSkirmish) StartBotIfReady();
     // Bounded catch-up avoids a long stalled frame monopolizing the game thread.
     int32 CatchupSteps = 0;
