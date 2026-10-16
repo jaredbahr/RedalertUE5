@@ -11,3 +11,4 @@ This does not implement authentication, disconnection cleanup, reclaiming/rebind
 ## Evidence
 
 Pending installed-toolchain build, five-group native execution and independent review. Generated evidence is ignored under generated/; do not upload binaries.
+Initial source c277af5e05271bfbcb0c0a3267937867beab3184 passed all5groups in47.060s (generated/native-model-20261016-065937-339/result.json). The first build failed because an old fixture pass condition referenced the removed counter; after replacing it with explicit player1/player2 record checks, the corrected build passed in3.74s. External affinity sampling produced no usable observations, so a runner-only follow-up adds direct owned-process polling/repair and measured resource fields before one bounded repeat. The C++ implementation remains unchanged; no extra build is needed for this runner change.
