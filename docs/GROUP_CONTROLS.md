@@ -22,7 +22,7 @@ Formation offsets preserve the units' current arrangement; there is no navigatio
 
 ## Verified source and remaining acceptance
 
-### Nine-group follow-up: source prepared, UE validation queued
+### Nine-group follow-up: model and compatibility verified; new-digit input pending
 
 See the [exact-commit integration review and next-slot plan](INTEGRATION_REVIEW.md) for sibling-branch compatibility, executed checks versus prepared tests, and the refreshed merge recommendation.
 
@@ -30,7 +30,7 @@ The isolated `feat/nine-control-groups` branch starts at PR #28 (`0173ff8d900443
 
 The selection model stores nine bounded local copies; all nine input callbacks use the existing Ctrl assign / plain recall handler. The selected-unit cap, command queue, host authority, movement/combat and camera behavior retain their existing rules. A new `SelectionNineGroups` test covers independent slots, copied primary IDs, invalid-slot no-ops, death/ownership pruning, and clearing upper slots when owner or match epoch changes. Existing controls tests remain required; the runner now expects exactly eleven successful cases.
 
-Only source/static review is available for this follow-up. It has not been built or executed in UE; the historical evidence below validates the earlier three-slot source only. Imagination owns the shared heavy-test slot. When that slot is released, run the existing bounded build, focused controls tests, then rendered compatibility in this D: worktree:
+The prepared bounded batch completed at clean `9bc6a4a0562fedd28203cf4d1c684bdb65ccce40` with installed UE 5.7.4. Source tree and controls-runner hashes match the integration plan. Six build actions passed in 46.79 seconds total / 36.72 executor. All jobs were serialized; no failed attempt or retry occurred in this batch. Reproduction commands for the primary gates are:
 
 ```powershell
 ./unreal/Scripts/build-native-proof.ps1
@@ -38,7 +38,19 @@ Only source/static review is available for this follow-up. It has not been built
 ./unreal/Scripts/test-controls-proof.ps1 -CleanPresentation
 ```
 
-The model test and rendered compatibility runner do not establish actual digit-key/Ctrl dispatch for new slots 4–9. A bounded engine-input check and human review of assigning/recalling groups 4 and 9, Ctrl release, group death pruning and rematch clearing remain acceptance work. No generated content is included in this new worktree, so the rendered step also requires the previously validated ignored fixture assets to be reused and hash-checked before launch.
+Results below are under ignored `D:/UserTemp/RedalertUE5-ten-control-groups/generated/`; later publication edits update documentation only.
+
+| Gate / retained run | Result |
+| --- | --- |
+| `group-controls-model-20261016-234011-131` | 11/11, zero failures, 32.388 seconds; includes `SelectionNineGroups` |
+| `native-model-20261016-234043-558` | 7/7, zero failures, 13.345 seconds |
+| `skirmish-model-20261016-234056-941` | 14/14, zero failures, 13.519 seconds |
+| `fidelity-model-20261016-234110-575` | 4/4, zero failures, 13.032 seconds |
+| `controls-20261016-234130-989` | Pass, 63.586 seconds total, 21.002 warmup, 42.436 scenario; 55 matching shared revisions; two fresh 1280x720 captures; cleanup errors 0 |
+
+Both rendered captures were inspected: the 1–9 hint and selected-unit highlight are readable; the later capture shows movement, accepted host receipt, a produced unit and target damage. The rendered fixture calls shared handlers directly: native callback counts remain zero and the HUD labels human input unverified. Independent evidence review found no blocker for this stated scope. The model tests and compatibility runner do not establish actual digit-key/Ctrl dispatch for new slots 4–9. A bounded engine-input check and human review of assigning/recalling groups 4 and 9, Ctrl release, group death pruning and rematch clearing remain acceptance work.
+
+Fourteen previously validated ignored assets were reused with matching SHA256 hashes (`reused-assets-nine-groups.json`); no art was generated. Build/temp/model outputs and the rendered cache (`generated/controls-cache`) are on D:. The runners use normal priority, two-CPU affinity assignment/repair, 30 FPS offscreen rendering and their unchanged bounds. Warmup CoreLimit is 4; worker inheritance is unverified and polling is not hard confinement. This batch is not performance evidence or a zero-C:-writes claim. All owned UE/build processes exited; `resource-handoff.json` releases the shared slot.
 
 This branch is independent of draft PR #29 and does not carry or validate its bootstrap fix. PR #29's original readiness timeout and separate stage-16 failure remain unresolved. Its later bootstrap source built, but final runtime attempts stopped before fixture execution; do not use its historical passes as nine-group validation.
 
