@@ -55,3 +55,35 @@ Retained failures explain the repairs: `small-match-victory-20261016-181725-884`
 Fourteen existing generated assets were reused with matching SHA256 records in `reused-assets.json`; no new art, installs or binary uploads. All builds, project caches, logs and captures live on D:. Cooperative sampled cache peak was 37,373,710 bytes and temp peak 12,904 bytes, below its 2048/1024 MiB soft polling guards. C: audits (`c-drive-before-small-match.json`, `c-drive-after-small-match.json`) found UE Saved +25 bytes, D3DSCache -32,768 bytes, and the other six monitored roots unchanged. This shared-PC observation is not exhaustive attribution or a zero-C-write promise.
 
 Next acceptance is Jared playing the new loop, checking controls/focus, ore route and readable outcomes, then reviewing map density and role/scale presentation. Persistent session cleanup/reconnect, LAN/Internet conditions, loss/latency, active-unit performance, final faction roster, Yuri and four/eight players remain separate milestones. Army scale and LAN-versus-Internet priority remain decisions for Jared. Related issues: #21, #22, #23, #24; lifecycle #11 and dependency #12 remain separate. No merge, deployment, paid tooling, hosted Actions or fee-bearing service is part of this change.
+
+## Independent review follow-up
+
+Four separate economy, bot, lifecycle and multiplayer-ownership reviewers inspected PR25. Two confirmed defects were fixed in `1f925cf481f02d010ddb85101d29132c40b36629`:
+
+- Moving a Harvester carrying the last ore load replaced Gather, and the depleted patch then rejected resume. Loaded Harvesters can now resume delivery against an existing depleted patch; empty ones still cannot extract from it. The cursor handler permits this command and depleted markers remain visible in gray. The model regression verifies final cargo deposits once, repeated resume does not mint credits, and exhausted empty gathering still fails.
+- Changing nearest targets could let the first four bot Combat IDs consume every decision, starving the remaining units. A deterministic rotating attacker cursor now gives all eight eligible Combat units orders within two adversarial changing-target decisions. Costs, cadence, targets and the four-command limit remain unchanged.
+
+No ownership bypass or terminal/reset defect was confirmed. New negative tests cover foreign Move/Gather/Produce, teammate Attack, unchanged state/credits, rejection sequence consumption and no latent foreign orders. Repeated same-model victory, defeat and draw tests verify terminal freezing, reset economy/orders/IDs/sequences and restored command allowance. These are model-reset tests, not an in-game rematch feature. Final cargo interruption is model-tested; the rendered runs do not establish physical cursor verification of that edge case.
+
+| Review validation | Exact revision | Result / evidence under `generated/` |
+| --- | --- | --- |
+| Build | `1f925cf` | Pass, 14 actions / 22.65 s; `build-small-match-review.log` |
+| Ten exact skirmish groups | `1f925cf` | 10/10, zero failures, 17.578 s; `skirmish-model-20261016-184508-886` |
+| Seven existing native groups | `1f925cf` | 7/7, zero failures, 16.486 s; `native-model-20261016-184526-506` |
+| Rendered Victory | `1f925cf` | Pass, 77.410 s; `small-match-victory-20261016-184551-732` |
+| Rendered Defeat | `1f925cf` | Pass, 61.360 s; `small-match-defeat-20261016-184709-179` |
+| Cooperative attempt | `1f925cf` | Retained failure, 80.715 s, winner 1; `small-match-coop-20261016-184810-558` |
+| Fixture roster repair build | `ad8ab1666b6def0100050539c958928cf1bf973d` | Pass, 6 actions / 14.84 s; `build-small-match-review-roster.log` |
+| Cooperative rerun | `ad8ab16` | Pass, 105.954 s, 329 matching common revision digests; `small-match-coop-20261016-185107-105` |
+
+The retained cooperative failure completed all economy/combat flags and owner-2 commands but the humans lost. The host had started at 18:48:21 UTC, owner 1 joined at 18:48:35 and owner 2 at 18:48:51, after the bot's attack grace. The fair bot exposed this serial-launch head start. The fixture-only repair holds bot decisions/model advances until both human owners are seeded, discards waiting accumulation and logs `PROOF_SKIRMISH_FIXTURE_START owners=1,2 simulationSeconds=0`; the harness requires that marker. Wall-clock timeout and all existing economy/damage/winner assertions remain active. Owner presence is a roster barrier, not proof of full client loading or a manual lobby. Manual/standalone modes and model rules are unchanged by `ad8ab16`; the existing controls/network/RPC results above remain evidence for their recorded revisions, not fresh runs at this revision.
+
+All six successful review-run captures were inspected. Latest cooperative result PNG SHA256: `1847CCAE77315A0D390C96B4243FD5A2D8C2606238AC14753A73D9BED043732B`. No prior failure files were overwritten or removed. Review C: audits found D3DSCache +32,768 bytes and the other seven monitored roots unchanged; shared-PC attribution remains limited. Final owned engine/compiler checks were empty. Prior manual game PID11560 and guard/helper PID23448 are absent; the retained manual session ended normally, not by timeout.
+
+Verified next-playtest command (prepared files exist and both scripts parse; not executed during review):
+
+```powershell
+& 'D:\UserTemp\RedalertUE5-small-match\unreal\Scripts\start-small-match.ps1' -EngineRoot 'D:\Epic Games\UE_5.7' -SessionSeconds 900
+```
+
+Escape exits; the guard defaults to 15 minutes. Restart currently means close and relaunch. Persistent disconnect/reconnect identity retention, joining during Playing, lost Harvester replacement, Internet behavior and final balance remain prototype limits, not solved features in this batch.
