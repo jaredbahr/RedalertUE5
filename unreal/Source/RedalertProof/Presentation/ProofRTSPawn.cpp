@@ -529,9 +529,8 @@ void AProofRTSPawn::TickControlsAutomation(float DeltaSeconds)
             && IFileManager::Get().FileSize(*FPaths::Combine(ControlsOutput, TEXT("02-moved-combat-produced.png"))) > 1024;
         if (!ControlsCheck(bScreenshots, TEXT("engine_rendered_screenshots_written"))) return;
         ControlsStep = 7;
-    }
-    else if (ControlsStep == 7 && ControlsElapsed - ControlsScenarioReady > 23.f)
-    {
+        // All required client evidence is complete. Waiting extra simulation
+        // time here can outlive the host when a screenshot stalls a frame.
         FinishControls(true, TEXT("select_clear_zoom_project_deproject_move_attack_produce_receipts_snapshots_capture"));
     }
 }
