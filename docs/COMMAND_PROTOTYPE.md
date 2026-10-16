@@ -17,8 +17,9 @@ No package installation is required. Both commands exit after completion. Localh
 
 - The host owns credits, production, positions, health, and orders. Clients submit newline-delimited JSON commands, never state snapshots.
 - Each connection receives a host-assigned identity: first `human`, second `bot`. This is a two-slot loopback test fixture, not authentication or a final player limit. The server binds only `127.0.0.1` on an ephemeral port.
-- Commands are `{seq,type:'move',unit,x,y}`, `{seq,type:'attack',unit,target}`, or `{seq,type:'produce'}`. Sequence numbers start at one for each identity and must increase exactly by one. Unknown fields and command types are rejected. A well-shaped, correctly sequenced command consumes its sequence even when gameplay validation rejects it; malformed envelopes and sequence failures do not.
+- Commands are `{seq,type:'move',unit,x,y}`, `{seq,type:'attack',unit,target}`, or `{seq,type:'produce'}`. The type must be an exact string enum; arrays, objects and null are rejected before field lookup. Sequence numbers start at one for each identity and must increase exactly by one. Unknown fields and command types are rejected. A well-shaped, correctly sequenced command consumes its sequence even when gameplay validation rejects it; malformed envelopes and sequence failures do not.
 - Both drivers obey ownership, living enemy target, bounded finite position, credit, and command-allowance checks. Production costs 50 toy credits and completes immediately. Units move 0.5 toy distance per manual tick and deal 10 damage within distance 2. These are experiment constants, not proposed game balance.
+- Each tick derives all movement/chase intents from a starting snapshot, commits movement together, then computes damage from a post-movement snapshot and applies it together. An attacker that enters range can attack in that tick. This removes partial-movement observations and equal-duel insertion-order bias; it is not collision/pathfinding logic.
 - `createSimulation({commandsPerTick,unitsPerPlayer})` and `createHost(...)` accept experiment configuration. The default allowance is 32 commands per identity per manual tick, and the smoke uses six initial units per identity. Neither value is a product unit budget. Frame buffering and queued output have defensive bounds; large snapshots can exceed those bounds and disconnect a client.
 - Each host tick broadcasts a complete JSON snapshot. The smoke compares both client copies with the host after every tick. It checks equality within this process, not deterministic simulation across machines.
 
@@ -26,17 +27,17 @@ Files: `simulation.mjs` contains state and rules; `loopback.mjs` contains the TC
 
 ## Executed evidence
 
-An approved local run passed all six tests. A separate smoke run returned:
+After the command-type and phased-combat fixes, an approved local run passed all nine tests, including non-string types over TCP and mirrored duels with physical left/right units in opposite insertion order. Before the fixes, runtime reproduction accepted `type:['attack']` and a mutual duel starting 2.5 units apart ended with 0/10 HP. After the fixes, both duel participants take damage together and die together. A separate smoke run returned:
 
 | Measurement | Observed |
 | --- | --- |
 | Initial toy units / clients / manual ticks | 12 / 2 / 24 |
-| Ticks with movement / damage | 16 / 10 |
-| Ticks with movement and damage together, with bot commands and two snapshots | 10 |
-| Bot commands accepted | 96 |
+| Ticks with movement / damage | 16 / 11 |
+| Ticks with movement and damage together, with bot commands and two snapshots | 11 |
+| Bot commands accepted | 91 |
 | Matching client snapshots | 48 |
-| Snapshot JSON payload bytes, including framing | 55,006 |
-| Whole smoke wall time | 50.44 ms |
+| Snapshot JSON payload bytes, including framing | 54,866 |
+| Whole smoke wall time | 39.3 ms |
 
 The timer includes localhost setup, command round trips, assertions, and serialization. It does not pace a real-time game loop. Payload bytes exclude TCP/IP overhead, command traffic, and acknowledgments. These small observations are correctness evidence only; they establish no frame-rate, latency, bandwidth, or unit-capacity budget.
 
