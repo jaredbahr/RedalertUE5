@@ -228,7 +228,7 @@ try {
         $result.literalClientSetup.startupConfirmedByRole[$entry.Role]=$log -match 'Set CVar \[\[net\.IpConnectionDisableResolution:1\]\]'
         if ($Scenario -eq 'Coop' -and $entry.Role -in @('rendered','observer') -and -not $result.literalClientSetup.startupConfirmedByRole[$entry.Role]) { throw "$($entry.Role) missing literal resolver startup CVar evidence." }
         $map=@{}
-        foreach ($m in [regex]::Matches($log,'PROOF_SNAPSHOT role=(?:host|client|observer) owner=\d+ revision=(\d+) digest=([A-Za-z0-9]+)')) { $map[$m.Groups[1].Value]=$m.Groups[2].Value }
+        foreach ($m in [regex]::Matches($log,'PROOF_SNAPSHOT role=(?:host|client|observer) owner=\d+(?: epoch=\d+)? revision=(\d+) digest=([A-Za-z0-9]+)')) { $map[$m.Groups[1].Value]=$m.Groups[2].Value }
         $entry | Add-Member -NotePropertyName SnapshotMap -NotePropertyValue $map
     }
     if ($Scenario -eq 'Coop') {

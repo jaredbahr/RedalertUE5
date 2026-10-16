@@ -87,7 +87,7 @@ try {
             }
         }
         $map=@{}
-        foreach ($m in [regex]::Matches($log,'PROOF_SNAPSHOT role=(host|client) owner=\d+ revision=(\d+) digest=([A-Za-z0-9]+)')) {
+        foreach ($m in [regex]::Matches($log,'PROOF_SNAPSHOT role=(host|client) owner=\d+(?: epoch=\d+)? revision=(\d+) digest=([A-Za-z0-9]+)')) {
             $rev=$m.Groups[2].Value; $digest=$m.Groups[3].Value
             if ($map.ContainsKey($rev) -and $map[$rev] -ne $digest) { throw "Inconsistent revision $rev within $($entry.Role)." }
             $map[$rev]=$digest

@@ -438,9 +438,9 @@ void AProofPlayerController::TickLifecycleFixture(AProofGameState* State)
     }
     if (Snapshot.MatchPhase != EProofMatchPhase::Playing ||
         !HasGate(FString::Printf(TEXT("play-epoch-%d"), Epoch))) return;
-    const FProofPlayerRecord* Player = Snapshot.Players.FindByPredicate(
+    const FProofPlayerRecord* PlayerRecord = Snapshot.Players.FindByPredicate(
         [this](const FProofPlayerRecord& P) { return P.OwnerId == OwnerId; });
-    if (!Player) return; // a rejoin waits for the next match; no old assets are restored.
+    if (!PlayerRecord) return; // a rejoin waits for the next match; no old assets are restored.
     const FProofUnitRecord *HQ = nullptr, *Harvester = nullptr, *Factory = nullptr, *Combat = nullptr, *BotHQ = nullptr;
     for (const FProofUnitRecord& Unit : Snapshot.Units)
     {

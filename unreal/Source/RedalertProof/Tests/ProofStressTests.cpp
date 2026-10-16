@@ -117,10 +117,10 @@ bool FProofStressBaselineTest::RunTest(const FString&)
 
 		const double AdvanceMedian = Percentile(First.AdvanceMilliseconds, 0.50);
 		const double AdvanceP95 = Percentile(First.AdvanceMilliseconds, 0.95);
-		const double AdvanceMaximum = First.AdvanceMilliseconds.Max();
+		const double AdvanceMaximum = Percentile(First.AdvanceMilliseconds, 1.0);
 		const double SnapshotMedian = Percentile(First.SnapshotDigestMilliseconds, 0.50);
 		const double SnapshotP95 = Percentile(First.SnapshotDigestMilliseconds, 0.95);
-		const double SnapshotMaximum = First.SnapshotDigestMilliseconds.Max();
+		const double SnapshotMaximum = Percentile(First.SnapshotDigestMilliseconds, 1.0);
 		AddInfo(FString::Printf(
 			TEXT("STRESS_BASELINE {\"fixture\":\"legacy_proof_command_model\",\"rendered\":false,\"networked\":false,\"armySize\":%d,\"owners\":2,\"acceptedAttackCommands\":%d,\"activeCombatUnits\":%d,\"movedUnits\":%d,\"damagedUnits\":%d,\"steps\":%d,\"stepSeconds\":%.1f,\"repeatDigestMatched\":%s,\"finalDigest\":\"%s\",\"advanceMs\":{\"median\":%.6f,\"p95\":%.6f,\"max\":%.6f},\"snapshotAndComputeDigestMs\":{\"median\":%.6f,\"p95\":%.6f,\"max\":%.6f}}"),
 			ArmySize, First.AcceptedAttacks, First.FinalLiveUnits, First.FinalMovedUnits, First.FinalDamagedUnits, Steps, 0.1,
