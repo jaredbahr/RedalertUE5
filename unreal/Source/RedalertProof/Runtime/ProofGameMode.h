@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/GameModeBase.h"
 #include "Commands/ProofCommandModel.h"
+#include "Commands/ProofOwnerIds.h"
 #include "ProofGameMode.generated.h"
 
 UCLASS()
@@ -17,7 +18,7 @@ public:
     FProofCommandResult SubmitForOwner(int32 TrustedOwnerId, const FProofCommand& Command);
 private:
     FProofCommandModel Model;
-    int32 NextOwnerId = 1;
+    FProofHumanOwnerAllocator HumanOwnerIds;
     int32 BotMover = INDEX_NONE;
     int32 BotAttacker = INDEX_NONE;
     int32 BotSequence = 0;

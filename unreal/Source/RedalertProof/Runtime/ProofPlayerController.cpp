@@ -72,14 +72,14 @@ void AProofPlayerController::Tick(float DeltaSeconds)
         {
             bOwner1 |= PlayerRecord.OwnerId == 1;
             bOwner2 |= PlayerRecord.OwnerId == 2;
-            bBot |= PlayerRecord.OwnerId == 100;
+            bBot |= ProofOwnerIds::IsReserved(PlayerRecord.OwnerId);
         }
         if (!bOwner1 || !bOwner2 || !bBot) return;
         for (const FProofUnitRecord& Unit : Snapshot.Units)
         {
             if (Unit.OwnerId == OwnerId && OwnUnit == INDEX_NONE)
             { OwnUnit = Unit.UnitId; InitialPosition = Unit.Position; }
-            if (Unit.OwnerId != OwnerId && Unit.OwnerId != 100 && EnemyUnit == INDEX_NONE)
+            if (Unit.OwnerId != OwnerId && !ProofOwnerIds::IsReserved(Unit.OwnerId) && EnemyUnit == INDEX_NONE)
                 EnemyUnit = Unit.UnitId;
         }
         if (OwnUnit == INDEX_NONE || EnemyUnit == INDEX_NONE) return;
