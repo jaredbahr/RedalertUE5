@@ -22,17 +22,17 @@ AProofGameMode::AProofGameMode()
 void AProofGameMode::BeginPlay()
 {
     Super::BeginPlay();
-    Model.AddPlayer(100);
-    BotMover = Model.SeedUnit(100, FVector(0.f, 1000.f, 0.f));
+    Model.AddPlayer(ProofOwnerIds::Bot);
+    BotMover = Model.SeedUnit(ProofOwnerIds::Bot, FVector(0.f, 1000.f, 0.f));
     const FVector AttackerStart = bControlsAutomation ? FVector(600.f, 600.f, 0.f) : FVector(0.f, 150.f, 0.f);
-    BotAttacker = Model.SeedUnit(100, AttackerStart);
+    BotAttacker = Model.SeedUnit(ProofOwnerIds::Bot, AttackerStart);
     InitialPositions.Add(BotMover, FVector(0.f, 1000.f, 0.f));
     InitialPositions.Add(BotAttacker, AttackerStart);
     if (bControlsAutomation)
     {
         // A separate stationary record gives the graphical human command test
         // an isolated combat target. It has no scripted bot order.
-        const int32 ControlsTarget = Model.SeedUnit(100, FVector::ZeroVector);
+        const int32 ControlsTarget = Model.SeedUnit(ProofOwnerIds::Bot, FVector::ZeroVector);
         InitialPositions.Add(ControlsTarget, FVector::ZeroVector);
         UE_LOG(LogTemp, Display, TEXT("PROOF_CONTROLS_TARGET unit=%d owner=100"), ControlsTarget);
     }
@@ -46,7 +46,14 @@ void AProofGameMode::PostLogin(APlayerController* NewPlayer)
     if (AProofPlayerController* Controller = Cast<AProofPlayerController>(NewPlayer))
     {
         // Connection order is fixture identity only; there is no login/authentication implementation.
-        Controller->OwnerId = NextOwnerId++;
+        int32 OwnerId = INDEX_NONE;
+        if (!HumanOwnerIds.TryAllocate(OwnerId))
+        {
+            UE_LOG(LogTemp, Warning, TEXT("PROOF_PLAYER_REJECT reason=owner-id-exhausted"));
+            Controller->Destroy();
+            return;
+        }
+        Controller->OwnerId = OwnerId;
         const FVector Position(Controller->OwnerId == 1 ? -600.f : 600.f,
             (Controller->OwnerId - 1) / 2 * 600.f, 0.f);
         Model.AddPlayer(Controller->OwnerId);
@@ -97,13 +104,13 @@ void AProofGameMode::StartBotIfReady()
     Move.Type = EProofCommandType::Move;
     Move.UnitId = BotMover;
     Move.Destination = FVector(1000.f, 1000.f, 0.f);
-    SubmitForOwner(100, Move);
+    SubmitForOwner(ProofOwnerIds::Bot, Move);
     FProofCommand Attack;
     Attack.Sequence = ++BotSequence;
     Attack.Type = EProofCommandType::Attack;
     Attack.UnitId = BotAttacker;
     Attack.TargetUnitId = Target;
-    SubmitForOwner(100, Attack);
+    SubmitForOwner(ProofOwnerIds::Bot, Attack);
     if (bControlsAutomation)
     {
         UE_LOG(LogTemp, Display, TEXT("PROOF_CONTROLS_BOT_START mover=%d attacker=%d target=%d targetOwner=2"),
