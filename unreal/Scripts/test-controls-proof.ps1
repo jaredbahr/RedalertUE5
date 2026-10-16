@@ -22,6 +22,8 @@ $run = Join-Path $repoRoot ('generated\controls-' + [DateTime]::UtcNow.ToString(
 $images = Join-Path $run 'screenshots'
 $cache = Join-Path $repoRoot 'generated\controls-cache'
 New-Item -ItemType Directory -Force -Path $run,$images,$cache,(Join-Path $run 'temp') | Out-Null
+$literalClientCVars=Join-Path $run 'client-literal-cvars.ini'
+"[Startup]`nnet.IpConnectionDisableResolution=1`n" | Set-Content -LiteralPath $literalClientCVars -Encoding ascii
 $watch = [Diagnostics.Stopwatch]::StartNew()
 $scenarioWatch = $null
 # Restrict every owned UE process to two CPUs allowed to this invoking process.
@@ -45,6 +47,7 @@ $result.storageGuard=$storageGuard
 $result.renderConfiguration=[ordered]@{unoptimizedShaders=[bool]$UnoptimizedShaders;expectedShadersOptimize=[int](-not $UnoptimizedShaders);observedShadersOptimize=$null;targetFPS=30;gameUserSettingsFrameRateLimit=30;observedMaxFPS=$null;warmupObservedMaxFPS=$null;performanceRepresentative=$false}
 $result.cpuPolicy=[ordered]@{availableAffinityMask=('0x{0:X}' -f $availableAffinity);fixtureAffinityMask=('0x{0:X}' -f $fixtureAffinity);logicalProcessors=$fixtureLogicalProcessors;uePriority='Normal';workerPrioritySetting=0;assignedAfterProcessStart=$true;workerInheritanceVerified=$false;processes=@()}
 $result.cpuPolicy.pollIntervalSeconds=1
+$result.literalClientSetup=[ordered]@{mode='disable asynchronous resolution for literal 127.0.0.1 clients only';startupFile=$literalClientCVars;expectedResolverDisabled=1;observedRenderedResolverDisabled=$null;startupConfirmedByRole=@{};hostnameOrInternetTest=$false;osDnsChanged=$false}
 $result.cpuPolicy.lastPollElapsedSeconds=-1
 $result.cpuPolicy.pollCount=0
 $result.cpuPolicy.events=@()
@@ -176,6 +179,10 @@ try {
     function Start-Controls([string]$Role,[string]$Destination,[string[]]$Mode,[int]$CoreLimit=2) {
         $log=Join-Path $run ($Role+'.log')
         $launchArguments=@(('"'+$project+'"'),$Destination)+$Mode+@('-unattended','-nosound','-nosplash','-NoSourceControl','-NoP4','-ini:GameUserSettings:[/Script/Engine.GameUserSettings]:FrameRateLimit=30','-ddc=BlockoutDDC','-logcmds="LogDerivedDataCache Verbose"',('-CoreLimit='+$CoreLimit),('-port='+$Port),('-abslog="'+$log+'"'))
+        if($Role -in @('rendered','observer')) {
+            if($Destination -notmatch '^127\.0\.0\.1:\d+$') { throw 'Literal-client startup override is restricted to this fixture loopback destination.' }
+            $launchArguments+=('-cvarsini="'+$literalClientCVars+'"')
+        }
         # One Engine override string prevents duplicate -ini:Engine switches
         # from shadowing warmup worker settings or shader optimization mode.
         $engineOverrides=@('[DevOptions.Shaders]:WorkerProcessPriority=0','[ConsoleVariables]:t.MaxFPS=30')
@@ -257,6 +264,11 @@ try {
         $log=Get-Content -LiteralPath $entry.Log -Raw
         if ($log -match 'PROOF_CONTROLS_(CHECK|COMPLETE)[^\r\n]*status=fail') { throw "$($entry.Role) reported controls failure." }
         $role=if($entry.Role -eq 'host'){'host'}elseif($entry.Role -eq 'rendered'){'client'}else{'observer'}
+        if($entry.Role -in @('rendered','observer')) {
+            $resolverStartup=[regex]::Match($log,'Set CVar \[\[net\.IpConnectionDisableResolution:1\]\]')
+            if(-not $resolverStartup.Success) { throw "$($entry.Role) missing literal resolver startup CVar evidence." }
+            $result.literalClientSetup.startupConfirmedByRole[$entry.Role]=$resolverStartup.Value
+        }
         if ($log -notmatch ('PROOF_CONTROLS_COMPLETE role='+$role+' owner=\d+ status=pass')) { throw "$role missing successful completion." }
         if ($role -eq 'host') {
             foreach($flag in @('botAccepted=2','botMoved=1','botDamaged=1','exclusive=1')) {
@@ -274,11 +286,13 @@ try {
         }
         if ($role -eq 'client') {
             if($log -notmatch 'PROOF_CONTROLS_SCENARIO_READY owner=1 ') { throw 'Missing both-humans scenario clock marker.' }
-            $renderConfig=[regex]::Match($log,'PROOF_CONTROLS_RENDER_CONFIG shadersOptimize=(-?\d+) maxFPS=([\d.]+)')
+            $renderConfig=[regex]::Match($log,'PROOF_CONTROLS_RENDER_CONFIG shadersOptimize=(-?\d+) maxFPS=([\d.]+) resolverDisabled=(-?\d+)')
             if(-not $renderConfig.Success) { throw 'Missing observed shader optimization setting.' }
             $result.renderConfiguration.observedShadersOptimize=[int]$renderConfig.Groups[1].Value
             $result.renderConfiguration.observedMaxFPS=[double]::Parse($renderConfig.Groups[2].Value,[Globalization.CultureInfo]::InvariantCulture)
             if($result.renderConfiguration.observedMaxFPS -ne 30) { throw 'Controls viewport actual t.MaxFPS is not 30.' }
+            $result.literalClientSetup.observedRenderedResolverDisabled=[int]$renderConfig.Groups[3].Value
+            if($result.literalClientSetup.observedRenderedResolverDisabled -ne 1) { throw 'Rendered client actual literal resolver mode is not enabled.' }
             if($result.renderConfiguration.observedShadersOptimize -ne $result.renderConfiguration.expectedShadersOptimize) { throw 'Shader optimization setting differs from requested rendering configuration.' }
             foreach($check in @('enemy_not_selected','owned_unit_selected','empty_clears_selection','zoom_in_changes_camera','zoom_out_restores_camera','actual_viewport_projection_deprojection_roundtrip_lt2cm','move_host_receipt_accepted','move_replicated_destination_reached','attack_host_receipt_accepted','attack_replicated_target_damage','produce_host_receipt_accepted','produce_replicated_unit_and_credit_delta','separation_move_host_receipt_accepted','engine_rendered_screenshots_written')) {
                 if($log -notmatch ('PROOF_CONTROLS_CHECK[^\r\n]*status=pass evidence='+$check+'\b')) { throw "Missing controls assertion: $check" }
@@ -334,7 +348,14 @@ finally {
         } finally {
             foreach($entry in $processes) {
                 if(Test-Path -LiteralPath $entry.Log) {
-                    try { $result.cacheDiagnostics.byProcess[$entry.Role]=Get-PakCacheEvidence (Get-Content -LiteralPath $entry.Log -Raw) }
+                    try {
+                        $finalLog=Get-Content -LiteralPath $entry.Log -Raw
+                        $result.cacheDiagnostics.byProcess[$entry.Role]=Get-PakCacheEvidence $finalLog
+                        if($entry.Role -in @('rendered','observer')) {
+                            $startup=[regex]::Match($finalLog,'Set CVar \[\[net\.IpConnectionDisableResolution:1\]\]')
+                            if($startup.Success) { $result.literalClientSetup.startupConfirmedByRole[$entry.Role]=$startup.Value }
+                        }
+                    }
                     catch { $result.cacheDiagnostics.readErrors+=@{role=$entry.Role;message=$_.Exception.Message} }
                 }
             }

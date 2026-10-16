@@ -84,6 +84,38 @@ bool FProofSimulationTest::RunTest(const FString&)
     FProofCommandModel Twin; Twin.AddPlayer(1); const int32 TwinId = Twin.SeedUnit(1,FVector::ZeroVector);
     Twin.Submit(1, Order(1,EProofCommandType::Move,TwinId,0,FVector(1000,0,0))); Twin.Advance(1.f);
     TestEqual(TEXT("Identical simulation has identical digest"), M.GetSnapshot().ComputeDigest(), Twin.GetSnapshot().ComputeDigest());
+
+    // Regression: fractional diagonal pursuit could settle at a position where
+    // movement considered the target in range but combat never dealt damage.
+    // Exercise the actual command/advance path and observe health, not a copy
+    // of the range predicate. Perturbations cover both sides of that endpoint.
+    const double DiagonalOffsets[] = { 0.000164, -0.000164, 0.000328 };
+    for (const double Offset : DiagonalOffsets)
+    {
+        FProofCommandModel Approach; Approach.AddPlayer(1); Approach.AddPlayer(2);
+        const int32 Attacker = Approach.SeedUnit(1, FVector(-300.0 - Offset, -300.0, 0.0));
+        const int32 Target = Approach.SeedUnit(2, FVector::ZeroVector);
+        TestTrue(TEXT("Fractional diagonal attack accepted"), Approach.Submit(1, Order(1, EProofCommandType::Attack, Attacker, Target)).bAccepted);
+        Approach.Advance(.1f);
+        TestEqual(TEXT("Distant diagonal target takes no premature damage"), Find(Approach.GetSnapshot(), Target)->HitPoints, 100.f);
+        for (int32 Tick = 1; Tick < 20; ++Tick) { Approach.Advance(.1f); }
+        const auto Reached = Approach.GetSnapshot();
+        const float HealthAtRange = Find(Reached, Target)->HitPoints;
+        TestTrue(TEXT("Diagonal pursuit reaches and damages target"), HealthAtRange < 100.f && HealthAtRange > 0.f);
+        Approach.Advance(.1f);
+        const auto Continuing = Approach.GetSnapshot();
+        TestTrue(TEXT("Settled diagonal attacker continues dealing damage"), Find(Continuing, Target)->HitPoints < HealthAtRange);
+        TestTrue(TEXT("Attacker remains settled while firing"), Find(Continuing, Attacker)->Position.Equals(Find(Reached, Attacker)->Position, 1.e-9));
+    }
+
+    // The fix must not widen attack range: a tiny advance that leaves the
+    // attacker just outside the boundary must still cause no damage.
+    FProofCommandModel Outside; Outside.AddPlayer(1); Outside.AddPlayer(2);
+    const int32 OutsideAttacker = Outside.SeedUnit(1, FVector(300.001, 0.0, 0.0));
+    const int32 OutsideTarget = Outside.SeedUnit(2, FVector::ZeroVector);
+    TestTrue(TEXT("Outside-range chase accepted"), Outside.Submit(1, Order(1, EProofCommandType::Attack, OutsideAttacker, OutsideTarget)).bAccepted);
+    Outside.Advance(1.e-6f);
+    TestEqual(TEXT("Just outside range still causes no damage"), Find(Outside.GetSnapshot(), OutsideTarget)->HitPoints, 100.f);
     return true;
 }
 

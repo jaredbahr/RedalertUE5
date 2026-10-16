@@ -154,7 +154,7 @@ void AProofGameMode::ObserveControlsStep(const FProofSnapshot& Before, const FPr
     if (!bBotDamaged && bBotTargetExclusive && TargetBefore && TargetAfter && AttackerBefore && AttackerAfter &&
         TargetAfter->OwnerId == 2 && AttackerBefore->OwnerId == 100 && AttackerBefore->HitPoints > 0.f &&
         TargetBefore->HitPoints > TargetAfter->HitPoints &&
-        FVector::DistSquared(AttackerAfter->Position, TargetAfter->Position) <= FMath::Square(static_cast<double>(FProofCommandModel::AttackRange)))
+        FVector::Dist(AttackerAfter->Position, TargetAfter->Position) <= FProofCommandModel::AttackRange)
     {
         bBotDamaged = true;
         UE_LOG(LogTemp, Display, TEXT("PROOF_CONTROLS_BOT_DAMAGE attacker=%d attackerOwner=100 target=%d targetOwner=2 beforeHP=%.3f afterHP=%.3f revision=%d"),

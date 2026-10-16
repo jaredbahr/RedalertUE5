@@ -172,7 +172,10 @@ void FProofCommandModel::Advance(float DeltaSeconds)
         const FOrder* Order = Orders.Find(Unit.UnitId);
         if (Unit.HitPoints <= 0.f || !Order || Order->Type != EProofCommandType::Attack) { continue; }
         const FProofUnitRecord* Target = State.Units.FindByPredicate([Order](const FProofUnitRecord& U) { return U.UnitId == Order->TargetUnitId && U.HitPoints > 0.f; });
-        if (Target && FVector::DistSquared(Unit.Position, Target->Position) <= FMath::Square(static_cast<double>(AttackRange)))
+        // Use the same linear-distance boundary as pursuit. Squaring the range
+        // can disagree at a rounded diagonal endpoint and strand an attacker
+        // that has stopped moving but is never allowed to deal damage.
+        if (Target && FVector::Dist(Unit.Position, Target->Position) <= AttackRange)
         {
             Damage.FindOrAdd(Target->UnitId) += static_cast<double>(DamagePerSecond) * DeltaSeconds;
         }

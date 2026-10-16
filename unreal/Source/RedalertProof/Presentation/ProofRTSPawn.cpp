@@ -412,8 +412,10 @@ void AProofRTSPawn::TickControlsAutomation(float DeltaSeconds)
             PC->OwnerId, Width, Height, ControlsOwnUnit, ControlsTargetUnit, ControlsElapsed);
         const IConsoleVariable* OptimizeShaders = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Shaders.Optimize"));
         const IConsoleVariable* MaxFPS = IConsoleManager::Get().FindConsoleVariable(TEXT("t.MaxFPS"));
-        UE_LOG(LogTemp, Display, TEXT("PROOF_CONTROLS_RENDER_CONFIG shadersOptimize=%d maxFPS=%.3f"),
-            OptimizeShaders ? OptimizeShaders->GetInt() : -1, MaxFPS ? MaxFPS->GetFloat() : -1.f);
+        const IConsoleVariable* ResolverDisabled = IConsoleManager::Get().FindConsoleVariable(TEXT("net.IpConnectionDisableResolution"));
+        UE_LOG(LogTemp, Display, TEXT("PROOF_CONTROLS_RENDER_CONFIG shadersOptimize=%d maxFPS=%.3f resolverDisabled=%d"),
+            OptimizeShaders ? OptimizeShaders->GetInt() : -1, MaxFPS ? MaxFPS->GetFloat() : -1.f,
+            ResolverDisabled ? ResolverDisabled->GetInt() : -1);
         return;
     }
     FProofCommandResult Receipt;
