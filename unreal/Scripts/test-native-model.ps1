@@ -22,7 +22,7 @@ for($cpu=0; $cpu -lt 63 -and $cpuCount -lt 2; $cpu++) {
     if(($availableMask -band $bit) -ne 0) { $fixtureMask=$fixtureMask -bor $bit; $cpuCount++ }
 }
 if($cpuCount -ne 2) { throw 'Native model automation requires two available logical CPUs.' }
-$result=[ordered]@{head=(& git -C $repoRoot rev-parse HEAD).Trim();dirtyWorkingTree=[bool](& git -C $repoRoot status --porcelain);startedUtc=[DateTime]::UtcNow.ToString('o');finishedUtc=$null;elapsedSeconds=0;passed=$false; testCount=0; succeeded=0; failed=0; runDirectory=$run; error=$null;cpuPolicy=[ordered]@{affinityMask=$fixtureMask;priority='Normal';polls=0;repairs=0;events=@();peakObservedWorkingSetBytes=0;lastObservedCpuSeconds=0;pollingIsNotHardConfinement=$true}}
+$result=[ordered]@{head=(& git -C $repoRoot rev-parse HEAD).Trim();dirtyWorkingTree=[bool](& git -C $repoRoot status --porcelain);startedUtc=[DateTime]::UtcNow.ToString('o');finishedUtc=$null;elapsedSeconds=0;passed=$false; testCount=0; succeeded=0; failed=0; runDirectory=$run; error=$null;cpuPolicy=[ordered]@{affinityMask=$fixtureMask;priority='Normal';polls=0;repairs=0;events=@();peakObservedWorkingSetBytes=[int64]0;lastObservedCpuSeconds=0;pollingIsNotHardConfinement=$true}}
 try {
     foreach($n in $names){$prior[$n]=[Environment]::GetEnvironmentVariable($n,'Process')}
     [Environment]::SetEnvironmentVariable('UE-LocalDataCachePath',(Join-Path $run 'cache'),'Process')
@@ -44,7 +44,7 @@ try {
             $live.Refresh()
             if($live.ProcessorAffinity.ToInt64() -ne $fixtureMask -or $live.PriorityClass -ne 'Normal') { throw 'Native CPU policy verification failed.' }
             $result.cpuPolicy.polls++
-            $result.cpuPolicy.peakObservedWorkingSetBytes=[math]::Max($result.cpuPolicy.peakObservedWorkingSetBytes,$live.PeakWorkingSet64)
+            $result.cpuPolicy.peakObservedWorkingSetBytes=[math]::Max([int64]$result.cpuPolicy.peakObservedWorkingSetBytes,[int64]$live.PeakWorkingSet64)
             $result.cpuPolicy.lastObservedCpuSeconds=$live.CPU
             if($beforeMask -ne $fixtureMask -or $beforePriority -ne 'Normal') {
                 $result.cpuPolicy.repairs++
