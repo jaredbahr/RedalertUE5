@@ -24,6 +24,8 @@ Formation offsets preserve the units' current arrangement; there is no navigatio
 
 ### Nine-group follow-up: source prepared, UE validation queued
 
+See the [exact-commit integration review and next-slot plan](INTEGRATION_REVIEW.md) for sibling-branch compatibility, executed checks versus prepared tests, and the refreshed merge recommendation.
+
 The isolated `feat/nine-control-groups` branch starts at PR #28 (`0173ff8d9004432857c9a012caf60ecd872e617a`). It expands the three-slot proof to the nine digit groups documented under Create Team / Select Team in the [original Yuri's Revenge manual, Quick Keys](https://archive.org/stream/Command_Conquer_RED_ALERT_2_YURI_S_REVENGE/Command__Conquer_RED_ALERT_2_YURI_S_REVENGE_djvu.txt). This is publisher-authored material transcribed on a third-party host. No manual or game assets are copied into the repository. Number 0 is outside this documented scope.
 
 The selection model stores nine bounded local copies; all nine input callbacks use the existing Ctrl assign / plain recall handler. The selected-unit cap, command queue, host authority, movement/combat and camera behavior retain their existing rules. A new `SelectionNineGroups` test covers independent slots, copied primary IDs, invalid-slot no-ops, death/ownership pruning, and clearing upper slots when owner or match epoch changes. Existing controls tests remain required; the runner now expects exactly eleven successful cases.
