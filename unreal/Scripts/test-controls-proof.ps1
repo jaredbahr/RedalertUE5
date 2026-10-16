@@ -2,7 +2,7 @@ param(
     [string]$EngineRoot = 'D:\Epic Games\UE_5.7',
     [ValidateRange(20000,60000)][int]$Port = 28879,
     [ValidateRange(45,90)][int]$TimeoutSeconds = 90,
-    [ValidateRange(15,180)][int]$WarmupTimeoutSeconds = 180
+    [ValidateRange(15,600)][int]$WarmupTimeoutSeconds = 300
 )
 $ErrorActionPreference = 'Stop'
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
@@ -24,7 +24,7 @@ $scenarioWatch = $null
 $head = (& git -C $repoRoot rev-parse HEAD).Trim()
 if ($LASTEXITCODE -ne 0) { throw 'Cannot record tested HEAD.' }
 $dirty = [bool](& git -C $repoRoot status --porcelain)
-$result = [ordered]@{passed=$false;head=$head;dirtyWorkingTree=$dirty;startedUtc=[DateTime]::UtcNow.ToString('o');finishedUtc=$null;elapsedSeconds=0;scenarioElapsedSeconds=0;warmup=[ordered]@{passed=$false;startedUtc=$null;finishedUtc=$null;elapsedSeconds=0;timeoutSeconds=$WarmupTimeoutSeconds;screenshotAcceptance=$false};scenarioTimeoutSeconds=$TimeoutSeconds;totalTimeoutBudgetSeconds=($WarmupTimeoutSeconds+$TimeoutSeconds);cachePath=$cache;stages=[ordered]@{};observedCounts=@{};runDirectory=$run;topology='one dedicated UE server, one rendered controls client, one NullRHI passive observer (after standalone graphical warmup)';transport='UE native UDP loopback';physicalMouseAndFocusVerified=$false;internetTest=$false;performanceTest=$false;port=$Port;screenshots=@();commonRevisions=@();error=$null}
+$result = [ordered]@{passed=$false;head=$head;dirtyWorkingTree=$dirty;startedUtc=[DateTime]::UtcNow.ToString('o');finishedUtc=$null;elapsedSeconds=0;scenarioElapsedSeconds=0;warmup=[ordered]@{passed=$false;startedUtc=$null;finishedUtc=$null;elapsedSeconds=0;timeoutSeconds=$WarmupTimeoutSeconds;coreLimit=4;reportedShaderWorkers=$null;unusedShaderThreads=1;unusedShaderThreadsDuringGame=1;screenshotAcceptance=$false};scenarioTimeoutSeconds=$TimeoutSeconds;scenarioCoreLimit=2;totalTimeoutBudgetSeconds=($WarmupTimeoutSeconds+$TimeoutSeconds);cachePath=$cache;stages=[ordered]@{};observedCounts=@{};runDirectory=$run;topology='one dedicated UE server, one rendered controls client, one NullRHI passive observer (after standalone graphical warmup)';transport='UE native UDP loopback';physicalMouseAndFocusVerified=$false;internetTest=$false;performanceTest=$false;port=$Port;screenshots=@();commonRevisions=@();error=$null}
 $prior=@{}; $processes=[Collections.Generic.List[object]]::new()
 $names=@('UE-LocalDataCachePath','UE-SharedDataCachePath','TEMP','TMP')
 function Mark-Stage([string]$Name) { $result.stages[$Name]=[ordered]@{utc=[DateTime]::UtcNow.ToString('o');elapsedSeconds=[math]::Round($watch.Elapsed.TotalSeconds,3)} }
@@ -34,9 +34,9 @@ try {
     [Environment]::SetEnvironmentVariable('UE-SharedDataCachePath','None','Process')
     [Environment]::SetEnvironmentVariable('TEMP',(Join-Path $run 'temp'),'Process')
     [Environment]::SetEnvironmentVariable('TMP',(Join-Path $run 'temp'),'Process')
-    function Start-Controls([string]$Role,[string]$Destination,[string[]]$Mode) {
+    function Start-Controls([string]$Role,[string]$Destination,[string[]]$Mode,[int]$CoreLimit=2) {
         $log=Join-Path $run ($Role+'.log')
-        $launchArguments=@(('"'+$project+'"'),$Destination)+$Mode+@('-unattended','-nosound','-nosplash','-NoSourceControl','-NoP4','-ddc=BlockoutDDC','-CoreLimit=2','-FPS=30',('-port='+$Port),('-abslog="'+$log+'"'))
+        $launchArguments=@(('"'+$project+'"'),$Destination)+$Mode+@('-unattended','-nosound','-nosplash','-NoSourceControl','-NoP4','-ddc=BlockoutDDC',('-CoreLimit='+$CoreLimit),'-FPS=30',('-port='+$Port),('-abslog="'+$log+'"'))
         $p=Start-Process -FilePath $editor -ArgumentList $launchArguments -WorkingDirectory $projectRoot -WindowStyle Hidden -PassThru
         $processes.Add([pscustomobject]@{Process=$p;Started=$p.StartTime;Role=$Role;Log=$log;Path=$editor})
         Mark-Stage ($Role+'Started')
@@ -55,7 +55,7 @@ try {
     # it is neither a screenshot check nor controls acceptance.
     $result.warmup.startedUtc=[DateTime]::UtcNow.ToString('o')
     $warmupWatch=[Diagnostics.Stopwatch]::StartNew()
-    Start-Controls 'warmup' '/Game/CommandProofGenerated/Maps/CommandProof' @('-game','-RenderOffscreen','-windowed','-ResX=1280','-ResY=720','-ExecCmds="quit"')
+    Start-Controls 'warmup' '/Game/CommandProofGenerated/Maps/CommandProof' @('-game','-RenderOffscreen','-windowed','-ResX=1280','-ResY=720','-ExecCmds="quit"','-ini:Engine:[DevOptions.Shaders]:NumUnusedShaderCompilingThreads=1,[DevOptions.Shaders]:NumUnusedShaderCompilingThreadsDuringGame=1') 4
     try {
         while(-not $processes[0].Process.HasExited) {
             if($warmupWatch.Elapsed.TotalSeconds -ge $WarmupTimeoutSeconds) { throw 'Graphics warmup timed out before the controls scenario started.' }
@@ -69,6 +69,10 @@ try {
     } finally {
         $result.warmup.finishedUtc=[DateTime]::UtcNow.ToString('o')
         $result.warmup.elapsedSeconds=[math]::Round($warmupWatch.Elapsed.TotalSeconds,3)
+        if(Test-Path -LiteralPath $processes[0].Log) {
+            $workerEvidence=[regex]::Match((Get-Content -LiteralPath $processes[0].Log -Raw),'Using (\d+) local workers for shader compilation')
+            if($workerEvidence.Success) { $result.warmup.reportedShaderWorkers=[int]$workerEvidence.Groups[1].Value }
+        }
     }
     $scenarioWatch=[Diagnostics.Stopwatch]::StartNew()
     Mark-Stage 'scenarioClockStarted'

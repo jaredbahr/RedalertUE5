@@ -29,4 +29,14 @@ Parent source review found no blocker in #9's bounded fixture. Before persistent
 
 ## Results
 
-Implementation and root-scheduled evidence are pending. The integrated Node contract suite already passed all nine tests before controls source changes; that outside-UE result does not validate the new graphical scenario.
+The integrated Node contract suite passed all nine tests before controls source changes; that outside-UE result does not validate the new graphical scenario.
+
+| Source/run | Observed result |
+| --- | --- |
+| `4689d5e` native build | Installed UE 5.7.4 editor module built successfully in 56.57 seconds. |
+| `4689d5e` model tests | Four exact groups passed; zero failures. Local report: `generated/native-model-20261016-044859-783/result.json`. |
+| `4689d5e` cold controls attempt | Failed at 90.358 seconds waiting for rendered viewport readiness. Only host and rendered startup were launched; passive client was never admitted. No screenshot or graphical pass. |
+| `da58ca5` standalone warm-up | Failed at 180.417 seconds before controls scenario startup. The shader worker was active and the D: cache grew; scenario duration was zero. No graphical acceptance. |
+| Asset lane `d99a693` | Full Blender/UE negative pipeline passed in 78.190 seconds; see [draft #13](https://github.com/jaredbahr/RedalertUE5/pull/13). Three cases and exact original restoration independently verified. |
+
+The asset lane is a separate child of #10; its measured result does not validate this native branch's renderer. Its published head includes a later PowerShell-only bounded-wait correction, explicitly distinguished from the measured source in its evidence document. Rendered controls acceptance remains pending the separately bounded four-core warm-up and unchanged strict controls checks.
