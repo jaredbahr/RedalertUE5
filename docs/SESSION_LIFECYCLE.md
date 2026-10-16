@@ -73,4 +73,4 @@ Issue 11 remains broader than this local two-slot lifecycle: authentication, ide
 
 At the resource handoff, the eight-root C: audit found UE5.7 Saved +18 bytes and the other seven monitored roots unchanged (`c-drive-before-lifecycle.json`, `c-drive-handoff-lifecycle.json`). This is a shared-PC observation, not exhaustive attribution or a zero-C-write promise. The controls captures and cooperative victory capture were visually inspected locally; binaries and PNGs remain on D: and ignored.
 
-
+After the fixture rebuild and passing Coop rerun, a repeat eight-root audit found no byte-count change from that handoff observation (c-drive-after-coop.json). The controls branch was compiling during this audit; the shared-PC and attribution limits above still apply.
