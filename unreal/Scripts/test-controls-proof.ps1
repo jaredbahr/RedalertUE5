@@ -187,7 +187,7 @@ try {
         if($CleanPresentation -and $Role -in @('warmup','rendered')) { $launchArguments+='-ExecCmds="DisableAllScreenMessages"' }
         # One Engine override string prevents duplicate -ini:Engine switches
         # from shadowing warmup worker settings or shader optimization mode.
-        $engineOverrides=@('[DevOptions.Shaders]:WorkerProcessPriority=0','[ConsoleVariables]:t.MaxFPS=30')
+        $engineOverrides=@('[DevOptions.Shaders]:WorkerProcessPriority=0','[ConsoleVariables]:t.MaxFPS=30','[AssetRegistry]:EditorGameScansAR=Async')
         if($Role -eq 'warmup') { $engineOverrides+=@('[DevOptions.Shaders]:NumUnusedShaderCompilingThreads=1','[DevOptions.Shaders]:NumUnusedShaderCompilingThreadsDuringGame=1') }
         if($UnoptimizedShaders) { $engineOverrides+=@('[ShaderCompiler]:r.Shaders.Optimize=0','[ConsoleVariables]:r.Shaders.Optimize=0') }
         if($engineOverrides.Count) { $launchArguments+=('-ini:Engine:'+($engineOverrides -join ',')) }
