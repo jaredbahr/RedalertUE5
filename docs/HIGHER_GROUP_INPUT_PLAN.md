@@ -30,7 +30,7 @@ After explicit slot allocation, record the exact clean source commit, build once
 
 The focused scenario is bounded to 90 seconds, client wall time to 85 seconds, existing per-stage readiness bound to 60 seconds and warmup to 300 seconds. Use normal priority, existing CPU/cache/temp/storage guards, offscreen rendering and identity-checked cleanup. One configured cache condition; no retained/fresh retry matrix. Preserve any timeout with its exact phase. If startup blocks the check, stop and release the slot without relaunching or inferring a root cause.
 
-Every result must state `inputSource=engineInjection`, `pointerSource=projectedSynthetic` and physical-input/OS-focus/positive-real-focus-pan verification false. Pan and simulated focus loss are not exercised. Even a passing focused run cannot establish human keyboard/mouse behavior, Alt-Tab, actual OS focus or resolve PR #29's failures. Issues #17/#18 remain open; the intended result closes only the narrow injected digit-4–9 dispatch gap.
+Every result must state `inputSource=engineInjection`, `pointerSource=projectedSynthetic` and physical-input/OS-focus/positive-real-focus-pan verification false. Pan and simulated focus-loss assertions are not exercised; the existing finish/cleanup path still flushes input through LostFocus. Even a passing focused run cannot establish human keyboard/mouse behavior, Alt-Tab, actual OS focus or resolve PR #29's failures. Issues #17/#18 remain open; the intended result closes only the narrow injected digit-4–9 dispatch gap.
 
 ## Preparation checks completed
 
