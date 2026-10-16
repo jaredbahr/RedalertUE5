@@ -28,15 +28,15 @@ void AProofRTSPawn::ObserveInputFixtureReadiness(double Now, bool bForce)
     const AProofGameState* GS = GetWorld()->GetGameState<AProofGameState>();
     const UGameViewportClient* ViewportClient = GetWorld()->GetGameViewport();
     const FProofSnapshot* Snapshot = GS ? &GS->Snapshot : nullptr;
-    const int32 Owner = PC ? PC->OwnerId : INDEX_NONE;
+    const int32 SampledOwnerId = PC ? PC->OwnerId : INDEX_NONE;
     int32 Width = 0, Height = 0;
     if (PC) PC->GetViewportSize(Width, Height);
     int32 HQ = INDEX_NONE, Harvester = INDEX_NONE, EnemyHQ = INDEX_NONE;
     if (Snapshot) for (const FProofUnitRecord& Unit : Snapshot->Units)
     {
         if (Unit.HitPoints <= 0.f) continue;
-        if (Unit.OwnerId == Owner && Unit.Kind == EProofUnitKind::HQ) HQ = Unit.UnitId;
-        if (Unit.OwnerId == Owner && Unit.Kind == EProofUnitKind::Harvester) Harvester = Unit.UnitId;
+        if (Unit.OwnerId == SampledOwnerId && Unit.Kind == EProofUnitKind::HQ) HQ = Unit.UnitId;
+        if (Unit.OwnerId == SampledOwnerId && Unit.Kind == EProofUnitKind::Harvester) Harvester = Unit.UnitId;
         if (Unit.OwnerId == 100 && Unit.Kind == EProofUnitKind::HQ) EnemyHQ = Unit.UnitId;
     }
     FString Managers;
@@ -55,7 +55,7 @@ void AProofRTSPawn::ObserveInputFixtureReadiness(double Now, bool bForce)
     const bool Gates[] = {PC != nullptr, GS != nullptr, ViewportClient != nullptr,
         ViewportClient && ViewportClient->Viewport, PC && PC->GetLocalPlayer(),
         HQ != INDEX_NONE, Harvester != INDEX_NONE, EnemyHQ != INDEX_NONE, bConfiguredLocalInput,
-        Owner == 1, Snapshot && Snapshot->bSkirmish, Snapshot && Snapshot->MatchEpoch >= 1,
+        SampledOwnerId == 1, Snapshot && Snapshot->bSkirmish, Snapshot && Snapshot->MatchEpoch >= 1,
         Width == 1280, Height == 720, Remaining == 0};
     uint32 FailedMask = 0;
     for (int32 Index = 0; Index < UE_ARRAY_COUNT(Gates); ++Index)
@@ -63,7 +63,7 @@ void AProofRTSPawn::ObserveInputFixtureReadiness(double Now, bool bForce)
     const int32 Epoch = Snapshot ? Snapshot->MatchEpoch : INDEX_NONE;
     // Revision is deliberately excluded: ordinary host ticks are not readiness progress.
     const FString Signature = FString::Printf(TEXT("%u|%d|%d|%d|%d|%d|%d|%d|%s"),
-        FailedMask, Owner, Epoch, HQ, Harvester, EnemyHQ, Width, Height, *Managers);
+        FailedMask, SampledOwnerId, Epoch, HQ, Harvester, EnemyHQ, Width, Height, *Managers);
     if (Signature != InputFixtureReadinessSignature)
     {
         InputFixtureReadinessSignature = Signature;
@@ -78,7 +78,7 @@ void AProofRTSPawn::ObserveInputFixtureReadiness(double Now, bool bForce)
         FailedMask, PC ? TEXT("true") : TEXT("false"), GS ? TEXT("true") : TEXT("false"),
         ViewportClient ? TEXT("true") : TEXT("false"), ViewportClient && ViewportClient->Viewport ? TEXT("true") : TEXT("false"),
         PC && PC->GetLocalPlayer() ? TEXT("true") : TEXT("false"), HQ, Harvester, EnemyHQ,
-        bConfiguredLocalInput ? TEXT("true") : TEXT("false"), Owner, Snapshot && Snapshot->bSkirmish ? TEXT("true") : TEXT("false"),
+        bConfiguredLocalInput ? TEXT("true") : TEXT("false"), SampledOwnerId, Snapshot && Snapshot->bSkirmish ? TEXT("true") : TEXT("false"),
         Epoch, Snapshot ? Snapshot->Revision : INDEX_NONE, Width, Height, Remaining, *Managers);
     UE_LOG(LogTemp, Display, TEXT("PROOF_INPUT_BINDING_READINESS %s"), *InputFixtureReadinessJson);
 }
