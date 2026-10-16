@@ -1,4 +1,5 @@
 #include "Commands/ProofCommandModel.h"
+#include "Skirmish/ProofSkirmishRules.h"
 
 #include "Misc/SecureHash.h"
 #include <cmath>
@@ -15,18 +16,26 @@ FString FProofSnapshot::ComputeDigest() const
 {
     TArray<FProofPlayerRecord> SortedPlayers = Players;
     TArray<FProofUnitRecord> SortedUnits = Units;
+    TArray<FProofResourceRecord> SortedResources = Resources;
     SortedPlayers.Sort([](const FProofPlayerRecord& A, const FProofPlayerRecord& B) { return A.OwnerId < B.OwnerId; });
     SortedUnits.Sort([](const FProofUnitRecord& A, const FProofUnitRecord& B) { return A.UnitId < B.UnitId; });
-    FString Canonical = FString::Printf(TEXT("revision:%d;"), Revision);
+    SortedResources.Sort([](const FProofResourceRecord& A, const FProofResourceRecord& B) { return A.ResourceId < B.ResourceId; });
+    FString Canonical = FString::Printf(TEXT("revision:%d;skirmish:%d;phase:%d;winner:%d;"),
+        Revision, bSkirmish ? 1 : 0, static_cast<int32>(MatchPhase), WinnerTeam);
     for (const FProofPlayerRecord& Player : SortedPlayers)
     {
-        Canonical += FString::Printf(TEXT("p:%d,%d;"), Player.OwnerId, Player.Credits);
+        Canonical += FString::Printf(TEXT("p:%d,%d,%d,%d;"), Player.OwnerId, Player.Credits, Player.TeamId, Player.TotalGathered);
     }
     for (const FProofUnitRecord& Unit : SortedUnits)
     {
-        Canonical += FString::Printf(TEXT("u:%d,%d,%.17g,%.17g,%.17g,%.17g;"),
+        Canonical += FString::Printf(TEXT("u:%d,%d,%.17g,%.17g,%.17g,%.17g,%d,%d;"),
             Unit.UnitId, Unit.OwnerId, Unit.Position.X, Unit.Position.Y, Unit.Position.Z,
-            static_cast<double>(Unit.HitPoints));
+            static_cast<double>(Unit.HitPoints), static_cast<int32>(Unit.Kind), Unit.Cargo);
+    }
+    for (const FProofResourceRecord& Resource : SortedResources)
+    {
+        Canonical += FString::Printf(TEXT("r:%d,%.17g,%.17g,%.17g,%d;"), Resource.ResourceId,
+            Resource.Position.X, Resource.Position.Y, Resource.Position.Z, Resource.Remaining);
     }
     return FMD5::HashAnsiString(*Canonical);
 }
@@ -54,7 +63,7 @@ void FProofCommandModel::BumpRevision()
 
 void FProofCommandModel::AddPlayer(int32 OwnerId, int32 StartingCredits)
 {
-    if (OwnerId < 0 || LastSequences.Contains(OwnerId)) { return; }
+    if (State.bSkirmish || OwnerId < 0 || LastSequences.Contains(OwnerId)) { return; }
     FProofPlayerRecord Player;
     Player.OwnerId = OwnerId;
     Player.Credits = FMath::Max(0, StartingCredits);
@@ -66,14 +75,89 @@ void FProofCommandModel::AddPlayer(int32 OwnerId, int32 StartingCredits)
 
 int32 FProofCommandModel::SeedUnit(int32 OwnerId, FVector Position)
 {
-    if (!LastSequences.Contains(OwnerId) || !IsInWorld(Position) || NextUnitId == MAX_int32) { return INDEX_NONE; }
+    if (State.bSkirmish || !LastSequences.Contains(OwnerId) || !IsInWorld(Position)) { return INDEX_NONE; }
+    return AddUnit(OwnerId, Position, EProofUnitKind::Combat, 100.f);
+}
+
+int32 FProofCommandModel::AddUnit(int32 OwnerId, const FVector& Position, EProofUnitKind Kind, float HitPoints)
+{
+    if (NextUnitId == MAX_int32) { return INDEX_NONE; }
     FProofUnitRecord Unit;
     Unit.UnitId = NextUnitId++;
     Unit.OwnerId = OwnerId;
     Unit.Position = Position;
+    Unit.Kind = Kind;
+    Unit.HitPoints = HitPoints;
     State.Units.Add(Unit);
     BumpRevision();
     return Unit.UnitId;
+}
+
+void FProofCommandModel::StartSkirmish()
+{
+    Reset();
+    State.bSkirmish = true;
+    State.MatchPhase = EProofMatchPhase::Playing;
+    BumpRevision();
+}
+
+bool FProofCommandModel::SeedSkirmishPlayer(int32 OwnerId, int32 TeamId, const FVector& HQPosition)
+{
+    const FVector OrePosition = HQPosition + FVector(550, 0, 0);
+    const FVector HarvesterPosition = HQPosition + FVector(100, 0, 0);
+    if (!State.bSkirmish || State.MatchPhase != EProofMatchPhase::Playing || OwnerId < 0 || (TeamId != 0 && TeamId != 1)
+        || LastSequences.Contains(OwnerId) || !IsInWorld(HQPosition) || !IsInWorld(OrePosition)
+        || !IsInWorld(HarvesterPosition) || NextUnitId > MAX_int32 - 2 || NextResourceId == MAX_int32)
+    {
+        return false;
+    }
+    FProofPlayerRecord Player;
+    Player.OwnerId = OwnerId;
+    Player.TeamId = TeamId;
+    Player.Credits = 350;
+    State.Players.Add(Player);
+    LastSequences.Add(OwnerId, 0);
+    CommandCounts.Add(OwnerId, 0);
+    AddUnit(OwnerId, HQPosition, EProofUnitKind::HQ, 300.f);
+    AddUnit(OwnerId, HarvesterPosition, EProofUnitKind::Harvester, 100.f);
+    FProofResourceRecord Ore;
+    Ore.ResourceId = NextResourceId++;
+    Ore.Position = OrePosition;
+    Ore.Remaining = 500;
+    State.Resources.Add(Ore);
+    BumpRevision();
+    return true;
+}
+
+int32 FProofCommandModel::CountLiveOwnerUnits(int32 OwnerId) const
+{
+    int32 Count = 0;
+    for (const FProofUnitRecord& Unit : State.Units)
+    {
+        if (Unit.OwnerId == OwnerId && Unit.HitPoints > 0.f) { ++Count; }
+    }
+    return Count;
+}
+
+int32 FProofCommandModel::TeamForOwner(int32 OwnerId) const
+{
+    const FProofPlayerRecord* Player = State.Players.FindByPredicate([OwnerId](const FProofPlayerRecord& P) { return P.OwnerId == OwnerId; });
+    return Player ? Player->TeamId : INDEX_NONE;
+}
+
+const FProofUnitRecord* FProofCommandModel::FindLiveRefinery(int32 OwnerId, const FVector& From) const
+{
+    const FProofUnitRecord* Best = nullptr;
+    for (const FProofUnitRecord& Unit : State.Units)
+    {
+        if (Unit.OwnerId != OwnerId || Unit.Kind != EProofUnitKind::Refinery || Unit.HitPoints <= 0.f) { continue; }
+        if (!Best || FVector::DistSquared(From, Unit.Position) < FVector::DistSquared(From, Best->Position)
+            || (FVector::DistSquared(From, Unit.Position) == FVector::DistSquared(From, Best->Position) && Unit.UnitId < Best->UnitId))
+        {
+            Best = &Unit;
+        }
+    }
+    return Best;
 }
 
 FProofCommandResult FProofCommandModel::Submit(int32 TrustedOwnerId, const FProofCommand& Command)
@@ -87,13 +171,18 @@ FProofCommandResult FProofCommandModel::Submit(int32 TrustedOwnerId, const FProo
     };
     int32* LastSequence = LastSequences.Find(TrustedOwnerId);
     if (!LastSequence) { return Reject(TEXT("unknown-player")); }
+    if (State.bSkirmish && State.MatchPhase != EProofMatchPhase::Playing) { return Reject(TEXT("finished")); }
     const bool bMove = Command.Type == EProofCommandType::Move;
     const bool bAttack = Command.Type == EProofCommandType::Attack;
     const bool bProduce = Command.Type == EProofCommandType::Produce;
-    if ((!bMove && !bAttack && !bProduce) || Command.Sequence <= 0
+    const bool bBuildRefinery = Command.Type == EProofCommandType::BuildRefinery;
+    const bool bBuildFactory = Command.Type == EProofCommandType::BuildFactory;
+    const bool bGather = Command.Type == EProofCommandType::Gather;
+    if ((!bMove && !bAttack && !bProduce && !bBuildRefinery && !bBuildFactory && !bGather)
+        || ((!State.bSkirmish) && (bBuildRefinery || bBuildFactory || bGather)) || Command.Sequence <= 0
         || !IsFinitePosition(Command.Destination)
-        || ((bMove || bAttack) && Command.UnitId <= 0)
-        || (bAttack && Command.TargetUnitId <= 0))
+        || ((bMove || bAttack || bGather || (State.bSkirmish && bProduce)) && Command.UnitId <= 0)
+        || ((bAttack || bGather) && Command.TargetUnitId <= 0))
     {
         return Reject(TEXT("malformed"));
     }
@@ -111,15 +200,98 @@ FProofCommandResult FProofCommandModel::Submit(int32 TrustedOwnerId, const FProo
     {
         FProofPlayerRecord* Player = State.Players.FindByPredicate([TrustedOwnerId](const FProofPlayerRecord& P) { return P.OwnerId == TrustedOwnerId; });
         if (!Player || Player->Credits < ProductionCost) { return Reject(TEXT("resources")); }
-        const FProofUnitRecord* Anchor = State.Units.FindByPredicate([TrustedOwnerId](const FProofUnitRecord& U) { return U.OwnerId == TrustedOwnerId && U.HitPoints > 0.f; });
-        const FVector Spawn = Anchor ? Anchor->Position : FVector::ZeroVector;
-        if (SeedUnit(TrustedOwnerId, Spawn) == INDEX_NONE) { return Reject(TEXT("capacity")); }
+        if (State.bSkirmish)
+        {
+            const FProofUnitRecord* Factory = State.Units.FindByPredicate([&Command](const FProofUnitRecord& U) { return U.UnitId == Command.UnitId; });
+            if (!Factory || Factory->OwnerId != TrustedOwnerId || Factory->Kind != EProofUnitKind::Factory || Factory->HitPoints <= 0.f)
+            {
+                return Reject(TEXT("factory"));
+            }
+            if (CountLiveOwnerUnits(TrustedOwnerId) >= SkirmishRecordCap) { return Reject(TEXT("capacity")); }
+        }
+        const FProofUnitRecord* Anchor = State.bSkirmish
+            ? State.Units.FindByPredicate([&Command](const FProofUnitRecord& U) { return U.UnitId == Command.UnitId; })
+            : State.Units.FindByPredicate([TrustedOwnerId](const FProofUnitRecord& U) { return U.OwnerId == TrustedOwnerId && U.HitPoints > 0.f; });
+        FVector Spawn = Anchor ? Anchor->Position : FVector::ZeroVector;
+        if (State.bSkirmish)
+        {
+            // The cursor picks the first marker at a shared screen position.
+            // Search a fixed, bounded grid so each new combat unit has its own
+            // selectable center, including when several units are produced at
+            // one factory. Legacy proof production stays at its anchor.
+            constexpr double SpawnStep = 300.0;
+            constexpr double MinimumCenterDistanceSquared = 260.0 * 260.0;
+            const FVector Directions[] = {
+                FVector(1, 0, 0), FVector(-1, 0, 0), FVector(0, 1, 0), FVector(0, -1, 0),
+                FVector(1, 1, 0), FVector(-1, 1, 0), FVector(1, -1, 0), FVector(-1, -1, 0)
+            };
+            bool bFoundSpawn = false;
+            for (int32 Ring = 1; Ring <= 3 && !bFoundSpawn; ++Ring)
+            {
+                for (const FVector& Direction : Directions)
+                {
+                    const FVector Candidate = Anchor->Position + Direction * (SpawnStep * Ring);
+                    if (!IsInWorld(Candidate)) { continue; }
+                    bool bClear = true;
+                    for (const FProofUnitRecord& Other : State.Units)
+                    {
+                        if (Other.HitPoints > 0.f && FVector::DistSquared(Candidate, Other.Position) < MinimumCenterDistanceSquared)
+                        {
+                            bClear = false;
+                            break;
+                        }
+                    }
+                    if (bClear)
+                    {
+                        Spawn = Candidate;
+                        bFoundSpawn = true;
+                        break;
+                    }
+                }
+            }
+            if (!bFoundSpawn) { return Reject(TEXT("spawn")); }
+        }
+        if (AddUnit(TrustedOwnerId, Spawn, EProofUnitKind::Combat, 100.f) == INDEX_NONE) { return Reject(TEXT("capacity")); }
         Player->Credits -= ProductionCost;
+    }
+    else if (bBuildRefinery || bBuildFactory)
+    {
+        if (!IsInWorld(Command.Destination)) { return Reject(TEXT("position")); }
+        FProofPlayerRecord* Player = State.Players.FindByPredicate([TrustedOwnerId](const FProofPlayerRecord& P) { return P.OwnerId == TrustedOwnerId; });
+        const int32 Cost = bBuildRefinery ? RefineryCost : FactoryCost;
+        if (!Player || Player->Credits < Cost) { return Reject(TEXT("resources")); }
+        if (CountLiveOwnerUnits(TrustedOwnerId) >= SkirmishRecordCap) { return Reject(TEXT("capacity")); }
+        bool bNearHQ = false;
+        for (const FProofUnitRecord& Unit : State.Units)
+        {
+            if (Unit.HitPoints <= 0.f) { continue; }
+            if (Unit.OwnerId == TrustedOwnerId && Unit.Kind == EProofUnitKind::HQ
+                && FVector::DistSquared(Unit.Position, Command.Destination) <= FMath::Square(static_cast<double>(BuildRadius)))
+            {
+                bNearHQ = true;
+            }
+            if ((Unit.Kind == EProofUnitKind::HQ || Unit.Kind == EProofUnitKind::Refinery || Unit.Kind == EProofUnitKind::Factory)
+                && FVector::DistSquared(Unit.Position, Command.Destination) < FMath::Square(static_cast<double>(StructureSeparation)))
+            {
+                return Reject(TEXT("overlap"));
+            }
+        }
+        if (!bNearHQ) { return Reject(TEXT("placement")); }
+        if (AddUnit(TrustedOwnerId, Command.Destination, bBuildRefinery ? EProofUnitKind::Refinery : EProofUnitKind::Factory, 200.f) == INDEX_NONE)
+        {
+            return Reject(TEXT("capacity"));
+        }
+        Player->Credits -= Cost;
     }
     else
     {
         const FProofUnitRecord* Unit = State.Units.FindByPredicate([&Command](const FProofUnitRecord& U) { return U.UnitId == Command.UnitId; });
         if (!Unit || Unit->OwnerId != TrustedOwnerId || Unit->HitPoints <= 0.f) { return Reject(TEXT("ownership")); }
+        if (State.bSkirmish && ((bMove && (Unit->Kind == EProofUnitKind::HQ || Unit->Kind == EProofUnitKind::Refinery || Unit->Kind == EProofUnitKind::Factory))
+            || (bAttack && Unit->Kind != EProofUnitKind::Combat) || (bGather && Unit->Kind != EProofUnitKind::Harvester)))
+        {
+            return Reject(TEXT("role"));
+        }
         FOrder Order;
         Order.Type = Command.Type;
         if (bMove)
@@ -127,11 +299,20 @@ FProofCommandResult FProofCommandModel::Submit(int32 TrustedOwnerId, const FProo
             if (!IsInWorld(Command.Destination)) { return Reject(TEXT("position")); }
             Order.Destination = Command.Destination;
         }
-        else
+        else if (bAttack)
         {
             const FProofUnitRecord* Target = State.Units.FindByPredicate([&Command](const FProofUnitRecord& U) { return U.UnitId == Command.TargetUnitId; });
             if (!Target || Target->HitPoints <= 0.f || Target->OwnerId == TrustedOwnerId) { return Reject(TEXT("target")); }
+            if (State.bSkirmish && TeamForOwner(Target->OwnerId) == TeamForOwner(TrustedOwnerId)) { return Reject(TEXT("team")); }
             Order.TargetUnitId = Command.TargetUnitId;
+        }
+        else
+        {
+            const FProofResourceRecord* Resource = State.Resources.FindByPredicate([&Command](const FProofResourceRecord& R) { return R.ResourceId == Command.TargetUnitId; });
+            if (!Resource || Resource->Remaining <= 0) { return Reject(TEXT("resource")); }
+            if (!FindLiveRefinery(TrustedOwnerId, Unit->Position)) { return Reject(TEXT("refinery")); }
+            Order.TargetUnitId = Command.TargetUnitId;
+            Order.bReturning = Unit->Cargo > 0;
         }
         Orders.Add(Command.UnitId, Order);
     }
@@ -144,6 +325,7 @@ FProofCommandResult FProofCommandModel::Submit(int32 TrustedOwnerId, const FProo
 void FProofCommandModel::Advance(float DeltaSeconds)
 {
     if (!FMath::IsFinite(DeltaSeconds) || DeltaSeconds < 0.f) { return; }
+    if (State.bSkirmish && State.MatchPhase != EProofMatchPhase::Playing) { return; }
     for (TPair<int32, int32>& Entry : CommandCounts) { Entry.Value = 0; }
     if (DeltaSeconds == 0.f) { return; }
 
@@ -163,6 +345,25 @@ void FProofCommandModel::Advance(float DeltaSeconds)
             if (!Target) { Orders.Remove(Unit.UnitId); continue; }
             Destination = Target->Position;
             StopDistance = AttackRange;
+        }
+        else if (Order->Type == EProofCommandType::Gather)
+        {
+            if (Order->bReturning || Unit.Cargo > 0)
+            {
+                const FProofUnitRecord* Refinery = FindLiveRefinery(Unit.OwnerId, Unit.Position);
+                if (!Refinery) { continue; }
+                Destination = Refinery->Position;
+            }
+            else
+            {
+                const FProofResourceRecord* Resource = State.Resources.FindByPredicate([Order](const FProofResourceRecord& R) { return R.ResourceId == Order->TargetUnitId; });
+                if (!Resource || Resource->Remaining <= 0) { Orders.Remove(Unit.UnitId); continue; }
+                Destination = Resource->Position;
+            }
+        }
+        else if (Order->Type != EProofCommandType::Move)
+        {
+            continue;
         }
         const FVector Offset = Destination - Unit.Position;
         const double Distance = Offset.Size();
@@ -220,6 +421,59 @@ void FProofCommandModel::Advance(float DeltaSeconds)
         }
         if (Unit.HitPoints <= 0.f) { Orders.Remove(Unit.UnitId); }
     }
+
+    if (State.bSkirmish)
+    {
+        const FProofMatchOutcome Outcome = FProofSkirmishRules::Evaluate(State);
+        if (Outcome.bFinished)
+        {
+            State.MatchPhase = EProofMatchPhase::Finished;
+            State.WinnerTeam = Outcome.WinnerTeam;
+            Orders.Reset();
+            BumpRevision();
+            return;
+        }
+        // Extraction and deposit happen only after travel and combat. Unit IDs
+        // are assigned in insertion order, giving contested ore a stable order.
+        for (FProofUnitRecord& Unit : State.Units)
+        {
+            FOrder* Order = Orders.Find(Unit.UnitId);
+            if (Unit.HitPoints <= 0.f || Unit.Kind != EProofUnitKind::Harvester || !Order || Order->Type != EProofCommandType::Gather) { continue; }
+            if (Order->bReturning || Unit.Cargo > 0)
+            {
+                const FProofUnitRecord* Refinery = FindLiveRefinery(Unit.OwnerId, Unit.Position);
+                if (Refinery && FVector::DistSquared(Unit.Position, Refinery->Position) <= 1.0)
+                {
+                    FProofPlayerRecord* Player = State.Players.FindByPredicate([&Unit](const FProofPlayerRecord& P) { return P.OwnerId == Unit.OwnerId; });
+                    if (Player)
+                    {
+                        const int32 Deposit = FMath::Min(Unit.Cargo, MAX_int32 - Player->Credits);
+                        Player->Credits += Deposit;
+                        Player->TotalGathered += FMath::Min(Deposit, MAX_int32 - Player->TotalGathered);
+                        Unit.Cargo -= Deposit;
+                    }
+                    if (Unit.Cargo == 0)
+                    {
+                        Order->bReturning = false;
+                        const FProofResourceRecord* Resource = State.Resources.FindByPredicate([Order](const FProofResourceRecord& R) { return R.ResourceId == Order->TargetUnitId; });
+                        if (!Resource || Resource->Remaining <= 0) { Orders.Remove(Unit.UnitId); }
+                    }
+                }
+            }
+            else
+            {
+                FProofResourceRecord* Resource = State.Resources.FindByPredicate([Order](const FProofResourceRecord& R) { return R.ResourceId == Order->TargetUnitId; });
+                if (!Resource || Resource->Remaining <= 0) { Orders.Remove(Unit.UnitId); continue; }
+                if (FVector::DistSquared(Unit.Position, Resource->Position) <= 1.0)
+                {
+                    const int32 Taken = FMath::Min(CargoCapacity - Unit.Cargo, Resource->Remaining);
+                    Unit.Cargo += Taken;
+                    Resource->Remaining -= Taken;
+                    Order->bReturning = Unit.Cargo > 0;
+                }
+            }
+        }
+    }
     BumpRevision();
 }
 
@@ -235,4 +489,5 @@ void FProofCommandModel::Reset()
     LastSequences.Reset();
     CommandCounts.Reset();
     NextUnitId = 1;
+    NextResourceId = 1;
 }

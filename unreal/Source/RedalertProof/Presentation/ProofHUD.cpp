@@ -23,7 +23,8 @@ void AProofHUD::DrawHUD()
     const float Left = 12.f * UiScale;
     const float Top = 12.f * UiScale;
     const float PanelWidth = FMath::Min(720.f * UiScale, FMath::Max(0.f, Canvas->ClipX - Left * 2.f));
-    const float PanelHeight = 164.f * UiScale;
+    const bool bSkirmish = GS && GS->Snapshot.bSkirmish;
+    const float PanelHeight = (bSkirmish ? 178.f : 164.f) * UiScale;
     const float Pad = 12.f * UiScale;
     const float FontScale = 1.05f * UiScale;
     UFont* Font = GEngine ? GEngine->GetMediumFont() : nullptr;
@@ -31,6 +32,8 @@ void AProofHUD::DrawHUD()
     DrawRect(FLinearColor(0.015f, 0.025f, 0.045f, 0.88f), Left, Top, PanelWidth, PanelHeight);
 
     int32 Credits = 0;
+    int32 LocalTeam = 0;
+    const FProofUnitRecord* SelectedUnit = nullptr;
     if (GS)
     {
         for (const FProofPlayerRecord& Player : GS->Snapshot.Players)
@@ -38,8 +41,16 @@ void AProofHUD::DrawHUD()
             if (Player.OwnerId == PC->OwnerId)
             {
                 Credits = Player.Credits;
+                LocalTeam = Player.TeamId;
                 break;
             }
+        }
+        if (Pawn)
+        {
+            SelectedUnit = GS->Snapshot.Units.FindByPredicate([Pawn](const FProofUnitRecord& Unit)
+            {
+                return Unit.UnitId == Pawn->GetSelectedUnitId() && Unit.HitPoints > 0.f;
+            });
         }
     }
 
@@ -75,29 +86,82 @@ void AProofHUD::DrawHUD()
         DrawText(FitToWidth(Text), Color, TextX, Y, Font, FontScale, false);
     };
 
-    DrawHudLine(TEXT("COMMAND PROOF  |  Generic blockout units"), FLinearColor::White, Top + Pad);
-    const FString Controls = Pawn && Pawn->IsInteractiveSession()
-        ? TEXT("Select: left-click   Order: right-click   Produce: P   Zoom: wheel   Exit: Esc")
-        : TEXT("Select: left-click own unit   Order: right-click   Produce: P   Zoom: mouse wheel");
-    DrawHudLine(Controls,
-        FLinearColor(0.85f, 0.9f, 1.f), Top + Pad + Row);
-    DrawHudLine(FString::Printf(TEXT("Credits: %d   Selected unit: %s"), Credits,
-        Pawn && Pawn->GetSelectedUnitId() != INDEX_NONE
-            ? *FString::FromInt(Pawn->GetSelectedUnitId()) : TEXT("none")),
-        FLinearColor(0.8f, 1.f, 0.8f), Top + Pad + Row * 2.f);
-    DrawHudLine(Pawn ? Pawn->GetRequestStatus() : TEXT("Waiting for camera pawn."),
-        FLinearColor(1.f, 0.88f, 0.45f), Top + Pad + Row * 3.f);
-    DrawHudLine(Pawn ? Pawn->GetManualInputStatus() : TEXT("Manual input unavailable."),
-        FLinearColor(0.85f, 0.78f, 1.f), Top + Pad + Row * 4.f);
-    DrawHudLine(PC->GetReceiptStatus(), FLinearColor(0.65f, 0.88f, 1.f), Top + Pad + Row * 5.f);
-    DrawHudLine(Pawn && Pawn->IsUsingBlockoutMesh()
-        ? TEXT("Functional proof only; generic proxies, no approved art or final scale.")
-        : TEXT("Functional proof only; engine cubes are generic proxies, no approved art."),
-        FLinearColor(0.72f, 0.77f, 0.84f), Top + Pad + Row * 6.f);
+    if (bSkirmish)
+    {
+        FString SelectedDescription = TEXT("none");
+        if (SelectedUnit)
+        {
+            const TCHAR* KindName = TEXT("Combat");
+            switch (SelectedUnit->Kind)
+            {
+            case EProofUnitKind::Harvester: KindName = TEXT("Harvester"); break;
+            case EProofUnitKind::HQ: KindName = TEXT("HQ"); break;
+            case EProofUnitKind::Refinery: KindName = TEXT("Refinery"); break;
+            case EProofUnitKind::Factory: KindName = TEXT("Factory"); break;
+            default: break;
+            }
+            SelectedDescription = FString::Printf(TEXT("#%d %s  Cargo %d"), SelectedUnit->UnitId, KindName, SelectedUnit->Cargo);
+        }
+        DrawHudLine(TEXT("SMALL SKIRMISH  |  Destroy the opposing team's live HQ"), FLinearColor::White, Top + Pad);
+        DrawHudLine(TEXT("Select: left-click   Order/gather: right-click   Zoom: wheel   Exit: Esc"),
+            FLinearColor(0.85f, 0.9f, 1.f), Top + Pad + Row);
+        DrawHudLine(FString::Printf(TEXT("Credits: %d   Selected: %s"), Credits, *SelectedDescription),
+            FLinearColor(0.8f, 1.f, 0.8f), Top + Pad + Row * 2.f);
+        DrawHudLine(Pawn ? Pawn->GetRequestStatus() : TEXT("Waiting for camera pawn."),
+            FLinearColor(1.f, 0.88f, 0.45f), Top + Pad + Row * 3.f);
+        DrawHudLine(Pawn ? Pawn->GetManualInputStatus() : TEXT("Manual input unavailable."),
+            FLinearColor(0.85f, 0.78f, 1.f), Top + Pad + Row * 4.f);
+        DrawHudLine(PC->GetReceiptStatus(), FLinearColor(0.65f, 0.88f, 1.f), Top + Pad + Row * 5.f);
+        DrawHudLine(TEXT("Build: R refinery 100   F factory 150   P combat unit 50   Ore markers show remaining resources"),
+            FLinearColor(0.72f, 0.88f, 0.96f), Top + Pad + Row * 6.f);
+    }
+    else
+    {
+        DrawHudLine(TEXT("COMMAND PROOF  |  Generic blockout units"), FLinearColor::White, Top + Pad);
+        const FString Controls = Pawn && Pawn->IsInteractiveSession()
+            ? TEXT("Select: left-click   Order: right-click   Produce: P   Zoom: wheel   Exit: Esc")
+            : TEXT("Select: left-click own unit   Order: right-click   Produce: P   Zoom: mouse wheel");
+        DrawHudLine(Controls,
+            FLinearColor(0.85f, 0.9f, 1.f), Top + Pad + Row);
+        DrawHudLine(FString::Printf(TEXT("Credits: %d   Selected unit: %s"), Credits,
+            Pawn && Pawn->GetSelectedUnitId() != INDEX_NONE
+                ? *FString::FromInt(Pawn->GetSelectedUnitId()) : TEXT("none")),
+            FLinearColor(0.8f, 1.f, 0.8f), Top + Pad + Row * 2.f);
+        DrawHudLine(Pawn ? Pawn->GetRequestStatus() : TEXT("Waiting for camera pawn."),
+            FLinearColor(1.f, 0.88f, 0.45f), Top + Pad + Row * 3.f);
+        DrawHudLine(Pawn ? Pawn->GetManualInputStatus() : TEXT("Manual input unavailable."),
+            FLinearColor(0.85f, 0.78f, 1.f), Top + Pad + Row * 4.f);
+        DrawHudLine(PC->GetReceiptStatus(), FLinearColor(0.65f, 0.88f, 1.f), Top + Pad + Row * 5.f);
+        DrawHudLine(Pawn && Pawn->IsUsingBlockoutMesh()
+            ? TEXT("Functional proof only; generic proxies, no approved art or final scale.")
+            : TEXT("Functional proof only; engine cubes are generic proxies, no approved art."),
+            FLinearColor(0.72f, 0.77f, 0.84f), Top + Pad + Row * 6.f);
+    }
 
     if (!GS)
     {
         return;
+    }
+    if (bSkirmish)
+    {
+        for (const FProofResourceRecord& Resource : GS->Snapshot.Resources)
+        {
+            if (Resource.Remaining <= 0)
+            {
+                continue;
+            }
+            FVector2D Screen;
+            if (!PC->ProjectWorldLocationToScreen(Resource.Position, Screen))
+            {
+                continue;
+            }
+            const FLinearColor MarkerColor(0.25f, 0.88f, 1.f);
+            DrawLine(Screen.X - 7.f, Screen.Y, Screen.X + 7.f, Screen.Y, MarkerColor, 2.f);
+            DrawLine(Screen.X, Screen.Y - 7.f, Screen.X, Screen.Y + 7.f, MarkerColor, 2.f);
+            const FString Label = FString::Printf(TEXT("ORE %d  %d left"), Resource.ResourceId, Resource.Remaining);
+            DrawText(Label, MarkerColor, FMath::Clamp(Screen.X + 9.f, 0.f, FMath::Max(0.f, Canvas->ClipX - 160.f)),
+                FMath::Clamp(Screen.Y - 10.f, PanelHeight + Top + 2.f, FMath::Max(PanelHeight + Top + 2.f, Canvas->ClipY - 22.f)), Font, FontScale, false);
+        }
     }
     for (const FProofUnitRecord& Unit : GS->Snapshot.Units)
     {
@@ -112,7 +176,14 @@ void AProofHUD::DrawHUD()
         }
         const bool bOwn = Unit.OwnerId == PC->OwnerId;
         const bool bSelected = bOwn && Pawn && Unit.UnitId == Pawn->GetSelectedUnitId();
-        const FLinearColor Color = bSelected ? FLinearColor::Yellow : (bOwn ? FLinearColor::Green : FLinearColor(1.f, 0.4f, 0.3f));
+        const FProofPlayerRecord* UnitOwner = bSkirmish ? GS->Snapshot.Players.FindByPredicate([&Unit](const FProofPlayerRecord& Player)
+        {
+            return Player.OwnerId == Unit.OwnerId;
+        }) : nullptr;
+        const bool bFriendlyTeam = bSkirmish && UnitOwner && UnitOwner->TeamId == LocalTeam;
+        const FLinearColor Color = bSelected ? FLinearColor::Yellow : (bSkirmish
+            ? (bFriendlyTeam ? FLinearColor(0.18f, 0.95f, 0.55f) : FLinearColor(1.f, 0.32f, 0.25f))
+            : (bOwn ? FLinearColor::Green : FLinearColor(1.f, 0.4f, 0.3f)));
         const float Radius = bSelected ? 18.f : 10.f;
         // Screen-space brackets make ownership legible without changing art.
         DrawLine(Screen.X - Radius, Screen.Y - Radius, Screen.X + Radius, Screen.Y - Radius, Color, 2.f);
@@ -120,7 +191,24 @@ void AProofHUD::DrawHUD()
         DrawLine(Screen.X + Radius, Screen.Y - Radius, Screen.X + Radius, Screen.Y + Radius, Color, 2.f);
         DrawLine(Screen.X - Radius, Screen.Y + Radius, Screen.X + Radius, Screen.Y + Radius, Color, 2.f);
 
-        const FString Label = FString::Printf(TEXT("#%d  HP %.0f"), Unit.UnitId, Unit.HitPoints);
+        FString Label;
+        if (bSkirmish)
+        {
+            const TCHAR* KindName = TEXT("Combat");
+            switch (Unit.Kind)
+            {
+            case EProofUnitKind::Harvester: KindName = TEXT("Harvester"); break;
+            case EProofUnitKind::HQ: KindName = TEXT("HQ"); break;
+            case EProofUnitKind::Refinery: KindName = TEXT("Refinery"); break;
+            case EProofUnitKind::Factory: KindName = TEXT("Factory"); break;
+            default: break;
+            }
+            Label = FString::Printf(TEXT("%s #%d  HP %.0f"), KindName, Unit.UnitId, Unit.HitPoints);
+        }
+        else
+        {
+            Label = FString::Printf(TEXT("#%d  HP %.0f"), Unit.UnitId, Unit.HitPoints);
+        }
         const float MaxLabelX = FMath::Max(0.f, Canvas->ClipX - 4.f);
         const float LabelX = FMath::Clamp(Screen.X + Radius + 4.f, 0.f, MaxLabelX);
         const float MaxLabelY = FMath::Max(0.f, Canvas->ClipY - 24.f);
@@ -149,5 +237,22 @@ void AProofHUD::DrawHUD()
         {
             DrawText(Label, Color, LabelX, LabelY, Font, FontScale, false);
         }
+    }
+
+    if (bSkirmish && GS->Snapshot.MatchPhase == EProofMatchPhase::Finished)
+    {
+        const FString Result = GS->Snapshot.WinnerTeam == INDEX_NONE
+            ? TEXT("DRAW") : (GS->Snapshot.WinnerTeam == LocalTeam ? TEXT("VICTORY") : TEXT("DEFEAT"));
+        float ResultWidth = 0.f;
+        float ResultHeight = 0.f;
+        GetTextSize(Result, ResultWidth, ResultHeight, Font, 2.f * UiScale);
+        const float BannerWidth = ResultWidth + 42.f * UiScale;
+        const float BannerHeight = ResultHeight + 24.f * UiScale;
+        const float BannerX = FMath::Max(0.f, (Canvas->ClipX - BannerWidth) * 0.5f);
+        const float BannerY = FMath::Max(PanelHeight + Top + 12.f * UiScale, Canvas->ClipY * 0.16f);
+        DrawRect(FLinearColor(0.01f, 0.02f, 0.04f, 0.86f), BannerX, BannerY, BannerWidth, BannerHeight);
+        DrawText(Result, Result == TEXT("VICTORY") ? FLinearColor(0.25f, 1.f, 0.5f) :
+            (Result == TEXT("DEFEAT") ? FLinearColor(1.f, 0.35f, 0.3f) : FLinearColor(0.85f, 0.9f, 1.f)),
+            BannerX + 21.f * UiScale, BannerY + 12.f * UiScale, Font, 2.f * UiScale, false);
     }
 }

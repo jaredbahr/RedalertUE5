@@ -14,9 +14,11 @@
 AProofPlayerController::AProofPlayerController()
 {
     PrimaryActorTick.bCanEverTick = true;
-    bAutomation = FParse::Param(FCommandLine::Get(), TEXT("ProofAutomation"));
-    bControlsAutomation = FParse::Param(FCommandLine::Get(), TEXT("ProofControlsAutomation"));
+    const bool bSkirmishMode = FParse::Param(FCommandLine::Get(), TEXT("ProofSkirmish"));
+    bAutomation = !bSkirmishMode && FParse::Param(FCommandLine::Get(), TEXT("ProofAutomation"));
+    bControlsAutomation = !bSkirmishMode && FParse::Param(FCommandLine::Get(), TEXT("ProofControlsAutomation"));
     bControlsObserver = FParse::Param(FCommandLine::Get(), TEXT("ProofControlsObserver"));
+    bSkirmishObserver = bSkirmishMode && FParse::Param(FCommandLine::Get(), TEXT("ProofSkirmishObserver"));
     bIngressFixture = FParse::Param(FCommandLine::Get(), TEXT("ProofIngressFixture"));
     bIngressFlood = FParse::Param(FCommandLine::Get(), TEXT("ProofIngressFlood"));
     bIngressHealthy = FParse::Param(FCommandLine::Get(), TEXT("ProofIngressHealthy"));
@@ -85,6 +87,7 @@ void AProofPlayerController::ClientCommandResult_Implementation(FProofCommandRes
     }
     UE_LOG(LogTemp, Display, TEXT("PROOF_RESULT owner=%d sequence=%lld accepted=%d reason=%s"),
         OwnerId, static_cast<long long>(Result.Sequence), Result.bAccepted ? 1 : 0, *Result.Reason);
+    if (bSkirmishObserver) return;
     if (!bAutomation) return;
     const int32 Sequence = static_cast<int32>(Result.Sequence);
     if (Sequence < 1 || Sequence > 4 || Acknowledged.Contains(Sequence) || Result.bAccepted != (Sequence != 4)
@@ -114,6 +117,7 @@ void AProofPlayerController::Tick(float DeltaSeconds)
         State->LogSnapshot(TEXT("client"), OwnerId);
         LastLoggedRevision = State->Snapshot.Revision;
     }
+    if (bSkirmishObserver) { TickSkirmishObserver(State); return; }
     if (bControlsObserver && !bFinished)
     {
         if (State && State->Snapshot.Players.Num() >= 3 && OwnerId != INDEX_NONE && ControlsObserverReady < 0.f)
@@ -183,6 +187,150 @@ void AProofPlayerController::Tick(float DeltaSeconds)
     }
     if (Elapsed >= 12.f)
         FinishAutomation(!bAckFailure && Acknowledged.Num() == 4 && bMoved && bDamaged && bProduced);
+}
+
+void AProofPlayerController::FinishSkirmishObserver(bool bPass, const TCHAR* Reason, int32 WinnerTeam)
+{
+    if (bFinished) return;
+    bFinished = true;
+    UE_LOG(LogTemp, Display, TEXT("PROOF_SKIRMISH_COMPLETE role=observer owner=%d status=%s scenario=Coop winnerTeam=%d reason=%s refinery=%d factory=%d gathered=%d produced=%d step=%d"),
+        OwnerId, bPass ? TEXT("pass") : TEXT("fail"), WinnerTeam, Reason,
+        bSkirmishObserverRefinery, bSkirmishObserverFactory, bSkirmishObserverGathered,
+        bSkirmishObserverProduced, SkirmishObserverStep);
+    FPlatformMisc::RequestExitWithStatus(false, bPass ? 0 : 1);
+}
+
+void AProofPlayerController::TickSkirmishObserver(AProofGameState* State)
+{
+    if (bFinished) return;
+    if (Lifetime >= 230.f)
+    {
+        FinishSkirmishObserver(false, TEXT("timeout"), State ? State->Snapshot.WinnerTeam : INDEX_NONE);
+        return;
+    }
+    if (OwnerId != INDEX_NONE && OwnerId != 2)
+    {
+        FinishSkirmishObserver(false, TEXT("wrong-owner"), State ? State->Snapshot.WinnerTeam : INDEX_NONE);
+        return;
+    }
+    if (!State || OwnerId != 2) return;
+    const FProofSnapshot& Snapshot = State->Snapshot;
+    if (!Snapshot.bSkirmish) return;
+    if (Snapshot.MatchPhase == EProofMatchPhase::Finished && SkirmishObserverTerminalAt < 0.f)
+        SkirmishObserverTerminalAt = Lifetime;
+
+    const FProofPlayerRecord* PlayerRecord = Snapshot.Players.FindByPredicate(
+        [this](const FProofPlayerRecord& P) { return P.OwnerId == OwnerId && P.TeamId == 0; });
+    const FProofUnitRecord* HQ = nullptr;
+    const FProofUnitRecord* Harvester = nullptr;
+    const FProofUnitRecord* Factory = nullptr;
+    for (const FProofUnitRecord& Unit : Snapshot.Units)
+    {
+        if (Unit.OwnerId != OwnerId) continue;
+        if (Unit.Kind == EProofUnitKind::HQ && Unit.HitPoints > 0.f) HQ = &Unit;
+        if (Unit.Kind == EProofUnitKind::Harvester && Unit.HitPoints > 0.f) Harvester = &Unit;
+        if (Unit.Kind == EProofUnitKind::Refinery) bSkirmishObserverRefinery = true;
+        if (Unit.Kind == EProofUnitKind::Factory)
+        {
+            bSkirmishObserverFactory = true;
+            if (Unit.HitPoints > 0.f) Factory = &Unit;
+        }
+        if (Unit.Kind == EProofUnitKind::Combat) bSkirmishObserverProduced = true;
+    }
+    if (PlayerRecord && PlayerRecord->TotalGathered > 0) bSkirmishObserverGathered = true;
+    if (!bSkirmishObserverReady)
+    {
+        const bool bOwner1 = Snapshot.Players.ContainsByPredicate([](const FProofPlayerRecord& P) { return P.OwnerId == 1 && P.TeamId == 0; });
+        const bool bBot = Snapshot.Players.ContainsByPredicate([](const FProofPlayerRecord& P) { return P.OwnerId == ProofOwnerIds::Bot && P.TeamId == 1; });
+        bSkirmishObserverReady = PlayerRecord && HQ && Harvester && bOwner1 && bBot;
+        if (!bSkirmishObserverReady)
+        {
+            if (SkirmishObserverTerminalAt >= 0.f && Lifetime - SkirmishObserverTerminalAt >= 2.f)
+                FinishSkirmishObserver(false, TEXT("missing-start-state"), Snapshot.WinnerTeam);
+            return;
+        }
+        UE_LOG(LogTemp, Display, TEXT("PROOF_SKIRMISH_OBSERVER_READY owner=2 revision=%d"), Snapshot.Revision);
+    }
+
+    if (SkirmishObserverPendingSequence != INDEX_NONE)
+    {
+        FProofCommandResult Receipt;
+        if (!FindReceipt(SkirmishObserverPendingSequence, Receipt))
+        {
+            if (SkirmishObserverTerminalAt >= 0.f && Lifetime - SkirmishObserverTerminalAt >= 2.f)
+                FinishSkirmishObserver(false, TEXT("missing-terminal-receipt"), Snapshot.WinnerTeam);
+            return;
+        }
+        if (!Receipt.bAccepted)
+        {
+            FinishSkirmishObserver(false, TEXT("rejected-command"), Snapshot.WinnerTeam);
+            return;
+        }
+        const bool bStateObserved = (SkirmishObserverStep == 0 && bSkirmishObserverRefinery)
+            || (SkirmishObserverStep == 1 && bSkirmishObserverFactory)
+            || (SkirmishObserverStep == 2 && bSkirmishObserverGathered)
+            || (SkirmishObserverStep == 3 && bSkirmishObserverProduced);
+        if (!bStateObserved)
+        {
+            if (SkirmishObserverTerminalAt >= 0.f && Lifetime - SkirmishObserverTerminalAt >= 2.f)
+                FinishSkirmishObserver(false, TEXT("missing-terminal-state"), Snapshot.WinnerTeam);
+            return;
+        }
+        UE_LOG(LogTemp, Display, TEXT("PROOF_SKIRMISH_OBSERVER_STEP owner=2 step=%d sequence=%d revision=%d"),
+            SkirmishObserverStep, SkirmishObserverPendingSequence, Snapshot.Revision);
+        SkirmishObserverPendingSequence = INDEX_NONE;
+        ++SkirmishObserverStep;
+    }
+
+    if (Snapshot.MatchPhase == EProofMatchPhase::Finished)
+    {
+        const bool bPass = Snapshot.WinnerTeam == 0 && SkirmishObserverStep == 4
+            && bSkirmishObserverRefinery && bSkirmishObserverFactory
+            && bSkirmishObserverGathered && bSkirmishObserverProduced;
+        FinishSkirmishObserver(bPass, bPass ? TEXT("complete") : TEXT("terminal-evidence"), Snapshot.WinnerTeam);
+        return;
+    }
+    if (SkirmishObserverStep >= 4) return;
+
+    FProofCommand Command;
+    if (SkirmishObserverStep == 0)
+    {
+        if (!HQ) return;
+        Command.Type = EProofCommandType::BuildRefinery;
+        Command.Destination = HQ->Position + FVector(350.f, 0.f, 0.f);
+    }
+    else if (SkirmishObserverStep == 1)
+    {
+        if (!HQ) return;
+        Command.Type = EProofCommandType::BuildFactory;
+        Command.Destination = HQ->Position + FVector(0.f, -350.f, 0.f);
+    }
+    else if (SkirmishObserverStep == 2)
+    {
+        if (!Harvester) return;
+        const FProofResourceRecord* NearestOre = nullptr;
+        for (const FProofResourceRecord& Ore : Snapshot.Resources)
+        {
+            if (Ore.Remaining <= 0) continue;
+            if (!NearestOre || FVector::DistSquared(Harvester->Position, Ore.Position) < FVector::DistSquared(Harvester->Position, NearestOre->Position))
+                NearestOre = &Ore;
+        }
+        if (!NearestOre) return;
+        Command.Type = EProofCommandType::Gather;
+        Command.UnitId = Harvester->UnitId;
+        Command.TargetUnitId = NearestOre->ResourceId;
+    }
+    else
+    {
+        if (!Factory) return;
+        Command.Type = EProofCommandType::Produce;
+        Command.UnitId = Factory->UnitId;
+    }
+    Command.Sequence = NextLocalCommandSequence();
+    SkirmishObserverPendingSequence = Command.Sequence;
+    ServerSubmitCommand(Command);
+    UE_LOG(LogTemp, Display, TEXT("PROOF_SKIRMISH_OBSERVER_SEND owner=2 step=%d sequence=%d revision=%d"),
+        SkirmishObserverStep, Command.Sequence, Snapshot.Revision);
 }
 
 // Explicit loopback fixture: these flags are never enabled by normal play.

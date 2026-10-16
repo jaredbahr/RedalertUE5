@@ -1,6 +1,7 @@
 param(
     [string]$EngineRoot = 'D:\Epic Games\UE_5.7',
-    [ValidateRange(60,1800)][int]$SessionSeconds = 900
+    [ValidateRange(60,1800)][int]$SessionSeconds = 900,
+    [switch]$Skirmish
 )
 $ErrorActionPreference='Stop'
 $projectRoot=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
@@ -34,7 +35,9 @@ try {
     [Environment]::SetEnvironmentVariable('TEMP',$temp,'Process')
     [Environment]::SetEnvironmentVariable('TMP',$temp,'Process')
     $launchArguments=@(('"'+$project+'"'),'/Game/CommandProofGenerated/Maps/CommandProof','-game','-windowed','-ResX=1280','-ResY=720','-nosound','-nosplash','-unattended','-NoSourceControl','-NoP4','-ddc=BlockoutDDC','-CoreLimit=2','-ProofInteractive','-ExecCmds="DisableAllScreenMessages"','-ini:GameUserSettings:[/Script/Engine.GameUserSettings]:FrameRateLimit=30','-ini:Engine:[AssetRegistry]:EditorGameScansAR=Async,[ConsoleVariables]:t.MaxFPS=30,[DevOptions.Shaders]:WorkerProcessPriority=0,[DevOptions.Shaders]:NumUnusedShaderCompilingThreads=1,[DevOptions.Shaders]:NumUnusedShaderCompilingThreadsDuringGame=1',('-abslog="'+$result.log+'"'))
+    if($Skirmish) { $launchArguments+='-ProofSkirmish' }
     Write-Output 'Opening the Red Alert local practice window in 5 seconds. Left-click select, right-click move/attack, P produce, wheel zoom, Escape exit.'
+    if($Skirmish) { Write-Output 'Small match: R refinery at cursor; F factory at cursor; select Harvester/right-click ore; P produces at factory. Destroy enemy HQ.' }
     Start-Sleep -Seconds 5
     $process=Start-Process -FilePath $editor -ArgumentList $launchArguments -WorkingDirectory $projectRoot -WindowStyle Normal -PassThru
     $started=$process.StartTime

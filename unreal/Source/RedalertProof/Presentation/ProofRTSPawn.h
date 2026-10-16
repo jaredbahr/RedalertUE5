@@ -8,6 +8,7 @@ class UCameraComponent;
 class UStaticMesh;
 class UStaticMeshComponent;
 struct FProofCommand;
+enum class EProofCommandType : uint8;
 
 /** Camera and snapshot-only views. This pawn never simulates commands or damage. */
 UCLASS()
@@ -31,6 +32,8 @@ protected:
 private:
     UPROPERTY(VisibleAnywhere) TObjectPtr<UCameraComponent> Camera;
     UPROPERTY(Transient) TObjectPtr<UStaticMesh> ProxyMesh;
+    UPROPERTY(Transient) TObjectPtr<UStaticMesh> StructureMesh;
+    UPROPERTY(Transient) TObjectPtr<UStaticMesh> HarvesterMesh;
     UPROPERTY(Transient) TMap<int32, TObjectPtr<UStaticMeshComponent>> UnitViews;
     int32 SelectedUnitId = INDEX_NONE;
     bool bUsingBlockoutMesh = false;
@@ -56,6 +59,7 @@ private:
     FVector2D ControlsCursor = FVector2D::ZeroVector;
     int32 LastRequestedSequence = 0;
     FString LastRequestedType;
+    int32 LastRequestedTarget = INDEX_NONE;
     TSet<FString> ControlsPassedEvidence;
     int32 ControlsStep = 0;
     int32 ControlsOwnUnit = INDEX_NONE;
@@ -72,6 +76,31 @@ private:
     FString ControlsOutput;
     FString RequestStatus = TEXT("Select one of your live units.");
 
+    FString SkirmishScenario;
+    FString SkirmishOutput;
+    float SkirmishElapsed = 0.f;
+    float SkirmishNextDecision = 0.f;
+    float SkirmishTerminalSeen = -1.f;
+    int32 SkirmishStage = 0;
+    int32 ManualBuildPresses = 0;
+    bool bSkirmishReady = false;
+    bool bSkirmishFinished = false;
+    bool bSkirmishBuilt = false;
+    bool bSkirmishGathered = false;
+    bool bSkirmishProduced = false;
+    bool bSkirmishBotRefinery = false;
+    bool bSkirmishBotFactory = false;
+    bool bSkirmishBotProduced = false;
+    bool bSkirmishBotAttacked = false;
+    bool bSkirmishBaseCaptured = false;
+    bool bSkirmishBaseCaptureRequested = false;
+    bool bSkirmishResultRequested = false;
+    TMap<int32, int32> SkirmishIssuedTargets;
+    void BuildUnderCursor(EProofCommandType Type);
+    void OnManualRefinery();
+    void OnManualFactory();
+    void TickSkirmishScenario(float DeltaSeconds);
+    void FinishSkirmishScenario(bool bPass, const TCHAR* Reason);
     void SelectUnderCursor();
     void OrderUnderCursor();
     void Produce();

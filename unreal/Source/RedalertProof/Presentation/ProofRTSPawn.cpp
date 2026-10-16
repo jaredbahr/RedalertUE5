@@ -39,6 +39,8 @@ void AProofRTSPawn::BeginPlay()
 {
     Super::BeginPlay();
     bGraphicsWarmup = FParse::Param(FCommandLine::Get(), TEXT("ProofGraphicsWarmup"));
+    FParse::Value(FCommandLine::Get(), TEXT("ProofSkirmishScenario="), SkirmishScenario);
+    FParse::Value(FCommandLine::Get(), TEXT("ProofSkirmishOutput="), SkirmishOutput);
     // Optional generated content stays outside tracked source. Every record is
     // deliberately a generic proxy; there is no unit-kind field in this proof.
     if (GetNetMode() != NM_DedicatedServer)
@@ -46,6 +48,11 @@ void AProofRTSPawn::BeginPlay()
         ProxyMesh = LoadObject<UStaticMesh>(nullptr,
             TEXT("/Game/BlockoutGenerated/Meshes/SM_RhinoTank_Blockout.SM_RhinoTank_Blockout"));
         bUsingBlockoutMesh = ProxyMesh != nullptr;
+        if (FParse::Param(FCommandLine::Get(), TEXT("ProofSkirmish")) || !SkirmishScenario.IsEmpty())
+        {
+            StructureMesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Game/BlockoutGenerated/Meshes/SM_TeslaReactor_Blockout.SM_TeslaReactor_Blockout"));
+            HarvesterMesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube"));
+        }
         if (!ProxyMesh)
         {
             ProxyMesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube"));
@@ -61,6 +68,8 @@ void AProofRTSPawn::SetupPlayerInputComponent(UInputComponent* Input)
     Input->BindKey(EKeys::LeftMouseButton, IE_Pressed, this, &AProofRTSPawn::OnManualSelect);
     Input->BindKey(EKeys::RightMouseButton, IE_Pressed, this, &AProofRTSPawn::OnManualOrder);
     Input->BindKey(EKeys::P, IE_Pressed, this, &AProofRTSPawn::OnManualProduce);
+    Input->BindKey(EKeys::R, IE_Pressed, this, &AProofRTSPawn::OnManualRefinery);
+    Input->BindKey(EKeys::F, IE_Pressed, this, &AProofRTSPawn::OnManualFactory);
     Input->BindKey(EKeys::MouseScrollUp, IE_Pressed, this, &AProofRTSPawn::OnManualZoomIn);
     Input->BindKey(EKeys::MouseScrollDown, IE_Pressed, this, &AProofRTSPawn::OnManualZoomOut);
     if (bInteractiveExitEnabled)
@@ -124,12 +133,24 @@ void AProofRTSPawn::Tick(float DeltaSeconds)
             View = NewObject<UStaticMeshComponent>(this);
             View->SetMobility(EComponentMobility::Movable);
             View->SetStaticMesh(ProxyMesh);
+            if (GS->Snapshot.bSkirmish)
+            {
+                const bool bStructure = Unit.Kind == EProofUnitKind::HQ || Unit.Kind == EProofUnitKind::Refinery || Unit.Kind == EProofUnitKind::Factory;
+                if (bStructure && StructureMesh) View->SetStaticMesh(StructureMesh);
+                else if (Unit.Kind == EProofUnitKind::Harvester && HarvesterMesh) View->SetStaticMesh(HarvesterMesh);
+            }
             View->SetCollisionEnabled(ECollisionEnabled::NoCollision);
             View->SetupAttachment(RootComponent);
             View->RegisterComponent();
             // Display-only size keeps the tiny correctness fixture readable.
             // This is not approved tank/infantry scale or gameplay collision.
-            View->SetWorldScale3D(bUsingBlockoutMesh ? FVector(0.3f) : FVector(1.f, 1.f, 0.6f));
+            if (GS->Snapshot.bSkirmish)
+            {
+                const bool bStructure = Unit.Kind == EProofUnitKind::HQ || Unit.Kind == EProofUnitKind::Refinery || Unit.Kind == EProofUnitKind::Factory;
+                View->SetWorldScale3D(bStructure && StructureMesh ? FVector(Unit.Kind == EProofUnitKind::HQ ? 0.45f : 0.3f)
+                    : Unit.Kind == EProofUnitKind::Harvester ? FVector(1.0f, 0.7f, 0.7f) : FVector(0.6f));
+            }
+            else View->SetWorldScale3D(bUsingBlockoutMesh ? FVector(0.3f) : FVector(1.f, 1.f, 0.6f));
         }
         if (View)
         {
@@ -156,7 +177,8 @@ void AProofRTSPawn::Tick(float DeltaSeconds)
         TickGraphicsWarmup();
         return;
     }
-    if (PC->IsControlsAutomation()) TickControlsAutomation(DeltaSeconds);
+    if (GS->Snapshot.bSkirmish && !SkirmishScenario.IsEmpty()) TickSkirmishScenario(DeltaSeconds);
+    else if (PC->IsControlsAutomation()) TickControlsAutomation(DeltaSeconds);
 }
 
 FString AProofRTSPawn::GetManualInputStatus() const
@@ -366,6 +388,33 @@ void AProofRTSPawn::OrderUnderCursor()
     }
     FProofCommand Command;
     Command.UnitId = SelectedUnitId;
+    const FProofUnitRecord* Selected = GS->Snapshot.Units.FindByPredicate(
+        [this](const FProofUnitRecord& Unit) { return Unit.UnitId == SelectedUnitId; });
+    if (GS->Snapshot.bSkirmish && Selected && Selected->Kind == EProofUnitKind::Harvester)
+    {
+        FVector2D Pointer;
+        if (GetPointerScreenPosition(Pointer))
+        {
+            double BestDistance = FMath::Square(32.0);
+            int32 ResourceId = INDEX_NONE;
+            for (const FProofResourceRecord& Resource : GS->Snapshot.Resources)
+            {
+                FVector2D Screen;
+                if (Resource.Remaining > 0 && PC->ProjectWorldLocationToScreen(Resource.Position, Screen))
+                {
+                    const double Distance = FVector2D::DistSquared(Pointer, Screen);
+                    if (Distance < BestDistance) { BestDistance = Distance; ResourceId = Resource.ResourceId; }
+                }
+            }
+            if (ResourceId != INDEX_NONE)
+            {
+                Command.Type = EProofCommandType::Gather;
+                Command.TargetUnitId = ResourceId;
+                Request(Command);
+                return;
+            }
+        }
+    }
     const int32 TargetId = FindUnitUnderCursor(false);
     const FProofUnitRecord* Target = GS->Snapshot.Units.FindByPredicate(
         [TargetId](const FProofUnitRecord& Unit) { return Unit.UnitId == TargetId; });
@@ -390,6 +439,20 @@ void AProofRTSPawn::Produce()
 {
     FProofCommand Command;
     Command.Type = EProofCommandType::Produce;
+    const AProofPlayerController* PC = Cast<AProofPlayerController>(GetController());
+    const AProofGameState* GS = GetWorld()->GetGameState<AProofGameState>();
+    if (GS && GS->Snapshot.bSkirmish && PC)
+    {
+        for (const FProofUnitRecord& Unit : GS->Snapshot.Units)
+        {
+            if (Unit.OwnerId == PC->OwnerId && Unit.HitPoints > 0.f && Unit.Kind == EProofUnitKind::Factory)
+            {
+                Command.UnitId = Unit.UnitId;
+                if (Unit.UnitId == SelectedUnitId) break;
+            }
+        }
+        if (Command.UnitId == INDEX_NONE) { RequestStatus = TEXT("Build a live factory first (F at cursor, 150 credits)."); return; }
+    }
     Request(Command);
 }
 
@@ -415,8 +478,16 @@ void AProofRTSPawn::Request(FProofCommand Command)
     }
     PC->ServerSubmitCommand(Command);
     LastRequestedSequence = Command.Sequence;
+    LastRequestedTarget = Command.TargetUnitId;
     LastRequestedType = Command.Type == EProofCommandType::Move ? TEXT("Move")
-        : Command.Type == EProofCommandType::Attack ? TEXT("Attack") : TEXT("Produce");
+        : Command.Type == EProofCommandType::Attack ? TEXT("Attack")
+        : Command.Type == EProofCommandType::BuildRefinery ? TEXT("BuildRefinery")
+        : Command.Type == EProofCommandType::BuildFactory ? TEXT("BuildFactory")
+        : Command.Type == EProofCommandType::Gather ? TEXT("Gather") : TEXT("Produce");
+    const AProofGameState* GS = GetWorld()->GetGameState<AProofGameState>();
+    if (GS && GS->Snapshot.bSkirmish)
+        UE_LOG(LogTemp, Display, TEXT("PROOF_SKIRMISH_REQUEST owner=%d sequence=%d type=%s unit=%d target=%d"),
+            PC->OwnerId, Command.Sequence, *LastRequestedType, Command.UnitId, Command.TargetUnitId);
     if (PC->IsControlsAutomation())
     {
         UE_LOG(LogTemp, Display, TEXT("PROOF_CONTROLS_REQUEST owner=%d sequence=%d type=%s unit=%d target=%d destinationX=%.3f destinationY=%.3f destinationZ=%.3f"),
@@ -656,4 +727,212 @@ void AProofRTSPawn::TickControlsAutomation(float DeltaSeconds)
         // time here can outlive the host when a screenshot stalls a frame.
         FinishControls(true, TEXT("select_clear_zoom_project_deproject_move_attack_produce_receipts_snapshots_capture"));
     }
+}
+
+void AProofRTSPawn::BuildUnderCursor(EProofCommandType Type)
+{
+    const AProofGameState* GS = GetWorld()->GetGameState<AProofGameState>();
+    if (!GS || !GS->Snapshot.bSkirmish) { RequestStatus = TEXT("Base building is available in the small-match mode."); return; }
+    FProofCommand Command;
+    Command.Type = Type;
+    if (!CursorGroundPoint(Command.Destination)) { RequestStatus = TEXT("Point at ground near your HQ."); return; }
+    Request(Command);
+}
+
+void AProofRTSPawn::OnManualRefinery()
+{
+    BuildUnderCursor(EProofCommandType::BuildRefinery);
+    RecordManualInput(TEXT("R"), ManualBuildPresses, RequestStatus);
+}
+
+void AProofRTSPawn::OnManualFactory()
+{
+    BuildUnderCursor(EProofCommandType::BuildFactory);
+    RecordManualInput(TEXT("F"), ManualBuildPresses, RequestStatus);
+}
+
+void AProofRTSPawn::FinishSkirmishScenario(bool bPass, const TCHAR* Reason)
+{
+    if (bSkirmishFinished) return;
+    bSkirmishFinished = true;
+    const AProofPlayerController* PC = Cast<AProofPlayerController>(GetController());
+    const AProofGameState* GS = GetWorld()->GetGameState<AProofGameState>();
+    UE_LOG(LogTemp, Display, TEXT("PROOF_SKIRMISH_COMPLETE role=client owner=%d status=%s scenario=%s winnerTeam=%d built=%d gathered=%d produced=%d botBuilt=%d botProduced=%d botAttacked=%d reason=%s physicalInput=unverified"),
+        PC ? PC->OwnerId : INDEX_NONE, bPass ? TEXT("pass") : TEXT("fail"), *SkirmishScenario,
+        GS ? GS->Snapshot.WinnerTeam : INDEX_NONE, bSkirmishBuilt, bSkirmishGathered, bSkirmishProduced,
+        bSkirmishBotRefinery && bSkirmishBotFactory, bSkirmishBotProduced, bSkirmishBotAttacked, Reason);
+    FPlatformMisc::RequestExitWithStatus(false, bPass ? 0 : 1);
+}
+
+void AProofRTSPawn::TickSkirmishScenario(float DeltaSeconds)
+{
+    if (bSkirmishFinished) return;
+    SkirmishElapsed += DeltaSeconds;
+    if (SkirmishElapsed > 220.f) { FinishSkirmishScenario(false, TEXT("scenario_timeout")); return; }
+    AProofPlayerController* PC = Cast<AProofPlayerController>(GetController());
+    const AProofGameState* GS = GetWorld()->GetGameState<AProofGameState>();
+    if (!PC || !GS || PC->OwnerId == INDEX_NONE) return;
+    if (SkirmishOutput.IsEmpty()) { FinishSkirmishScenario(false, TEXT("missing_capture_directory")); return; }
+    if (SkirmishScenario != TEXT("Victory") && SkirmishScenario != TEXT("Defeat") && SkirmishScenario != TEXT("Coop"))
+    { FinishSkirmishScenario(false, TEXT("invalid_scenario")); return; }
+    const FProofSnapshot& Snapshot = GS->Snapshot;
+    const FProofPlayerRecord* LocalRecord = Snapshot.Players.FindByPredicate(
+        [PC](const FProofPlayerRecord& Record) { return Record.OwnerId == PC->OwnerId; });
+    if (!LocalRecord) return;
+    const FProofUnitRecord* HQ = nullptr;
+    const FProofUnitRecord* Harvester = nullptr;
+    const FProofUnitRecord* Refinery = nullptr;
+    const FProofUnitRecord* Factory = nullptr;
+    const FProofUnitRecord* EnemyHQ = nullptr;
+    int32 CombatCount = 0, LiveCount = 0;
+    for (const FProofUnitRecord& Unit : Snapshot.Units)
+    {
+        if (Unit.OwnerId == 100)
+        {
+            bSkirmishBotRefinery |= Unit.Kind == EProofUnitKind::Refinery;
+            bSkirmishBotFactory |= Unit.Kind == EProofUnitKind::Factory;
+            bSkirmishBotProduced |= Unit.Kind == EProofUnitKind::Combat;
+            if (Unit.Kind == EProofUnitKind::HQ && Unit.HitPoints > 0.f) EnemyHQ = &Unit;
+        }
+        const float InitialHP = Unit.Kind == EProofUnitKind::HQ ? 300.f
+            : Unit.Kind == EProofUnitKind::Refinery || Unit.Kind == EProofUnitKind::Factory ? 200.f : 100.f;
+        const FProofPlayerRecord* UnitOwnerRecord = Snapshot.Players.FindByPredicate(
+            [&Unit](const FProofPlayerRecord& Record) { return Record.OwnerId == Unit.OwnerId; });
+        if (UnitOwnerRecord && UnitOwnerRecord->TeamId == LocalRecord->TeamId)
+            bSkirmishBotAttacked |= Unit.HitPoints < InitialHP;
+        if (Unit.OwnerId != PC->OwnerId) continue;
+        if (Unit.Kind == EProofUnitKind::Combat) bSkirmishProduced = true;
+        if (Unit.HitPoints <= 0.f) continue;
+        ++LiveCount;
+        if (Unit.Kind == EProofUnitKind::HQ) HQ = &Unit;
+        if (Unit.Kind == EProofUnitKind::Harvester) Harvester = &Unit;
+        if (Unit.Kind == EProofUnitKind::Refinery) Refinery = &Unit;
+        if (Unit.Kind == EProofUnitKind::Factory) Factory = &Unit;
+        if (Unit.Kind == EProofUnitKind::Combat) ++CombatCount;
+    }
+    if (bSkirmishBaseCaptureRequested && IFileManager::Get().FileSize(*FPaths::Combine(SkirmishOutput, TEXT("01-base.png"))) > 1024)
+        bSkirmishBaseCaptured = true;
+    bSkirmishBuilt |= Refinery && Factory;
+    bSkirmishGathered |= LocalRecord->TotalGathered > 0;
+    if (!bSkirmishReady)
+    {
+        int32 Width = 0, Height = 0;
+        PC->GetViewportSize(Width, Height);
+        if (!HQ || !Harvester || !EnemyHQ || !bConfiguredLocalInput || Width != 1280 || Height != 720
+            || FAssetCompilingManager::Get().GetNumRemainingAssets() != 0) return;
+        const IConsoleVariable* FPS = IConsoleManager::Get().FindConsoleVariable(TEXT("t.MaxFPS"));
+        const IConsoleVariable* Optimize = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Shaders.Optimize"));
+        if (!FPS || FPS->GetFloat() != 30.f || !Optimize || Optimize->GetInt() != 1)
+        { FinishSkirmishScenario(false, TEXT("render_configuration")); return; }
+        bControlsCursor = true;
+        bSkirmishReady = true;
+        UE_LOG(LogTemp, Display, TEXT("PROOF_SKIRMISH_READY owner=%d width=%d height=%d maxFPS=%.3f shadersOptimize=%d"),
+            PC->OwnerId, Width, Height, FPS->GetFloat(), Optimize->GetInt());
+    }
+    if (Snapshot.MatchPhase == EProofMatchPhase::Finished)
+    {
+        if (SkirmishTerminalSeen < 0.f) SkirmishTerminalSeen = SkirmishElapsed;
+        if (!bSkirmishResultRequested && SkirmishElapsed - SkirmishTerminalSeen >= 0.5f)
+        {
+            IFileManager::Get().MakeDirectory(*SkirmishOutput, true);
+            FScreenshotRequest::RequestScreenshot(FPaths::Combine(SkirmishOutput, TEXT("02-result.png")), true, false);
+            bSkirmishResultRequested = true;
+        }
+        const FString ResultPath = FPaths::Combine(SkirmishOutput, TEXT("02-result.png"));
+        if (bSkirmishResultRequested && IFileManager::Get().FileSize(*ResultPath) > 1024 && SkirmishElapsed - SkirmishTerminalSeen >= 2.f)
+        {
+            UE_LOG(LogTemp, Display, TEXT("PROOF_SKIRMISH_CAPTURE name=02-result.png winnerTeam=%d phase=Finished written=1"), Snapshot.WinnerTeam);
+            const int32 ExpectedWinner = SkirmishScenario == TEXT("Defeat") ? 1 : 0;
+            const bool bPass = Snapshot.WinnerTeam == ExpectedWinner && bSkirmishBuilt && bSkirmishGathered
+                && bSkirmishProduced && bSkirmishBotRefinery && bSkirmishBotFactory && bSkirmishBotProduced
+                && bSkirmishBotAttacked && bSkirmishBaseCaptured;
+            FinishSkirmishScenario(bPass, bPass ? TEXT("complete_loop") : TEXT("outcome_or_evidence"));
+        }
+        return;
+    }
+    if (LastRequestedSequence > 0)
+    {
+        FProofCommandResult Receipt;
+        if (!PC->FindReceipt(LastRequestedSequence, Receipt)) return;
+        if (!Receipt.bAccepted) { FinishSkirmishScenario(false, *Receipt.Reason); return; }
+    }
+    if (SkirmishElapsed < SkirmishNextDecision) return;
+    SkirmishNextDecision = SkirmishElapsed + 0.2f;
+    if (SkirmishStage == 0 && HQ)
+    {
+        if (!SetControlsCursorFromWorld(HQ->Position + FVector(350.f, 0.f, 0.f))) return;
+        const int32 BeforeSequence = LastRequestedSequence;
+        BuildUnderCursor(EProofCommandType::BuildRefinery);
+        if (LastRequestedSequence > BeforeSequence && LastRequestedType == TEXT("BuildRefinery")) ++SkirmishStage;
+        else FinishSkirmishScenario(false, TEXT("build_refinery_not_sent"));
+        return;
+    }
+    if (SkirmishStage == 1 && HQ && Refinery)
+    {
+        if (!SetControlsCursorFromWorld(HQ->Position + FVector(0.f, -350.f, 0.f))) return;
+        const int32 BeforeSequence = LastRequestedSequence;
+        BuildUnderCursor(EProofCommandType::BuildFactory);
+        if (LastRequestedSequence > BeforeSequence && LastRequestedType == TEXT("BuildFactory")) ++SkirmishStage;
+        else FinishSkirmishScenario(false, TEXT("build_factory_not_sent"));
+        return;
+    }
+    if (SkirmishStage == 2 && Harvester && Refinery && Factory)
+    {
+        const FProofResourceRecord* Resource = nullptr;
+        for (const FProofResourceRecord& Candidate : Snapshot.Resources)
+            if (Candidate.Remaining > 0 && (!Resource || FVector::DistSquared(Candidate.Position, Harvester->Position)
+                < FVector::DistSquared(Resource->Position, Harvester->Position))) Resource = &Candidate;
+        if (!Resource || !SetControlsCursorFromWorld(Harvester->Position)) return;
+        SelectUnderCursor();
+        if (SelectedUnitId != Harvester->UnitId) { FinishSkirmishScenario(false, TEXT("select_harvester")); return; }
+        if (!SetControlsCursorFromWorld(Resource->Position)) return;
+        const int32 BeforeSequence = LastRequestedSequence;
+        OrderUnderCursor();
+        if (LastRequestedSequence <= BeforeSequence || LastRequestedTarget != Resource->ResourceId || LastRequestedType != TEXT("Gather")) { FinishSkirmishScenario(false, TEXT("gather_pointer")); return; }
+        ++SkirmishStage;
+        return;
+    }
+    if (SkirmishStage < 3) return;
+    if (bSkirmishBuilt && bSkirmishGathered && !bSkirmishBaseCaptureRequested)
+    {
+        IFileManager::Get().MakeDirectory(*SkirmishOutput, true);
+        FScreenshotRequest::RequestScreenshot(FPaths::Combine(SkirmishOutput, TEXT("01-base.png")), true, false);
+        bSkirmishBaseCaptureRequested = true;
+    }
+    const bool bDefeat = SkirmishScenario == TEXT("Defeat");
+    const bool bShouldProduce = Factory && LocalRecord->Credits >= FProofCommandModel::ProductionCost
+        && LiveCount < FProofCommandModel::SkirmishRecordCap && (!bDefeat || !bSkirmishProduced);
+    if (bDefeat || !bSkirmishGathered)
+    {
+        if (bShouldProduce) Produce();
+        return;
+    }
+    for (const FProofUnitRecord& Unit : Snapshot.Units)
+    {
+        if (Unit.OwnerId != PC->OwnerId || Unit.Kind != EProofUnitKind::Combat || Unit.HitPoints <= 0.f) continue;
+        const FProofUnitRecord* Target = EnemyHQ;
+        // Concentrate fire on nearby mobile threats; otherwise push the HQ.
+        for (const FProofUnitRecord& Enemy : Snapshot.Units)
+        {
+            const FProofPlayerRecord* EnemyOwner = Snapshot.Players.FindByPredicate(
+                [&Enemy](const FProofPlayerRecord& Record) { return Record.OwnerId == Enemy.OwnerId; });
+            if (!EnemyOwner || EnemyOwner->TeamId == LocalRecord->TeamId || Enemy.HitPoints <= 0.f
+                || Enemy.Kind != EProofUnitKind::Combat || FVector::DistSquared(Unit.Position, Enemy.Position) > FMath::Square(700.f)) continue;
+            if (!Target || Target->Kind != EProofUnitKind::Combat || Enemy.HitPoints < Target->HitPoints
+                || (Enemy.HitPoints == Target->HitPoints && Enemy.UnitId < Target->UnitId)) Target = &Enemy;
+        }
+        if (!Target) continue;
+        const int32* Issued = SkirmishIssuedTargets.Find(Unit.UnitId);
+        if (Issued && *Issued == Target->UnitId) continue;
+        if (!SetControlsCursorFromWorld(Unit.Position)) return;
+        SelectUnderCursor();
+        if (SelectedUnitId != Unit.UnitId) continue;
+        if (!SetControlsCursorFromWorld(Target->Position)) return;
+        const int32 BeforeSequence = LastRequestedSequence;
+        OrderUnderCursor();
+        if (LastRequestedSequence <= BeforeSequence || LastRequestedTarget != Target->UnitId || LastRequestedType != TEXT("Attack")) { FinishSkirmishScenario(false, TEXT("attack_pointer")); return; }
+        SkirmishIssuedTargets.Add(Unit.UnitId, Target->UnitId);
+        return;
+    }
+    if (bShouldProduce) Produce();
 }
