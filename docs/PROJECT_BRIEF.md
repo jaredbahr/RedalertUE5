@@ -6,6 +6,8 @@ Build a personal full-3D RTS in Unreal Engine 5 that preserves recognizable Red 
 
 The long-term scope includes Allies, Soviets, and Yuri, with games for up to eight friends. Begin with Allies and Soviets on a simple map; establish a complete small skirmish before expanding the roster, faction count, maps, or player count.
 
+Jared says multiplayer will likely be internet-based, making internet play the provisional intended mode. Large armies are the ambition; exact per-player and total unit counts remain undetermined. Eight large armies are not yet proven.
+
 ## First proof
 
 Show a Tesla Reactor, Rhino Tank, and Conscript together in the same scene at the intended RTS camera. Supply a normal gameplay view, a zoomed-out view, and motion footage. Jared must approve the blockout proportions, relative scale, silhouettes, and camera readability before asset finishing. This proof is not a commitment to final unit-to-building scale.
@@ -18,7 +20,7 @@ These are proposals awaiting validation, not approved architecture:
 - Human players and bots use the same command model for move, attack, build, and production. Bots obey the same validation and resource rules by default.
 - Start with one compact, readable skirmish map, a minimal functional Allied/Soviet roster, and placeholder assets where needed. Prove the full match loop before extending content.
 
-Two-client correctness and active-unit performance are early gates. No unit count, frame rate, network latency, hardware target, or engine minor version is established yet. Set measurable budgets before calling those gates passed.
+Two-client correctness and active-unit performance are early gates. Scale tests must combine active movement, combat, bot decisions, and network replication in the same workload; measured results will set practical unit budgets. No unit count, frame rate, network latency, hardware target, or engine minor version is established yet. Set measurable acceptance thresholds before calling those gates passed.
 
 ## Tools and references
 
@@ -47,4 +49,4 @@ Before any binary upload, review file sizes, expected growth, Git LFS tracking, 
 
 ## Decisions still needed
 
-Agree on army size/unit density, LAN versus internet priorities, target hardware and performance/network budgets, engine version, and the minimum roster. See [Decisions](DECISIONS.md). These choices affect technical feasibility and milestone acceptance, and are not silently resolved by this brief.
+Determine exact per-player and total unit counts through measurement, confirm hosting/connectivity and any LAN requirement for the provisionally intended internet mode, and agree on target hardware and performance/network budgets, engine version, and the minimum roster. See [Decisions](DECISIONS.md). These choices affect technical feasibility and milestone acceptance, and are not silently resolved by this brief.

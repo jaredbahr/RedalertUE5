@@ -11,6 +11,8 @@ Status vocabulary: **Confirmed** records Jared's direction; **Proposed** is a ca
 | Opponents | AI bots are critical. |
 | Long-term scope | Allies, Soviets, and Yuri; eventually play with up to eight friends. |
 | First playable scope | Allies and Soviets first, on one simple map. |
+| Multiplayer intent | Jared says likely internet: internet multiplayer is the provisional intended mode; hosting/connectivity details remain open. |
+| Army-size ambition | Jared expects large armies. Exact per-player and total unit counts remain undetermined; practical budgets must follow measured tests. Eight large armies are not proven. |
 | First art proof | Tesla Reactor, Rhino Tank, and Conscript together at the RTS camera; include zoomed-out and motion views. Jared approves blockouts before finishing. |
 | Existing tools/references | Blender installed; Jared owns Steam/Origin originals. Ownership does not establish redistribution rights. |
 | Storage | Put project/art/cache/build data on D:; verify effective cache paths and disclose residual C: use. |
@@ -31,8 +33,8 @@ Status vocabulary: **Confirmed** records Jared's direction; **Proposed** is a ca
 
 | Question | Needed before |
 | --- | --- |
-| What army size/unit density should a typical and worst-case match support? | Setting active-unit performance budgets and choosing simulation/pathfinding detail. |
-| Is initial multiplayer LAN, internet, or both? What hosting/connectivity approach is acceptable? | Selecting transport/session setup and meaningful network tests. |
+| What exact per-player and total unit counts/unit density should typical and worst-case matches support, given the large-army ambition? | Setting practical unit budgets from combined movement, combat, bot, and network-replication measurements. |
+| With internet provisionally intended, what hosting/connectivity approach is acceptable, and is LAN also required? | Selecting transport/session setup and meaningful internet network tests. |
 | Which hardware, frame-time target, memory limit, and command-latency/traffic budgets define success? | Calling a technical performance gate passed. |
 | Which installed UE5 version and project/toolchain configuration will be used? | Creating the engine project; no version or build compatibility assumed. |
 | What exact Allied/Soviet roster and mechanics make the first skirmish complete? What Yuri mechanics follow? | Committing to content production and faction completion criteria. |
