@@ -18,8 +18,25 @@ finally { $probe.Dispose() }
 $run = Join-Path $repoRoot ('generated\native-network-' + [DateTime]::UtcNow.ToString('yyyyMMdd-HHmmss-fff'))
 New-Item -ItemType Directory -Force -Path $run,(Join-Path $run 'cache'),(Join-Path $run 'temp') | Out-Null
 $prior = @{}; $processes = [Collections.Generic.List[object]]::new()
-$result = [ordered]@{ passed=$false; transport='UE native UDP loopback'; internetTest=$false; performanceTest=$false; runDirectory=$run; port=$Port; commonRevisions=@(); error=$null }
+$result = [ordered]@{ head=(& git -C $repoRoot rev-parse HEAD).Trim();dirtyWorkingTree=[bool](& git -C $repoRoot status --porcelain); passed=$false; transport='UE native UDP loopback'; internetTest=$false; performanceTest=$false; runDirectory=$run; port=$Port; commonRevisions=@(); error=$null }
 $names = @('UE-LocalDataCachePath','UE-SharedDataCachePath','TEMP','TMP')
+$mask=[int64]0;$count=0;$available=[Diagnostics.Process]::GetCurrentProcess().ProcessorAffinity.ToInt64()
+for($cpu=0;$cpu -lt 63 -and $count -lt 2;$cpu++){ $bit=[int64]1 -shl $cpu;if($available -band $bit){$mask=$mask -bor $bit;$count++} }
+if($count -ne 2){throw 'Need two available CPUs.'}
+$result.cpuPolicy=@{mask=$mask;priority='Normal';polls=0;repairs=0;pollingIsNotHardConfinement=$true}
+function Maintain-OwnedPolicy {
+    foreach($entry in $processes){
+        $live=Get-Process -Id $entry.Process.Id -ErrorAction SilentlyContinue
+        if(-not $live -or $live.StartTime -ne $entry.Started -or $live.Path -ne $entry.Path){continue}
+        try{
+            if($live.ProcessorAffinity.ToInt64() -ne $mask -or $live.PriorityClass -ne 'Normal'){$result.cpuPolicy.repairs++}
+            $live.ProcessorAffinity=[IntPtr]$mask;$live.PriorityClass='Normal';$live.Refresh();$result.cpuPolicy.polls++
+            if($live.ProcessorAffinity.ToInt64() -ne $mask -or $live.PriorityClass -ne 'Normal'){throw 'Native network CPU policy failed.'}
+        }catch{if(-not $entry.Process.HasExited){throw}}
+    }
+}
+$cvars=Join-Path $run 'literal-client.ini'
+"[Startup]`nnet.IpConnectionDisableResolution=1`n" | Set-Content $cvars -Encoding ascii
 try {
     foreach ($n in $names) { $prior[$n]=[Environment]::GetEnvironmentVariable($n,'Process') }
     [Environment]::SetEnvironmentVariable('UE-LocalDataCachePath',(Join-Path $run 'cache'),'Process')
@@ -28,9 +45,10 @@ try {
     [Environment]::SetEnvironmentVariable('TMP',(Join-Path $run 'temp'),'Process')
     function Start-Proof([string]$Role,[string]$Destination,[string[]]$Mode) {
         $log = Join-Path $run ($Role+'.log')
-        $launchArguments = @(('"'+$project+'"'),$Destination) + $Mode + @('-ProofAutomation','-unattended','-nullrhi','-nosound','-nosplash','-NoSourceControl','-NoP4','-ddc=BlockoutDDC','-CoreLimit=2',('-port='+$Port),('-abslog="'+$log+'"'))
+        $launchArguments = @(('"'+$project+'"'),$Destination) + $Mode + @('-ProofAutomation','-unattended','-nullrhi','-nosound','-nosplash','-NoSourceControl','-NoP4','-ddc=BlockoutDDC','-CoreLimit=2','-ini:Engine:[AssetRegistry]:EditorGameScansAR=Async,[ConsoleVariables]:t.MaxFPS=30',('-cvarsini="'+$cvars+'"'),('-port='+$Port),('-abslog="'+$log+'"'))
         $p=Start-Process -FilePath $editor -ArgumentList $launchArguments -WorkingDirectory $projectRoot -WindowStyle Hidden -PassThru
         $processes.Add([pscustomobject]@{Process=$p; Started=$p.StartTime; Role=$Role; Log=$log; Path=$editor})
+        Maintain-OwnedPolicy
     }
     Start-Proof 'host' '/Game/CommandProofGenerated/Maps/CommandProof' @('-server','-MULTIHOME=127.0.0.1')
     $deadline=[DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
@@ -40,12 +58,14 @@ try {
         $hostText = if(Test-Path $processes[0].Log){Get-Content $processes[0].Log -Raw}else{''}
         if ($hostText -match 'PROOF_READY') { break }
         if ([DateTime]::UtcNow -ge $deadline) { throw 'Server readiness timed out.' }
+        Maintain-OwnedPolicy
         Start-Sleep -Milliseconds 200
     } while ($true)
     Start-Proof 'client1' ('127.0.0.1:'+$Port) @('-game')
     Start-Proof 'client2' ('127.0.0.1:'+$Port) @('-game')
     while (@($processes | Where-Object {-not $_.Process.HasExited}).Count) {
         if ([DateTime]::UtcNow -ge $deadline) { throw 'Native proof timed out.' }
+        Maintain-OwnedPolicy
         Start-Sleep -Milliseconds 250
     }
     $snapshots=@(); $owners=@()
