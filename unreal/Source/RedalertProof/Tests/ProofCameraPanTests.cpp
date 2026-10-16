@@ -36,18 +36,20 @@ bool FProofCameraPanMovementTest::RunTest(const FString&)
     FVector GroundUp = CameraMatrix.GetUnitAxis(EAxis::Z);
     GroundUp.Z = 0.0;
     GroundUp.Normalize();
-    TestTrue(TEXT("Default camera screen-right ground axis is world -X"), GroundRight.Equals(FVector(-1.0, 0.0, 0.0), 1.e-9));
-    TestTrue(TEXT("Default camera screen-up ground axis is world +Y"), GroundUp.Equals(FVector(0.0, 1.0, 0.0), 1.e-9));
+    AddInfo(FString::Printf(TEXT("Camera ground basis right=%s up=%s"), *GroundRight.ToString(), *GroundUp.ToString()));
+    // UE rotation-matrix trig is approximate; 0.0001 cm still resolves the pan direction and 60 cm step.
+    TestTrue(TEXT("Default camera screen-right ground axis is world -X"), GroundRight.Equals(FVector(-1.0, 0.0, 0.0), 1.e-6));
+    TestTrue(TEXT("Default camera screen-up ground axis is world +Y"), GroundUp.Equals(FVector(0.0, 1.0, 0.0), 1.e-6));
 
     const FVector Start = FVector::ZeroVector;
     const FVector Right = FProofCameraPan::Apply(Start, FVector2D(1.0, 0.0), 0.1);
-    TestTrue(TEXT("Screen-right follows the camera's ground-projected local right axis"), Right.Equals(GroundRight * 60.0, 1.e-9));
+    TestTrue(TEXT("Screen-right follows the camera's ground-projected local right axis"), Right.Equals(GroundRight * 60.0, 1.e-4));
     const FVector Up = FProofCameraPan::Apply(Start, FVector2D(0.0, 1.0), 0.1);
-    TestTrue(TEXT("Screen-up follows the camera's ground-projected local up axis"), Up.Equals(GroundUp * 60.0, 1.e-9));
+    TestTrue(TEXT("Screen-up follows the camera's ground-projected local up axis"), Up.Equals(GroundUp * 60.0, 1.e-4));
 
     const FVector ExpectedDiagonal = (GroundRight + GroundUp).GetSafeNormal() * 60.0;
     const FVector Diagonal = FProofCameraPan::Apply(Start, FVector2D(1.0, 1.0), 0.1);
-    TestTrue(TEXT("Diagonal input is normalized"), Diagonal.Equals(ExpectedDiagonal, 1.e-9));
+    TestTrue(TEXT("Diagonal input is normalized"), Diagonal.Equals(ExpectedDiagonal, 1.e-4));
 
     const FVector LongFrame = FProofCameraPan::Apply(Start, FVector2D(-1.0, 0.0), 2.0);
     TestTrue(TEXT("Long delta is capped to one tenth of a second"), LongFrame.Equals(FVector(60.0, 0.0, 0.0), 1.e-9));
