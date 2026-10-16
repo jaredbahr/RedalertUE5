@@ -25,6 +25,17 @@ FString AProofRTSPawn::GetInputFixtureBootstrapJson() const
 {
     const AProofPlayerController* PC = Cast<AProofPlayerController>(GetController());
     UGameViewportClient* ViewportClient = GetWorld()->GetGameViewport();
+    const AProofGameState* GS = GetWorld()->GetGameState<AProofGameState>();
+    FString SelectedUnits;
+    for (int32 Id : Selection.GetSelectedUnitIds())
+    {
+        const FProofUnitRecord* Unit = GS ? GS->Snapshot.Units.FindByPredicate(
+            [Id](const FProofUnitRecord& Candidate) { return Candidate.UnitId == Id; }) : nullptr;
+        if (!SelectedUnits.IsEmpty()) SelectedUnits += TEXT(",");
+        SelectedUnits += FString::Printf(TEXT("{\"id\":%d,\"kind\":%d,\"x\":%.3f,\"y\":%.3f}"),
+            Id, Unit ? static_cast<int32>(Unit->Kind) : INDEX_NONE,
+            Unit ? Unit->Position.X : 0.0, Unit ? Unit->Position.Y : 0.0);
+    }
     bool bRBound = false;
     if (InputComponent) for (const FInputKeyBinding& Binding : InputComponent->KeyBindings)
     {
@@ -32,7 +43,8 @@ FString AProofRTSPawn::GetInputFixtureBootstrapJson() const
     }
     return FString::Printf(TEXT("{\"controlledPawnMatches\":%s,\"acknowledgedPawnMatches\":%s,")
         TEXT("\"playerInputId\":%u,\"pawnInputId\":%u,\"registered\":%s,\"inputEnabled\":%s,\"rBound\":%s,")
-        TEXT("\"processedStackFrame\":%llu,\"frame\":%llu,\"viewportIgnoresInput\":%s,\"rDown\":%s}"),
+        TEXT("\"processedStackFrame\":%llu,\"frame\":%llu,\"viewportIgnoresInput\":%s,\"rDown\":%s,")
+        TEXT("\"hitOwnedId\":%d,\"pendingOrders\":%d,\"lastRequestedSequence\":%d,\"selected\":[%s]}"),
         PC && PC->GetPawnOrSpectator() == this ? TEXT("true") : TEXT("false"),
         PC && PC->AcknowledgedPawn == this ? TEXT("true") : TEXT("false"),
         PC && PC->PlayerInput ? PC->PlayerInput->GetUniqueID() : 0,
@@ -41,7 +53,8 @@ FString AProofRTSPawn::GetInputFixtureBootstrapJson() const
         InputEnabled() ? TEXT("true") : TEXT("false"), bRBound ? TEXT("true") : TEXT("false"),
         PC ? PC->GetFixtureProcessedInputFrame(InputComponent.Get()) : 0, GFrameCounter,
         ViewportClient && ViewportClient->IgnoreInput() ? TEXT("true") : TEXT("false"),
-        PC && PC->IsInputKeyDown(EKeys::R) ? TEXT("true") : TEXT("false"));
+        PC && PC->IsInputKeyDown(EKeys::R) ? TEXT("true") : TEXT("false"),
+        FindUnitUnderCursor(true), GroupOrders.NumPending(), LastRequestedSequence, *SelectedUnits);
 }
 
 void AProofRTSPawn::ObserveInputFixtureReadiness(double Now, bool bForce)
@@ -174,12 +187,12 @@ void AProofRTSPawn::FinishInputBindingFixture(bool bPass, const TCHAR* Reason)
         TEXT("\"physicalInputVerified\":false,\"osWindowFocusVerified\":false,\"positiveRealFocusPanVerified\":false,\n")
         TEXT("\"positivePanFocusSource\":\"%s\",\"simulatedLostFocus\":%s,\"observedRealFocusSuppression\":%s,\n")
         TEXT("\"injectedEdges\":%d,\"inputDeviceId\":%d,\"platformUserId\":%d,\n")
-        TEXT("\"nativeCallbacks\":{\"left\":%d,\"right\":%d,\"produce\":%d,\"build\":%d,\"groups\":%d,\"wheelUp\":%d,\"wheelDown\":%d,\"rematch\":%d},\n\"checks\":[%s],\n\"startupReadiness\":%s\n}\n"),
+        TEXT("\"nativeCallbacks\":{\"left\":%d,\"right\":%d,\"produce\":%d,\"build\":%d,\"groups\":%d,\"wheelUp\":%d,\"wheelDown\":%d,\"rematch\":%d},\n\"checks\":[%s],\n\"startupReadiness\":%s,\n\"finalInputState\":%s\n}\n"),
         bPass ? TEXT("pass") : TEXT("fail"), Reason, InputFixtureStage,
         bInputFixtureVirtualFocusUsed ? TEXT("virtualFixture") : TEXT("notExercised"),
         bInputFixtureSimulatedFocusLoss ? TEXT("true") : TEXT("false"), bInputFixtureRealFocusSuppressed ? TEXT("true") : TEXT("false"), InputFixtureEdgesSent, InputFixtureDeviceId, InputFixtureUserId,
         ManualLeftPresses, ManualRightPresses, ManualProducePresses, ManualBuildPresses, ManualGroupPresses,
-        ManualWheelUpPresses, ManualWheelDownPresses, ManualRematchPresses, *Checks, *InputFixtureReadinessJson);
+        ManualWheelUpPresses, ManualWheelDownPresses, ManualRematchPresses, *Checks, *InputFixtureReadinessJson, *GetInputFixtureBootstrapJson());
     IFileManager::Get().MakeDirectory(*InputFixtureOutput, true);
     const bool bWritten = FFileHelper::SaveStringToFile(Result, *FPaths::Combine(InputFixtureOutput, TEXT("client-evidence.json")));
     UE_LOG(LogTemp, Display, TEXT("PROOF_INPUT_BINDING_COMPLETE role=client status=%s reason=%s stage=%d written=%d inputSource=engineInjection pointerSource=projectedSynthetic physicalInputVerified=false osWindowFocusVerified=false positiveRealFocusPanVerified=false"),
@@ -349,11 +362,11 @@ void AProofRTSPawn::TickInputBindingFixture(float DeltaSeconds)
         if (!Point(HQ->Position)) return;
         QueueInputFixtureClick(EKeys::LeftMouseButton, EKeys::LeftShift); AdvanceInputFixture(14); return;
     case 14:
-        if (!InputFixtureCheck(Selection.GetSelectedUnitIds().Num() == 3, TEXT("mixed_group_add_structure"))) return;
+        if (!InputFixtureCheck(Selected({InputFixtureCombatIds[0], InputFixtureCombatIds[1], InputFixtureHQ}), TEXT("mixed_group_add_structure"))) return;
         if (!Point(Harvester->Position)) return;
         QueueInputFixtureClick(EKeys::LeftMouseButton, EKeys::LeftShift); AdvanceInputFixture(15); return;
     case 15:
-        if (!InputFixtureCheck(Selection.GetSelectedUnitIds().Num() == 4, TEXT("mixed_group_add_harvester"))) return;
+        if (!InputFixtureCheck(Selected({InputFixtureCombatIds[0], InputFixtureCombatIds[1], InputFixtureHQ, InputFixtureHarvester}), TEXT("mixed_group_add_harvester"))) return;
         for (int32 Id : Selection.GetSelectedUnitIds()) InputFixtureMoveStart.Add(Id, UnitById(Id)->Position);
         InputFixtureSequenceStart = LastRequestedSequence;
         if (!Point(FVector(-400.f, -400.f, 0.f))) return;
