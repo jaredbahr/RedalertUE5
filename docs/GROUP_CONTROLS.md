@@ -20,10 +20,26 @@ The client retains at most 64 pending Move/Attack intents. A new order for a pen
 
 Formation offsets preserve the units' current arrangement; there is no navigation, collision avoidance, formation editor, box selection or attack-move in this slice.
 
-## Verification status and next gate
+## Verified source and remaining acceptance
 
-**UE compilation, new automation tests, rendered controls and network regressions have not run for this branch.** The shared heavy-test slot has returned; the lifecycle fixture rebuild and Coop rerun passed first at clean head `9f2d562` (91.058 seconds, winner0). Source review, PowerShell syntax parsing and whitespace checks do not prove runtime behavior or physical input.
+All final tests below ran with clean compiled source `3409da2e7ba94952e8568564b1a884fd15e480bd`, using installed UE5.7.4. The last build succeeded in four actions / 8.55 seconds total. Later commits update documentation only. Tests were serialized using the established bounded runners, D: cache/temp paths, Normal-priority policies and owned-process cleanup. Model/scenario jobs used two logical CPUs; the existing rendered controls warmup used four. Policy polling is not hard confinement.
 
-Ten new automation tests cover selection ownership/pruning, group copies and epoch/owner invalidation, deterministic bounded plans, queue coalescing/capacity/pacing/revalidation, and camera math including the actual camera basis. `unreal/Scripts/test-group-controls.ps1` is prepared to require those exact ten successes in a hidden NullRHI editor, using the existing two-CPU/Normal-priority/deadline/cache/owned-process safeguards.
+Result directories are under ignored `D:/UserTemp/RedalertUE5-group-controls/generated/`:
 
-Next, prepare this source-only worktree using existing ignored generated content, build serially with the existing one-action/two-CPU script, run the new controls tests plus existing model, controls and network gates, and inspect rendered HUD evidence. Retain failures and the actual compiled source commit in the result ledger. A human should check Shift-click, Ctrl groups, group orders and optional pan in the bounded interactive launcher after automated gates pass; no visible game was launched for this preparation.
+| Gate | Result | Directory |
+| --- | --- | --- |
+| New selection/group/queue/camera tests | 10/10, zero failures, 11.982s | `group-controls-model-20261016-214922-445` |
+| Existing command model tests | 7/7, zero failures, 11.986s | `native-model-20261016-214934-455` |
+| Existing skirmish model tests | 14/14, zero failures, 12.386s | `skirmish-model-20261016-214946-480` |
+| Native host/two-client proof | Pass, 60 matching common revisions | `native-network-20261016-215012-438` |
+| RPC flood close/healthy-client isolation | Pass, 18.814s | `rpc-ingress-20261016-215044-751` |
+| Offscreen rendered controls compatibility | Pass, 58.432s including warmup; 54 matching revisions | `controls-20261016-215103-604` |
+| Offscreen cooperative small match | Pass, 102.577s; 331 matching revisions; winner0; no cleanup errors | `small-match-coop-20261016-215202-072` |
+
+The new unit tests cover ownership/pruning, group copies and epoch/owner invalidation, deterministic bounded plans, queue coalescing/capacity/pacing/revalidation, and camera math derived from the actual camera basis. `unreal/Scripts/test-group-controls.ps1` requires those exact ten successes. The existing rendered fixture exercises single-unit compatibility; it does not exercise native Shift/Ctrl input or prove multiple selection highlights and queued group RPCs together in a rendered session. Physical input, focus transitions, optional panning and subjective responsiveness still need a human playtest. No visible game was launched. No FPS, Internet or large-army result is claimed.
+
+Rendered controls and cooperative victory/HUD captures were visually inspected locally. Fourteen existing ignored generated content files were reused with matching SHA256 hashes; no art was generated/imported. The eight monitored C: roots showed UE5.7 Saved +31 bytes since the post-lifecycle Coop observation; the other seven were unchanged (`c-drive-after-controls.json`). This shared-PC audit is neither exhaustive nor exclusive attribution. All binaries, caches, reports and PNGs remain ignored on D:.
+
+Retained attempts: `build-group-controls.log` failed at `f17929b` in 40.25s because unnamed helper functions collided in UE unity compilation and a test helper collided with the `Move` overload. Distinct helper names fixed both; `build-group-controls-fixed.log` succeeded at `ed61f4c` in 10.75s. The first automation run (`group-controls-model-20261016-214816-930`) recorded 9/10 successes and one failure in 18.431s: rotation-matrix basis comparisons used a tighter tolerance than UE trig precision. The camera behavior was unchanged; the test now records the basis and uses 0.000001 for unit axes / 0.0001 cm for matrix-derived movement comparisons. The clean rebuilt run passed all ten. None of these logs/reports was deleted or counted as a successful final gate.
+
+The prior lifecycle fixture gate was completed first: clean `9f2d562` rebuilt successfully and passed Coop in 91.058s with 332 matching revisions and winner0. See [lifecycle evidence](SESSION_LIFECYCLE.md). Remaining integration and gameplay-fidelity work is sequenced in [Milestones](MILESTONES.md).

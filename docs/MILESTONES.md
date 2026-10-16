@@ -44,6 +44,17 @@ Deliver: sessions with up to eight player slots, a documented human/bot mix, mea
 
 Pass: complete repeatable eight-slot matches with consistent economy/combat/victory state and no blocking desynchronization, bot stall, or crash; meet the agreed active-unit and network budgets under the chosen conditions. Test connection failure/disconnect behavior and document the supported outcome. Validate actual internet conditions for the provisionally intended internet mode; LAN results alone cannot establish them. Eight human players remain unproven until tested with eight humans. Supporting eight large armies remains an ambition until the combined movement, combat, bot, and network-replication workload passes at that scale.
 
+## Current engineering integration order
+
+The native proof and small match are a foundation using generic units and placeholder values. The milestone pass criteria above still govern; the model-only stress result does not pass the combined active-scale gate.
+
+1. Review the draft stack in dependency order: shared command/controls proof, ingress protection, small skirmish (PR25), local lifecycle (PR26), then the selection/groups branch. Integration requires explicit merge approval; none of these branches changes main. Keep issues 17/18 (input/HUD), 21-24 (small-match loop/economy/bot/result) and 11 (broader lifecycle) mapped to their actual evidence and outstanding gaps rather than closing them from a partial pass.
+2. Finish the controls acceptance gap: a bounded rendered session must demonstrate multiple selection highlights, group recall and group Move/Attack through real host acknowledgements; a human must check Shift/Ctrl input and optional pan/focus behavior. Keep the default camera and existing single-unit actions as compatibility gates. See [group controls](GROUP_CONTROLS.md).
+3. Establish a private original-game reference baseline for economy, construction/production timing, movement, range and infantry/vehicle roles. Record observed conditions and agreed tolerances before replacing placeholder rules; validate the revised loop and bots through shared commands. Do not upload proprietary assets or infer parity from unit names.
+4. Run the combined rendered two-client active workload from milestone 3, including bots, production, movement, combat and replication together. Measure frame times, simulation/AI cost, memory and command/network latency before choosing practical army limits. Then complete the scoped Allied/Soviet roster and repeat bot matches before Yuri and four/eight players.
+
+No paid infrastructure, hosted workflow runs, roster expansion or new asset generation is needed to review the current branch. Internet conditions, authenticated reconnect, final unit scale, visual approval and practical army budgets remain separate open gates.
+
 ## Evidence discipline
 
 The [first proof](FIRST_PROOF.md) supplies partial pipeline evidence, but no milestone is fully passed: art approval and the UE gameplay/network/bot/performance gates remain open. Record accepted results and deviations in [Decisions](DECISIONS.md); link future captures/logs without committing generated output or private information. Passing a small test does not establish final roster completeness, unlimited scale, or production readiness.
