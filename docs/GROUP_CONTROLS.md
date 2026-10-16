@@ -40,7 +40,7 @@ The model test and rendered compatibility runner do not establish actual digit-k
 
 This branch is independent of draft PR #29 and does not carry or validate its bootstrap fix. PR #29's original readiness timeout and separate stage-16 failure remain unresolved. Its later bootstrap source built, but final runtime attempts stopped before fixture execution; do not use its historical passes as nine-group validation.
 
-Related issues [#17](https://github.com/jaredbahr/RedalertUE5/issues/17) (input/focus usability) and [#18](https://github.com/jaredbahr/RedalertUE5/issues/18) (HUD readability) remain partial and open. Nine groups address a narrow controls gap; they do not satisfy physical-input/focus or full presentation acceptance. The draft follow-up depends on #28 and should be reconciled alongside #29 after integration, without merging either here.
+Draft [PR #30](https://github.com/jaredbahr/RedalertUE5/pull/30) contains this follow-up; reviewed source is `c62e544200bfca44c180d349009cb6b98a42de49`. Related issues [#17](https://github.com/jaredbahr/RedalertUE5/issues/17) (input/focus usability) and [#18](https://github.com/jaredbahr/RedalertUE5/issues/18) (HUD readability) remain partial and open. Nine groups address a narrow controls gap; they do not satisfy physical-input/focus or full presentation acceptance. PR #30 depends on #28 and should be reconciled alongside #29 after integration, without merging either here.
 
 ### Historical three-group validation
 
