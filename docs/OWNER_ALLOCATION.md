@@ -19,3 +19,7 @@ Initial source c277af5e05271bfbcb0c0a3267937867beab3184 passed all5groups in47.0
 
 Resource-observer run432cced7c43377d60df363b25345c8df51a77ff9 failed before automation in14.015s: PowerShell selected a32bit Math.Max overload when working set exceeded2GiB. Report generated/native-model-20261016-070257-678/result.json remains failed(testCount0);44policy observations/4affinity repairs preceded the instrumentation failure. Explicit int64 inputs correct the counter, verified with2149662720bytes before another bounded run. This runner-only defect does not change the C++ allocator or relabel the prior5/5functional pass.
 Independent final evidence review confirmed each of the five exact groups appears once with Success and zero errors/warnings, clean tested SHA,60policy observations and4reset events. No publication blocker was found; observations cover the UE parent only.
+
+## Publication status
+
+The fix and draft PR text are prepared locally. Automatic approval review rejected both the branch push and draft PR creation, then rejected a retry that cited the current delegation. Its stated reason was that the superseding authorization was not recognized as trusted and the earlier prohibition on PR communications still applied. Neither rejected command executed. No new remote branch or PR was created, and no alternate publication route was attempted. Direct recognized user approval is required before another publication attempt. The local draft body is generated/owner-pr-body.md; all implementation and evidence work remains on fix/owner-allocation.
