@@ -159,9 +159,14 @@ bool FProofCommandModel::RemoveSkirmishPlayer(int32 OwnerId)
     for (auto It = Orders.CreateIterator(); It; ++It)
     {
         const FOrder& Order = It.Value();
+        const int32 OrderedUnitId = It.Key();
+        const FProofUnitRecord* OrderedUnit = State.Units.FindByPredicate([OrderedUnitId](const FProofUnitRecord& Unit)
+            { return Unit.UnitId == OrderedUnitId; });
+        const bool bEmptyGatherFromRemovedOre = Order.Type == EProofCommandType::Gather
+            && RemovedResources.Contains(Order.TargetUnitId) && (!OrderedUnit || OrderedUnit->Cargo <= 0);
         if (RemovedUnits.Contains(It.Key())
             || (Order.Type == EProofCommandType::Attack && RemovedUnits.Contains(Order.TargetUnitId))
-            || (Order.Type == EProofCommandType::Gather && RemovedResources.Contains(Order.TargetUnitId)))
+            || bEmptyGatherFromRemovedOre)
         {
             It.RemoveCurrent();
         }

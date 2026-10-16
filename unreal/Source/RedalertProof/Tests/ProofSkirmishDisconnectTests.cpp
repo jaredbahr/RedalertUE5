@@ -165,6 +165,64 @@ bool FProofSkirmishTerminalDisconnectTest::RunTest(const FString&)
     return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FProofSkirmishLoadedOreDisconnectTest, "RedalertProof.Skirmish.Lifecycle.LoadedOreDisconnect",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FProofSkirmishLoadedOreDisconnectTest::RunTest(const FString&)
+{
+    FProofCommandModel Model;
+    Model.StartSkirmish();
+    if (!TestTrue(TEXT("Seed ore owner"), Model.SeedSkirmishPlayer(1, 0, FVector::ZeroVector))
+        || !TestTrue(TEXT("Seed harvesting teammate"), Model.SeedSkirmishPlayer(2, 0, FVector(0, 2000, 0)))
+        || !TestTrue(TEXT("Seed opposing bot"), Model.SeedSkirmishPlayer(100, 1, FVector(5000, 0, 0)))) return false;
+    const FProofSnapshot Opening = Model.GetSnapshot();
+    const int32 OreId = Opening.Resources[0].ResourceId;
+    const int32 HarvesterId = FindDisconnectUnit(Opening, 2, EProofUnitKind::Harvester);
+    if (!TestTrue(TEXT("Survivor builds a refinery"), Model.Submit(2, MakeDisconnectCommand(1,
+        EProofCommandType::BuildRefinery, INDEX_NONE, INDEX_NONE, FVector(300, 2000, 0))).bAccepted)
+        || !TestTrue(TEXT("Survivor gathers departing player's ore"), Model.Submit(2,
+            MakeDisconnectCommand(2, EProofCommandType::Gather, HarvesterId, OreId)).bAccepted)) return false;
+
+    Model.Advance(14.f);
+    const FProofSnapshot Loaded = Model.GetSnapshot();
+    const FProofUnitRecord* LoadedHarvester = Loaded.Units.FindByPredicate([HarvesterId]
+        (const FProofUnitRecord& Unit) { return Unit.UnitId == HarvesterId; });
+    const FProofPlayerRecord* BeforePlayer = Loaded.Players.FindByPredicate([]
+        (const FProofPlayerRecord& Player) { return Player.OwnerId == 2; });
+    if (!TestNotNull(TEXT("Loaded harvester exists"), LoadedHarvester)
+        || !TestNotNull(TEXT("Teammate account exists"), BeforePlayer)) return false;
+    TestEqual(TEXT("Foreign ore is already loaded"), LoadedHarvester->Cargo, FProofCommandModel::CargoCapacity);
+    const int32 CreditsBeforeReturn = BeforePlayer->Credits;
+    const int32 GatheredBeforeReturn = BeforePlayer->TotalGathered;
+
+    if (!TestTrue(TEXT("Ore owner disconnects after extraction"), Model.RemoveSkirmishPlayer(1))) return false;
+    const FProofSnapshot Removed = Model.GetSnapshot();
+    TestFalse(TEXT("Source ore is gone"), Removed.Resources.ContainsByPredicate([OreId]
+        (const FProofResourceRecord& Ore) { return Ore.ResourceId == OreId; }));
+    TestTrue(TEXT("Teammate keeps playing"), Removed.MatchPhase == EProofMatchPhase::Playing);
+    Model.Advance(14.f);
+    const FProofSnapshot Returned = Model.GetSnapshot();
+    const FProofUnitRecord* ReturnedHarvester = Returned.Units.FindByPredicate([HarvesterId]
+        (const FProofUnitRecord& Unit) { return Unit.UnitId == HarvesterId; });
+    const FProofPlayerRecord* ReturnedPlayer = Returned.Players.FindByPredicate([]
+        (const FProofPlayerRecord& Player) { return Player.OwnerId == 2; });
+    if (!TestNotNull(TEXT("Returning harvester exists"), ReturnedHarvester)
+        || !TestNotNull(TEXT("Returning teammate exists"), ReturnedPlayer)) return false;
+    TestEqual(TEXT("Loaded cargo deposits after source removal"), ReturnedHarvester->Cargo, 0);
+    TestEqual(TEXT("Survivor gets exactly the cargo credits"), ReturnedPlayer->Credits,
+        CreditsBeforeReturn + FProofCommandModel::CargoCapacity);
+    TestEqual(TEXT("Gathered total records one deposit"), ReturnedPlayer->TotalGathered,
+        GatheredBeforeReturn + FProofCommandModel::CargoCapacity);
+
+    Model.Advance(14.f);
+    const FProofSnapshot AfterSecondAdvance = Model.GetSnapshot();
+    const FProofPlayerRecord* AfterSecondPlayer = AfterSecondAdvance.Players.FindByPredicate([]
+        (const FProofPlayerRecord& Player) { return Player.OwnerId == 2; });
+    if (!TestNotNull(TEXT("Teammate remains"), AfterSecondPlayer)) return false;
+    TestEqual(TEXT("Removed ore cannot pay twice"), AfterSecondPlayer->Credits, ReturnedPlayer->Credits);
+    TestEqual(TEXT("Harvest total remains stable"), AfterSecondPlayer->TotalGathered, ReturnedPlayer->TotalGathered);
+    return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FProofSkirmishForfeitDisconnectTest, "RedalertProof.Skirmish.Lifecycle.LastTeamDisconnect",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FProofSkirmishForfeitDisconnectTest::RunTest(const FString&)
