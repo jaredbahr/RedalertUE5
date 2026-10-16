@@ -24,6 +24,7 @@
 AProofRTSPawn::AProofRTSPawn()
 {
     PrimaryActorTick.bCanEverTick = true;
+    bInteractiveExitEnabled = FParse::Param(FCommandLine::Get(), TEXT("ProofInteractive"));
     RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("ViewRoot"));
     Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("RTSCamera"));
     Camera->SetupAttachment(RootComponent);
@@ -55,11 +56,17 @@ void AProofRTSPawn::BeginPlay()
 void AProofRTSPawn::SetupPlayerInputComponent(UInputComponent* Input)
 {
     Super::SetupPlayerInputComponent(Input);
-    Input->BindKey(EKeys::LeftMouseButton, IE_Pressed, this, &AProofRTSPawn::SelectUnderCursor);
-    Input->BindKey(EKeys::RightMouseButton, IE_Pressed, this, &AProofRTSPawn::OrderUnderCursor);
-    Input->BindKey(EKeys::P, IE_Pressed, this, &AProofRTSPawn::Produce);
-    Input->BindKey(EKeys::MouseScrollUp, IE_Pressed, this, &AProofRTSPawn::ZoomIn);
-    Input->BindKey(EKeys::MouseScrollDown, IE_Pressed, this, &AProofRTSPawn::ZoomOut);
+    // Bound callbacks are the native input path. Controls automation calls the
+    // shared action handlers below directly, so it cannot inflate these counts.
+    Input->BindKey(EKeys::LeftMouseButton, IE_Pressed, this, &AProofRTSPawn::OnManualSelect);
+    Input->BindKey(EKeys::RightMouseButton, IE_Pressed, this, &AProofRTSPawn::OnManualOrder);
+    Input->BindKey(EKeys::P, IE_Pressed, this, &AProofRTSPawn::OnManualProduce);
+    Input->BindKey(EKeys::MouseScrollUp, IE_Pressed, this, &AProofRTSPawn::OnManualZoomIn);
+    Input->BindKey(EKeys::MouseScrollDown, IE_Pressed, this, &AProofRTSPawn::OnManualZoomOut);
+    if (bInteractiveExitEnabled)
+    {
+        Input->BindKey(EKeys::Escape, IE_Pressed, this, &AProofRTSPawn::OnInteractiveEscape);
+    }
 }
 
 void AProofRTSPawn::Tick(float DeltaSeconds)
@@ -70,14 +77,31 @@ void AProofRTSPawn::Tick(float DeltaSeconds)
     {
         return;
     }
-    if (!bConfiguredLocalInput)
+    if (!bConfiguredLocalInput && PC->GetLocalPlayer() && GetWorld()->GetGameViewport()
+        && GetWorld()->GetGameViewport()->GetGameViewportWidget().IsValid())
     {
         PC->bShowMouseCursor = true;
+        // UE 5.7 GameAndUI uses CaptureDuringMouseDown and forwards the first
+        // mouse press. The viewport widget must exist before SetInputMode; do
+        // not reapply it after focus changes or force the OS window forward.
         PC->SetInputMode(FInputModeGameAndUI().SetHideCursorDuringCapture(false));
         // Keep the review view at the fixture origin regardless of PlayerStart.
         Camera->SetWorldLocation(FVector(0.f, -3200.f, 3200.f));
         Camera->SetWorldRotation(FRotator(-45.f, 90.f, 0.f));
         bConfiguredLocalInput = true;
+    }
+    ObserveViewportFocus();
+    if (bInteractiveExitEnabled && bConfiguredLocalInput && !bInteractiveReadyLogged && PC->OwnerId != INDEX_NONE)
+    {
+        int32 Width = 0, Height = 0;
+        PC->GetViewportSize(Width, Height);
+        if (Width > 0 && Height > 0)
+        {
+            const IConsoleVariable* MaxFPS = IConsoleManager::Get().FindConsoleVariable(TEXT("t.MaxFPS"));
+            UE_LOG(LogTemp, Display, TEXT("PROOF_INTERACTIVE_READY owner=%d width=%d height=%d maxFPS=%.3f physicalInput=unverified"),
+                PC->OwnerId, Width, Height, MaxFPS ? MaxFPS->GetFloat() : -1.f);
+            bInteractiveReadyLogged = true;
+        }
     }
     const AProofGameState* GS = GetWorld()->GetGameState<AProofGameState>();
     if (!GS)
@@ -133,6 +157,105 @@ void AProofRTSPawn::Tick(float DeltaSeconds)
         return;
     }
     if (PC->IsControlsAutomation()) TickControlsAutomation(DeltaSeconds);
+}
+
+FString AProofRTSPawn::GetManualInputStatus() const
+{
+    const TCHAR* Focus = !bFocusObserved ? TEXT("pending")
+        : !bViewportForeground ? TEXT("background")
+        : bViewportFocused ? TEXT("focused") : TEXT("unfocused");
+    return FString::Printf(TEXT("Native L%d R%d P%d W+%d/-%d | focus %s | last %s | human unverified"),
+        ManualLeftPresses, ManualRightPresses, ManualProducePresses,
+        ManualWheelUpPresses, ManualWheelDownPresses, Focus, *LastManualAction);
+}
+
+void AProofRTSPawn::ObserveViewportFocus()
+{
+    const UGameViewportClient* GameViewport = GetWorld() ? GetWorld()->GetGameViewport() : nullptr;
+    const FViewport* Viewport = GameViewport ? GameViewport->Viewport : nullptr;
+    if (!Viewport) return;
+    const bool bFocused = Viewport->HasFocus();
+    const bool bForeground = Viewport->IsForegroundWindow();
+    if (!bFocusObserved || bFocused != bViewportFocused || bForeground != bViewportForeground)
+    {
+        bFocusObserved = true;
+        bViewportFocused = bFocused;
+        bViewportForeground = bForeground;
+        if (FocusTransitions < MAX_int32) ++FocusTransitions;
+        if (FocusTransitions <= 8)
+        {
+            UE_LOG(LogTemp, Display, TEXT("PROOF_MANUAL_FOCUS transition=%d viewportFocus=%d foreground=%d physicalInput=unverified"),
+                FocusTransitions, bFocused ? 1 : 0, bForeground ? 1 : 0);
+        }
+        else if (FocusTransitions == 9)
+        {
+            UE_LOG(LogTemp, Display, TEXT("PROOF_MANUAL_FOCUS furtherTransitions=suppressed physicalInput=unverified"));
+        }
+    }
+}
+
+void AProofRTSPawn::RecordManualInput(const TCHAR* Key, int32& Count, const FString& Outcome)
+{
+    if (Count < MAX_int32) ++Count;
+    LastManualAction = FString::Printf(TEXT("%s %s"), Key, *Outcome.Left(56));
+    if (ManualInputLogs < 24)
+    {
+        ++ManualInputLogs;
+        UE_LOG(LogTemp, Display, TEXT("PROOF_MANUAL_INPUT key=%s count=%d outcome=%s viewportFocus=%d foreground=%d physicalInput=unverified"),
+            Key, Count, *Outcome.Left(80), bViewportFocused ? 1 : 0, bViewportForeground ? 1 : 0);
+        if (ManualInputLogs == 24)
+        {
+            UE_LOG(LogTemp, Display, TEXT("PROOF_MANUAL_INPUT furtherEvents=suppressed countersRemainVisible=1 physicalInput=unverified"));
+        }
+    }
+}
+
+void AProofRTSPawn::OnManualSelect()
+{
+    SelectUnderCursor();
+    RecordManualInput(TEXT("LMB"), ManualLeftPresses,
+        SelectedUnitId == INDEX_NONE ? TEXT("selection cleared") : FString::Printf(TEXT("selected unit %d"), SelectedUnitId));
+}
+
+void AProofRTSPawn::OnManualOrder()
+{
+    const int32 BeforeSequence = LastRequestedSequence;
+    OrderUnderCursor();
+    RecordManualInput(TEXT("RMB"), ManualRightPresses,
+        LastRequestedSequence != BeforeSequence
+            ? FString::Printf(TEXT("%s request #%d"), *LastRequestedType, LastRequestedSequence)
+            : RequestStatus);
+}
+
+void AProofRTSPawn::OnManualProduce()
+{
+    const int32 BeforeSequence = LastRequestedSequence;
+    Produce();
+    RecordManualInput(TEXT("P"), ManualProducePresses,
+        LastRequestedSequence != BeforeSequence
+            ? FString::Printf(TEXT("Produce request #%d"), LastRequestedSequence)
+            : RequestStatus);
+}
+
+void AProofRTSPawn::OnManualZoomIn()
+{
+    ZoomIn();
+    RecordManualInput(TEXT("WheelUp"), ManualWheelUpPresses,
+        FString::Printf(TEXT("ortho %.0f"), Camera->OrthoWidth));
+}
+
+void AProofRTSPawn::OnManualZoomOut()
+{
+    ZoomOut();
+    RecordManualInput(TEXT("WheelDown"), ManualWheelDownPresses,
+        FString::Printf(TEXT("ortho %.0f"), Camera->OrthoWidth));
+}
+
+void AProofRTSPawn::OnInteractiveEscape()
+{
+    if (!bInteractiveExitEnabled) return;
+    UE_LOG(LogTemp, Display, TEXT("PROOF_MANUAL_EXIT key=Escape physicalInput=unverified"));
+    FPlatformMisc::RequestExit(false);
 }
 
 bool AProofRTSPawn::GetPointerScreenPosition(FVector2D& OutPoint) const

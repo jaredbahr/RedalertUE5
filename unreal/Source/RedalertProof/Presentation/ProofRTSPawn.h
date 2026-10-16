@@ -21,6 +21,8 @@ public:
     virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
     int32 GetSelectedUnitId() const { return SelectedUnitId; }
     const FString& GetRequestStatus() const { return RequestStatus; }
+    FString GetManualInputStatus() const;
+    bool IsInteractiveSession() const { return bInteractiveExitEnabled; }
     bool IsUsingBlockoutMesh() const { return bUsingBlockoutMesh; }
 
 protected:
@@ -33,6 +35,19 @@ private:
     int32 SelectedUnitId = INDEX_NONE;
     bool bUsingBlockoutMesh = false;
     bool bConfiguredLocalInput = false;
+    bool bInteractiveExitEnabled = false;
+    bool bInteractiveReadyLogged = false;
+    bool bFocusObserved = false;
+    bool bViewportFocused = false;
+    bool bViewportForeground = false;
+    int32 FocusTransitions = 0;
+    int32 ManualLeftPresses = 0;
+    int32 ManualRightPresses = 0;
+    int32 ManualProducePresses = 0;
+    int32 ManualWheelUpPresses = 0;
+    int32 ManualWheelDownPresses = 0;
+    int32 ManualInputLogs = 0;
+    FString LastManualAction = TEXT("none");
     bool bGraphicsWarmup = false;
     double WarmupIdleStart = -1.0;
     double WarmupLastLog = -1.0;
@@ -62,6 +77,14 @@ private:
     void Produce();
     void ZoomIn();
     void ZoomOut();
+    void OnManualSelect();
+    void OnManualOrder();
+    void OnManualProduce();
+    void OnManualZoomIn();
+    void OnManualZoomOut();
+    void OnInteractiveEscape();
+    void RecordManualInput(const TCHAR* Key, int32& Count, const FString& Outcome);
+    void ObserveViewportFocus();
     int32 FindUnitUnderCursor(bool bOwnOnly) const;
     bool CursorGroundPoint(FVector& OutPoint) const;
     bool PointerWorldRay(FVector& OutOrigin, FVector& OutDirection) const;

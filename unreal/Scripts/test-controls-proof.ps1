@@ -5,7 +5,8 @@ param(
     [ValidateRange(15,600)][int]$WarmupTimeoutSeconds = 300,
     [ValidateRange(0,65536)][int]$MaxCacheMiB = 2048,
     [ValidateRange(0,65536)][int]$MaxTempMiB = 1024,
-    [switch]$UnoptimizedShaders
+    [switch]$UnoptimizedShaders,
+    [switch]$CleanPresentation
 )
 $ErrorActionPreference = 'Stop'
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
@@ -39,7 +40,7 @@ if($fixtureLogicalProcessors.Count -ne 2) { throw 'Controls fixture requires two
 $head = (& git -C $repoRoot rev-parse HEAD).Trim()
 if ($LASTEXITCODE -ne 0) { throw 'Cannot record tested HEAD.' }
 $dirty = [bool](& git -C $repoRoot status --porcelain)
-$result = [ordered]@{passed=$false;head=$head;dirtyWorkingTree=$dirty;startedUtc=[DateTime]::UtcNow.ToString('o');finishedUtc=$null;elapsedSeconds=0;scenarioElapsedSeconds=0;warmup=[ordered]@{passed=$false;startedUtc=$null;finishedUtc=$null;elapsedSeconds=0;timeoutSeconds=$WarmupTimeoutSeconds;coreLimit=4;reportedShaderWorkers=$null;unusedShaderThreads=1;unusedShaderThreadsDuringGame=1;screenshotAcceptance=$false};scenarioTimeoutSeconds=$TimeoutSeconds;scenarioCoreLimit=2;totalTimeoutBudgetSeconds=($WarmupTimeoutSeconds+$TimeoutSeconds);cachePath=$cache;stages=[ordered]@{};observedCounts=@{};runDirectory=$run;topology='one dedicated UE server, one rendered controls client, one NullRHI passive observer (after standalone graphical warmup)';transport='UE native UDP loopback';physicalMouseAndFocusVerified=$false;internetTest=$false;performanceTest=$false;port=$Port;screenshots=@();commonRevisions=@();error=$null}
+$result = [ordered]@{passed=$false;head=$head;dirtyWorkingTree=$dirty;startedUtc=[DateTime]::UtcNow.ToString('o');finishedUtc=$null;elapsedSeconds=0;scenarioElapsedSeconds=0;warmup=[ordered]@{passed=$false;startedUtc=$null;finishedUtc=$null;elapsedSeconds=0;timeoutSeconds=$WarmupTimeoutSeconds;coreLimit=4;reportedShaderWorkers=$null;unusedShaderThreads=1;unusedShaderThreadsDuringGame=1;screenshotAcceptance=$false};scenarioTimeoutSeconds=$TimeoutSeconds;scenarioCoreLimit=2;totalTimeoutBudgetSeconds=($WarmupTimeoutSeconds+$TimeoutSeconds);cachePath=$cache;stages=[ordered]@{};observedCounts=@{};runDirectory=$run;topology='one dedicated UE server, one rendered controls client, one NullRHI passive observer (after standalone graphical warmup)';transport='UE native UDP loopback';cleanPresentation=[bool]$CleanPresentation;physicalMouseAndFocusVerified=$false;internetTest=$false;performanceTest=$false;port=$Port;screenshots=@();commonRevisions=@();error=$null}
 $prior=@{}; $processes=[Collections.Generic.List[object]]::new()
 $ownedWorkers=[Collections.Generic.List[object]]::new()
 $storageGuard=[ordered]@{softPollingGuard=$true;intervalSeconds=10;maxCacheMiB=$MaxCacheMiB;maxTempMiB=$MaxTempMiB;lastCheckElapsedSeconds=-10;checks=0;latestCacheBytes=0;latestTempBytes=0;peakObservedCacheBytes=0;peakObservedTempBytes=0}
@@ -183,9 +184,10 @@ try {
             if($Destination -notmatch '^127\.0\.0\.1:\d+$') { throw 'Literal-client startup override is restricted to this fixture loopback destination.' }
             $launchArguments+=('-cvarsini="'+$literalClientCVars+'"')
         }
+        if($CleanPresentation -and $Role -in @('warmup','rendered')) { $launchArguments+='-ExecCmds="DisableAllScreenMessages"' }
         # One Engine override string prevents duplicate -ini:Engine switches
         # from shadowing warmup worker settings or shader optimization mode.
-        $engineOverrides=@('[DevOptions.Shaders]:WorkerProcessPriority=0','[ConsoleVariables]:t.MaxFPS=30')
+        $engineOverrides=@('[DevOptions.Shaders]:WorkerProcessPriority=0','[ConsoleVariables]:t.MaxFPS=30','[AssetRegistry]:EditorGameScansAR=Async')
         if($Role -eq 'warmup') { $engineOverrides+=@('[DevOptions.Shaders]:NumUnusedShaderCompilingThreads=1','[DevOptions.Shaders]:NumUnusedShaderCompilingThreadsDuringGame=1') }
         if($UnoptimizedShaders) { $engineOverrides+=@('[ShaderCompiler]:r.Shaders.Optimize=0','[ConsoleVariables]:r.Shaders.Optimize=0') }
         if($engineOverrides.Count) { $launchArguments+=('-ini:Engine:'+($engineOverrides -join ',')) }
