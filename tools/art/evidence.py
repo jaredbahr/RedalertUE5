@@ -35,11 +35,11 @@ def begin_run(output, root):
     output = Path(output)
     run_id = uuid.uuid4().hex
     archive = output / 'evidence_history' / run_id
-    owned = ['previews', 'blockout_manifest.json', 'export_validation.json', 'ue_import_report.json', 'ue_asset_probe.json', 'ue_negative_probe.json']
+    owned = ['previews', 'blockout_manifest.json', 'export_validation.json', 'ue_import_report.json', 'ue_asset_probe.json', 'ue_negative_probe.json', 'asset_probe_fixtures/index.json']
     for name in owned:
         source = output / name
         if source.exists():
-            archive.mkdir(parents=True, exist_ok=True)
+            (archive / name).parent.mkdir(parents=True, exist_ok=True)
             shutil.move(str(source), str(archive / name))
     if archive.exists():
         write_json(archive / 'ARCHIVED.json', {'status': 'historical, not current evidence',
@@ -47,6 +47,9 @@ def begin_run(output, root):
     identity = {'run_id': run_id, 'source_sha256': source_hash(root)}
     for name in ('export_validation.json', 'ue_import_report.json', 'ue_asset_probe.json', 'ue_negative_probe.json'):
         write_json(output / name, {**identity, 'status': 'not_run', 'passed': False})
+    index = output / 'asset_probe_fixtures/index.json'
+    index.parent.mkdir(parents=True, exist_ok=True)
+    write_json(index, {**identity, 'status': 'not_run', 'passed': False})
     return identity
 
 

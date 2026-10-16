@@ -32,13 +32,14 @@ class Gates(unittest.TestCase):
         # Execute actual script entrypoints with inert engine modules. Malformed input
         # must fail before any bpy/unreal API is needed, clearing previous successes.
         source_root = Path(__file__).resolve().parents[2]
-        with tempfile.TemporaryDirectory() as temp:
+        with tempfile.TemporaryDirectory(dir=source_root) as temp:
             root = Path(temp)
             output = root / 'generated'
             output.mkdir()
             (output / 'blockout_manifest.json').write_text('{bad json')
             for relative, reports in [
                 ('tools/art/validate_exports.py', ['export_validation.json']),
+                ('tools/art/prepare_negative_fixtures.py', ['asset_probe_fixtures/index.json']),
                 ('unreal/Scripts/import_scene.py', ['ue_import_report.json', 'ue_asset_probe.json']),
             ]:
                 script = root / relative
@@ -48,10 +49,12 @@ class Gates(unittest.TestCase):
                     (script.parent / 'palette_materials.py').write_text(
                         (source_root / 'unreal/Scripts/palette_materials.py').read_text())
                 for name in reports:
+                    (output / name).parent.mkdir(parents=True, exist_ok=True)
                     write_json(output / name, {'passed': True, 'run_id': 'same-run'})
                 argv = [str(script), '--', '--output', str(output)]
                 with self.subTest(script=relative), patch.object(sys, 'argv', argv), \
-                        patch.dict(sys.modules, {'bpy': SimpleNamespace(), 'unreal': SimpleNamespace()}):
+                        patch.dict(sys.modules, {'bpy': SimpleNamespace(), 'unreal': SimpleNamespace(),
+                                                 'mathutils': SimpleNamespace(Vector=object)}):
                     with self.assertRaises(json.JSONDecodeError):
                         runpy.run_path(str(script), run_name='__main__')
                 for name in reports:
@@ -89,6 +92,9 @@ class Gates(unittest.TestCase):
             verify_inputs(output, manifest, root)
             write_json(output / 'export_validation.json', {**identity, 'passed': True})
             write_json(output / 'ue_asset_probe.json', {**identity, 'passed': True})
+            write_json(output / 'asset_probe_fixtures/index.json', {**identity, 'passed': True})
+            fixture_binary = output / 'asset_probe_fixtures/prior_geometry.fbx'
+            fixture_binary.write_bytes(b'preserved fixture')
             (output / 'previews').mkdir()
             (output / 'previews/approved.png').write_bytes(b'baseline capture')
             script.write_text('changed source')
@@ -97,6 +103,9 @@ class Gates(unittest.TestCase):
             self.assertFalse(json.loads((output / 'ue_asset_probe.json').read_text())['passed'])
             self.assertEqual(json.loads((output / 'ue_asset_probe.json').read_text())['run_id'], second['run_id'])
             archive = output / 'evidence_history' / second['run_id']
+            self.assertFalse(json.loads((output / 'asset_probe_fixtures/index.json').read_text())['passed'])
+            self.assertTrue(json.loads((archive / 'asset_probe_fixtures/index.json').read_text())['passed'])
+            self.assertEqual(fixture_binary.read_bytes(), b'preserved fixture')
             self.assertEqual((archive / 'previews/approved.png').read_bytes(), b'baseline capture')
             asset.write_bytes(b'changed geometry')
             current = {**second, 'previews': {'status': 'omitted'},

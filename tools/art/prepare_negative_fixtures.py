@@ -18,14 +18,14 @@ args = parser.parse_args(sys.argv[sys.argv.index('--') + 1:])
 output = args.output.resolve()
 if output.drive.upper() != 'D:':
     raise ValueError('Probe output must remain on D:')
-manifest = json.loads((output / 'blockout_manifest.json').read_text())
-verify_inputs(output, manifest, Path(__file__).resolve().parents[2])
 fixtures = output / 'asset_probe_fixtures'
 fixtures.mkdir(exist_ok=True)
 index_path = fixtures / 'index.json'
 if index_path.exists():
     (fixtures / ('historical_index_' + uuid.uuid4().hex + '.json')).write_bytes(index_path.read_bytes())
 write_json(index_path, {'passed': False, 'status': 'checking_or_failed'})
+manifest = json.loads((output / 'blockout_manifest.json').read_text())
+verify_inputs(output, manifest, Path(__file__).resolve().parents[2])
 summary = []
 for case in ('palette_change', 'vertex_z_offset', 'pivot_z_offset'):
     directory = fixtures / (case + '_' + uuid.uuid4().hex)
