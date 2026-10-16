@@ -10,6 +10,7 @@
 #include "Misc/Parse.h"
 #include "HAL/PlatformMisc.h"
 #include "HAL/PlatformTime.h"
+#include "Misc/Paths.h"
 
 AProofPlayerController::AProofPlayerController()
 {
@@ -23,6 +24,37 @@ AProofPlayerController::AProofPlayerController()
     bIngressFlood = FParse::Param(FCommandLine::Get(), TEXT("ProofIngressFlood"));
     bIngressHealthy = FParse::Param(FCommandLine::Get(), TEXT("ProofIngressHealthy"));
     FParse::Value(FCommandLine::Get(), TEXT("ProofIngressRelease="), IngressRelease);
+    FParse::Value(FCommandLine::Get(), TEXT("ProofLifecycleRole="), LifecycleRole);
+    FParse::Value(FCommandLine::Get(), TEXT("ProofLifecycleControl="), LifecycleControl);
+    bLifecycleFixture = bSkirmishMode && !LifecycleRole.IsEmpty();
+}
+
+void AProofPlayerController::SynchronizeMatchEpoch()
+{
+    const AProofGameState* State = GetWorld() ? GetWorld()->GetGameState<AProofGameState>() : nullptr;
+    if (!State || State->Snapshot.MatchEpoch <= LocalMatchEpoch) return;
+    LocalMatchEpoch = State->Snapshot.MatchEpoch;
+    NextLocalSequence = 1;
+    Receipts.Reset();
+    LastReceiptSequence = 0;
+    ReceiptStatus = TEXT("No host receipt yet.");
+    Acknowledged.Reset();
+    LastLoggedRevision = -1;
+    SkirmishObserverStep = 0;
+    SkirmishObserverPendingSequence = INDEX_NONE;
+    SkirmishObserverTerminalAt = -1.f;
+    bSkirmishObserverReady = bSkirmishObserverRefinery = bSkirmishObserverFactory = false;
+    bSkirmishObserverGathered = bSkirmishObserverProduced = false;
+    LifecycleStep = 0;
+    LifecyclePendingSequence = INDEX_NONE;
+    bLifecycleRematchSent = bLifecycleStaleSent = false;
+    UE_LOG(LogTemp, Display, TEXT("PROOF_CLIENT_EPOCH owner=%d epoch=%d"), OwnerId, LocalMatchEpoch);
+}
+
+int32 AProofPlayerController::NextLocalCommandSequence()
+{
+    SynchronizeMatchEpoch();
+    return NextLocalSequence < MAX_int32 ? NextLocalSequence++ : 0;
 }
 
 bool AProofPlayerController::FindReceipt(int32 Sequence, FProofCommandResult& OutResult) const
@@ -37,7 +69,7 @@ void AProofPlayerController::GetLifetimeReplicatedProps(TArray<FLifetimeProperty
     DOREPLIFETIME(AProofPlayerController, OwnerId);
 }
 
-void AProofPlayerController::ServerSubmitCommand_Implementation(FProofCommand Command)
+bool AProofPlayerController::AdmitIngress()
 {
     const bool bWasTripped = IngressBudget.IsTripped();
     const double Now = FPlatformTime::Seconds();
@@ -58,22 +90,52 @@ void AProofPlayerController::ServerSubmitCommand_Implementation(FProofCommand Co
                         OwnerId, Connection->GetConnectionState() == USOCK_Closed, IngressAdmitted, Now - IngressFirstSeconds);
             }
         }
-        return;
+        return false;
     }
     if (bIngressFixture)
     {
         if (IngressAdmitted == 0) IngressFirstSeconds = Now;
         if (IngressAdmitted < MAX_int32) ++IngressAdmitted;
     }
+    return true;
+}
+
+void AProofPlayerController::ServerSubmitCommand_Implementation(FProofCommand Command)
+{
+    if (!AdmitIngress()) return;
     if (AProofGameMode* Mode = GetWorld()->GetAuthGameMode<AProofGameMode>())
     {
         // OwnerId is assigned by PostLogin on the server, never supplied by the RPC.
-        ClientCommandResult(Mode->SubmitForOwner(OwnerId, Command));
+        ClientCommandResult(Mode->SubmitForController(this, Command));
+    }
+}
+
+void AProofPlayerController::ServerRequestRematch_Implementation(int32 ExpectedEpoch)
+{
+    if (!AdmitIngress()) return;
+    AProofGameMode* Mode = GetWorld()->GetAuthGameMode<AProofGameMode>();
+    const bool bAccepted = Mode && Mode->RequestRematch(this, ExpectedEpoch);
+    UE_LOG(LogTemp, Display, TEXT("PROOF_REMATCH_REQUEST owner=%d epoch=%d accepted=%d"), OwnerId, ExpectedEpoch, bAccepted ? 1 : 0);
+}
+
+void AProofPlayerController::ClientLifecycleRejected_Implementation()
+{
+    if (LifecycleRole == TEXT("third"))
+    {
+        UE_LOG(LogTemp, Display, TEXT("PROOF_LIFECYCLE_CLIENT_REJECT reason=full"));
+        UE_LOG(LogTemp, Display, TEXT("PROOF_LIFECYCLE_CLIENT_COMPLETE role=third status=pass"));
+        FPlatformMisc::RequestExitWithStatus(false, 0);
     }
 }
 
 void AProofPlayerController::ClientCommandResult_Implementation(FProofCommandResult Result)
 {
+    SynchronizeMatchEpoch();
+    if (LocalMatchEpoch > 0 && Result.MatchEpoch != LocalMatchEpoch)
+    {
+        UE_LOG(LogTemp, Display, TEXT("PROOF_STALE_RECEIPT_IGNORED owner=%d epoch=%d current=%d sequence=%d"), OwnerId, Result.MatchEpoch, LocalMatchEpoch, Result.Sequence);
+        return;
+    }
     LastReceiptSequence = Result.Sequence;
     ReceiptStatus = FString::Printf(TEXT("Host #%d: %s (%s)"), Result.Sequence,
         Result.bAccepted ? TEXT("ACCEPTED") : TEXT("REJECTED"), *Result.Reason);
@@ -87,6 +149,8 @@ void AProofPlayerController::ClientCommandResult_Implementation(FProofCommandRes
     }
     UE_LOG(LogTemp, Display, TEXT("PROOF_RESULT owner=%d sequence=%lld accepted=%d reason=%s"),
         OwnerId, static_cast<long long>(Result.Sequence), Result.bAccepted ? 1 : 0, *Result.Reason);
+    if (bLifecycleFixture) UE_LOG(LogTemp, Display, TEXT("PROOF_LIFECYCLE_CLIENT_RESULT owner=%d epoch=%d sequence=%d accepted=%d reason=%s"),
+        OwnerId, Result.MatchEpoch, Result.Sequence, Result.bAccepted ? 1 : 0, *Result.Reason);
     if (bSkirmishObserver) return;
     if (!bAutomation) return;
     const int32 Sequence = static_cast<int32>(Result.Sequence);
@@ -112,11 +176,13 @@ void AProofPlayerController::Tick(float DeltaSeconds)
     if (!IsLocalController()) return;
     Lifetime += DeltaSeconds;
     AProofGameState* State = GetWorld()->GetGameState<AProofGameState>();
+    SynchronizeMatchEpoch();
     if (State && OwnerId != INDEX_NONE && LastLoggedRevision != State->Snapshot.Revision)
     {
         State->LogSnapshot(TEXT("client"), OwnerId);
         LastLoggedRevision = State->Snapshot.Revision;
     }
+    if (bLifecycleFixture) { TickLifecycleFixture(State); return; }
     if (bSkirmishObserver) { TickSkirmishObserver(State); return; }
     if (bControlsObserver && !bFinished)
     {
@@ -327,10 +393,122 @@ void AProofPlayerController::TickSkirmishObserver(AProofGameState* State)
         Command.UnitId = Factory->UnitId;
     }
     Command.Sequence = NextLocalCommandSequence();
+    Command.MatchEpoch = Snapshot.MatchEpoch;
     SkirmishObserverPendingSequence = Command.Sequence;
     ServerSubmitCommand(Command);
     UE_LOG(LogTemp, Display, TEXT("PROOF_SKIRMISH_OBSERVER_SEND owner=2 step=%d sequence=%d revision=%d"),
         SkirmishObserverStep, Command.Sequence, Snapshot.Revision);
+}
+
+// The lifecycle runner only creates gate files. Every action here still travels
+// through the same controller RPC and command model as an interactive player.
+void AProofPlayerController::TickLifecycleFixture(AProofGameState* State)
+{
+    if (bFinished || LifecycleControl.IsEmpty()) return;
+    const auto HasGate = [this](const FString& Name)
+    {
+        return IFileManager::Get().FileExists(*FPaths::Combine(LifecycleControl, Name));
+    };
+    if (HasGate(TEXT("finish")))
+    {
+        bFinished = true;
+        UE_LOG(LogTemp, Display, TEXT("PROOF_LIFECYCLE_CLIENT_COMPLETE role=%s status=pass"), *LifecycleRole);
+        FPlatformMisc::RequestExitWithStatus(false, 0);
+        return;
+    }
+    if (!State || OwnerId == INDEX_NONE || State->Snapshot.MatchEpoch <= 0) return;
+    const FProofSnapshot& Snapshot = State->Snapshot;
+    const int32 Epoch = Snapshot.MatchEpoch;
+    if (LifecycleRole == TEXT("lead") && Epoch > 1 && !bLifecycleStaleSent &&
+        HasGate(FString::Printf(TEXT("stale-epoch-%d"), Epoch - 1)))
+    {
+        FProofCommand Stale;
+        Stale.Sequence = 1;
+        Stale.MatchEpoch = Epoch - 1;
+        ServerSubmitCommand(Stale);
+        bLifecycleStaleSent = true;
+        UE_LOG(LogTemp, Display, TEXT("PROOF_LIFECYCLE_STALE_SENT owner=%d epoch=%d"), OwnerId, Stale.MatchEpoch);
+    }
+    if (LifecycleRole == TEXT("lead") && Snapshot.MatchPhase == EProofMatchPhase::Finished &&
+        !bLifecycleRematchSent && HasGate(FString::Printf(TEXT("rematch-epoch-%d"), Epoch)))
+    {
+        bLifecycleRematchSent = true;
+        ServerRequestRematch(Epoch);
+        UE_LOG(LogTemp, Display, TEXT("PROOF_LIFECYCLE_REMATCH_SENT owner=%d epoch=%d"), OwnerId, Epoch);
+    }
+    if (Snapshot.MatchPhase != EProofMatchPhase::Playing ||
+        !HasGate(FString::Printf(TEXT("play-epoch-%d"), Epoch))) return;
+    const FProofPlayerRecord* PlayerRecord = Snapshot.Players.FindByPredicate(
+        [this](const FProofPlayerRecord& P) { return P.OwnerId == OwnerId; });
+    if (!PlayerRecord) return; // a rejoin waits for the next match; no old assets are restored.
+    const FProofUnitRecord *HQ = nullptr, *Harvester = nullptr, *Factory = nullptr, *Combat = nullptr, *BotHQ = nullptr;
+    for (const FProofUnitRecord& Unit : Snapshot.Units)
+    {
+        if (Unit.OwnerId == OwnerId && Unit.HitPoints > 0.f)
+        {
+            if (Unit.Kind == EProofUnitKind::HQ) HQ = &Unit;
+            if (Unit.Kind == EProofUnitKind::Harvester) Harvester = &Unit;
+            if (Unit.Kind == EProofUnitKind::Factory) Factory = &Unit;
+            if (Unit.Kind == EProofUnitKind::Combat) Combat = &Unit;
+        }
+        if (Unit.OwnerId == ProofOwnerIds::Bot && Unit.Kind == EProofUnitKind::HQ && Unit.HitPoints > 0.f) BotHQ = &Unit;
+    }
+    if (LifecyclePendingSequence != INDEX_NONE)
+    {
+        FProofCommandResult Result;
+        if (!FindReceipt(LifecyclePendingSequence, Result)) return;
+        if (!Result.bAccepted)
+        {
+            bFinished = true;
+            UE_LOG(LogTemp, Error, TEXT("PROOF_LIFECYCLE_CLIENT_COMPLETE role=%s status=fail reason=%s step=%d"),
+                *LifecycleRole, *Result.Reason, LifecycleStep);
+            FPlatformMisc::RequestExitWithStatus(false, 1);
+            return;
+        }
+        LifecyclePendingSequence = INDEX_NONE;
+        ++LifecycleStep;
+    }
+    if (LifecycleStep >= 5 || !HQ) return;
+    FProofCommand Command;
+    Command.MatchEpoch = Epoch;
+    if (LifecycleStep == 0)
+    {
+        Command.Type = EProofCommandType::BuildRefinery;
+        Command.Destination = HQ->Position + FVector(350.f, 0.f, 0.f);
+    }
+    else if (LifecycleStep == 1)
+    {
+        Command.Type = EProofCommandType::BuildFactory;
+        Command.Destination = HQ->Position + FVector(0.f, -350.f, 0.f);
+    }
+    else if (LifecycleStep == 2)
+    {
+        if (!Harvester) return;
+        const FProofResourceRecord* Ore = Snapshot.Resources.FindByPredicate(
+            [this](const FProofResourceRecord& R) { return R.OwnerId == OwnerId && R.Remaining > 0; });
+        if (!Ore) return;
+        Command.Type = EProofCommandType::Gather;
+        Command.UnitId = Harvester->UnitId;
+        Command.TargetUnitId = Ore->ResourceId;
+    }
+    else if (LifecycleStep == 3)
+    {
+        if (!Factory) return;
+        Command.Type = EProofCommandType::Produce;
+        Command.UnitId = Factory->UnitId;
+    }
+    else
+    {
+        if (!Combat || !BotHQ) return;
+        Command.Type = EProofCommandType::Attack;
+        Command.UnitId = Combat->UnitId;
+        Command.TargetUnitId = BotHQ->UnitId;
+    }
+    Command.Sequence = NextLocalCommandSequence();
+    LifecyclePendingSequence = Command.Sequence;
+    ServerSubmitCommand(Command);
+    UE_LOG(LogTemp, Display, TEXT("PROOF_LIFECYCLE_CLIENT_SEND owner=%d epoch=%d sequence=%d step=%d"),
+        OwnerId, Epoch, Command.Sequence, LifecycleStep);
 }
 
 // Explicit loopback fixture: these flags are never enabled by normal play.

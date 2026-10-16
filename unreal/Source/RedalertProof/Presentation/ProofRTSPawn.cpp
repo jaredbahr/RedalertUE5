@@ -70,6 +70,7 @@ void AProofRTSPawn::SetupPlayerInputComponent(UInputComponent* Input)
     Input->BindKey(EKeys::P, IE_Pressed, this, &AProofRTSPawn::OnManualProduce);
     Input->BindKey(EKeys::R, IE_Pressed, this, &AProofRTSPawn::OnManualRefinery);
     Input->BindKey(EKeys::F, IE_Pressed, this, &AProofRTSPawn::OnManualFactory);
+    Input->BindKey(EKeys::N, IE_Pressed, this, &AProofRTSPawn::OnManualRematch);
     Input->BindKey(EKeys::MouseScrollUp, IE_Pressed, this, &AProofRTSPawn::OnManualZoomIn);
     Input->BindKey(EKeys::MouseScrollDown, IE_Pressed, this, &AProofRTSPawn::OnManualZoomOut);
     if (bInteractiveExitEnabled)
@@ -116,6 +117,20 @@ void AProofRTSPawn::Tick(float DeltaSeconds)
     if (!GS)
     {
         return;
+    }
+    if (LastSeenMatchEpoch != GS->Snapshot.MatchEpoch)
+    {
+        for (auto& Entry : UnitViews)
+        {
+            if (Entry.Value) Entry.Value->DestroyComponent();
+        }
+        UnitViews.Reset();
+        SelectedUnitId = INDEX_NONE;
+        LastRequestedSequence = 0;
+        LastRequestedTarget = INDEX_NONE;
+        LastRequestedType.Reset();
+        RequestStatus = TEXT("Match state refreshed. Select an owned live unit.");
+        LastSeenMatchEpoch = GS->Snapshot.MatchEpoch;
     }
     TSet<int32> LiveIds;
     bool bSelectionAliveAndOwned = false;
@@ -278,6 +293,23 @@ void AProofRTSPawn::OnInteractiveEscape()
     if (!bInteractiveExitEnabled) return;
     UE_LOG(LogTemp, Display, TEXT("PROOF_MANUAL_EXIT key=Escape physicalInput=unverified"));
     FPlatformMisc::RequestExit(false);
+}
+
+void AProofRTSPawn::OnManualRematch()
+{
+    AProofPlayerController* PC = Cast<AProofPlayerController>(GetController());
+    const AProofGameState* GS = GetWorld()->GetGameState<AProofGameState>();
+    if (!PC || !GS || !GS->Snapshot.bSkirmish || PC->OwnerId != 1
+        || GS->Snapshot.MatchPhase != EProofMatchPhase::Finished)
+    {
+        RequestStatus = TEXT("Owner 1 can request a rematch after the match ends.");
+    }
+    else
+    {
+        PC->ServerRequestRematch(GS->Snapshot.MatchEpoch);
+        RequestStatus = TEXT("Rematch requested; waiting for the host's new match state.");
+    }
+    RecordManualInput(TEXT("N"), ManualRematchPresses, RequestStatus);
 }
 
 bool AProofRTSPawn::GetPointerScreenPosition(FVector2D& OutPoint) const
@@ -473,6 +505,14 @@ void AProofRTSPawn::Request(FProofCommand Command)
         RequestStatus = TEXT("Manual orders are disabled during the scripted automation fixture.");
         return;
     }
+    const AProofGameState* GS = GetWorld()->GetGameState<AProofGameState>();
+    if (!GS || !GS->Snapshot.Players.ContainsByPredicate([PC](const FProofPlayerRecord& Player) { return Player.OwnerId == PC->OwnerId; })
+        || (GS->Snapshot.bSkirmish && GS->Snapshot.MatchEpoch <= 0))
+    {
+        RequestStatus = TEXT("Waiting for the host's current player and match state.");
+        return;
+    }
+    Command.MatchEpoch = GS->Snapshot.MatchEpoch;
     Command.Sequence = PC->NextLocalCommandSequence();
     if (Command.Sequence <= 0)
     {
@@ -487,7 +527,6 @@ void AProofRTSPawn::Request(FProofCommand Command)
         : Command.Type == EProofCommandType::BuildRefinery ? TEXT("BuildRefinery")
         : Command.Type == EProofCommandType::BuildFactory ? TEXT("BuildFactory")
         : Command.Type == EProofCommandType::Gather ? TEXT("Gather") : TEXT("Produce");
-    const AProofGameState* GS = GetWorld()->GetGameState<AProofGameState>();
     if (GS && GS->Snapshot.bSkirmish)
         UE_LOG(LogTemp, Display, TEXT("PROOF_SKIRMISH_REQUEST owner=%d sequence=%d type=%s unit=%d target=%d"),
             PC->OwnerId, Command.Sequence, *LastRequestedType, Command.UnitId, Command.TargetUnitId);

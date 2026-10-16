@@ -273,5 +273,7 @@ void AProofHUD::DrawHUD()
         DrawText(Result, Result == TEXT("VICTORY") ? FLinearColor(0.25f, 1.f, 0.5f) :
             (Result == TEXT("DEFEAT") ? FLinearColor(1.f, 0.35f, 0.3f) : FLinearColor(0.85f, 0.9f, 1.f)),
             BannerX + 21.f * UiScale, BannerY + 12.f * UiScale, Font, 2.f * UiScale, false);
+        DrawText(PC->OwnerId == 1 ? TEXT("N: rematch   Esc: exit") : TEXT("Waiting for owner 1 to request rematch"),
+            FLinearColor(0.85f, 0.9f, 1.f), BannerX, BannerY + BannerHeight + 8.f * UiScale, Font, UiScale, false);
     }
 }

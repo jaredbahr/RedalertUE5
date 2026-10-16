@@ -37,7 +37,13 @@ try {
         if($process.HasExited) { return }
         try {
             $live=Get-Process -Id $process.Id -ErrorAction Stop
-            if($live.StartTime -ne $started -or $live.Path -ne $editor) { throw 'Native process identity changed.' }
+            if($live.StartTime -ne $started) { throw 'Automation process start identity changed.' }
+            for($pathAttempt=0; $pathAttempt -lt 20 -and -not $live.Path -and -not $live.HasExited; $pathAttempt++) {
+                Start-Sleep -Milliseconds 100
+                $live.Refresh()
+            }
+            if($live.HasExited) { return }
+            if($live.Path -ne $editor) { throw 'Automation process executable identity could not be verified.' }
             $beforeMask=$live.ProcessorAffinity.ToInt64(); $beforePriority=[string]$live.PriorityClass
             $live.ProcessorAffinity=[IntPtr]$fixtureMask
             $live.PriorityClass='Normal'

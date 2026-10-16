@@ -36,6 +36,8 @@ private:
     UPROPERTY(Transient) TObjectPtr<UStaticMesh> HarvesterMesh;
     UPROPERTY(Transient) TMap<int32, TObjectPtr<UStaticMeshComponent>> UnitViews;
     int32 SelectedUnitId = INDEX_NONE;
+    int32 LastSeenMatchEpoch = INDEX_NONE;
+    int32 ManualRematchPresses = 0;
     bool bUsingBlockoutMesh = false;
     bool bConfiguredLocalInput = false;
     bool bInteractiveExitEnabled = false;
@@ -115,6 +117,7 @@ private:
     void OnManualZoomIn();
     void OnManualZoomOut();
     void OnInteractiveEscape();
+    void OnManualRematch();
     void RecordManualInput(const TCHAR* Key, int32& Count, const FString& Outcome);
     void ObserveViewportFocus();
     int32 FindUnitUnderCursor(bool bOwnOnly) const;

@@ -12,6 +12,9 @@ The separate dependency-free Node experiment is an earlier contract prototype ru
 
 Internet multiplayer is provisionally intended and large armies are the ambition. Exact per-player and total counts remain undetermined; combined movement, combat, bot and replication measurements must set practical budgets. Begin with Allies and Soviets on one simple map, complete a small bot skirmish, then expand toward Yuri and four/eight players.
 
+## Current small-match foundation
+
+The prototype now includes finite harvesting, base building, unit production and a shared-command bot, with a bounded local two-slot lifecycle and terminal rematch. It is an engineering foundation, not RA2/Yuri gameplay parity. Preserve the original pacing, economy, roles and combat feel while improving 3D presentation and modest camera/usability behavior. See [small-match evidence](docs/SMALL_MATCH.md) and [lifecycle, launcher and measured model baseline](docs/SESSION_LIFECYCLE.md) for exact tested revisions and remaining limits.
 ## Run and review
 
 - [Art pipeline](docs/ART_PIPELINE.md): generate original blockouts and local still/motion previews with the installed Blender; no downloads required.
