@@ -39,7 +39,7 @@ FProofSnapshot QueueFixture()
     return Snapshot;
 }
 
-FProofCommand Move(int32 UnitId, double X)
+FProofCommand QueueMoveIntent(int32 UnitId, double X)
 {
     FProofCommand Command;
     Command.Type = EProofCommandType::Move;
@@ -48,7 +48,7 @@ FProofCommand Move(int32 UnitId, double X)
     return Command;
 }
 
-FProofCommand Attack(int32 UnitId, int32 TargetUnitId)
+FProofCommand QueueAttackIntent(int32 UnitId, int32 TargetUnitId)
 {
     FProofCommand Command;
     Command.Type = EProofCommandType::Attack;
@@ -65,8 +65,8 @@ bool FProofGroupQueueCoalesceTest::RunTest(const FString&)
     const FProofSnapshot Snapshot = QueueFixture();
     const FString Digest = Snapshot.ComputeDigest();
     FProofGroupOrderQueue Queue;
-    TestTrue(TEXT("Initial group enqueues"), Queue.Enqueue(Snapshot, 1, { Move(1, 100), Move(2, 200), Attack(3, 200) }));
-    TestTrue(TEXT("New intent replaces old unit in place"), Queue.Enqueue(Snapshot, 1, { Move(2, 300), Attack(1, 200) }));
+    TestTrue(TEXT("Initial group enqueues"), Queue.Enqueue(Snapshot, 1, { QueueMoveIntent(1, 100), QueueMoveIntent(2, 200), QueueAttackIntent(3, 200) }));
+    TestTrue(TEXT("New intent replaces old unit in place"), Queue.Enqueue(Snapshot, 1, { QueueMoveIntent(2, 300), QueueAttackIntent(1, 200) }));
     TestEqual(TEXT("Repeated units do not increase depth"), Queue.NumPending(), 3);
     const TArray<FProofCommand> Ready = Queue.PopReady(Snapshot, 1, 0.0);
     TestEqual(TEXT("First interval releases two intents"), Ready.Num(), 2);
@@ -86,7 +86,7 @@ bool FProofGroupQueueCoalesceTest::RunTest(const FString&)
     const TArray<FProofCommand> Third = Queue.PopReady(Snapshot, 1, 0.1);
     TestEqual(TEXT("Third unit waits for next interval"), Third.Num(), 1);
     if (Third.Num() == 1) { TestEqual(TEXT("Third unit stays behind prior units"), Third[0].UnitId, 3); }
-    TestTrue(TEXT("Second group enqueues"), Queue.Enqueue(Snapshot, 1, { Move(4, 10), Move(5, 20) }));
+    TestTrue(TEXT("Second group enqueues"), Queue.Enqueue(Snapshot, 1, { QueueMoveIntent(4, 10), QueueMoveIntent(5, 20) }));
     Queue.CancelUnit(4);
     const TArray<FProofCommand> Cancelled = Queue.PopReady(Snapshot, 1, 0.2);
     TestEqual(TEXT("Single-unit override cancels earlier queued group intent"), Cancelled.Num(), 1);
@@ -101,12 +101,12 @@ bool FProofGroupQueuePacingTest::RunTest(const FString&)
     const FProofSnapshot Snapshot = QueueFixture();
     FProofGroupOrderQueue Queue;
     TestTrue(TEXT("First group enqueues"), Queue.Enqueue(Snapshot, 1,
-        { Move(1, 1), Move(2, 2), Move(3, 3), Move(4, 4), Move(5, 5), Move(6, 6) }));
+        { QueueMoveIntent(1, 1), QueueMoveIntent(2, 2), QueueMoveIntent(3, 3), QueueMoveIntent(4, 4), QueueMoveIntent(5, 5), QueueMoveIntent(6, 6) }));
     TestEqual(TEXT("Nonfinite time cannot dispatch"),
         Queue.PopReady(Snapshot, 1, std::numeric_limits<double>::quiet_NaN()).Num(), 0);
     const TArray<FProofCommand> First = Queue.PopReady(Snapshot, 1, 100.0);
     TestEqual(TEXT("First interval dispatches at most two"), First.Num(), 2);
-    TestTrue(TEXT("Other group stays behind pending units"), Queue.Enqueue(Snapshot, 1, { Move(7, 7), Move(8, 8) }));
+    TestTrue(TEXT("Other group stays behind pending units"), Queue.Enqueue(Snapshot, 1, { QueueMoveIntent(7, 7), QueueMoveIntent(8, 8) }));
     TestEqual(TEXT("Backwards clock cannot dispatch"), Queue.PopReady(Snapshot, 1, 99.0).Num(), 0);
     TestEqual(TEXT("Within interval cannot dispatch"), Queue.PopReady(Snapshot, 1, 100.09).Num(), 0);
     const TArray<FProofCommand> Second = Queue.PopReady(Snapshot, 1, 100.1);
@@ -118,7 +118,7 @@ bool FProofGroupQueuePacingTest::RunTest(const FString&)
             TestEqual(TEXT("First group preserves FIFO position"), Second[Index].UnitId, Index + 3);
         }
     }
-    TestTrue(TEXT("Later group enqueues"), Queue.Enqueue(Snapshot, 1, { Move(9, 9), Move(10, 10), Move(11, 11), Move(12, 12), Move(13, 13) }));
+    TestTrue(TEXT("Later group enqueues"), Queue.Enqueue(Snapshot, 1, { QueueMoveIntent(9, 9), QueueMoveIntent(10, 10), QueueMoveIntent(11, 11), QueueMoveIntent(12, 12), QueueMoveIntent(13, 13) }));
     TestEqual(TEXT("No immediate burst after another enqueue"), Queue.PopReady(Snapshot, 1, 100.11).Num(), 0);
     const TArray<FProofCommand> AfterPause = Queue.PopReady(Snapshot, 1, 1000.0);
     TestEqual(TEXT("Long pause still releases only two"), AfterPause.Num(), 2);
@@ -146,7 +146,7 @@ bool FProofGroupQueueStaleTest::RunTest(const FString&)
     FProofSnapshot Snapshot = QueueFixture();
     FProofGroupOrderQueue Queue;
     TestTrue(TEXT("Intents can queue before snapshot changes"), Queue.Enqueue(Snapshot, 1,
-        { Move(1, 100), Move(80, 100), Move(81, 100), Move(201, 100), Attack(2, 200), Attack(3, 201) }));
+        { QueueMoveIntent(1, 100), QueueMoveIntent(80, 100), QueueMoveIntent(81, 100), QueueMoveIntent(201, 100), QueueAttackIntent(2, 200), QueueAttackIntent(3, 201) }));
     for (FProofUnitRecord& Unit : Snapshot.Units)
     {
         if (Unit.UnitId == 1 || Unit.UnitId == 200) { Unit.HitPoints = 0.f; }
@@ -154,21 +154,21 @@ bool FProofGroupQueueStaleTest::RunTest(const FString&)
     }
     TestEqual(TEXT("Dead, foreign, immobile and same-team intents are pruned"), Queue.PopReady(Snapshot, 1, 0.0).Num(), 0);
     TestEqual(TEXT("Pruning empties queue"), Queue.NumPending(), 0);
-    TestTrue(TEXT("Live command enqueues"), Queue.Enqueue(Snapshot, 1, { Move(2, 100) }));
+    TestTrue(TEXT("Live command enqueues"), Queue.Enqueue(Snapshot, 1, { QueueMoveIntent(2, 100) }));
     Snapshot.MatchPhase = EProofMatchPhase::Finished;
     TestEqual(TEXT("Terminal skirmish prunes pending command"), Queue.PopReady(Snapshot, 1, 1.0).Num(), 0);
 
     Snapshot.MatchPhase = EProofMatchPhase::Playing;
-    TestTrue(TEXT("Command enqueues after terminal fixture reset"), Queue.Enqueue(Snapshot, 1, { Move(2, 100) }));
+    TestTrue(TEXT("Command enqueues after terminal fixture reset"), Queue.Enqueue(Snapshot, 1, { QueueMoveIntent(2, 100) }));
     Snapshot.MatchEpoch = 2;
     TestEqual(TEXT("Epoch change clears same-ID pending command"), Queue.PopReady(Snapshot, 1, 2.0).Num(), 0);
-    TestTrue(TEXT("Fresh epoch command enqueues"), Queue.Enqueue(Snapshot, 1, { Move(2, 100) }));
+    TestTrue(TEXT("Fresh epoch command enqueues"), Queue.Enqueue(Snapshot, 1, { QueueMoveIntent(2, 100) }));
     TestEqual(TEXT("Owner change clears pending command"), Queue.PopReady(Snapshot, 2, 3.0).Num(), 0);
 
     FProofSnapshot Legacy = QueueFixture();
     Legacy.bSkirmish = false;
     FProofGroupOrderQueue LegacyQueue;
-    TestTrue(TEXT("Legacy attack enqueues"), LegacyQueue.Enqueue(Legacy, 1, { Attack(2, 201) }));
+    TestTrue(TEXT("Legacy attack enqueues"), LegacyQueue.Enqueue(Legacy, 1, { QueueAttackIntent(2, 201) }));
     TestEqual(TEXT("Legacy attack accepts distinct owner sharing default team"), LegacyQueue.PopReady(Legacy, 1, 0.0).Num(), 1);
     return true;
 }
@@ -180,21 +180,21 @@ bool FProofGroupQueueCapacityTest::RunTest(const FString&)
     const FProofSnapshot Snapshot = QueueFixture();
     FProofGroupOrderQueue Queue;
     TArray<FProofCommand> SixtyThree;
-    for (int32 UnitId = 1; UnitId <= 63; ++UnitId) { SixtyThree.Add(Move(UnitId, UnitId)); }
+    for (int32 UnitId = 1; UnitId <= 63; ++UnitId) { SixtyThree.Add(QueueMoveIntent(UnitId, UnitId)); }
     TestTrue(TEXT("63 distinct intents fit"), Queue.Enqueue(Snapshot, 1, SixtyThree));
     TestFalse(TEXT("Batch adding two distinct IDs beyond cap is rejected"), Queue.Enqueue(Snapshot, 1,
-        { Move(1, 999), Move(64, 64), Move(65, 65) }));
+        { QueueMoveIntent(1, 999), QueueMoveIntent(64, 64), QueueMoveIntent(65, 65) }));
     TestEqual(TEXT("Overflow cannot partially add units"), Queue.NumPending(), 63);
-    TestTrue(TEXT("64th distinct intent fits"), Queue.Enqueue(Snapshot, 1, { Move(64, 64) }));
-    TestFalse(TEXT("65th distinct intent cannot fit"), Queue.Enqueue(Snapshot, 1, { Move(65, 65) }));
+    TestTrue(TEXT("64th distinct intent fits"), Queue.Enqueue(Snapshot, 1, { QueueMoveIntent(64, 64) }));
+    TestFalse(TEXT("65th distinct intent cannot fit"), Queue.Enqueue(Snapshot, 1, { QueueMoveIntent(65, 65) }));
     TestEqual(TEXT("Queue does not exceed capacity"), Queue.NumPending(), FProofGroupOrderQueue::MaxPendingCommands);
     const TArray<FProofCommand> First = Queue.PopReady(Snapshot, 1, 0.0);
     TestEqual(TEXT("First interval releases two"), First.Num(), 2);
     if (First.Num() == 2) { TestEqual(TEXT("Rejected coalesce did not change prior destination"), First[0].Destination.X, 1.0); }
-    TestTrue(TEXT("One additional ID fits after dispatch"), Queue.Enqueue(Snapshot, 1, { Move(66, 1e9) }));
+    TestTrue(TEXT("One additional ID fits after dispatch"), Queue.Enqueue(Snapshot, 1, { QueueMoveIntent(66, 1e9) }));
     TestEqual(TEXT("Second interval releases two"), Queue.PopReady(Snapshot, 1, 0.1).Num(), 2);
     Queue.Clear();
-    TestTrue(TEXT("Fresh queue accepts clamped move"), Queue.Enqueue(Snapshot, 1, { Move(66, 1e9) }));
+    TestTrue(TEXT("Fresh queue accepts clamped move"), Queue.Enqueue(Snapshot, 1, { QueueMoveIntent(66, 1e9) }));
     const TArray<FProofCommand> Clamped = Queue.PopReady(Snapshot, 1, 0.0);
     TestEqual(TEXT("One clamped intent released"), Clamped.Num(), 1);
     if (Clamped.Num() == 1)
@@ -202,7 +202,7 @@ bool FProofGroupQueueCapacityTest::RunTest(const FString&)
         TestEqual(TEXT("Move X remains within world"), Clamped[0].Destination.X,
             static_cast<double>(FProofCommandModel::WorldExtent));
     }
-    FProofCommand Nonfinite = Move(2, std::numeric_limits<double>::infinity());
+    FProofCommand Nonfinite = QueueMoveIntent(2, std::numeric_limits<double>::infinity());
     TestFalse(TEXT("Nonfinite move cannot enqueue"), Queue.Enqueue(Snapshot, 1, { Nonfinite }));
     return true;
 }

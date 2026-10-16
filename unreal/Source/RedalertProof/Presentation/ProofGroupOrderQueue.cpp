@@ -2,17 +2,17 @@
 
 namespace
 {
-const FProofUnitRecord* FindUnit(const FProofSnapshot& Snapshot, int32 UnitId)
+const FProofUnitRecord* FindQueueUnit(const FProofSnapshot& Snapshot, int32 UnitId)
 {
     return Snapshot.Units.FindByPredicate([UnitId](const FProofUnitRecord& Unit) { return Unit.UnitId == UnitId; });
 }
 
-const FProofPlayerRecord* FindPlayer(const FProofSnapshot& Snapshot, int32 OwnerId)
+const FProofPlayerRecord* FindQueuePlayer(const FProofSnapshot& Snapshot, int32 OwnerId)
 {
     return Snapshot.Players.FindByPredicate([OwnerId](const FProofPlayerRecord& Player) { return Player.OwnerId == OwnerId; });
 }
 
-bool IsFiniteWorldPosition(const FVector& Position)
+bool IsFiniteQueuePosition(const FVector& Position)
 {
     const double Extent = FProofCommandModel::WorldExtent;
     return FMath::IsFinite(Position.X) && FMath::IsFinite(Position.Y) && FMath::IsFinite(Position.Z)
@@ -49,24 +49,24 @@ void FProofGroupOrderQueue::Synchronize(const FProofSnapshot& Snapshot, int32 Cu
 bool FProofGroupOrderQueue::IsValidIntent(const FProofSnapshot& Snapshot, int32 CurrentOwnerId,
     const FProofCommand& Command)
 {
-    if (CurrentOwnerId < 0 || !FindPlayer(Snapshot, CurrentOwnerId)
+    if (CurrentOwnerId < 0 || !FindQueuePlayer(Snapshot, CurrentOwnerId)
         || (Snapshot.bSkirmish && Snapshot.MatchPhase != EProofMatchPhase::Playing))
     {
         return false;
     }
-    const FProofUnitRecord* Unit = FindUnit(Snapshot, Command.UnitId);
+    const FProofUnitRecord* Unit = FindQueueUnit(Snapshot, Command.UnitId);
     if (!Unit || Unit->OwnerId != CurrentOwnerId || !(Unit->HitPoints > 0.f)) { return false; }
     if (Command.Type == EProofCommandType::Move)
     {
         return (Unit->Kind == EProofUnitKind::Combat || Unit->Kind == EProofUnitKind::Harvester)
-            && IsFiniteWorldPosition(Command.Destination);
+            && IsFiniteQueuePosition(Command.Destination);
     }
     if (Command.Type != EProofCommandType::Attack || Unit->Kind != EProofUnitKind::Combat) { return false; }
-    const FProofUnitRecord* Target = FindUnit(Snapshot, Command.TargetUnitId);
+    const FProofUnitRecord* Target = FindQueueUnit(Snapshot, Command.TargetUnitId);
     if (!Target || !(Target->HitPoints > 0.f) || Target->OwnerId == CurrentOwnerId) { return false; }
     if (!Snapshot.bSkirmish) { return true; }
-    const FProofPlayerRecord* TargetPlayer = FindPlayer(Snapshot, Target->OwnerId);
-    const FProofPlayerRecord* OwnPlayer = FindPlayer(Snapshot, CurrentOwnerId);
+    const FProofPlayerRecord* TargetPlayer = FindQueuePlayer(Snapshot, Target->OwnerId);
+    const FProofPlayerRecord* OwnPlayer = FindQueuePlayer(Snapshot, CurrentOwnerId);
     return TargetPlayer && OwnPlayer && OwnPlayer->TeamId != TargetPlayer->TeamId;
 }
 
