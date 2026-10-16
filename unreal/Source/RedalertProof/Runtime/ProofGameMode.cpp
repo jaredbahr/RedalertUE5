@@ -162,6 +162,7 @@ void AProofGameMode::Logout(AController* Exiting)
         const FProofSnapshot AfterLogout = Model.GetSnapshot();
         if (AfterLogout.MatchPhase == EProofMatchPhase::Finished && !bSkirmishTerminalPublished)
         {
+            SkirmishTerminalSnapshot = AfterLogout;
             bSkirmishTerminalPublished = true;
             SkirmishTerminalAt = Lifetime;
             UE_LOG(LogTemp, Display, TEXT("PROOF_SKIRMISH_RESULT winnerTeam=%d revision=%d"), AfterLogout.WinnerTeam, AfterLogout.Revision);
@@ -220,6 +221,7 @@ void AProofGameMode::ResetSkirmishFixtureState()
     SkirmishSeconds = 0.0;
     SkirmishTerminalAt = -1.f;
     bSkirmishTerminalPublished = false;
+    SkirmishTerminalSnapshot = FProofSnapshot();
     bSkirmishFixtureStarted = false;
     bSkirmishFixtureFinished = false;
     bSkirmishHumanRefinery = bSkirmishHumanFactory = bSkirmishHumanGathered = bSkirmishHumanProduced = false;
@@ -420,6 +422,7 @@ void AProofGameMode::Tick(float DeltaSeconds)
                 ObserveSkirmish(After);
                 if (After.MatchPhase == EProofMatchPhase::Finished && !bSkirmishTerminalPublished)
                 {
+                    SkirmishTerminalSnapshot = After;
                     Publish();
                     bSkirmishTerminalPublished = true;
                     SkirmishTerminalAt = Lifetime;
@@ -443,7 +446,7 @@ void AProofGameMode::Tick(float DeltaSeconds)
             (SkirmishTerminalAt >= 0.f && Lifetime - SkirmishTerminalAt >= 5.f || Lifetime >= 240.f))
         {
             bSkirmishFixtureFinished = true;
-            const FProofSnapshot Snapshot = Model.GetSnapshot();
+            const FProofSnapshot Snapshot = bSkirmishTerminalPublished ? SkirmishTerminalSnapshot : Model.GetSnapshot();
             const bool bOwner1 = Snapshot.Players.ContainsByPredicate([](const FProofPlayerRecord& P) { return P.OwnerId == 1 && P.TeamId == 0; });
             const bool bOwner2 = Snapshot.Players.ContainsByPredicate([](const FProofPlayerRecord& P) { return P.OwnerId == 2 && P.TeamId == 0; });
             const bool bPass = bOwner1 && bOwner2 && Snapshot.MatchPhase == EProofMatchPhase::Finished && Snapshot.WinnerTeam == 0

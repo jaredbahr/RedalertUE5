@@ -47,6 +47,7 @@ private:
     FString LifecycleControl;
     bool bSkirmishFixtureStarted = false;
     bool bSkirmishTerminalPublished = false;
+    FProofSnapshot SkirmishTerminalSnapshot;
     bool bSkirmishFixtureFinished = false;
     bool bSkirmishHumanRefinery = false;
     bool bSkirmishHumanFactory = false;
