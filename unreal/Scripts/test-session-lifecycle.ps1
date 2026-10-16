@@ -195,19 +195,26 @@ function Get-EpochSnapshots([string]$Text) {
     return $snapshots
 }
 function Assert-CommonEpochSnapshots([int]$Epoch,$ActiveEntries) {
-    $maps=@(); foreach ($entry in $ActiveEntries) { $maps+=,(Get-EpochSnapshots (Read-Log $entry)) }
-    if ($maps.Count -lt 3) { throw "Need host plus two clients for epoch $Epoch snapshot agreement." }
-    # Use the same epoch:revision key across host and clients; dictionary keys
-    # deliberately include epoch because model revisions restart after rematch.
-    $common=@($maps[0].Keys | Where-Object {
-        $_ -like ($Epoch+':*') -and $maps[1].ContainsKey($_) -and $maps[2].ContainsKey($_)
-    } | Sort-Object { [int](($_ -split ':')[1]) })
-    if ($common.Count -lt 1) { throw "No common host/client snapshot digest for epoch $Epoch." }
-    foreach ($key in $common) {
-        if ($maps[0][$key] -ne $maps[1][$key] -or $maps[0][$key] -ne $maps[2][$key]) { throw "Snapshot digest mismatch at epoch/revision $key." }
-        $result.lifecycle.commonRevisionDigests+=@{epoch=$Epoch;revision=[int](($key -split ':')[1]);digest=$maps[0][$key]}
+    if ($ActiveEntries.Count -lt 3) { throw "Need host plus two clients for epoch $Epoch snapshot agreement." }
+    while ($true) {
+        Check-StorageBudget; Maintain-OwnedCpuPolicy
+        $maps=@(); foreach ($entry in $ActiveEntries) { $maps+=,(Get-EpochSnapshots (Read-Log $entry)) }
+        # Use the same epoch:revision key across host and clients; dictionary
+        # keys deliberately include epoch because model revisions restart after rematch.
+        $common=@($maps[0].Keys | Where-Object {
+            $_ -like ($Epoch+':*') -and $maps[1].ContainsKey($_) -and $maps[2].ContainsKey($_)
+        } | Sort-Object { [int](($_ -split ':')[1]) })
+        if ($common.Count -gt 0) {
+            foreach ($key in $common) {
+                if ($maps[0][$key] -ne $maps[1][$key] -or $maps[0][$key] -ne $maps[2][$key]) { throw "Snapshot digest mismatch at epoch/revision $key." }
+                $result.lifecycle.commonRevisionDigests+=@{epoch=$Epoch;revision=[int](($key -split ':')[1]);digest=$maps[0][$key]}
+            }
+            $result.commonRevisions+=@{epoch=$Epoch;revisions=@($common | ForEach-Object {[int](($_ -split ':')[1])})}
+            return
+        }
+        if ($scenarioWatch.Elapsed.TotalSeconds -ge $TimeoutSeconds) { throw "No common host/client snapshot digest for epoch $Epoch." }
+        Start-Sleep -Milliseconds 200
     }
-    $result.commonRevisions+=@{epoch=$Epoch;revisions=@($common | ForEach-Object {[int](($_ -split ':')[1])})}
 }
 function Wait-TerminalSnapshotAgreement([int]$Epoch,[int]$Winner,$ActiveEntries) {
     while ($true) {
@@ -255,6 +262,9 @@ try {
     Wait-Marker $serverEntry 'PROOF_LIFECYCLE_JOIN owner=1 epoch=1 seeded=1'
     $owner2=Start-Role 'owner2' ('127.0.0.1:'+$Port) @('-game','-nullrhi','-ProofSkirmish','-ProofLifecycleRole=owner2',('-ProofLifecycleControl="'+$control+'"'))
     Wait-Marker $serverEntry 'PROOF_LIFECYCLE_JOIN owner=2 epoch=1 seeded=1'
+    Wait-Marker $lead 'PROOF_SNAPSHOT role=client owner=1 epoch=1 revision=\d+ digest=[A-Za-z0-9]+'
+    Wait-Marker $owner2 'PROOF_SNAPSHOT role=client owner=2 epoch=1 revision=\d+ digest=[A-Za-z0-9]+'
+    Assert-CommonEpochSnapshots 1 @($serverEntry,$lead,$owner2)
     $result.lifecycle.initialOwner1Healthy=$true
     $owner2Live=Get-OwnedLiveProcess $owner2
     if (-not $owner2Live) { throw 'Owner 2 exited before the planned disconnect.' }
