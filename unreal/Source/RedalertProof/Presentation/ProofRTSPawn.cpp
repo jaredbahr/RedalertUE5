@@ -857,7 +857,7 @@ void AProofRTSPawn::TickSkirmishScenario(float DeltaSeconds)
         if (!Receipt.bAccepted) { FinishSkirmishScenario(false, *Receipt.Reason); return; }
     }
     if (SkirmishElapsed < SkirmishNextDecision) return;
-    SkirmishNextDecision = SkirmishElapsed + 0.2f;
+    SkirmishNextDecision = SkirmishElapsed + 0.1f;
     if (SkirmishStage == 0 && HQ)
     {
         if (!SetControlsCursorFromWorld(HQ->Position + FVector(350.f, 0.f, 0.f))) return;
@@ -907,31 +907,71 @@ void AProofRTSPawn::TickSkirmishScenario(float DeltaSeconds)
         if (bShouldProduce) Produce();
         return;
     }
-    for (const FProofUnitRecord& Unit : Snapshot.Units)
+    // The victory trace defends the ore route, concentrates on one threat and
+    // counterattacks after winning an actual battle. It earns/spends exactly
+    // the same resources and uses exactly the same handlers as local play.
+    int32 EnemyCombatCount = 0;
+    const FProofUnitRecord* Focus = nullptr;
+    for (const FProofUnitRecord& Candidate : Snapshot.Units)
     {
-        if (Unit.OwnerId != PC->OwnerId || Unit.Kind != EProofUnitKind::Combat || Unit.HitPoints <= 0.f) continue;
-        const FProofUnitRecord* Target = EnemyHQ;
-        // Concentrate fire on nearby mobile threats; otherwise push the HQ.
-        for (const FProofUnitRecord& Enemy : Snapshot.Units)
+        const FProofPlayerRecord* EnemyOwner = Snapshot.Players.FindByPredicate(
+            [&Candidate](const FProofPlayerRecord& Record) { return Record.OwnerId == Candidate.OwnerId; });
+        if (!EnemyOwner || EnemyOwner->TeamId == LocalRecord->TeamId || Candidate.Kind != EProofUnitKind::Combat || Candidate.HitPoints <= 0.f) continue;
+        ++EnemyCombatCount;
+        if (Candidate.UnitId == SkirmishFocusTarget) Focus = &Candidate;
+    }
+    if (!Focus)
+    {
+        for (const FProofUnitRecord& Candidate : Snapshot.Units)
         {
             const FProofPlayerRecord* EnemyOwner = Snapshot.Players.FindByPredicate(
-                [&Enemy](const FProofPlayerRecord& Record) { return Record.OwnerId == Enemy.OwnerId; });
-            if (!EnemyOwner || EnemyOwner->TeamId == LocalRecord->TeamId || Enemy.HitPoints <= 0.f
-                || Enemy.Kind != EProofUnitKind::Combat || FVector::DistSquared(Unit.Position, Enemy.Position) > FMath::Square(700.f)) continue;
-            if (!Target || Target->Kind != EProofUnitKind::Combat || Enemy.HitPoints < Target->HitPoints
-                || (Enemy.HitPoints == Target->HitPoints && Enemy.UnitId < Target->UnitId)) Target = &Enemy;
+                [&Candidate](const FProofPlayerRecord& Record) { return Record.OwnerId == Candidate.OwnerId; });
+            if (!EnemyOwner || EnemyOwner->TeamId == LocalRecord->TeamId || Candidate.Kind != EProofUnitKind::Combat || Candidate.HitPoints <= 0.f) continue;
+            bool bNearbyThreat = HQ && FVector::DistSquared(Candidate.Position, HQ->Position) <= FMath::Square(1100.f);
+            if (bSkirmishCounterattack)
+                for (const FProofUnitRecord& Friendly : Snapshot.Units)
+                    if (Friendly.OwnerId == PC->OwnerId && Friendly.Kind == EProofUnitKind::Combat && Friendly.HitPoints > 0.f
+                        && FVector::DistSquared(Candidate.Position, Friendly.Position) <= FMath::Square(800.f)) bNearbyThreat = true;
+            if (!bNearbyThreat) continue;
+            if (!Focus || Candidate.HitPoints < Focus->HitPoints || (Candidate.HitPoints == Focus->HitPoints && Candidate.UnitId < Focus->UnitId)) Focus = &Candidate;
         }
-        if (!Target) continue;
+        SkirmishFocusTarget = Focus ? Focus->UnitId : INDEX_NONE;
+    }
+    if (!Focus && bSkirmishBotAttacked && CombatCount >= 2 && CombatCount >= EnemyCombatCount + 2)
+        bSkirmishCounterattack = true;
+    const FProofUnitRecord* Target = Focus ? Focus : bSkirmishCounterattack ? EnemyHQ : nullptr;
+    int32 CombatOrdinal = 0;
+    for (const FProofUnitRecord& Unit : Snapshot.Units)
+    {
+        if (Unit.OwnerId != PC->OwnerId || Unit.Kind != EProofUnitKind::Combat) continue;
+        const int32 Ordinal = CombatOrdinal++;
+        if (Unit.HitPoints <= 0.f) continue;
+        const int32 WantedTarget = Target ? Target->UnitId : 0;
         const int32* Issued = SkirmishIssuedTargets.Find(Unit.UnitId);
-        if (Issued && *Issued == Target->UnitId) continue;
+        if (Issued && *Issued == WantedTarget) continue;
         if (!SetControlsCursorFromWorld(Unit.Position)) return;
         SelectUnderCursor();
         if (SelectedUnitId != Unit.UnitId) continue;
-        if (!SetControlsCursorFromWorld(Target->Position)) return;
-        const int32 BeforeSequence = LastRequestedSequence;
-        OrderUnderCursor();
-        if (LastRequestedSequence <= BeforeSequence || LastRequestedTarget != Target->UnitId || LastRequestedType != TEXT("Attack")) { FinishSkirmishScenario(false, TEXT("attack_pointer")); return; }
-        SkirmishIssuedTargets.Add(Unit.UnitId, Target->UnitId);
+        if (Target)
+        {
+            if (!SetControlsCursorFromWorld(Target->Position)) return;
+            const int32 BeforeSequence = LastRequestedSequence;
+            OrderUnderCursor();
+            if (LastRequestedSequence <= BeforeSequence || LastRequestedTarget != Target->UnitId || LastRequestedType != TEXT("Attack"))
+            { FinishSkirmishScenario(false, TEXT("attack_pointer")); return; }
+        }
+        else
+        {
+            if (!HQ) continue;
+            const FVector Rally = HQ->Position + FVector(450.f + ((Ordinal % 4) - 1.5f) * 140.f,
+                ((Ordinal / 4) - 1.f) * 140.f, 0.f);
+            if (!SetControlsCursorFromWorld(Rally)) return;
+            const int32 BeforeSequence = LastRequestedSequence;
+            OrderUnderCursor();
+            if (LastRequestedSequence <= BeforeSequence || LastRequestedType != TEXT("Move"))
+            { FinishSkirmishScenario(false, TEXT("rally_pointer")); return; }
+        }
+        SkirmishIssuedTargets.Add(Unit.UnitId, WantedTarget);
         return;
     }
     if (bShouldProduce) Produce();

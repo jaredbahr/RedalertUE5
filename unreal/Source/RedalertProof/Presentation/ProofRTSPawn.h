@@ -96,6 +96,8 @@ private:
     bool bSkirmishBaseCaptureRequested = false;
     bool bSkirmishResultRequested = false;
     TMap<int32, int32> SkirmishIssuedTargets;
+    int32 SkirmishFocusTarget = INDEX_NONE;
+    bool bSkirmishCounterattack = false;
     void BuildUnderCursor(EProofCommandType Type);
     void OnManualRefinery();
     void OnManualFactory();

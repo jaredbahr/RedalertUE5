@@ -32,6 +32,7 @@ void AProofHUD::DrawHUD()
     DrawRect(FLinearColor(0.015f, 0.025f, 0.045f, 0.88f), Left, Top, PanelWidth, PanelHeight);
 
     int32 Credits = 0;
+    int32 TotalGathered = 0;
     int32 LocalTeam = 0;
     const FProofUnitRecord* SelectedUnit = nullptr;
     if (GS)
@@ -41,6 +42,7 @@ void AProofHUD::DrawHUD()
             if (Player.OwnerId == PC->OwnerId)
             {
                 Credits = Player.Credits;
+                TotalGathered = Player.TotalGathered;
                 LocalTeam = Player.TeamId;
                 break;
             }
@@ -105,7 +107,7 @@ void AProofHUD::DrawHUD()
         DrawHudLine(TEXT("SMALL SKIRMISH  |  Destroy the opposing team's live HQ"), FLinearColor::White, Top + Pad);
         DrawHudLine(TEXT("Select: left-click   Order/gather: right-click   Zoom: wheel   Exit: Esc"),
             FLinearColor(0.85f, 0.9f, 1.f), Top + Pad + Row);
-        DrawHudLine(FString::Printf(TEXT("Credits: %d   Selected: %s"), Credits, *SelectedDescription),
+        DrawHudLine(FString::Printf(TEXT("Credits: %d   Delivered ore: %d   Selected: %s"), Credits, TotalGathered, *SelectedDescription),
             FLinearColor(0.8f, 1.f, 0.8f), Top + Pad + Row * 2.f);
         DrawHudLine(Pawn ? Pawn->GetRequestStatus() : TEXT("Waiting for camera pawn."),
             FLinearColor(1.f, 0.88f, 0.45f), Top + Pad + Row * 3.f);
@@ -158,9 +160,13 @@ void AProofHUD::DrawHUD()
             const FLinearColor MarkerColor(0.25f, 0.88f, 1.f);
             DrawLine(Screen.X - 7.f, Screen.Y, Screen.X + 7.f, Screen.Y, MarkerColor, 2.f);
             DrawLine(Screen.X, Screen.Y - 7.f, Screen.X, Screen.Y + 7.f, MarkerColor, 2.f);
-            const FString Label = FString::Printf(TEXT("ORE %d  %d left"), Resource.ResourceId, Resource.Remaining);
-            DrawText(Label, MarkerColor, FMath::Clamp(Screen.X + 9.f, 0.f, FMath::Max(0.f, Canvas->ClipX - 160.f)),
-                FMath::Clamp(Screen.Y - 10.f, PanelHeight + Top + 2.f, FMath::Max(PanelHeight + Top + 2.f, Canvas->ClipY - 22.f)), Font, FontScale, false);
+            const float ResourceLabelScale = 0.86f * UiScale;
+            const float ResourceLabelY = FMath::Clamp(Screen.Y + 9.f, PanelHeight + Top + 2.f,
+                FMath::Max(PanelHeight + Top + 2.f, Canvas->ClipY - 34.f));
+            DrawText(FString::Printf(TEXT("ORE #%d"), Resource.ResourceId), MarkerColor,
+                FMath::Clamp(Screen.X, 0.f, Canvas->ClipX), ResourceLabelY, Font, ResourceLabelScale, true);
+            DrawText(FString::Printf(TEXT("%d"), Resource.Remaining), MarkerColor,
+                FMath::Clamp(Screen.X, 0.f, Canvas->ClipX), ResourceLabelY + 13.f * UiScale, Font, ResourceLabelScale, true);
         }
     }
     for (const FProofUnitRecord& Unit : GS->Snapshot.Units)
@@ -194,16 +200,33 @@ void AProofHUD::DrawHUD()
         FString Label;
         if (bSkirmish)
         {
-            const TCHAR* KindName = TEXT("Combat");
+            const TCHAR* KindName = TEXT("C");
             switch (Unit.Kind)
             {
-            case EProofUnitKind::Harvester: KindName = TEXT("Harvester"); break;
+            case EProofUnitKind::Harvester: KindName = TEXT("H"); break;
             case EProofUnitKind::HQ: KindName = TEXT("HQ"); break;
-            case EProofUnitKind::Refinery: KindName = TEXT("Refinery"); break;
-            case EProofUnitKind::Factory: KindName = TEXT("Factory"); break;
+            case EProofUnitKind::Refinery: KindName = TEXT("R"); break;
+            case EProofUnitKind::Factory: KindName = TEXT("F"); break;
             default: break;
             }
-            Label = FString::Printf(TEXT("%s #%d  HP %.0f"), KindName, Unit.UnitId, Unit.HitPoints);
+            Label = FString::Printf(TEXT("%s#%d"), KindName, Unit.UnitId);
+
+            const float LabelScale = 0.88f * UiScale;
+            const float LabelY = FMath::Clamp(Screen.Y - Radius - 13.f * UiScale,
+                PanelHeight + Top + 2.f, FMath::Max(PanelHeight + Top + 2.f, Canvas->ClipY - 28.f));
+            DrawText(Label, Color, FMath::Clamp(Screen.X, 0.f, Canvas->ClipX), LabelY, Font, LabelScale, true);
+
+            float MaxHP = 100.f;
+            if (Unit.Kind == EProofUnitKind::HQ) MaxHP = 300.f;
+            else if (Unit.Kind == EProofUnitKind::Refinery || Unit.Kind == EProofUnitKind::Factory) MaxHP = 200.f;
+            const float BarWidth = 24.f * UiScale;
+            const float BarHeight = 3.f * UiScale;
+            const float BarX = FMath::Clamp(Screen.X - BarWidth * 0.5f, 0.f, FMath::Max(0.f, Canvas->ClipX - BarWidth));
+            const float BarY = FMath::Clamp(Screen.Y + Radius + 2.f * UiScale,
+                PanelHeight + Top + 2.f, FMath::Max(PanelHeight + Top + 2.f, Canvas->ClipY - BarHeight));
+            DrawRect(FLinearColor(0.03f, 0.04f, 0.05f, 0.9f), BarX, BarY, BarWidth, BarHeight);
+            DrawRect(Color, BarX, BarY, BarWidth * FMath::Clamp(Unit.HitPoints / MaxHP, 0.f, 1.f), BarHeight);
+            continue;
         }
         else
         {
