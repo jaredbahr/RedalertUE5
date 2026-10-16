@@ -11,6 +11,7 @@
 #include "Engine/GameViewportClient.h"
 #include "UnrealClient.h"
 #include "HAL/FileManager.h"
+#include "HAL/IConsoleManager.h"
 #include "HAL/PlatformMisc.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
@@ -324,11 +325,27 @@ void AProofRTSPawn::TickControlsAutomation(float DeltaSeconds)
         IFileManager::Get().MakeDirectory(*ControlsOutput, true);
         UE_LOG(LogTemp, Display, TEXT("PROOF_CONTROLS_VIEW_READY owner=%d width=%d height=%d own=%d target=%d elapsed=%.3f"),
             PC->OwnerId, Width, Height, ControlsOwnUnit, ControlsTargetUnit, ControlsElapsed);
+        const IConsoleVariable* OptimizeShaders = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Shaders.Optimize"));
+        UE_LOG(LogTemp, Display, TEXT("PROOF_CONTROLS_RENDER_CONFIG shadersOptimize=%d"), OptimizeShaders ? OptimizeShaders->GetInt() : -1);
         return;
     }
     FProofCommandResult Receipt;
     const bool bHasReceipt = PC->FindReceipt(LastRequestedSequence, Receipt);
-    if (ControlsStep == 0 && Snapshot.Players.Num() >= 3 && ControlsElapsed - ControlsReady > 1.f)
+    if (ControlsScenarioReady < 0.f)
+    {
+        bool bOwner1 = false, bOwner2 = false, bBot100 = false;
+        for (const FProofPlayerRecord& Record : Snapshot.Players)
+        {
+            bOwner1 |= Record.OwnerId == 1;
+            bOwner2 |= Record.OwnerId == 2;
+            bBot100 |= Record.OwnerId == 100;
+        }
+        if (!bOwner1 || !bOwner2 || !bBot100) return;
+        ControlsScenarioReady = ControlsElapsed;
+        UE_LOG(LogTemp, Display, TEXT("PROOF_CONTROLS_SCENARIO_READY owner=%d elapsed=%.3f viewportReadyElapsed=%.3f revision=%d"),
+            PC->OwnerId, ControlsScenarioReady, ControlsReady, Snapshot.Revision);
+    }
+    if (ControlsStep == 0 && ControlsElapsed - ControlsScenarioReady > 1.f)
     {
         if (!ControlsCheck(SetControlsCursorFromWorld(Target->Position), TEXT("enemy_projected_in_viewport"))) return;
         SelectUnderCursor();
@@ -404,7 +421,7 @@ void AProofRTSPawn::TickControlsAutomation(float DeltaSeconds)
         if (!ControlsCheck(bScreenshots, TEXT("engine_rendered_screenshots_written"))) return;
         ControlsStep = 7;
     }
-    else if (ControlsStep == 7 && ControlsElapsed - ControlsReady > 23.f)
+    else if (ControlsStep == 7 && ControlsElapsed - ControlsScenarioReady > 23.f)
     {
         FinishControls(true, TEXT("select_clear_zoom_project_deproject_move_attack_produce_receipts_snapshots_capture"));
     }

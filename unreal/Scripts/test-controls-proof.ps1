@@ -2,7 +2,10 @@ param(
     [string]$EngineRoot = 'D:\Epic Games\UE_5.7',
     [ValidateRange(20000,60000)][int]$Port = 28879,
     [ValidateRange(45,90)][int]$TimeoutSeconds = 90,
-    [ValidateRange(15,600)][int]$WarmupTimeoutSeconds = 300
+    [ValidateRange(15,600)][int]$WarmupTimeoutSeconds = 300,
+    [ValidateRange(0,65536)][int]$MaxCacheMiB = 2048,
+    [ValidateRange(0,65536)][int]$MaxTempMiB = 1024,
+    [switch]$UnoptimizedShaders
 )
 $ErrorActionPreference = 'Stop'
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
@@ -26,9 +29,25 @@ if ($LASTEXITCODE -ne 0) { throw 'Cannot record tested HEAD.' }
 $dirty = [bool](& git -C $repoRoot status --porcelain)
 $result = [ordered]@{passed=$false;head=$head;dirtyWorkingTree=$dirty;startedUtc=[DateTime]::UtcNow.ToString('o');finishedUtc=$null;elapsedSeconds=0;scenarioElapsedSeconds=0;warmup=[ordered]@{passed=$false;startedUtc=$null;finishedUtc=$null;elapsedSeconds=0;timeoutSeconds=$WarmupTimeoutSeconds;coreLimit=4;reportedShaderWorkers=$null;unusedShaderThreads=1;unusedShaderThreadsDuringGame=1;screenshotAcceptance=$false};scenarioTimeoutSeconds=$TimeoutSeconds;scenarioCoreLimit=2;totalTimeoutBudgetSeconds=($WarmupTimeoutSeconds+$TimeoutSeconds);cachePath=$cache;stages=[ordered]@{};observedCounts=@{};runDirectory=$run;topology='one dedicated UE server, one rendered controls client, one NullRHI passive observer (after standalone graphical warmup)';transport='UE native UDP loopback';physicalMouseAndFocusVerified=$false;internetTest=$false;performanceTest=$false;port=$Port;screenshots=@();commonRevisions=@();error=$null}
 $prior=@{}; $processes=[Collections.Generic.List[object]]::new()
+$storageGuard=[ordered]@{softPollingGuard=$true;intervalSeconds=10;maxCacheMiB=$MaxCacheMiB;maxTempMiB=$MaxTempMiB;lastCheckElapsedSeconds=-10;checks=0;latestCacheBytes=0;latestTempBytes=0;peakObservedCacheBytes=0;peakObservedTempBytes=0}
+$result.storageGuard=$storageGuard
+$result.renderConfiguration=[ordered]@{unoptimizedShaders=[bool]$UnoptimizedShaders;expectedShadersOptimize=[int](-not $UnoptimizedShaders);observedShadersOptimize=$null;performanceRepresentative=$false}
 $names=@('UE-LocalDataCachePath','UE-SharedDataCachePath','TEMP','TMP')
 function Mark-Stage([string]$Name) { $result.stages[$Name]=[ordered]@{utc=[DateTime]::UtcNow.ToString('o');elapsedSeconds=[math]::Round($watch.Elapsed.TotalSeconds,3)} }
+function Check-StorageBudget([switch]$Force) {
+    if(-not $Force -and $watch.Elapsed.TotalSeconds - $storageGuard.lastCheckElapsedSeconds -lt 10) { return }
+    $cacheBytes=[int64](Get-ChildItem -LiteralPath $cache -File -Recurse -Force | Measure-Object -Property Length -Sum).Sum
+    $tempBytes=[int64](Get-ChildItem -LiteralPath (Join-Path $run 'temp') -File -Recurse -Force | Measure-Object -Property Length -Sum).Sum
+    $storageGuard.lastCheckElapsedSeconds=[math]::Round($watch.Elapsed.TotalSeconds,3)
+    $storageGuard.checks++
+    $storageGuard.latestCacheBytes=$cacheBytes; $storageGuard.latestTempBytes=$tempBytes
+    $storageGuard.peakObservedCacheBytes=[math]::Max($storageGuard.peakObservedCacheBytes,$cacheBytes)
+    $storageGuard.peakObservedTempBytes=[math]::Max($storageGuard.peakObservedTempBytes,$tempBytes)
+    if($MaxCacheMiB -gt 0 -and $cacheBytes -gt ([int64]$MaxCacheMiB * 1MB)) { throw "Soft D: cache guard exceeded: $cacheBytes bytes > $MaxCacheMiB MiB." }
+    if($MaxTempMiB -gt 0 -and $tempBytes -gt ([int64]$MaxTempMiB * 1MB)) { throw "Soft D: temp guard exceeded: $tempBytes bytes > $MaxTempMiB MiB." }
+}
 try {
+    Check-StorageBudget -Force
     foreach ($n in $names) { $prior[$n]=[Environment]::GetEnvironmentVariable($n,'Process') }
     [Environment]::SetEnvironmentVariable('UE-LocalDataCachePath',$cache,'Process')
     [Environment]::SetEnvironmentVariable('UE-SharedDataCachePath','None','Process')
@@ -37,12 +56,19 @@ try {
     function Start-Controls([string]$Role,[string]$Destination,[string[]]$Mode,[int]$CoreLimit=2) {
         $log=Join-Path $run ($Role+'.log')
         $launchArguments=@(('"'+$project+'"'),$Destination)+$Mode+@('-unattended','-nosound','-nosplash','-NoSourceControl','-NoP4','-ddc=BlockoutDDC',('-CoreLimit='+$CoreLimit),'-FPS=30',('-port='+$Port),('-abslog="'+$log+'"'))
+        # One Engine override string prevents duplicate -ini:Engine switches
+        # from shadowing warmup worker settings or shader optimization mode.
+        $engineOverrides=@()
+        if($Role -eq 'warmup') { $engineOverrides+=@('[DevOptions.Shaders]:NumUnusedShaderCompilingThreads=1','[DevOptions.Shaders]:NumUnusedShaderCompilingThreadsDuringGame=1') }
+        if($UnoptimizedShaders) { $engineOverrides+=@('[ShaderCompiler]:r.Shaders.Optimize=0','[ConsoleVariables]:r.Shaders.Optimize=0') }
+        if($engineOverrides.Count) { $launchArguments+=('-ini:Engine:'+($engineOverrides -join ',')) }
         $p=Start-Process -FilePath $editor -ArgumentList $launchArguments -WorkingDirectory $projectRoot -WindowStyle Hidden -PassThru
         $processes.Add([pscustomobject]@{Process=$p;Started=$p.StartTime;Role=$Role;Log=$log;Path=$editor})
         Mark-Stage ($Role+'Started')
     }
     function Wait-Marker($Entry,[string]$Pattern) {
         do {
+            Check-StorageBudget
             $content=if(Test-Path -LiteralPath $Entry.Log){Get-Content -LiteralPath $Entry.Log -Raw}else{''}
             if ($content -match $Pattern) { return }
             if ($Entry.Process.HasExited) { throw "$($Entry.Role) exited before $Pattern." }
@@ -55,9 +81,10 @@ try {
     # it is neither a screenshot check nor controls acceptance.
     $result.warmup.startedUtc=[DateTime]::UtcNow.ToString('o')
     $warmupWatch=[Diagnostics.Stopwatch]::StartNew()
-    Start-Controls 'warmup' '/Game/CommandProofGenerated/Maps/CommandProof' @('-game','-RenderOffscreen','-windowed','-ResX=1280','-ResY=720','-ExecCmds="quit"','-ini:Engine:[DevOptions.Shaders]:NumUnusedShaderCompilingThreads=1,[DevOptions.Shaders]:NumUnusedShaderCompilingThreadsDuringGame=1') 4
+    Start-Controls 'warmup' '/Game/CommandProofGenerated/Maps/CommandProof' @('-game','-RenderOffscreen','-windowed','-ResX=1280','-ResY=720','-ExecCmds="quit"') 4
     try {
         while(-not $processes[0].Process.HasExited) {
+            Check-StorageBudget
             if($warmupWatch.Elapsed.TotalSeconds -ge $WarmupTimeoutSeconds) { throw 'Graphics warmup timed out before the controls scenario started.' }
             Start-Sleep -Milliseconds 200
         }
@@ -85,10 +112,12 @@ try {
     Mark-Stage 'renderedProjectionReady'
     Start-Controls 'observer' ('127.0.0.1:'+$Port) @('-game','-nullrhi','-ProofControlsObserver')
     while (@($processes | Where-Object {-not $_.Process.HasExited}).Count) {
+        Check-StorageBudget
         if ($scenarioWatch.Elapsed.TotalSeconds -ge $TimeoutSeconds) { throw 'Controls scenario exceeded its strict timeout.' }
         Start-Sleep -Milliseconds 200
     }
     Mark-Stage 'processesExited'
+    Check-StorageBudget -Force
     $maps=@()
     foreach ($entry in $processes) {
         if ($entry.Role -eq 'warmup') { continue }
@@ -112,6 +141,11 @@ try {
             }
         }
         if ($role -eq 'client') {
+            if($log -notmatch 'PROOF_CONTROLS_SCENARIO_READY owner=1 ') { throw 'Missing both-humans scenario clock marker.' }
+            $renderConfig=[regex]::Match($log,'PROOF_CONTROLS_RENDER_CONFIG shadersOptimize=(-?\d+)')
+            if(-not $renderConfig.Success) { throw 'Missing observed shader optimization setting.' }
+            $result.renderConfiguration.observedShadersOptimize=[int]$renderConfig.Groups[1].Value
+            if($result.renderConfiguration.observedShadersOptimize -ne $result.renderConfiguration.expectedShadersOptimize) { throw 'Shader optimization setting differs from requested rendering configuration.' }
             foreach($check in @('enemy_not_selected','owned_unit_selected','empty_clears_selection','zoom_in_changes_camera','zoom_out_restores_camera','actual_viewport_projection_deprojection_roundtrip_lt2cm','move_host_receipt_accepted','move_replicated_destination_reached','attack_host_receipt_accepted','attack_replicated_target_damage','produce_host_receipt_accepted','produce_replicated_unit_and_credit_delta','separation_move_host_receipt_accepted','engine_rendered_screenshots_written')) {
                 if($log -notmatch ('PROOF_CONTROLS_CHECK[^\r\n]*status=pass evidence='+$check+'\b')) { throw "Missing controls assertion: $check" }
             }

@@ -43,6 +43,7 @@ private:
     int32 ControlsOwnCount = 0;
     float ControlsElapsed = 0.f;
     float ControlsReady = -1.f;
+    float ControlsScenarioReady = -1.f;
     float ControlsStageTime = 0.f;
     bool bControlsFinished = false;
     FVector ControlsDestination = FVector(-250.f, 0.f, 0.f);
