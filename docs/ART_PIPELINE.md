@@ -45,3 +45,19 @@ The normal camera is orthographic with a 24 m horizontal field, located at `(18,
 ## Review gate
 
 Inspect both stills and the motion sequence together. Record Jared's approval or requested changes to silhouettes, faction character, proportions, relative scale and RTS recognition before finishing assets. Keep the baseline captures for comparison. Successful image generation establishes only that this local content pipeline ran; it establishes no Unreal compatibility, art approval, performance budget, multiplayer correctness, or large-army scalability.
+
+## Evidence identity and failure behavior
+
+New runs assign a UUID `run_id`, SHA-256 of the pipeline Python sources, and SHA-256 of each exported FBX. The manifest records signed local bounds as well as dimensions. Captures list their own hashes under that same run identity; `stills` and `motion` explicitly read `omitted` when not requested. The editable scene has its own hash. These identify actual bytes; they are not art approval or a claim of deterministic FBX encoding.
+
+Before generation, only pipeline-owned `previews/`, the old manifest, and the export/import/probe reports move into `generated/evidence_history/<superseding-run-id>/`, marked historical by `ARCHIVED.json`. This preserves prior review captures rather than presenting them as captures of new geometry. Separate user baseline/delivery folders are untouched. The current reports begin as `passed: false`, `status: not_run`. Each validator invalidates its current success report **before** reading/checking inputs; an exception leaves `checking_or_failed`, never a stale current pass. Every UE import also invalidates prior probe success, including same-run attempts. Validation refuses source or FBX hash mismatches and incomplete generation. Old manifests require regeneration, not compatibility guessing.
+
+Run the inexpensive numerical/provenance regressions without Blender:
+
+```powershell
+& 'C:\Program Files\Blender Foundation\Blender 4.5\4.5\python\bin\python.exe' -m unittest discover -s tools/art -p test_evidence.py -v
+```
+
+The three tests independently encode asymmetric bounds and reject 10x uniform scale, X-only scale, 100 cm mesh displacement, displaced pivot, reversed facing and incorrect actor basis. A temporary-output regression preserves an old capture and successful reports, changes source/geometry, omits new captures, then forces an export-hash failure; current reports must remain false while archived evidence remains readable. Another executes the actual validator/importer entrypoints with malformed manifests and inert engine modules, requiring previous success reports to become false before parsing fails. These are pure Python gates; the engine probe below is separate evidence.
+
+Engine smoke acceptance remains: regenerate on this source; validate FBXs; import fresh/repeat in UE; match current run/hash metadata; check all XYZ dimensions, signed local bounds, actor pivot, ground and basis. Do not use a previous branch's successful reports as proof for the changed gates.
