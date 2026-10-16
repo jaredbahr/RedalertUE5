@@ -9,7 +9,7 @@ class REDALERTPROOF_API FProofGroupOrderQueue
 {
 public:
     static constexpr int32 MaxPendingCommands = 64;
-    static constexpr int32 MaxCommandsPerInterval = 4;
+    static constexpr int32 MaxCommandsPerInterval = 2;
     static constexpr double DispatchIntervalSeconds = 0.1;
 
     bool Enqueue(const FProofSnapshot& Snapshot, int32 OwnerId, const TArray<FProofCommand>& Commands);
