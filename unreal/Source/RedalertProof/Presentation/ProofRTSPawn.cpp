@@ -40,6 +40,8 @@ AProofRTSPawn::AProofRTSPawn()
 void AProofRTSPawn::BeginPlay()
 {
     Super::BeginPlay();
+    bInputBindingFixture = FParse::Param(FCommandLine::Get(), TEXT("ProofInputBindingFixture"));
+    FParse::Value(FCommandLine::Get(), TEXT("ProofInputBindingOutput="), InputFixtureOutput);
     bGraphicsWarmup = FParse::Param(FCommandLine::Get(), TEXT("ProofGraphicsWarmup"));
     FParse::Value(FCommandLine::Get(), TEXT("ProofSkirmishScenario="), SkirmishScenario);
     FParse::Value(FCommandLine::Get(), TEXT("ProofSkirmishOutput="), SkirmishOutput);
@@ -88,6 +90,9 @@ void AProofRTSPawn::SetupPlayerInputComponent(UInputComponent* Input)
     {
         Input->BindKey(EKeys::Escape, IE_Pressed, this, &AProofRTSPawn::OnInteractiveEscape);
     }
+    if (bInputBindingFixture || FParse::Param(FCommandLine::Get(), TEXT("ProofInputBindingFixture")))
+        UE_LOG(LogTemp, Display, TEXT("PROOF_INPUT_BINDING_INPUT_SETUP componentId=%u bindings=%d registered=%d"),
+            Input->GetUniqueID(), Input->KeyBindings.Num(), Input->IsRegistered());
 }
 
 void AProofRTSPawn::Tick(float DeltaSeconds)
@@ -112,15 +117,7 @@ void AProofRTSPawn::Tick(float DeltaSeconds)
         bConfiguredLocalInput = true;
     }
     ObserveViewportFocus();
-    if (bCameraPanEnabled && bConfiguredLocalInput && bViewportFocused && bViewportForeground
-        && !PC->IsProofAutomation() && !PC->IsControlsAutomation() && SkirmishScenario.IsEmpty())
-    {
-        const FVector2D Direction(
-            (PC->IsInputKeyDown(EKeys::Right) ? 1.0 : 0.0) - (PC->IsInputKeyDown(EKeys::Left) ? 1.0 : 0.0),
-            (PC->IsInputKeyDown(EKeys::Up) ? 1.0 : 0.0) - (PC->IsInputKeyDown(EKeys::Down) ? 1.0 : 0.0));
-        CameraGroundCenter = FProofCameraPan::Apply(CameraGroundCenter, Direction, DeltaSeconds);
-        Camera->SetWorldLocation(CameraGroundCenter + FVector(0.f, -3200.f, 3200.f));
-    }
+    if (!bInputFixtureVirtualPan) ApplyCameraPan(DeltaSeconds, bViewportFocused, bViewportForeground);
     if (bInteractiveExitEnabled && bConfiguredLocalInput && !bInteractiveReadyLogged && PC->OwnerId != INDEX_NONE)
     {
         int32 Width = 0, Height = 0;
@@ -218,7 +215,8 @@ void AProofRTSPawn::Tick(float DeltaSeconds)
     {
         Request(Command);
     }
-    if (GS->Snapshot.bSkirmish && !SkirmishScenario.IsEmpty()) TickSkirmishScenario(DeltaSeconds);
+    if (bInputBindingFixture) TickInputBindingFixture(DeltaSeconds);
+    else if (GS->Snapshot.bSkirmish && !SkirmishScenario.IsEmpty()) TickSkirmishScenario(DeltaSeconds);
     else if (PC->IsControlsAutomation()) TickControlsAutomation(DeltaSeconds);
 }
 
@@ -227,8 +225,8 @@ FString AProofRTSPawn::GetManualInputStatus() const
     const TCHAR* Focus = !bFocusObserved ? TEXT("pending")
         : !bViewportForeground ? TEXT("background")
         : bViewportFocused ? TEXT("focused") : TEXT("unfocused");
-    return FString::Printf(TEXT("Native L%d R%d P%d W+%d/-%d | focus %s | last %s | human unverified"),
-        ManualLeftPresses, ManualRightPresses, ManualProducePresses,
+    return FString::Printf(TEXT("%s L%d R%d P%d W+%d/-%d | focus %s | last %s | human unverified"),
+        bInputBindingFixture ? TEXT("Injected") : TEXT("Native"), ManualLeftPresses, ManualRightPresses, ManualProducePresses,
         ManualWheelUpPresses, ManualWheelDownPresses, Focus, *LastManualAction);
 }
 
@@ -264,8 +262,9 @@ void AProofRTSPawn::RecordManualInput(const TCHAR* Key, int32& Count, const FStr
     if (ManualInputLogs < 24)
     {
         ++ManualInputLogs;
-        UE_LOG(LogTemp, Display, TEXT("PROOF_MANUAL_INPUT key=%s count=%d outcome=%s viewportFocus=%d foreground=%d physicalInput=unverified"),
-            Key, Count, *Outcome.Left(80), bViewportFocused ? 1 : 0, bViewportForeground ? 1 : 0);
+        UE_LOG(LogTemp, Display, TEXT("PROOF_MANUAL_INPUT key=%s count=%d outcome=%s viewportFocus=%d foreground=%d inputSource=%s physicalInput=unverified"),
+            Key, Count, *Outcome.Left(80), bViewportFocused ? 1 : 0, bViewportForeground ? 1 : 0,
+            bInputBindingFixture ? TEXT("engineInjection") : TEXT("unclassified"));
         if (ManualInputLogs == 24)
         {
             UE_LOG(LogTemp, Display, TEXT("PROOF_MANUAL_INPUT furtherEvents=suppressed countersRemainVisible=1 physicalInput=unverified"));
