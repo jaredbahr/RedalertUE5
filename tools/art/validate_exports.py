@@ -4,13 +4,24 @@ import json
 from pathlib import Path
 import sys
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from evidence import invalidate_report, validate_geometry, verify_inputs, write_json
+
 import bpy
 
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--output', required=True, type=Path)
 args = parser.parse_args(sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else [])
+invalidate_report(args.output / 'export_validation.json')
 manifest = json.loads((args.output / 'blockout_manifest.json').read_text(encoding='utf-8'))
+# Invalidate current success before any input or geometry check can raise.
+report_path = args.output / 'export_validation.json'
+identity = {key: manifest[key] for key in ('run_id', 'source_sha256')}
+invalidate_report(report_path, identity)
+if manifest['generation_status'] != 'complete':
+    raise ValueError('Generation did not complete')
+verify_inputs(args.output, manifest, Path(__file__).resolve().parents[2])
 results = []
 for asset in manifest['assets']:
     bpy.ops.wm.read_factory_settings(use_empty=True)
@@ -24,12 +35,14 @@ for asset in manifest['assets']:
     dimensions = [upper[axis] - lower[axis] for axis in range(3)]
     assert all(abs(actual - expected) < .005 for actual, expected in zip(dimensions, asset['dimensions_m'])), (
         asset['file'], 'round-trip dimensions changed', dimensions, asset['dimensions_m'])
-    assert abs(lower[2]) < .005, (asset['file'], 'mesh does not sit on Z=0', lower)
-    assert obj.matrix_world.translation.length < .005, (asset['file'], 'origin moved')
+    validate_geometry(asset, lower, upper, list(obj.matrix_world.translation),
+                      factor=1, flip_y=False)
     assert all(len(poly.vertices) >= 3 for poly in obj.data.polygons)
     results.append({'file': asset['file'], 'bounds_min_m': lower, 'bounds_max_m': upper,
                     'dimensions_m': dimensions, 'origin_m': list(obj.matrix_world.translation),
                     'mesh_count': len(meshes), 'polygons': len(obj.data.polygons), 'passed': True})
-report = {'validation': 'Blender FBX round trip only; Unreal import remains unverified', 'assets': results}
+report = {**identity, 'status': 'passed', 'passed': True,
+          'asset_hashes': {asset['file']: asset['sha256'] for asset in manifest['assets']},
+          'validation': 'Blender FBX round trip only; Unreal import remains unverified', 'assets': results}
 (args.output / 'export_validation.json').write_text(json.dumps(report, indent=2), encoding='utf-8')
 print(json.dumps(report, indent=2))

@@ -5,6 +5,9 @@ import math
 from pathlib import Path
 import sys
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from evidence import begin_run, sha256, write_json
+
 import bpy
 from mathutils import Vector
 
@@ -186,10 +189,16 @@ def export_asset(obj, directory):
                              use_selection=True, object_types={'MESH'},
                              axis_forward='-Y', axis_up='Z', apply_unit_scale=True,
                              bake_anim=False, add_leaf_bones=False)
+    points = [joined.matrix_world @ vertex.co for vertex in joined.data.vertices]
+    lower = [min(point[axis] for point in points) for axis in range(3)]
+    upper = [max(point[axis] for point in points) for axis in range(3)]
     dimensions = list(joined.dimensions)
     vertices = len(joined.data.vertices)
+    exported_hash = sha256(directory / (joined.name + '.fbx'))
     bpy.data.objects.remove(joined, do_unlink=True)
     return {'file': 'assets/SM_' + obj.name + '.fbx', 'dimensions_m': dimensions,
+            'bounds_min_m': lower, 'bounds_max_m': upper,
+            'sha256': exported_hash,
             'vertices': vertices, 'origin': 'ground center', 'forward': '-Y', 'up': '+Z'}
 
 
@@ -197,6 +206,7 @@ def main():
     args = arguments()
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=True)
+    identity = begin_run(output, Path(__file__).resolve().parents[2])
     assets = output / 'assets'
     previews = output / 'previews'
     assets.mkdir(exist_ok=True)
@@ -227,7 +237,9 @@ def main():
     mats = {name: material(name.title(), value) for name, value in colors.items()}
     objects = [reactor(mats), tank(mats), infantry(mats)]
     bpy.context.view_layer.update()
-    manifest = {'status': 'unapproved original primitive blockouts',
+    manifest = {**identity, 'generation_status': 'in_progress',
+                'previews': {'stills': 'omitted', 'motion': 'omitted'},
+                'status': 'unapproved original primitive blockouts',
                 'blender_version': bpy.app.version_string, 'units': 'meters; FBX stores unit conversion metadata',
                 'assets': [export_asset(obj, assets) for obj in objects],
                 'reference': 'User brief and authored interpretation; no game assets or images imported. Visual fidelity unapproved.',
@@ -291,6 +303,14 @@ def main():
             scene.render.filepath = str(previews / ('motion_%03d.png' % frame))
             bpy.ops.render.render(write_still=True)
         write_motion_player(previews, args.motion_frames)
+    manifest['generation_status'] = 'complete'
+    manifest['previews'] = {
+        'stills': 'current' if args.render_stills else 'omitted',
+        'motion': 'current' if args.motion else 'omitted',
+        'files': [{'file': str(path.relative_to(output)).replace('\\', '/'), 'sha256': sha256(path)}
+                  for path in sorted(previews.iterdir()) if path.is_file()]}
+    manifest['scene_sha256'] = sha256(output / 'RA2_Blockout_Review.blend')
+    write_json(output / 'blockout_manifest.json', manifest)
     print('BLOCKOUT_OUTPUT=' + str(output))
 
 
