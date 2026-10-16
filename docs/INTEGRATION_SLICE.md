@@ -2,6 +2,22 @@
 
 This isolated D: integration branch combines the existing drafts for testing. It does not merge main, approve art, or establish internet play or an army budget.
 
+## Current result: graphical fixture passed
+
+Clean tested source **f836d939a9093ae320fa425db5b6d2705571ad06**, report `generated/controls-20261016-064537-040/result.json`: **PASS**, 2026-10-16T06:45:37.1498059Z to06:47:20.981958Z. Warmup14.740s; scenario87.909s including final verification; total103.929s. The unchanged300s/90s deadlines passed; the scenario had little timing margin on this shared host. This is one functional execution, not a reliability or performance benchmark.
+
+Actual topology was a UE dedicated loopback host, rendered owner1 and NullRHI observer owner2. All three completion markers and zero exits passed;53common revision digests matched. Initial records:2human owners/1bot owner,2human+3bot units; final:3human+3bot records,5live/6total. Counts include retained dead/disconnected-owner records. The rendered client can finish before the host observation ends; agreement proves sampled overlap rather than continuous three-party connectivity throughout20seconds.
+
+The shared viewport handlers passed selection refusal/selection/clear, zoom, subpixel ground ray, Move/Attack/Produce/Move requests and accepted receipts, replicated destination/damage/production with credits200->150, separation and captures. Bot mover1 reached(1000,1000,0) with0cm remaining (1cm gate); bot attacker2 exclusively damaged owner2 target5 from100 to97.5HP. Scripted bots are not skirmish AI. Optimized shaders1, actual t.MaxFPS30 and literal-client resolver mode1 were observed; both clients logged the local startup CVar. EnginePak matched584warmup/635rendered key-hit lines including331GlobalShaderMap/PCD3D_SM5 lines per role; material-related classifications include textures and are not material-shadermap totals.
+
+Both fresh1280x720 captures were visually inspected. Selected:786824bytes, SHA256`dbe92294e2344b90e24acb902950ec3a1cad40ce097f4121dfa197f53d712e4b`; final:795913bytes, SHA256`3709162e47548249efe8afb33b700141c5dda5a3fd3d14effc0a38b61ca9e289`. Final shows selected original, separate produced unit6, target3HP90 and credits150. Initial asset-preparation messages and lighting-rebuild text overlapping HUD remain visible. These generic proxies/captures do not approve Tesla/Rhino/Conscript art or presentation polish.
+
+The latest module build passed23.36s; the unchanged command model passed4/4native groups after its numerical fix, and8lightweight runner checks passed. No further heavy rerun is needed absent a new concern.78CPU-policy polls recorded14affinity repairs, zero discovery/cleanup errors; polling cannot ensure continuous confinement between observations. Peak observed D: cache37,369,645bytes/temp12,472bytes stayed below soft2048/1024MiB limits. All owned engine processes exited.
+
+Eight C: roots were audited from06:29:33.6057033Z to06:48:03.0222583Z across this repair/testing interval: seven had zero net byte/file change; D3DSCache had0file/-123944byte net change. Shared cache totals are not project attribution or proof of zero writes. Source, generated evidence and writable UE cache/temp remained on D:; generated/binary files remain ignored.
+
+Physical mouse/keyboard/focus, internet/adverse networking, full skirmish AI, army scale, continuous session lifecycle and art approval remain open. #11/#12 retain their lifecycle/ingress scope. Main and original draft heads are preserved; no binary upload or merge occurred. Historical failed evidence follows so earlier outcomes are not relabeled as passes.
+
 ## Dependency map
 
 | Draft | Source head | Integration treatment |
@@ -131,3 +147,5 @@ The rendered client's final23game-second idle wait did not complete: the first s
 
 Completion-fix build passed in23.36s (four actions); eight lightweight runner checks passed. The rendered client now emits successful completion immediately after every gameplay and screenshot check passes. No model code changed after the4/4native pass; all runner deadlines, host/observer observation and three-party digest/capture/exit gates remain unchanged. Fresh graphical execution is still required.
 Independent completion review found no material blocker. The rendered client can finish before the host observation ends; final human counts describe retained unit records, and shared revisions establish sampled overlap, not continuous three-party connectivity throughout20seconds.
+
+Independent final evidence review recalculated53shared revisions with zero cross-process/duplicate digest mismatches, correlated all4typed requests/receipts, checked exact bot IDs/outcomes and counts, and verified both PNG signatures/dimensions/hashes/fresh UTC times from raw logs/files. Both captures were viewed independently; diagnostic overlap remains. No evidence blocker was found. The final f836 run also directly measured0.000164cm fractional round-trip error versus5.548618cm stock pixel-truncated error. Subsequent publication edits are documentation only; the tested source SHA above remains the execution identity.
