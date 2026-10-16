@@ -42,7 +42,7 @@ $prior=@{}; $processes=[Collections.Generic.List[object]]::new()
 $ownedWorkers=[Collections.Generic.List[object]]::new()
 $storageGuard=[ordered]@{softPollingGuard=$true;intervalSeconds=10;maxCacheMiB=$MaxCacheMiB;maxTempMiB=$MaxTempMiB;lastCheckElapsedSeconds=-10;checks=0;latestCacheBytes=0;latestTempBytes=0;peakObservedCacheBytes=0;peakObservedTempBytes=0}
 $result.storageGuard=$storageGuard
-$result.renderConfiguration=[ordered]@{unoptimizedShaders=[bool]$UnoptimizedShaders;expectedShadersOptimize=[int](-not $UnoptimizedShaders);observedShadersOptimize=$null;targetFPS=30;observedMaxFPS=$null;warmupObservedMaxFPS=$null;performanceRepresentative=$false}
+$result.renderConfiguration=[ordered]@{unoptimizedShaders=[bool]$UnoptimizedShaders;expectedShadersOptimize=[int](-not $UnoptimizedShaders);observedShadersOptimize=$null;targetFPS=30;gameUserSettingsFrameRateLimit=30;observedMaxFPS=$null;warmupObservedMaxFPS=$null;performanceRepresentative=$false}
 $result.cpuPolicy=[ordered]@{availableAffinityMask=('0x{0:X}' -f $availableAffinity);fixtureAffinityMask=('0x{0:X}' -f $fixtureAffinity);logicalProcessors=$fixtureLogicalProcessors;uePriority='Normal';workerPrioritySetting=0;assignedAfterProcessStart=$true;workerInheritanceVerified=$false;processes=@()}
 $result.cpuPolicy.pollIntervalSeconds=1
 $result.cpuPolicy.lastPollElapsedSeconds=-1
@@ -175,7 +175,7 @@ try {
     [Environment]::SetEnvironmentVariable('TMP',(Join-Path $run 'temp'),'Process')
     function Start-Controls([string]$Role,[string]$Destination,[string[]]$Mode,[int]$CoreLimit=2) {
         $log=Join-Path $run ($Role+'.log')
-        $launchArguments=@(('"'+$project+'"'),$Destination)+$Mode+@('-unattended','-nosound','-nosplash','-NoSourceControl','-NoP4','-ddc=BlockoutDDC','-logcmds="LogDerivedDataCache Verbose"',('-CoreLimit='+$CoreLimit),('-port='+$Port),('-abslog="'+$log+'"'))
+        $launchArguments=@(('"'+$project+'"'),$Destination)+$Mode+@('-unattended','-nosound','-nosplash','-NoSourceControl','-NoP4','-ini:GameUserSettings:[/Script/Engine.GameUserSettings]:FrameRateLimit=30','-ddc=BlockoutDDC','-logcmds="LogDerivedDataCache Verbose"',('-CoreLimit='+$CoreLimit),('-port='+$Port),('-abslog="'+$log+'"'))
         # One Engine override string prevents duplicate -ini:Engine switches
         # from shadowing warmup worker settings or shader optimization mode.
         $engineOverrides=@('[DevOptions.Shaders]:WorkerProcessPriority=0','[ConsoleVariables]:t.MaxFPS=30')
