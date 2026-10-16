@@ -160,6 +160,10 @@ void AProofRTSPawn::TickInputBindingFixture(float DeltaSeconds)
     case 0:
     {
         int32 Width = 0, Height = 0; PC->GetViewportSize(Width, Height);
+        if (static_cast<int32>(StageAge) != static_cast<int32>(StageAge - DeltaSeconds))
+            UE_LOG(LogTemp, Display, TEXT("PROOF_INPUT_BINDING_WAIT hq=%d harvester=%d enemyHQ=%d configured=%d owner=%d skirmish=%d epoch=%d width=%d height=%d assets=%d"),
+                HQ != nullptr, Harvester != nullptr, EnemyHQ != nullptr, bConfiguredLocalInput, PC->OwnerId,
+                Snapshot.bSkirmish, Snapshot.MatchEpoch, Width, Height, FAssetCompilingManager::Get().GetNumRemainingAssets());
         if (!HQ || !Harvester || !EnemyHQ || !bConfiguredLocalInput || PC->OwnerId != 1 || !Snapshot.bSkirmish
             || Snapshot.MatchEpoch < 1 || Width != 1280 || Height != 720 || FAssetCompilingManager::Get().GetNumRemainingAssets() != 0) return;
         if (!InputFixtureCheck(bCameraPanEnabled && !PC->IsControlsAutomation() && !PC->IsProofAutomation()
