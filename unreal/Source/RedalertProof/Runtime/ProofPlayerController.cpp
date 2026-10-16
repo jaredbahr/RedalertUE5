@@ -208,9 +208,9 @@ void AProofPlayerController::TickIngressFixture(AProofGameState* State)
             if (Unit.OwnerId == OwnerId) ++Count;
             if (Unit.UnitId == OwnUnit && FVector::Dist(Unit.Position, InitialPosition) >= 90.f) bMovedUnit = true;
         }
-        const FProofPlayerRecord* Player = State->Snapshot.Players.FindByPredicate(
+        const FProofPlayerRecord* PlayerRecord = State->Snapshot.Players.FindByPredicate(
             [this](const FProofPlayerRecord& Record) { return Record.OwnerId == OwnerId; });
-        if (Count == 2 && bMovedUnit && Player && Player->Credits == 150)
+        if (Count == 2 && bMovedUnit && PlayerRecord && PlayerRecord->Credits == 150)
         {
             bFinished = true;
             UE_LOG(LogTemp, Display, TEXT("PROOF_INGRESS_HEALTHY_COMPLETE owner=%d status=pass moved=1 produced=1 credits=150"), OwnerId);
