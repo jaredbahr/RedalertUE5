@@ -8,10 +8,10 @@ connectivity, eight-player readiness, army budgets, or performance.
 
 After building the editor module, run `unreal/Scripts/test-native-model.ps1`.
 It runs `Automation RunTests RedalertProof.Commands` in UE 5.7.4
-`UnrealEditor-Cmd.exe` with `-unattended -nullrhi`, four-core limit and a maximum
+`UnrealEditor-Cmd.exe` with `-unattended -nullrhi`, two-core limit and a maximum
 90-second deadline. Fresh logs, report, cache and temporary files stay on D:.
-It requires the JSON report to contain exactly the four named tests with state
-`Success`, four successes and zero failures, in addition to a clean exit code.
+It requires the JSON report to contain exactly the five named tests with state
+`Success`, five successes and zero failures, in addition to a clean exit code.
 
 - Validation: identical human/bot command route, ownership, trusted player,
   replay, malformed enums and nonfinite positions, bounds and friendly targets.
@@ -20,6 +20,9 @@ It requires the JSON report to contain exactly the four named tests with state
   deterministic visible-state digests.
 - Phase order: reversed unit insertion cannot bias movement or mutual damage;
   all movement reads the old positions and damage reads all new positions.
+
+- Owner allocation: reserved-ID boundary, unique monotonic human identities,
+  bot model-state isolation and repeated exhaustion without overflow/reuse.
 
 ## Engine replication fixture
 
@@ -53,3 +56,5 @@ fixture has no real navigation, production UI, matchmaking, authentication,
 host migration, or adverse-network coverage. Future scale tests must combine
 active movement, combat, bots and replication under measured load; budgets remain
 undetermined. Art remains unapproved blockout work.
+
+The fifth group, `RedalertProof.Commands.OwnerAllocation`, covers reserved bot identity boundaries, unique monotonic human allocations, bot model-state isolation and exhaustion. See [owner allocation](OWNER_ALLOCATION.md) for exact source/results and the remaining lifecycle limits. The headless runner observes/repairs its owned process to Normal priority/two allowed CPUs; this is polling, not continuous confinement. It records SHA, dirty status, timing and observed resources.
