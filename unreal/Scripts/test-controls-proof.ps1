@@ -24,6 +24,16 @@ $cache = Join-Path $repoRoot 'generated\controls-cache'
 New-Item -ItemType Directory -Force -Path $run,$images,$cache,(Join-Path $run 'temp') | Out-Null
 $watch = [Diagnostics.Stopwatch]::StartNew()
 $scenarioWatch = $null
+# Restrict every owned UE process to two CPUs allowed to this invoking process.
+# Windows children normally inherit their parent's affinity; root separately
+# verifies workers because Start-Process + affinity assignment is not atomic.
+$availableAffinity=[uint64]([Diagnostics.Process]::GetCurrentProcess().ProcessorAffinity.ToInt64())
+$fixtureAffinity=[uint64]0; $fixtureLogicalProcessors=@()
+for($cpuIndex=0; $cpuIndex -lt 64 -and $fixtureLogicalProcessors.Count -lt 2; $cpuIndex++) {
+    $cpuBit=[uint64]1 -shl $cpuIndex
+    if(($availableAffinity -band $cpuBit) -ne 0) { $fixtureAffinity=$fixtureAffinity -bor $cpuBit; $fixtureLogicalProcessors+=$cpuIndex }
+}
+if($fixtureLogicalProcessors.Count -ne 2) { throw 'Controls fixture requires two available logical CPUs in the invoking process affinity mask.' }
 $head = (& git -C $repoRoot rev-parse HEAD).Trim()
 if ($LASTEXITCODE -ne 0) { throw 'Cannot record tested HEAD.' }
 $dirty = [bool](& git -C $repoRoot status --porcelain)
@@ -32,6 +42,7 @@ $prior=@{}; $processes=[Collections.Generic.List[object]]::new()
 $storageGuard=[ordered]@{softPollingGuard=$true;intervalSeconds=10;maxCacheMiB=$MaxCacheMiB;maxTempMiB=$MaxTempMiB;lastCheckElapsedSeconds=-10;checks=0;latestCacheBytes=0;latestTempBytes=0;peakObservedCacheBytes=0;peakObservedTempBytes=0}
 $result.storageGuard=$storageGuard
 $result.renderConfiguration=[ordered]@{unoptimizedShaders=[bool]$UnoptimizedShaders;expectedShadersOptimize=[int](-not $UnoptimizedShaders);observedShadersOptimize=$null;performanceRepresentative=$false}
+$result.cpuPolicy=[ordered]@{availableAffinityMask=('0x{0:X}' -f $availableAffinity);fixtureAffinityMask=('0x{0:X}' -f $fixtureAffinity);logicalProcessors=$fixtureLogicalProcessors;uePriority='Normal';workerPrioritySetting=0;assignedAfterProcessStart=$true;workerInheritanceVerified=$false;processes=@()}
 $names=@('UE-LocalDataCachePath','UE-SharedDataCachePath','TEMP','TMP')
 function Mark-Stage([string]$Name) { $result.stages[$Name]=[ordered]@{utc=[DateTime]::UtcNow.ToString('o');elapsedSeconds=[math]::Round($watch.Elapsed.TotalSeconds,3)} }
 function Check-StorageBudget([switch]$Force) {
@@ -58,12 +69,17 @@ try {
         $launchArguments=@(('"'+$project+'"'),$Destination)+$Mode+@('-unattended','-nosound','-nosplash','-NoSourceControl','-NoP4','-ddc=BlockoutDDC',('-CoreLimit='+$CoreLimit),'-FPS=30',('-port='+$Port),('-abslog="'+$log+'"'))
         # One Engine override string prevents duplicate -ini:Engine switches
         # from shadowing warmup worker settings or shader optimization mode.
-        $engineOverrides=@()
+        $engineOverrides=@('[DevOptions.Shaders]:WorkerProcessPriority=0')
         if($Role -eq 'warmup') { $engineOverrides+=@('[DevOptions.Shaders]:NumUnusedShaderCompilingThreads=1','[DevOptions.Shaders]:NumUnusedShaderCompilingThreadsDuringGame=1') }
         if($UnoptimizedShaders) { $engineOverrides+=@('[ShaderCompiler]:r.Shaders.Optimize=0','[ConsoleVariables]:r.Shaders.Optimize=0') }
         if($engineOverrides.Count) { $launchArguments+=('-ini:Engine:'+($engineOverrides -join ',')) }
         $p=Start-Process -FilePath $editor -ArgumentList $launchArguments -WorkingDirectory $projectRoot -WindowStyle Hidden -PassThru
         $processes.Add([pscustomobject]@{Process=$p;Started=$p.StartTime;Role=$Role;Log=$log;Path=$editor})
+        $p.ProcessorAffinity=[IntPtr]([int64]$fixtureAffinity)
+        $p.PriorityClass=[Diagnostics.ProcessPriorityClass]::Normal
+        $p.Refresh()
+        if([uint64]$p.ProcessorAffinity.ToInt64() -ne $fixtureAffinity -or $p.PriorityClass -ne [Diagnostics.ProcessPriorityClass]::Normal) { throw "Could not apply/verify owned $Role CPU policy." }
+        $result.cpuPolicy.processes+=@{role=$Role;pid=$p.Id;affinityMask=('0x{0:X}' -f [uint64]$p.ProcessorAffinity.ToInt64());priority=$p.PriorityClass.ToString();assignedUtc=[DateTime]::UtcNow.ToString('o')}
         Mark-Stage ($Role+'Started')
     }
     function Wait-Marker($Entry,[string]$Pattern) {
