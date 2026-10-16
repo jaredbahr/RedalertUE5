@@ -2,10 +2,14 @@
 #include "Runtime/ProofGameMode.h"
 #include "Runtime/ProofGameState.h"
 #include "Engine/World.h"
+#include "Engine/Engine.h"
+#include "HAL/FileManager.h"
+#include "Engine/NetConnection.h"
 #include "Net/UnrealNetwork.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
 #include "HAL/PlatformMisc.h"
+#include "HAL/PlatformTime.h"
 
 AProofPlayerController::AProofPlayerController()
 {
@@ -13,6 +17,10 @@ AProofPlayerController::AProofPlayerController()
     bAutomation = FParse::Param(FCommandLine::Get(), TEXT("ProofAutomation"));
     bControlsAutomation = FParse::Param(FCommandLine::Get(), TEXT("ProofControlsAutomation"));
     bControlsObserver = FParse::Param(FCommandLine::Get(), TEXT("ProofControlsObserver"));
+    bIngressFixture = FParse::Param(FCommandLine::Get(), TEXT("ProofIngressFixture"));
+    bIngressFlood = FParse::Param(FCommandLine::Get(), TEXT("ProofIngressFlood"));
+    bIngressHealthy = FParse::Param(FCommandLine::Get(), TEXT("ProofIngressHealthy"));
+    FParse::Value(FCommandLine::Get(), TEXT("ProofIngressRelease="), IngressRelease);
 }
 
 bool AProofPlayerController::FindReceipt(int32 Sequence, FProofCommandResult& OutResult) const
@@ -29,6 +37,32 @@ void AProofPlayerController::GetLifetimeReplicatedProps(TArray<FLifetimeProperty
 
 void AProofPlayerController::ServerSubmitCommand_Implementation(FProofCommand Command)
 {
+    const bool bWasTripped = IngressBudget.IsTripped();
+    const double Now = FPlatformTime::Seconds();
+    if (!IngressBudget.TryAdmit(Now))
+    {
+        if (!bWasTripped)
+        {
+            UNetConnection* Connection = GetNetConnection();
+            UE_LOG(LogTemp, Warning, TEXT("PROOF_INGRESS_LIMIT owner=%d action=%s"),
+                OwnerId, Connection ? TEXT("close-connection") : TEXT("latch-local-controller"));
+            // A receipt queued immediately before Close is not guaranteed to
+            // arrive. Disconnect is the explicit boundary for sequence reset.
+            if (Connection)
+            {
+                Connection->Close();
+                if (bIngressFixture)
+                    UE_LOG(LogTemp, Display, TEXT("PROOF_INGRESS_CLOSED owner=%d closed=%d admitted=%d elapsed=%.6f"),
+                        OwnerId, Connection->GetConnectionState() == USOCK_Closed, IngressAdmitted, Now - IngressFirstSeconds);
+            }
+        }
+        return;
+    }
+    if (bIngressFixture)
+    {
+        if (IngressAdmitted == 0) IngressFirstSeconds = Now;
+        if (IngressAdmitted < MAX_int32) ++IngressAdmitted;
+    }
     if (AProofGameMode* Mode = GetWorld()->GetAuthGameMode<AProofGameMode>())
     {
         // OwnerId is assigned by PostLogin on the server, never supplied by the RPC.
@@ -99,6 +133,7 @@ void AProofPlayerController::Tick(float DeltaSeconds)
             FPlatformMisc::RequestExitWithStatus(false, 1);
         }
     }
+    if (bIngressFlood || bIngressHealthy) { TickIngressFixture(State); return; }
     if (!bAutomation || bFinished) return;
     if (Lifetime > 40.f) { FinishAutomation(false); return; }
     if (!State || OwnerId == INDEX_NONE) return;
@@ -148,4 +183,76 @@ void AProofPlayerController::Tick(float DeltaSeconds)
     }
     if (Elapsed >= 12.f)
         FinishAutomation(!bAckFailure && Acknowledged.Num() == 4 && bMoved && bDamaged && bProduced);
+}
+
+// Explicit loopback fixture: these flags are never enabled by normal play.
+void AProofPlayerController::TickIngressFixture(AProofGameState* State)
+{
+    if (bFinished) return;
+    if (!bIngressFailureBound && GEngine)
+    {
+        GEngine->OnNetworkFailure().AddWeakLambda(this,
+            [this](UWorld*, UNetDriver*, ENetworkFailure::Type Type, const FString&)
+            {
+                const bool bExpected = bIngressFlood && Type == ENetworkFailure::ConnectionLost;
+                UE_LOG(LogTemp, Display, TEXT("PROOF_INGRESS_CLIENT_CLOSED expected=%d type=%d"), bExpected, static_cast<int32>(Type));
+                bFinished = true;
+                FPlatformMisc::RequestExitWithStatus(false, bExpected ? 0 : 1);
+            });
+        bIngressFailureBound = true;
+    }
+    if (!State || OwnerId == INDEX_NONE) return;
+    if (!bIngressSent)
+    {
+        if (bIngressFlood)
+        {
+            // Under the reliable bunch buffer; every request still uses the real RPC.
+            for (int32 Index = 0; Index < 128; ++Index)
+            {
+                FProofCommand Bad;
+                Bad.Sequence = Index % 2 == 0 ? 0 : 99;
+                ServerSubmitCommand(Bad);
+            }
+            UE_LOG(LogTemp, Display, TEXT("PROOF_INGRESS_FLOOD_SENT owner=%d requests=128"), OwnerId);
+        }
+        else
+        {
+            for (const FProofUnitRecord& Unit : State->Snapshot.Units)
+                if (Unit.OwnerId == OwnerId) { OwnUnit = Unit.UnitId; InitialPosition = Unit.Position; break; }
+            if (OwnUnit == INDEX_NONE) return;
+            FProofCommand Move;
+            Move.Sequence = NextLocalCommandSequence();
+            Move.UnitId = OwnUnit;
+            Move.Destination = InitialPosition + FVector(100.f, 0.f, 0.f);
+            ServerSubmitCommand(Move);
+        }
+        bIngressSent = true;
+    }
+    if (bIngressHealthy && !bIngressSecondSent && !IngressRelease.IsEmpty() && IFileManager::Get().FileExists(*IngressRelease))
+    {
+        FProofCommand Produce;
+        Produce.Sequence = NextLocalCommandSequence();
+        Produce.Type = EProofCommandType::Produce;
+        ServerSubmitCommand(Produce);
+        bIngressSecondSent = true;
+        UE_LOG(LogTemp, Display, TEXT("PROOF_INGRESS_HEALTHY_RELEASED owner=%d"), OwnerId);
+    }
+    if (bIngressHealthy && bIngressSecondSent)
+    {
+        int32 Count = 0;
+        bool bMovedUnit = false;
+        for (const FProofUnitRecord& Unit : State->Snapshot.Units)
+        {
+            if (Unit.OwnerId == OwnerId) ++Count;
+            if (Unit.UnitId == OwnUnit && FVector::Dist(Unit.Position, InitialPosition) >= 90.f) bMovedUnit = true;
+        }
+        const FProofPlayerRecord* Player = State->Snapshot.Players.FindByPredicate(
+            [this](const FProofPlayerRecord& Record) { return Record.OwnerId == OwnerId; });
+        if (Count == 2 && bMovedUnit && Player && Player->Credits == 150)
+        {
+            bFinished = true;
+            UE_LOG(LogTemp, Display, TEXT("PROOF_INGRESS_HEALTHY_COMPLETE owner=%d status=pass moved=1 produced=1 credits=150"), OwnerId);
+            FPlatformMisc::RequestExitWithStatus(false, 0);
+        }
+    }
 }
