@@ -15,7 +15,8 @@ class REDALERTPROOF_API AProofPlayerController : public APlayerController
 public:
     AProofPlayerController();
     UPROPERTY(Replicated) int32 OwnerId = INDEX_NONE;
-    int32 NextLocalCommandSequence() { return NextLocalSequence < MAX_int32 ? NextLocalSequence++ : 0; }
+    int32 NextLocalCommandSequence();
+    void SynchronizeMatchEpoch();
     bool IsProofAutomation() const { return bAutomation; }
     bool IsControlsAutomation() const { return bControlsAutomation; }
     bool IsControlsObserver() const { return bControlsObserver; }
@@ -23,12 +24,24 @@ public:
     const FString& GetReceiptStatus() const { return ReceiptStatus; }
     int32 GetLastReceiptSequence() const { return LastReceiptSequence; }
     UFUNCTION(Server, Reliable) void ServerSubmitCommand(FProofCommand Command);
+    UFUNCTION(Server, Reliable) void ServerRequestRematch(int32 ExpectedEpoch);
     UFUNCTION(Client, Reliable) void ClientCommandResult(FProofCommandResult Result);
+    UFUNCTION(Client, Reliable) void ClientLifecycleRejected();
     virtual void Tick(float DeltaSeconds) override;
     virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 private:
     FProofIngressBudget IngressBudget;
+    bool AdmitIngress();
     bool bIngressFixture = false;
+    bool bLifecycleFixture = false;
+    FString LifecycleRole;
+    FString LifecycleControl;
+    int32 LocalMatchEpoch = 0;
+    int32 LifecycleStep = 0;
+    int32 LifecyclePendingSequence = INDEX_NONE;
+    bool bLifecycleRematchSent = false;
+    bool bLifecycleStaleSent = false;
+    void TickLifecycleFixture(AProofGameState* State);
     bool bIngressFlood = false;
     bool bIngressHealthy = false;
     bool bIngressSent = false;

@@ -20,8 +20,8 @@ FString FProofSnapshot::ComputeDigest() const
     SortedPlayers.Sort([](const FProofPlayerRecord& A, const FProofPlayerRecord& B) { return A.OwnerId < B.OwnerId; });
     SortedUnits.Sort([](const FProofUnitRecord& A, const FProofUnitRecord& B) { return A.UnitId < B.UnitId; });
     SortedResources.Sort([](const FProofResourceRecord& A, const FProofResourceRecord& B) { return A.ResourceId < B.ResourceId; });
-    FString Canonical = FString::Printf(TEXT("revision:%d;skirmish:%d;phase:%d;winner:%d;"),
-        Revision, bSkirmish ? 1 : 0, static_cast<int32>(MatchPhase), WinnerTeam);
+    FString Canonical = FString::Printf(TEXT("revision:%d;epoch:%d;skirmish:%d;phase:%d;winner:%d;"),
+        Revision, MatchEpoch, bSkirmish ? 1 : 0, static_cast<int32>(MatchPhase), WinnerTeam);
     for (const FProofPlayerRecord& Player : SortedPlayers)
     {
         Canonical += FString::Printf(TEXT("p:%d,%d,%d,%d;"), Player.OwnerId, Player.Credits, Player.TeamId, Player.TotalGathered);
@@ -34,8 +34,8 @@ FString FProofSnapshot::ComputeDigest() const
     }
     for (const FProofResourceRecord& Resource : SortedResources)
     {
-        Canonical += FString::Printf(TEXT("r:%d,%.17g,%.17g,%.17g,%d;"), Resource.ResourceId,
-            Resource.Position.X, Resource.Position.Y, Resource.Position.Z, Resource.Remaining);
+        Canonical += FString::Printf(TEXT("r:%d,%d,%.17g,%.17g,%.17g,%d;"), Resource.ResourceId,
+            Resource.OwnerId, Resource.Position.X, Resource.Position.Y, Resource.Position.Z, Resource.Remaining);
     }
     return FMD5::HashAnsiString(*Canonical);
 }
@@ -122,9 +122,68 @@ bool FProofCommandModel::SeedSkirmishPlayer(int32 OwnerId, int32 TeamId, const F
     AddUnit(OwnerId, HarvesterPosition, EProofUnitKind::Harvester, 100.f);
     FProofResourceRecord Ore;
     Ore.ResourceId = NextResourceId++;
+    Ore.OwnerId = OwnerId;
     Ore.Position = OrePosition;
     Ore.Remaining = 500;
     State.Resources.Add(Ore);
+    BumpRevision();
+    return true;
+}
+
+bool FProofCommandModel::RemoveSkirmishPlayer(int32 OwnerId)
+{
+    if (!State.bSkirmish || OwnerId < 0 || !LastSequences.Contains(OwnerId)) { return false; }
+
+    const bool bBothTeamsRepresented = State.Players.ContainsByPredicate([](const FProofPlayerRecord& Player)
+        { return Player.TeamId == 0; }) && State.Players.ContainsByPredicate([](const FProofPlayerRecord& Player)
+        { return Player.TeamId == 1; });
+
+    // Capture targets before erasing records. Other players may have issued
+    // attacks against this player's units or gathered from their starter ore.
+    TSet<int32> RemovedUnits;
+    TSet<int32> RemovedResources;
+    for (const FProofUnitRecord& Unit : State.Units)
+    {
+        if (Unit.OwnerId == OwnerId) { RemovedUnits.Add(Unit.UnitId); }
+    }
+    for (const FProofResourceRecord& Resource : State.Resources)
+    {
+        if (Resource.OwnerId == OwnerId) { RemovedResources.Add(Resource.ResourceId); }
+    }
+
+    State.Players.RemoveAll([OwnerId](const FProofPlayerRecord& Player) { return Player.OwnerId == OwnerId; });
+    State.Units.RemoveAll([OwnerId](const FProofUnitRecord& Unit) { return Unit.OwnerId == OwnerId; });
+    State.Resources.RemoveAll([OwnerId](const FProofResourceRecord& Resource) { return Resource.OwnerId == OwnerId; });
+    LastSequences.Remove(OwnerId);
+    CommandCounts.Remove(OwnerId);
+    for (auto It = Orders.CreateIterator(); It; ++It)
+    {
+        const FOrder& Order = It.Value();
+        if (RemovedUnits.Contains(It.Key())
+            || (Order.Type == EProofCommandType::Attack && RemovedUnits.Contains(Order.TargetUnitId))
+            || (Order.Type == EProofCommandType::Gather && RemovedResources.Contains(Order.TargetUnitId)))
+        {
+            It.RemoveCurrent();
+        }
+    }
+    if (bBothTeamsRepresented && State.MatchPhase == EProofMatchPhase::Playing)
+    {
+        bool bTeam0HasHQ = false;
+        bool bTeam1HasHQ = false;
+        for (const FProofUnitRecord& Unit : State.Units)
+        {
+            if (Unit.Kind != EProofUnitKind::HQ || Unit.HitPoints <= 0.f) { continue; }
+            const int32 Team = TeamForOwner(Unit.OwnerId);
+            bTeam0HasHQ |= Team == 0;
+            bTeam1HasHQ |= Team == 1;
+        }
+        if (!bTeam0HasHQ || !bTeam1HasHQ)
+        {
+            State.MatchPhase = EProofMatchPhase::Finished;
+            State.WinnerTeam = bTeam0HasHQ ? 0 : (bTeam1HasHQ ? 1 : INDEX_NONE);
+            Orders.Reset();
+        }
+    }
     BumpRevision();
     return true;
 }

@@ -61,10 +61,10 @@ try {
     $index=Join-Path $report 'index.json'
     if (-not (Test-Path -LiteralPath $index)) { throw 'No fresh Automation index.json report.' }
     $data=Get-Content -LiteralPath $index -Raw | ConvertFrom-Json
-    $expected=@('RedalertProof.Skirmish.Economy.PlacementAndRoles','RedalertProof.Skirmish.Economy.FiniteHarvestAndCapacity','RedalertProof.Skirmish.Economy.DeterminismAndTerminal','RedalertProof.Skirmish.BotPlanner','RedalertProof.Skirmish.BotModelPath','RedalertProof.Skirmish.RulesOutcome','RedalertProof.Skirmish.RulesReadinessAndStability','RedalertProof.Skirmish.Economy.InterruptedFinalCargo','RedalertProof.Skirmish.Lifecycle.RestartAfterOutcomes','RedalertProof.Skirmish.OwnershipIsolation')
+    $expected=@('RedalertProof.Skirmish.Economy.PlacementAndRoles','RedalertProof.Skirmish.Economy.FiniteHarvestAndCapacity','RedalertProof.Skirmish.Economy.DeterminismAndTerminal','RedalertProof.Skirmish.BotPlanner','RedalertProof.Skirmish.BotModelPath','RedalertProof.Skirmish.RulesOutcome','RedalertProof.Skirmish.RulesReadinessAndStability','RedalertProof.Skirmish.Economy.InterruptedFinalCargo','RedalertProof.Skirmish.Lifecycle.RestartAfterOutcomes','RedalertProof.Skirmish.OwnershipIsolation','RedalertProof.Skirmish.Lifecycle.DisconnectAndRejoin','RedalertProof.Skirmish.Lifecycle.TerminalDisconnect','RedalertProof.Skirmish.Lifecycle.LastTeamDisconnect')
     $tests=@($data.tests)
     $result.testCount=$tests.Count; $result.succeeded=[int]$data.succeeded; $result.failed=[int]$data.failed
-    if ($tests.Count -ne $expected.Count -or [int]$data.succeeded -ne $expected.Count -or [int]$data.failed -ne 0) { throw 'Expected all ten exact tests successful and zero failures.' }
+    if ($tests.Count -ne $expected.Count -or [int]$data.succeeded -ne $expected.Count -or [int]$data.failed -ne 0) { throw 'Expected all thirteen exact tests successful and zero failures.' }
     foreach($name in $expected){
         $matching=@($tests | Where-Object {$_.fullTestPath -eq $name})
         if ($matching.Count -ne 1 -or $matching[0].state -ne 'Success') { throw "Missing successful exact test $name." }

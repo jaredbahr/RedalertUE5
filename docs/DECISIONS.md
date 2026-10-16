@@ -19,6 +19,7 @@ Status vocabulary: **Confirmed** records Jared's direction; **Proposed** is a ca
 | Current work | Jared has authorized a first scoped implementation batch using parallel agents: original authored blockouts, reproducible scene/assets pipeline, and early technical groundwork with existing tools. No purchases, new agreements, security changes, proprietary asset uploads, or unapproved installs. Blockout approval still precedes finishing. |
 | Repository changes | Isolated D: implementation branch, reviewed commits, and draft PRs now authorized. Preserve others' edits and branches; no changes to main, merges, force pushes, or deployment. |
 
+Jared subsequently clarified the product goal: a modernized 3D RA2/Yuri-style remake that preserves gameplay feel, pacing, economy, unit roles and combat. Camera panning and modest usability improvements are accepted implementation discretion. This is a direction decision, not approval of prototype balance or evidence of gameplay parity. The current engineering results are recorded in [Small match](SMALL_MATCH.md); broad milestone gates remain open.
 ## Proposed defaults, not yet approved decisions
 
 | Topic | Proposal and validation |
@@ -45,4 +46,4 @@ Status vocabulary: **Confirmed** records Jared's direction; **Proposed** is a ca
 
 Repository inspection found a public repository with only `README.md` (the title `# RedalertUE5`) at base commit `2a41dadc72b7bb1153925b1949cfba510518dd4c`, on default branch `main`. No engine project, repository instructions, license file, or existing implementation was present in that commit. Visibility can change; this is an inspection record, not an ongoing guarantee.
 
-The first implementation batch adds reproducible blockout and technical experiments; see [First-proof evidence](FIRST_PROOF.md) for executed checks and limits. No blockout approval, UE gameplay/network proof, practical army-size budget, or completed skirmish bot match is recorded. When a proposal is accepted or a gate passes, record the decision, approver, evidence, and any scope change here. Do not backfill an invented date, performance result, or permission grant.
+The first implementation batch adds reproducible blockout and technical experiments; see [First-proof evidence](FIRST_PROOF.md) for that batch. Subsequent partial UE command, loopback and small-match evidence is recorded in [Small match](SMALL_MATCH.md), including exact revisions and limitations. Blockout approval, gameplay parity, practical army-size budgets, complete faction rosters and Internet readiness remain unproven. When a proposal is accepted or a gate passes, record the decision, approver, evidence, and any scope change here. Do not backfill an invented date, performance result, or permission grant.
