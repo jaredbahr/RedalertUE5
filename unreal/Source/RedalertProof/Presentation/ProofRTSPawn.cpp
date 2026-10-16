@@ -76,6 +76,12 @@ void AProofRTSPawn::SetupPlayerInputComponent(UInputComponent* Input)
     Input->BindKey(EKeys::One, IE_Pressed, this, &AProofRTSPawn::OnManualGroupOne);
     Input->BindKey(EKeys::Two, IE_Pressed, this, &AProofRTSPawn::OnManualGroupTwo);
     Input->BindKey(EKeys::Three, IE_Pressed, this, &AProofRTSPawn::OnManualGroupThree);
+    Input->BindKey(EKeys::Four, IE_Pressed, this, &AProofRTSPawn::OnManualGroupFour);
+    Input->BindKey(EKeys::Five, IE_Pressed, this, &AProofRTSPawn::OnManualGroupFive);
+    Input->BindKey(EKeys::Six, IE_Pressed, this, &AProofRTSPawn::OnManualGroupSix);
+    Input->BindKey(EKeys::Seven, IE_Pressed, this, &AProofRTSPawn::OnManualGroupSeven);
+    Input->BindKey(EKeys::Eight, IE_Pressed, this, &AProofRTSPawn::OnManualGroupEight);
+    Input->BindKey(EKeys::Nine, IE_Pressed, this, &AProofRTSPawn::OnManualGroupNine);
     Input->BindKey(EKeys::MouseScrollUp, IE_Pressed, this, &AProofRTSPawn::OnManualZoomIn);
     Input->BindKey(EKeys::MouseScrollDown, IE_Pressed, this, &AProofRTSPawn::OnManualZoomOut);
     if (bInteractiveExitEnabled)
@@ -285,6 +291,12 @@ void AProofRTSPawn::OnManualSelect()
 void AProofRTSPawn::OnManualGroupOne() { HandleManualGroup(1); }
 void AProofRTSPawn::OnManualGroupTwo() { HandleManualGroup(2); }
 void AProofRTSPawn::OnManualGroupThree() { HandleManualGroup(3); }
+void AProofRTSPawn::OnManualGroupFour() { HandleManualGroup(4); }
+void AProofRTSPawn::OnManualGroupFive() { HandleManualGroup(5); }
+void AProofRTSPawn::OnManualGroupSix() { HandleManualGroup(6); }
+void AProofRTSPawn::OnManualGroupSeven() { HandleManualGroup(7); }
+void AProofRTSPawn::OnManualGroupEight() { HandleManualGroup(8); }
+void AProofRTSPawn::OnManualGroupNine() { HandleManualGroup(9); }
 
 void AProofRTSPawn::HandleManualGroup(int32 Slot)
 {

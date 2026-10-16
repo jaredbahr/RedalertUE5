@@ -124,6 +124,12 @@ private:
     void OnManualGroupOne();
     void OnManualGroupTwo();
     void OnManualGroupThree();
+    void OnManualGroupFour();
+    void OnManualGroupFive();
+    void OnManualGroupSix();
+    void OnManualGroupSeven();
+    void OnManualGroupEight();
+    void OnManualGroupNine();
     void HandleManualGroup(int32 Slot);
     void OnManualOrder();
     void OnManualProduce();

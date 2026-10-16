@@ -9,6 +9,7 @@ class REDALERTPROOF_API FProofSelectionState
 {
 public:
     static constexpr int32 MaxSelectedUnits = FProofCommandModel::SkirmishRecordCap;
+    static constexpr int32 MaxControlGroups = 9;
 
     const TArray<int32>& GetSelectedUnitIds() const { return SelectedUnitIds; }
     int32 GetPrimaryUnitId() const { return PrimaryUnitId; }
@@ -35,7 +36,7 @@ private:
     int32 SelectionOwnerId = INDEX_NONE;
     int32 PrimaryUnitId = INDEX_NONE;
     TArray<int32> SelectedUnitIds;
-    FGroup Groups[3];
+    FGroup Groups[MaxControlGroups];
 
     static bool IsOwnedLiveUnit(const FProofSnapshot& Snapshot, int32 OwnerId, int32 UnitId);
     static void PruneIds(TArray<int32>& Ids, const FProofSnapshot& Snapshot, int32 OwnerId);

@@ -5,7 +5,7 @@ This source-only slice builds on the small skirmish and session lifecycle branch
 ## Controls
 
 - Left-click selects one owned live unit; empty ground clears selection. Shift-click toggles an owned live unit in the selection (up to 12).
-- Ctrl+1, Ctrl+2 and Ctrl+3 save independent copies of the selection. Press 1, 2 or 3 to recall. Dead/foreign units are filtered; a new match epoch or owner clears all selections and groups.
+- Ctrl+1 through Ctrl+9 save independent copies of the selection. Press 1 through 9 to recall. Dead/foreign units are filtered; a new match epoch or owner clears the current selection and all nine groups. Assigning an empty selection clears that slot.
 - With multiple units selected, right-click ground moves Combat and Harvester units while preserving their current offsets around the destination. The destination is bounded to the proof world. Structures stay put.
 - Right-click an enemy with a group orders only Combat units to attack. Friendly teammates are excluded in skirmish. Harvesters do not attack. Select a single Harvester to use the existing right-click ore gathering action.
 - Wheel zoom and the default orthographic camera angle/starting view remain as before. Optional arrow-key pan requires `-CameraPan` on `start-small-match.ps1` or `start-local-interactive.ps1` (engine flag `-ProofCameraPan`). It runs only while the viewport is focused and foreground, at 600 cm/s, with normalized diagonals, a 0.1-second frame cap, and a bounded ground center. It does not rotate the camera.
@@ -22,6 +22,28 @@ Formation offsets preserve the units' current arrangement; there is no navigatio
 
 ## Verified source and remaining acceptance
 
+### Nine-group follow-up: source prepared, UE validation queued
+
+The isolated `feat/nine-control-groups` branch starts at PR #28 (`0173ff8d9004432857c9a012caf60ecd872e617a`). It expands the three-slot proof to the nine digit groups documented under Create Team / Select Team in the [original Yuri's Revenge manual, Quick Keys](https://archive.org/stream/Command_Conquer_RED_ALERT_2_YURI_S_REVENGE/Command__Conquer_RED_ALERT_2_YURI_S_REVENGE_djvu.txt). This is publisher-authored material transcribed on a third-party host. No manual or game assets are copied into the repository. Number 0 is outside this documented scope.
+
+The selection model stores nine bounded local copies; all nine input callbacks use the existing Ctrl assign / plain recall handler. The selected-unit cap, command queue, host authority, movement/combat and camera behavior retain their existing rules. A new `SelectionNineGroups` test covers independent slots, copied primary IDs, invalid-slot no-ops, death/ownership pruning, and clearing upper slots when owner or match epoch changes. Existing controls tests remain required; the runner now expects exactly eleven successful cases.
+
+Only source/static review is available for this follow-up. It has not been built or executed in UE; the historical evidence below validates the earlier three-slot source only. Imagination owns the shared heavy-test slot. When that slot is released, run the existing bounded build, focused controls tests, then rendered compatibility in this D: worktree:
+
+```powershell
+./unreal/Scripts/build-native-proof.ps1
+./unreal/Scripts/test-group-controls.ps1
+./unreal/Scripts/test-controls-proof.ps1 -CleanPresentation
+```
+
+The model test and rendered compatibility runner do not establish actual digit-key/Ctrl dispatch for new slots 4–9. A bounded engine-input check and human review of assigning/recalling groups 4 and 9, Ctrl release, group death pruning and rematch clearing remain acceptance work. No generated content is included in this new worktree, so the rendered step also requires the previously validated ignored fixture assets to be reused and hash-checked before launch.
+
+This branch is independent of draft PR #29 and does not carry or validate its bootstrap fix. PR #29's original readiness timeout and separate stage-16 failure remain unresolved. Its later bootstrap source built, but final runtime attempts stopped before fixture execution; do not use its historical passes as nine-group validation.
+
+Related issues [#17](https://github.com/jaredbahr/RedalertUE5/issues/17) (input/focus usability) and [#18](https://github.com/jaredbahr/RedalertUE5/issues/18) (HUD readability) remain partial and open. Nine groups address a narrow controls gap; they do not satisfy physical-input/focus or full presentation acceptance. The draft follow-up depends on #28 and should be reconciled alongside #29 after integration, without merging either here.
+
+### Historical three-group validation
+
 All final tests below ran with clean compiled source `3409da2e7ba94952e8568564b1a884fd15e480bd`, using installed UE5.7.4. The last build succeeded in four actions / 8.55 seconds total. Later commits update documentation only. Tests were serialized using the established bounded runners, D: cache/temp paths, Normal-priority policies and owned-process cleanup. Model/scenario jobs used two logical CPUs; the existing rendered controls warmup used four. Policy polling is not hard confinement.
 
 Result directories are under ignored `D:/UserTemp/RedalertUE5-group-controls/generated/`:
@@ -36,7 +58,7 @@ Result directories are under ignored `D:/UserTemp/RedalertUE5-group-controls/gen
 | Offscreen rendered controls compatibility | Pass, 58.432s including warmup; 54 matching revisions | `controls-20261016-215103-604` |
 | Offscreen cooperative small match | Pass, 102.577s; 331 matching revisions; winner0; no cleanup errors | `small-match-coop-20261016-215202-072` |
 
-The new unit tests cover ownership/pruning, group copies and epoch/owner invalidation, deterministic bounded plans, queue coalescing/capacity/pacing/revalidation, and camera math derived from the actual camera basis. `unreal/Scripts/test-group-controls.ps1` requires those exact ten successes. The existing rendered fixture exercises single-unit compatibility; it does not exercise native Shift/Ctrl input or prove multiple selection highlights and queued group RPCs together in a rendered session. Physical input, focus transitions, optional panning and subjective responsiveness still need a human playtest. No visible game was launched. No FPS, Internet or large-army result is claimed.
+The new unit tests cover ownership/pruning, group copies and epoch/owner invalidation, deterministic bounded plans, queue coalescing/capacity/pacing/revalidation, and camera math derived from the actual camera basis. At that tested revision, `unreal/Scripts/test-group-controls.ps1` required those exact ten successes. The existing rendered fixture exercises single-unit compatibility; it does not exercise native Shift/Ctrl input or prove multiple selection highlights and queued group RPCs together in a rendered session. Physical input, focus transitions, optional panning and subjective responsiveness still need a human playtest. No visible game was launched. No FPS, Internet or large-army result is claimed.
 
 Rendered controls and cooperative victory/HUD captures were visually inspected locally. Fourteen existing ignored generated content files were reused with matching SHA256 hashes; no art was generated/imported. The eight monitored C: roots showed UE5.7 Saved +31 bytes since the post-lifecycle Coop observation; the other seven were unchanged (`c-drive-after-controls.json`). This shared-PC audit is neither exhaustive nor exclusive attribution. All binaries, caches, reports and PNGs remain ignored on D:.
 
