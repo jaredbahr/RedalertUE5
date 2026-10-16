@@ -17,6 +17,71 @@
 #include "Misc/CommandLine.h"
 #include "UnrealClient.h"
 #include "AssetCompilingManager.h"
+#include "IAssetCompilingManager.h"
+
+void AProofRTSPawn::ObserveInputFixtureReadiness(double Now, bool bForce)
+{
+    if (!bForce && InputFixtureLastReadinessSample >= 0.0 && Now - InputFixtureLastReadinessSample < 1.0) return;
+    InputFixtureLastReadinessSample = Now;
+    ++InputFixtureReadinessSamples;
+    const AProofPlayerController* PC = Cast<AProofPlayerController>(GetController());
+    const AProofGameState* GS = GetWorld()->GetGameState<AProofGameState>();
+    const UGameViewportClient* ViewportClient = GetWorld()->GetGameViewport();
+    const FProofSnapshot* Snapshot = GS ? &GS->Snapshot : nullptr;
+    const int32 Owner = PC ? PC->OwnerId : INDEX_NONE;
+    int32 Width = 0, Height = 0;
+    if (PC) PC->GetViewportSize(Width, Height);
+    int32 HQ = INDEX_NONE, Harvester = INDEX_NONE, EnemyHQ = INDEX_NONE;
+    if (Snapshot) for (const FProofUnitRecord& Unit : Snapshot->Units)
+    {
+        if (Unit.HitPoints <= 0.f) continue;
+        if (Unit.OwnerId == Owner && Unit.Kind == EProofUnitKind::HQ) HQ = Unit.UnitId;
+        if (Unit.OwnerId == Owner && Unit.Kind == EProofUnitKind::Harvester) Harvester = Unit.UnitId;
+        if (Unit.OwnerId == 100 && Unit.Kind == EProofUnitKind::HQ) EnemyHQ = Unit.UnitId;
+    }
+    FString Managers;
+    int32 Remaining = 0;
+    for (const IAssetCompilingManager* Manager : FAssetCompilingManager::Get().GetRegisteredManagers())
+    {
+        const int32 Count = Manager->GetNumRemainingAssets();
+        Remaining += Count;
+        if (!Managers.IsEmpty()) Managers += TEXT(",");
+        Managers += FString::Printf(TEXT("{\"type\":\"%s\",\"remaining\":%d}"),
+            *Manager->GetAssetTypeName().ToString().ReplaceCharWithEscapedChar(), Count);
+    }
+    // Failed bits 0..14: controller, gameState, viewportClient, viewport,
+    // localPlayer, HQ, harvester, enemyHQ, configuredInput, owner1, skirmish,
+    // positiveEpoch, width1280, height720, zeroRemainingAssets.
+    const bool Gates[] = {PC != nullptr, GS != nullptr, ViewportClient != nullptr,
+        ViewportClient && ViewportClient->Viewport, PC && PC->GetLocalPlayer(),
+        HQ != INDEX_NONE, Harvester != INDEX_NONE, EnemyHQ != INDEX_NONE, bConfiguredLocalInput,
+        Owner == 1, Snapshot && Snapshot->bSkirmish, Snapshot && Snapshot->MatchEpoch >= 1,
+        Width == 1280, Height == 720, Remaining == 0};
+    uint32 FailedMask = 0;
+    for (int32 Index = 0; Index < UE_ARRAY_COUNT(Gates); ++Index)
+        if (!Gates[Index]) FailedMask |= (1u << Index);
+    const int32 Epoch = Snapshot ? Snapshot->MatchEpoch : INDEX_NONE;
+    // Revision is deliberately excluded: ordinary host ticks are not readiness progress.
+    const FString Signature = FString::Printf(TEXT("%u|%d|%d|%d|%d|%d|%d|%d|%s"),
+        FailedMask, Owner, Epoch, HQ, Harvester, EnemyHQ, Width, Height, *Managers);
+    if (Signature != InputFixtureReadinessSignature)
+    {
+        InputFixtureReadinessSignature = Signature;
+        InputFixtureLastReadinessChange = Now;
+    }
+    InputFixtureReadinessJson = FString::Printf(
+        TEXT("{\"sample\":%d,\"elapsedSeconds\":%.3f,\"lastPredicateChangeElapsedSeconds\":%.3f,")
+        TEXT("\"failedMask\":%u,\"controller\":%s,\"gameState\":%s,\"viewportClient\":%s,\"viewport\":%s,\"localPlayer\":%s,")
+        TEXT("\"hqId\":%d,\"harvesterId\":%d,\"enemyHQId\":%d,\"configuredInput\":%s,\"owner\":%d,\"skirmish\":%s,")
+        TEXT("\"epoch\":%d,\"revision\":%d,\"width\":%d,\"height\":%d,\"remainingAssets\":%d,\"managers\":[%s]}"),
+        InputFixtureReadinessSamples, Now - InputFixtureStart, InputFixtureLastReadinessChange - InputFixtureStart,
+        FailedMask, PC ? TEXT("true") : TEXT("false"), GS ? TEXT("true") : TEXT("false"),
+        ViewportClient ? TEXT("true") : TEXT("false"), ViewportClient && ViewportClient->Viewport ? TEXT("true") : TEXT("false"),
+        PC && PC->GetLocalPlayer() ? TEXT("true") : TEXT("false"), HQ, Harvester, EnemyHQ,
+        bConfiguredLocalInput ? TEXT("true") : TEXT("false"), Owner, Snapshot && Snapshot->bSkirmish ? TEXT("true") : TEXT("false"),
+        Epoch, Snapshot ? Snapshot->Revision : INDEX_NONE, Width, Height, Remaining, *Managers);
+    UE_LOG(LogTemp, Display, TEXT("PROOF_INPUT_BINDING_READINESS %s"), *InputFixtureReadinessJson);
+}
 
 void AProofRTSPawn::ApplyCameraPan(float DeltaSeconds, bool bFocused, bool bForeground)
 {
@@ -65,6 +130,7 @@ void AProofRTSPawn::CaptureInputFixture(const TCHAR* Name)
 void AProofRTSPawn::FinishInputBindingFixture(bool bPass, const TCHAR* Reason)
 {
     if (bInputFixtureFinished) return;
+    if (InputFixtureStage == 0) ObserveInputFixtureReadiness(FPlatformTime::Seconds(), true);
     bInputFixtureFinished = true;
     bInputFixtureVirtualPan = false;
     // Release through the same engine route; never leave held synthetic modifiers.
@@ -81,12 +147,12 @@ void AProofRTSPawn::FinishInputBindingFixture(bool bPass, const TCHAR* Reason)
         TEXT("\"physicalInputVerified\":false,\"osWindowFocusVerified\":false,\"positiveRealFocusPanVerified\":false,\n")
         TEXT("\"positivePanFocusSource\":\"%s\",\"simulatedLostFocus\":%s,\"observedRealFocusSuppression\":%s,\n")
         TEXT("\"injectedEdges\":%d,\"inputDeviceId\":%d,\"platformUserId\":%d,\n")
-        TEXT("\"nativeCallbacks\":{\"left\":%d,\"right\":%d,\"produce\":%d,\"build\":%d,\"groups\":%d,\"wheelUp\":%d,\"wheelDown\":%d,\"rematch\":%d},\n\"checks\":[%s]\n}\n"),
+        TEXT("\"nativeCallbacks\":{\"left\":%d,\"right\":%d,\"produce\":%d,\"build\":%d,\"groups\":%d,\"wheelUp\":%d,\"wheelDown\":%d,\"rematch\":%d},\n\"checks\":[%s],\n\"startupReadiness\":%s\n}\n"),
         bPass ? TEXT("pass") : TEXT("fail"), Reason, InputFixtureStage,
         bInputFixtureVirtualFocusUsed ? TEXT("virtualFixture") : TEXT("notExercised"),
         bInputFixtureSimulatedFocusLoss ? TEXT("true") : TEXT("false"), bInputFixtureRealFocusSuppressed ? TEXT("true") : TEXT("false"), InputFixtureEdgesSent, InputFixtureDeviceId, InputFixtureUserId,
         ManualLeftPresses, ManualRightPresses, ManualProducePresses, ManualBuildPresses, ManualGroupPresses,
-        ManualWheelUpPresses, ManualWheelDownPresses, ManualRematchPresses, *Checks);
+        ManualWheelUpPresses, ManualWheelDownPresses, ManualRematchPresses, *Checks, *InputFixtureReadinessJson);
     IFileManager::Get().MakeDirectory(*InputFixtureOutput, true);
     const bool bWritten = FFileHelper::SaveStringToFile(Result, *FPaths::Combine(InputFixtureOutput, TEXT("client-evidence.json")));
     UE_LOG(LogTemp, Display, TEXT("PROOF_INPUT_BINDING_COMPLETE role=client status=%s reason=%s stage=%d written=%d inputSource=engineInjection pointerSource=projectedSynthetic physicalInputVerified=false osWindowFocusVerified=false positiveRealFocusPanVerified=false"),
@@ -99,6 +165,7 @@ void AProofRTSPawn::TickInputBindingFixture(float DeltaSeconds)
     if (bInputFixtureFinished) return;
     const double Now = FPlatformTime::Seconds();
     if (InputFixtureStart == 0.0) { InputFixtureStart = Now; InputFixtureStageStart = Now; }
+    if (InputFixtureStage == 0) ObserveInputFixtureReadiness(Now, false);
     if (Now - InputFixtureStart > 175.0) { FinishInputBindingFixture(false, TEXT("global_wall_timeout")); return; }
     if (Now - InputFixtureStageStart > 60.0) { FinishInputBindingFixture(false, TEXT("stage_wall_timeout")); return; }
     AProofPlayerController* PC = Cast<AProofPlayerController>(GetController());
@@ -160,12 +227,9 @@ void AProofRTSPawn::TickInputBindingFixture(float DeltaSeconds)
     case 0:
     {
         int32 Width = 0, Height = 0; PC->GetViewportSize(Width, Height);
-        if (static_cast<int32>(StageAge) != static_cast<int32>(StageAge - DeltaSeconds))
-            UE_LOG(LogTemp, Display, TEXT("PROOF_INPUT_BINDING_WAIT hq=%d harvester=%d enemyHQ=%d configured=%d owner=%d skirmish=%d epoch=%d width=%d height=%d assets=%d"),
-                HQ != nullptr, Harvester != nullptr, EnemyHQ != nullptr, bConfiguredLocalInput, PC->OwnerId,
-                Snapshot.bSkirmish, Snapshot.MatchEpoch, Width, Height, FAssetCompilingManager::Get().GetNumRemainingAssets());
         if (!HQ || !Harvester || !EnemyHQ || !bConfiguredLocalInput || PC->OwnerId != 1 || !Snapshot.bSkirmish
             || Snapshot.MatchEpoch < 1 || Width != 1280 || Height != 720 || FAssetCompilingManager::Get().GetNumRemainingAssets() != 0) return;
+        ObserveInputFixtureReadiness(Now, true);
         if (!InputFixtureCheck(bCameraPanEnabled && !PC->IsControlsAutomation() && !PC->IsProofAutomation()
             && SkirmishScenario.IsEmpty() && !InputFixtureOutput.IsEmpty(), TEXT("isolated_fixture_configuration"))) return;
         UE_LOG(LogTemp, Display, TEXT("PROOF_INPUT_BINDING_READY owner=1 inputSource=engineInjection physicalInputVerified=false"));

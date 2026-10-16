@@ -153,6 +153,11 @@ private:
     bool bInputFixtureVirtualFocusUsed = false;
     bool bInputFixtureSimulatedFocusLoss = false;
     FString InputFixtureOutput;
+    FString InputFixtureReadinessJson = TEXT("null");
+    FString InputFixtureReadinessSignature;
+    double InputFixtureLastReadinessSample = -1.0;
+    double InputFixtureLastReadinessChange = 0.0;
+    int32 InputFixtureReadinessSamples = 0;
     int32 InputFixtureStage = 0;
     int32 InputFixtureGroup = 1;
     int32 InputFixtureRepeat = 0;
@@ -177,6 +182,7 @@ private:
     TArray<TPair<FKey, bool>> InputFixtureEdges;
     TArray<FString> InputFixtureChecks;
     void TickInputBindingFixture(float DeltaSeconds);
+    void ObserveInputFixtureReadiness(double Now, bool bForce);
     void ApplyCameraPan(float DeltaSeconds, bool bFocused, bool bForeground);
     void QueueInputFixtureClick(FKey Key, FKey Modifier = FKey());
     bool InputFixtureCheck(bool bCondition, const TCHAR* Evidence);

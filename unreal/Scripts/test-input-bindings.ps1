@@ -5,6 +5,7 @@ param(
     [ValidateRange(15,600)][int]$WarmupTimeoutSeconds = 300,
     [ValidateRange(0,65536)][int]$MaxCacheMiB = 2048,
     [ValidateRange(0,65536)][int]$MaxTempMiB = 1024,
+    [switch]$IsolatedCache,
     [switch]$UnoptimizedShaders,
     [switch]$CleanPresentation
 )
@@ -22,7 +23,7 @@ finally { $probe.Dispose() }
 $run = Join-Path $repoRoot ('generated\input-bindings-' + [DateTime]::UtcNow.ToString('yyyyMMdd-HHmmss-fff'))
 $images = Join-Path $run 'screenshots'
 $control = Join-Path $run 'host-control.txt'
-$cache = Join-Path $repoRoot 'generated\input-binding-cache'
+$cache = if($IsolatedCache) { Join-Path $run 'cache' } else { Join-Path $repoRoot 'generated\input-binding-cache' }
 New-Item -ItemType Directory -Force -Path $run,$images,$cache,(Join-Path $run 'temp') | Out-Null
 $literalClientCVars=Join-Path $run 'client-literal-cvars.ini'
 "[Startup]`nnet.IpConnectionDisableResolution=1`n" | Set-Content -LiteralPath $literalClientCVars -Encoding ascii
@@ -65,10 +66,37 @@ $result.cpuPolicy.eventsTruncated=$false
 $result.cpuPolicy.discoveryError=$null
 $result.cleanup=[ordered]@{errors=@();ignoredExitRaces=0;parentsFirst=$true}
 $result.commandRequests=@()
+$result.cacheInitialization=if($IsolatedCache){'fresh per-run directory before unchanged warmup; engine read-only pak retained'}else{'retained fixture cache; engine read-only pak retained'}
+$result.startupDiagnostics=@{recorded=$false;samples=@();last=$null;collectionError=$null}
 $result.cacheDiagnostics=[ordered]@{verboseEnabled=$true;diagnosticOnly=$true;classification='Engine/DerivedDataCache/*.ddp path; global only GlobalShaderMap/ keys; material-related request/key text may include textures';byProcess=@{};readErrors=@()}
 $workerExe=Join-Path $EngineRoot 'Engine\Binaries\Win64\ShaderCompileWorker.exe'
 $names=@('UE-LocalDataCachePath','UE-SharedDataCachePath','TEMP','TMP')
 function Mark-Stage([string]$Name) { $result.stages[$Name]=[ordered]@{utc=[DateTime]::UtcNow.ToString('o');elapsedSeconds=[math]::Round($watch.Elapsed.TotalSeconds,3)} }
+function Get-InputStartupEvidence([string]$Log) {
+    $samples=@()
+    $collectionError=$null
+    $lastSample=0; $lastElapsed=-1.0
+    try { foreach($match in [regex]::Matches($Log,'(?m)PROOF_INPUT_BINDING_READINESS (?<json>[^\r\n]*)')) {
+        if($samples.Count -ge 64) { throw 'More than 64 startup samples; expected bounded one-second observations.' }
+        $sample=$match.Groups['json'].Value | ConvertFrom-Json -ErrorAction Stop
+        foreach($field in @('sample','elapsedSeconds','lastPredicateChangeElapsedSeconds','failedMask','owner','epoch','revision','width','height','remainingAssets','managers')) {
+            if($field -notin $sample.PSObject.Properties.Name) { throw "Startup sample missing $field." }
+        }
+        if($sample.sample -le $lastSample -or $sample.elapsedSeconds -lt $lastElapsed -or
+            $sample.failedMask -lt 0 -or $sample.failedMask -gt 32767 -or $sample.remainingAssets -lt 0 -or
+            $sample.lastPredicateChangeElapsedSeconds -lt 0 -or $sample.lastPredicateChangeElapsedSeconds -gt $sample.elapsedSeconds) {
+            throw 'Invalid or nonmonotonic startup sample.'
+        }
+        $sum=0
+        foreach($manager in $sample.managers) {
+            if([string]::IsNullOrEmpty($manager.type) -or $null -eq $manager.remaining -or $manager.remaining -lt 0) { throw 'Invalid startup manager sample.' }
+            $sum+=$manager.remaining
+        }
+        if($sum -ne $sample.remainingAssets) { throw 'Startup manager total disagrees with sampled asset count.' }
+        $samples+=$sample; $lastSample=$sample.sample; $lastElapsed=$sample.elapsedSeconds
+    } } catch { $collectionError=$_.Exception.Message }
+    return @{recorded=($samples.Count -gt 0);samples=$samples;last=$(if($samples.Count){$samples[-1]}else{$null});collectionError=$collectionError}
+}
 function Get-OwnedLiveProcess($Entry) {
     $candidate=Get-Process -Id $Entry.Process.Id -ErrorAction SilentlyContinue
     if(-not $candidate) { return $null }
@@ -280,6 +308,14 @@ try {
     if($clientEvidence.status -ne 'pass' -or $clientEvidence.positivePanFocusSource -ne 'virtualFixture' -or $clientEvidence.simulatedLostFocus -ne $true) { throw 'Missing successful explicitly virtual-focus client evidence.' }
     $requiredChecks=@('native_select_and_release','native_shift_add_and_modifier_release','native_shift_toggle_off','native_shift_toggle_on','three_groups_repeated_binding_callbacks','three_groups_independent_contents_recalled','mixed_group_move_mobile_only_structure_fixed','mixed_group_attack_combat_only_replicated_damage','native_group_recall_prunes_dead_member','native_wheel_up_and_release','native_wheel_down_restores_width','injected_arrow_down_polled','virtual_focus_injected_pan_hits_world_limit','simulated_lost_focus_flushes_arrow_and_modifiers','native_rematch_epoch_reset_reuses_ids_clears_selection_queue','old_group_empty_after_reused_ids_epoch_reset','rendered_captures_written')
     $renderedLog=Get-Content -LiteralPath $processes[2].Log -Raw
+    $result.startupDiagnostics=Get-InputStartupEvidence $renderedLog
+    $ready=$result.startupDiagnostics.last
+    if($result.startupDiagnostics.collectionError -or -not $result.startupDiagnostics.recorded -or $ready.failedMask -ne 0 -or $ready.owner -ne 1 -or
+        $ready.epoch -ne 1 -or $ready.width -ne 1280 -or $ready.height -ne 720 -or $ready.remainingAssets -ne 0 -or
+        $ready.managers.Count -lt 1 -or $null -eq $clientEvidence.startupReadiness -or
+        $clientEvidence.startupReadiness.sample -ne $ready.sample -or $clientEvidence.startupReadiness.failedMask -ne 0) {
+        throw 'Missing exact ready-gate/per-manager startup evidence.'
+    }
     foreach($check in $requiredChecks) {
         if($check -notin $clientEvidence.checks -or $renderedLog -notmatch ('PROOF_INPUT_BINDING_CHECK[^\r\n]*status=pass evidence='+[regex]::Escape($check)+'\b')) { throw "Missing exact engine-input assertion: $check" }
     }
@@ -339,6 +375,10 @@ finally {
                     try {
                         $finalLog=Get-Content -LiteralPath $entry.Log -Raw
                         $result.cacheDiagnostics.byProcess[$entry.Role]=Get-PakCacheEvidence $finalLog
+                        if($entry.Role -eq 'rendered') {
+                            try { $result.startupDiagnostics=Get-InputStartupEvidence $finalLog }
+                            catch { $result.startupDiagnostics.collectionError=$_.Exception.Message }
+                        }
                         if($entry.Role -in @('rendered','observer')) {
                             $startup=[regex]::Match($finalLog,'Set CVar \[\[net\.IpConnectionDisableResolution:1\]\]')
                             if($startup.Success) { $result.literalClientSetup.startupConfirmedByRole[$entry.Role]=$startup.Value }
