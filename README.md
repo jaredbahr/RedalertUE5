@@ -24,6 +24,7 @@ The prototype now includes finite harvesting, base building, unit production and
 
 ## Project documents
 
+- [Selection groups and camera pan](docs/GROUP_CONTROLS.md): controls, exact tested source, retained failures, and remaining human acceptance.
 - [Project brief](docs/PROJECT_BRIEF.md): goals, initial scope, constraints, and storage policy.
 - [Art direction](docs/ART_DIRECTION.md): reference workflow and the first visual approval gate.
 - [Milestones](docs/MILESTONES.md): ordered deliverables and observable pass criteria.

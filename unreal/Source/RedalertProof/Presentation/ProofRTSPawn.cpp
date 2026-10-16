@@ -1,4 +1,5 @@
 #include "Presentation/ProofRTSPawn.h"
+#include "Presentation/ProofCameraPan.h"
 #include "Camera/CameraComponent.h"
 #include "Components/InputComponent.h"
 #include "Components/SceneComponent.h"
@@ -25,6 +26,7 @@ AProofRTSPawn::AProofRTSPawn()
 {
     PrimaryActorTick.bCanEverTick = true;
     bInteractiveExitEnabled = FParse::Param(FCommandLine::Get(), TEXT("ProofInteractive"));
+    bCameraPanEnabled = FParse::Param(FCommandLine::Get(), TEXT("ProofCameraPan"));
     RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("ViewRoot"));
     Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("RTSCamera"));
     Camera->SetupAttachment(RootComponent);
@@ -71,6 +73,9 @@ void AProofRTSPawn::SetupPlayerInputComponent(UInputComponent* Input)
     Input->BindKey(EKeys::R, IE_Pressed, this, &AProofRTSPawn::OnManualRefinery);
     Input->BindKey(EKeys::F, IE_Pressed, this, &AProofRTSPawn::OnManualFactory);
     Input->BindKey(EKeys::N, IE_Pressed, this, &AProofRTSPawn::OnManualRematch);
+    Input->BindKey(EKeys::One, IE_Pressed, this, &AProofRTSPawn::OnManualGroupOne);
+    Input->BindKey(EKeys::Two, IE_Pressed, this, &AProofRTSPawn::OnManualGroupTwo);
+    Input->BindKey(EKeys::Three, IE_Pressed, this, &AProofRTSPawn::OnManualGroupThree);
     Input->BindKey(EKeys::MouseScrollUp, IE_Pressed, this, &AProofRTSPawn::OnManualZoomIn);
     Input->BindKey(EKeys::MouseScrollDown, IE_Pressed, this, &AProofRTSPawn::OnManualZoomOut);
     if (bInteractiveExitEnabled)
@@ -101,6 +106,15 @@ void AProofRTSPawn::Tick(float DeltaSeconds)
         bConfiguredLocalInput = true;
     }
     ObserveViewportFocus();
+    if (bCameraPanEnabled && bConfiguredLocalInput && bViewportFocused && bViewportForeground
+        && !PC->IsProofAutomation() && !PC->IsControlsAutomation() && SkirmishScenario.IsEmpty())
+    {
+        const FVector2D Direction(
+            (PC->IsInputKeyDown(EKeys::Right) ? 1.0 : 0.0) - (PC->IsInputKeyDown(EKeys::Left) ? 1.0 : 0.0),
+            (PC->IsInputKeyDown(EKeys::Up) ? 1.0 : 0.0) - (PC->IsInputKeyDown(EKeys::Down) ? 1.0 : 0.0));
+        CameraGroundCenter = FProofCameraPan::Apply(CameraGroundCenter, Direction, DeltaSeconds);
+        Camera->SetWorldLocation(CameraGroundCenter + FVector(0.f, -3200.f, 3200.f));
+    }
     if (bInteractiveExitEnabled && bConfiguredLocalInput && !bInteractiveReadyLogged && PC->OwnerId != INDEX_NONE)
     {
         int32 Width = 0, Height = 0;
@@ -132,6 +146,8 @@ void AProofRTSPawn::Tick(float DeltaSeconds)
         RequestStatus = TEXT("Match state refreshed. Select an owned live unit.");
         LastSeenMatchEpoch = GS->Snapshot.MatchEpoch;
     }
+    Selection.Synchronize(GS->Snapshot, PC->OwnerId);
+    SelectedUnitId = Selection.GetPrimaryUnitId();
     TSet<int32> LiveIds;
     bool bSelectionAliveAndOwned = false;
     for (const FProofUnitRecord& Unit : GS->Snapshot.Units)
@@ -192,6 +208,10 @@ void AProofRTSPawn::Tick(float DeltaSeconds)
         TickGraphicsWarmup();
         return;
     }
+    for (const FProofCommand& Command : GroupOrders.PopReady(GS->Snapshot, PC->OwnerId, FPlatformTime::Seconds()))
+    {
+        Request(Command);
+    }
     if (GS->Snapshot.bSkirmish && !SkirmishScenario.IsEmpty()) TickSkirmishScenario(DeltaSeconds);
     else if (PC->IsControlsAutomation()) TickControlsAutomation(DeltaSeconds);
 }
@@ -249,9 +269,35 @@ void AProofRTSPawn::RecordManualInput(const TCHAR* Key, int32& Count, const FStr
 
 void AProofRTSPawn::OnManualSelect()
 {
-    SelectUnderCursor();
+    const AProofPlayerController* PC = Cast<AProofPlayerController>(GetController());
+    const AProofGameState* GS = GetWorld()->GetGameState<AProofGameState>();
+    if (PC && GS && (PC->IsInputKeyDown(EKeys::LeftShift) || PC->IsInputKeyDown(EKeys::RightShift)))
+    {
+        Selection.Toggle(GS->Snapshot, PC->OwnerId, FindUnitUnderCursor(true));
+        SelectedUnitId = Selection.GetPrimaryUnitId();
+        RequestStatus = FString::Printf(TEXT("%d owned live units selected."), Selection.GetSelectedUnitIds().Num());
+    }
+    else SelectUnderCursor();
     RecordManualInput(TEXT("LMB"), ManualLeftPresses,
         SelectedUnitId == INDEX_NONE ? TEXT("selection cleared") : FString::Printf(TEXT("selected unit %d"), SelectedUnitId));
+}
+
+void AProofRTSPawn::OnManualGroupOne() { HandleManualGroup(1); }
+void AProofRTSPawn::OnManualGroupTwo() { HandleManualGroup(2); }
+void AProofRTSPawn::OnManualGroupThree() { HandleManualGroup(3); }
+
+void AProofRTSPawn::HandleManualGroup(int32 Slot)
+{
+    const AProofPlayerController* PC = Cast<AProofPlayerController>(GetController());
+    const AProofGameState* GS = GetWorld()->GetGameState<AProofGameState>();
+    if (!PC || !GS) return;
+    const bool bAssign = PC->IsInputKeyDown(EKeys::LeftControl) || PC->IsInputKeyDown(EKeys::RightControl);
+    if (bAssign) Selection.AssignGroup(Slot, GS->Snapshot, PC->OwnerId);
+    else Selection.RecallGroup(Slot, GS->Snapshot, PC->OwnerId);
+    SelectedUnitId = Selection.GetPrimaryUnitId();
+    RequestStatus = FString::Printf(TEXT("Group %d %s: %d owned live units."), Slot,
+        bAssign ? TEXT("assigned") : TEXT("recalled"), Selection.GetSelectedUnitIds().Num());
+    RecordManualInput(TEXT("Group"), ManualGroupPresses, RequestStatus);
 }
 
 void AProofRTSPawn::OnManualOrder()
@@ -405,7 +451,11 @@ bool AProofRTSPawn::CursorGroundPoint(FVector& OutPoint) const
 
 void AProofRTSPawn::SelectUnderCursor()
 {
-    SelectedUnitId = FindUnitUnderCursor(true);
+    const AProofPlayerController* PC = Cast<AProofPlayerController>(GetController());
+    const AProofGameState* GS = GetWorld()->GetGameState<AProofGameState>();
+    if (!PC || !GS) return;
+    Selection.SelectSingle(GS->Snapshot, PC->OwnerId, FindUnitUnderCursor(true));
+    SelectedUnitId = Selection.GetPrimaryUnitId();
     RequestStatus = SelectedUnitId == INDEX_NONE ? TEXT("No owned live unit selected.") : TEXT("Owned unit selected. Right-click ground or an enemy.");
 }
 
@@ -416,6 +466,27 @@ void AProofRTSPawn::OrderUnderCursor()
     if (!PC || !GS || SelectedUnitId == INDEX_NONE)
     {
         RequestStatus = TEXT("Select an owned live unit first.");
+        return;
+    }
+    if (Selection.GetSelectedUnitIds().Num() > 1)
+    {
+        if (PC->IsProofAutomation()) { RequestStatus = TEXT("Manual orders disabled during automation."); return; }
+        const int32 TargetId = FindUnitUnderCursor(false);
+        const FProofUnitRecord* Target = GS->Snapshot.Units.FindByPredicate(
+            [TargetId](const FProofUnitRecord& Unit) { return Unit.UnitId == TargetId; });
+        TArray<FProofCommand> Commands;
+        if (Target && Target->OwnerId != PC->OwnerId)
+            Commands = Selection.PlanAttack(GS->Snapshot, PC->OwnerId, TargetId);
+        else
+        {
+            FVector Destination;
+            if (!CursorGroundPoint(Destination)) { RequestStatus = TEXT("Cursor did not project onto the ground."); return; }
+            Commands = Selection.PlanMove(GS->Snapshot, PC->OwnerId, Destination);
+        }
+        if (Commands.IsEmpty()) RequestStatus = TEXT("No eligible selected units for that order.");
+        else RequestStatus = GroupOrders.Enqueue(GS->Snapshot, PC->OwnerId, Commands)
+            ? FString::Printf(TEXT("Queued %d unit orders; waiting for host snapshots."), Commands.Num())
+            : TEXT("Order queue full; retry after pending orders send.");
         return;
     }
     FProofCommand Command;
@@ -519,6 +590,8 @@ void AProofRTSPawn::Request(FProofCommand Command)
         RequestStatus = TEXT("Command sequence exhausted; reconnect for a new fixture session.");
         return;
     }
+    if (Command.Type == EProofCommandType::Move || Command.Type == EProofCommandType::Attack
+        || Command.Type == EProofCommandType::Gather) GroupOrders.CancelUnit(Command.UnitId);
     PC->ServerSubmitCommand(Command);
     LastRequestedSequence = Command.Sequence;
     LastRequestedTarget = Command.TargetUnitId;
