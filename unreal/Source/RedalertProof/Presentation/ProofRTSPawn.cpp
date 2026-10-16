@@ -452,6 +452,9 @@ void AProofRTSPawn::Produce()
             }
         }
         if (Command.UnitId == INDEX_NONE) { RequestStatus = TEXT("Build a live factory first (F at cursor, 150 credits)."); return; }
+        SkirmishProduceRecordsBefore = 0;
+        for (const FProofUnitRecord& Unit : GS->Snapshot.Units)
+            if (Unit.OwnerId == PC->OwnerId && Unit.Kind == EProofUnitKind::Combat) ++SkirmishProduceRecordsBefore;
     }
     Request(Command);
 }
@@ -855,6 +858,15 @@ void AProofRTSPawn::TickSkirmishScenario(float DeltaSeconds)
         FProofCommandResult Receipt;
         if (!PC->FindReceipt(LastRequestedSequence, Receipt)) return;
         if (!Receipt.bAccepted) { FinishSkirmishScenario(false, *Receipt.Reason); return; }
+        if (LastRequestedType == TEXT("Produce") && SkirmishProduceRecordsBefore >= 0)
+        {
+            int32 ReplicatedRecords = 0;
+            for (const FProofUnitRecord& Unit : Snapshot.Units)
+                if (Unit.OwnerId == PC->OwnerId && Unit.Kind == EProofUnitKind::Combat) ++ReplicatedRecords;
+            // A receipt acknowledges validation, not delivery of the next
+            // snapshot. Wait for the accepted spawn before reading its budget.
+            if (ReplicatedRecords <= SkirmishProduceRecordsBefore) return;
+        }
     }
     if (SkirmishElapsed < SkirmishNextDecision) return;
     SkirmishNextDecision = SkirmishElapsed + 0.1f;
