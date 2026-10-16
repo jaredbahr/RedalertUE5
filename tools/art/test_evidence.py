@@ -7,7 +7,7 @@ import sys
 from types import SimpleNamespace
 from unittest.mock import patch
 import unittest
-from evidence import begin_run, invalidate_report, sha256, validate_geometry, verify_inputs, write_json
+from evidence import begin_run, invalidate_report, require_export_validation, sha256, validate_geometry, verify_inputs, write_json
 
 
 class Gates(unittest.TestCase):
@@ -44,6 +44,9 @@ class Gates(unittest.TestCase):
                 script = root / relative
                 script.parent.mkdir(parents=True, exist_ok=True)
                 script.write_text((source_root / relative).read_text())
+                if relative.startswith('unreal/'):
+                    (script.parent / 'palette_materials.py').write_text(
+                        (source_root / 'unreal/Scripts/palette_materials.py').read_text())
                 for name in reports:
                     write_json(output / name, {'passed': True, 'run_id': 'same-run'})
                 argv = [str(script), '--', '--output', str(output)]
@@ -53,6 +56,21 @@ class Gates(unittest.TestCase):
                         runpy.run_path(str(script), run_name='__main__')
                 for name in reports:
                     self.assertFalse(json.loads((output / name).read_text())['passed'])
+
+    def test_export_acceptance_requires_matching_success(self):
+        with tempfile.TemporaryDirectory() as temp:
+            output = Path(temp)
+            manifest = {'run_id': 'new', 'source_sha256': 'source',
+                        'assets': [{'file': 'tank.fbx', 'sha256': 'bytes'}]}
+            valid = {'run_id': 'new', 'source_sha256': 'source', 'passed': True,
+                     'asset_hashes': {'tank.fbx': 'bytes'}}
+            write_json(output / 'export_validation.json', valid)
+            require_export_validation(output, manifest)
+            for changed in [{'passed': False}, {'run_id': 'old'},
+                            {'source_sha256': 'old'}, {'asset_hashes': {'tank.fbx': 'other'}}]:
+                write_json(output / 'export_validation.json', {**valid, **changed})
+                with self.subTest(changed=changed), self.assertRaises(ValueError):
+                    require_export_validation(output, manifest)
 
     def test_success_change_geometry_only_failure(self):
         with tempfile.TemporaryDirectory() as temp:

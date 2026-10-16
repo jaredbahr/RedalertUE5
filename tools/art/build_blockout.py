@@ -237,7 +237,8 @@ def main():
     mats = {name: material(name.title(), value) for name, value in colors.items()}
     objects = [reactor(mats), tank(mats), infantry(mats)]
     bpy.context.view_layer.update()
-    manifest = {**identity, 'generation_status': 'in_progress',
+    manifest = {**identity, 'palette': {name.title(): [*value, 1.0] for name, value in colors.items()},
+                'generation_status': 'in_progress',
                 'previews': {'stills': 'omitted', 'motion': 'omitted'},
                 'status': 'unapproved original primitive blockouts',
                 'blender_version': bpy.app.version_string, 'units': 'meters; FBX stores unit conversion metadata',
