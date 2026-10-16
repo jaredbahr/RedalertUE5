@@ -202,7 +202,7 @@ function Assert-CommonEpochSnapshots([int]$Epoch,$ActiveEntries) {
         # Use the same epoch:revision key across host and clients; dictionary
         # keys deliberately include epoch because model revisions restart after rematch.
         $common=@($maps[0].Keys | Where-Object {
-            $_ -like ($Epoch+':*') -and $maps[1].ContainsKey($_) -and $maps[2].ContainsKey($_)
+            $_ -like ([string]$Epoch+':*') -and $maps[1].ContainsKey($_) -and $maps[2].ContainsKey($_)
         } | Sort-Object { [int](($_ -split ':')[1]) })
         if ($common.Count -gt 0) {
             foreach ($key in $common) {
@@ -220,7 +220,7 @@ function Wait-TerminalSnapshotAgreement([int]$Epoch,[int]$Winner,$ActiveEntries)
     while ($true) {
         Check-StorageBudget; Maintain-OwnedCpuPolicy
         $maps=@(); foreach ($entry in $ActiveEntries) { $maps+=,(Get-EpochSnapshots (Read-Log $entry)) }
-        $hostKeys=@($maps[0].Keys | Where-Object { $_ -like ($Epoch+':*') } | Sort-Object { [int](($_ -split ':')[1]) })
+        $hostKeys=@($maps[0].Keys | Where-Object { $_ -like ([string]$Epoch+':*') } | Sort-Object { [int](($_ -split ':')[1]) })
         if ($hostKeys.Count -gt 0) {
             $key=$hostKeys[-1]; $shared=$true
             for ($index=1; $index -lt $maps.Count; $index++) {
