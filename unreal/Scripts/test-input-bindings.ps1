@@ -5,12 +5,17 @@ param(
     [ValidateRange(15,600)][int]$WarmupTimeoutSeconds = 300,
     [ValidateRange(0,65536)][int]$MaxCacheMiB = 2048,
     [ValidateRange(0,65536)][int]$MaxTempMiB = 1024,
+    [switch]$HigherGroups,
     [switch]$IsolatedCache,
     [switch]$InputTrace,
     [switch]$UnoptimizedShaders,
     [switch]$CleanPresentation
 )
 $ErrorActionPreference = 'Stop'
+if($HigherGroups) {
+    if($PSBoundParameters.ContainsKey('TimeoutSeconds') -and $TimeoutSeconds -ne 90) { throw 'HigherGroups has a fixed 90-second scenario deadline.' }
+    $TimeoutSeconds=90
+}
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $repoRoot = (Resolve-Path (Join-Path $projectRoot '..')).Path
 $project = Join-Path $projectRoot 'RedalertProof.uproject'
@@ -21,7 +26,7 @@ if (-not (Test-Path -LiteralPath (Join-Path $projectRoot 'Content\CommandProofGe
 $probe = [Net.Sockets.UdpClient]::new()
 try { $probe.Client.ExclusiveAddressUse=$true; $probe.Client.Bind([Net.IPEndPoint]::new([Net.IPAddress]::Loopback,$Port)) }
 finally { $probe.Dispose() }
-$run = Join-Path $repoRoot ('generated\input-bindings-' + [DateTime]::UtcNow.ToString('yyyyMMdd-HHmmss-fff'))
+$run = Join-Path $repoRoot ($(if($HigherGroups){'generated\higher-groups-input-'}else{'generated\input-bindings-'}) + [DateTime]::UtcNow.ToString('yyyyMMdd-HHmmss-fff'))
 $images = Join-Path $run 'screenshots'
 $control = Join-Path $run 'host-control.txt'
 $cache = if($IsolatedCache) { Join-Path $run 'cache' } else { Join-Path $repoRoot 'generated\input-binding-cache' }
@@ -52,7 +57,8 @@ $result.pointerSource='projectedSynthetic'
 $result.physicalInputVerified=$false
 $result.osWindowFocusVerified=$false
 $result.positiveRealFocusPanVerified=$false
-$result.virtualFocusStagesExplicit=$true
+$result.virtualFocusStagesExplicit=(-not $HigherGroups)
+$result.fixtureMode=if($HigherGroups){'higherGroups'}else{'full'}
 $result.hostControlPath=$control
 $result.observerShutdown='runner identity cleanup after rendered evidence and host completion'
 $result.storageGuard=$storageGuard
@@ -73,6 +79,40 @@ $result.startupDiagnostics=@{recorded=$false;samples=@();last=$null;collectionEr
 $result.cacheDiagnostics=[ordered]@{verboseEnabled=$true;diagnosticOnly=$true;classification='Engine/DerivedDataCache/*.ddp path; global only GlobalShaderMap/ keys; material-related request/key text may include textures';byProcess=@{};readErrors=@()}
 $workerExe=Join-Path $EngineRoot 'Engine\Binaries\Win64\ShaderCompileWorker.exe'
 $names=@('UE-LocalDataCachePath','UE-SharedDataCachePath','TEMP','TMP')
+function Get-HigherGroupRequiredChecks {
+    @('higher_groups_initial_saved') + @(0..6 | ForEach-Object { 'higher_groups_round_'+$_+'_complete' }) + @('higher_groups_all_modifiers_and_digits_released','higher_groups_exact_callback_counts','higher_groups_captures_written')
+}
+function Get-HigherGroupSlotChecks {
+    foreach($Slot in 4..9) { 'higher_groups_round_0_slot_'+$Slot+'_saved' }
+    foreach($Round in 1..6) { 'higher_groups_round_'+$Round+'_slot_'+($Round+3)+'_saved' }
+    foreach($Round in 0..6) { foreach($Slot in 4..9) { 'higher_groups_round_'+$Round+'_slot_'+$Slot+'_exact_recall' } }
+}
+function Assert-HigherGroupEvidence($Evidence,[string]$Log) {
+    if($Evidence.fixtureMode -ne 'higherGroups' -or $Evidence.status -ne 'pass' -or
+        $Evidence.inputSource -ne 'engineInjection' -or $Evidence.pointerSource -ne 'projectedSynthetic' -or
+        $Evidence.physicalInputVerified -ne $false -or $Evidence.osWindowFocusVerified -ne $false -or
+        $Evidence.positiveRealFocusPanVerified -ne $false -or $Evidence.positivePanFocusSource -ne 'notExercised' -or
+        $Evidence.simulatedLostFocus -ne $false -or $Evidence.observedRealFocusSuppression -ne $false) {
+        throw 'HigherGroups evidence must identify engine injection with focus/pan not exercised.'
+    }
+    foreach($Name in (@(Get-HigherGroupRequiredChecks) + @(Get-HigherGroupSlotChecks))) {
+        if($Name -notin $Evidence.checks -or $Log -notmatch ('PROOF_INPUT_BINDING_CHECK[^\r\n]*status=pass evidence='+[regex]::Escape($Name)+'\b')) {
+            throw "Missing exact higher-group assertion: $Name"
+        }
+    }
+    if($Evidence.injectedEdges -ne 240 -or $Evidence.nativeCallbacks.groups -ne 54 -or $Evidence.nativeCallbacks.left -ne 54) {
+        throw 'HigherGroups requires exactly 240 injected edges and 54 group/left callbacks.'
+    }
+    foreach($Name in @('right','produce','build','wheelUp','wheelDown','rematch')) {
+        if($null -eq $Evidence.nativeCallbacks.$Name -or $Evidence.nativeCallbacks.$Name -ne 0) { throw "HigherGroups unexpected callback: $Name" }
+    }
+    $Final=$Evidence.finalInputState
+    if($null -eq $Final -or $Final.controlDown -ne $false -or $Final.leftControlDown -ne $false -or
+        $Final.rightControlDown -ne $false -or $null -eq $Final.digitsDown -or @($Final.digitsDown).Count -ne 0 -or
+        $Final.higherDigitsDownMask -ne 0 -or $Final.higherDigitsBoundMask -ne 63) {
+        throw 'HigherGroups must prove all six digit bindings and released digit/control input state.'
+    }
+}
 function Mark-Stage([string]$Name) { $result.stages[$Name]=[ordered]@{utc=[DateTime]::UtcNow.ToString('o');elapsedSeconds=[math]::Round($watch.Elapsed.TotalSeconds,3)} }
 function Get-InputStartupEvidence([string]$Log) {
     $samples=@()
@@ -290,7 +330,9 @@ try {
     Start-Controls 'host' '/Game/CommandProofGenerated/Maps/CommandProof' @('-server','-nullrhi','-MULTIHOME=127.0.0.1','-ProofSkirmish','-ProofInputBindingServer',('-ProofInputBindingControl="'+$control+'"'))
     Wait-Marker $processes[1] 'PROOF_INPUT_BINDING_SERVER_READY epoch=1'
     Mark-Stage 'hostReady'
-    Start-Controls 'rendered' ('127.0.0.1:'+$Port) @('-game','-RenderOffscreen','-windowed','-ResX=1280','-ResY=720','-ProofSkirmish','-ProofInputBindingFixture','-ProofCameraPan',('-ProofInputBindingOutput="'+$images+'"'),('-ProofInputBindingControl="'+$control+'"'))
+    $renderedMode=@('-game','-RenderOffscreen','-windowed','-ResX=1280','-ResY=720','-ProofSkirmish','-ProofInputBindingFixture','-ProofCameraPan',('-ProofInputBindingOutput="'+$images+'"'),('-ProofInputBindingControl="'+$control+'"'))
+    if($HigherGroups) { $renderedMode+='-ProofHigherGroupBindings' }
+    Start-Controls 'rendered' ('127.0.0.1:'+$Port) $renderedMode
     Wait-Marker $processes[2] 'PROOF_INPUT_BINDING_READY owner=1'
     Mark-Stage 'renderedInputReady'
     # No observer automation flag: older fixtures submit commands or autoexit at 23s.
@@ -298,7 +340,8 @@ try {
     Wait-Marker $processes[2] 'PROOF_INPUT_BINDING_COMPLETE role=client status=pass'
     Mark-Stage 'clientCompleted'
     'finish' | Set-Content -LiteralPath $control -Encoding ascii
-    Wait-Marker $processes[1] 'PROOF_INPUT_BINDING_COMPLETE role=host status=pass epoch=2'
+    $expectedFinalEpoch=if($HigherGroups){1}else{2}
+    Wait-Marker $processes[1] ('PROOF_INPUT_BINDING_COMPLETE role=host status=pass epoch='+$expectedFinalEpoch+'\b')
     Mark-Stage 'hostCompleted'
     foreach($entry in @($processes[1],$processes[2])) {
         while(-not $entry.Process.HasExited) {
@@ -312,8 +355,9 @@ try {
     if(-not(Test-Path -LiteralPath $evidencePath)) { throw 'Missing client-evidence.json.' }
     $clientEvidence=Get-Content -LiteralPath $evidencePath -Raw | ConvertFrom-Json
     $result.clientEvidence=$clientEvidence
-    if($clientEvidence.status -ne 'pass' -or $clientEvidence.positivePanFocusSource -ne 'virtualFixture' -or $clientEvidence.simulatedLostFocus -ne $true) { throw 'Missing successful explicitly virtual-focus client evidence.' }
+    if(-not $HigherGroups -and ($clientEvidence.status -ne 'pass' -or $clientEvidence.positivePanFocusSource -ne 'virtualFixture' -or $clientEvidence.simulatedLostFocus -ne $true)) { throw 'Missing successful explicitly virtual-focus client evidence.' }
     $requiredChecks=@('native_select_and_release','native_shift_add_and_modifier_release','native_shift_toggle_off','native_shift_toggle_on','three_groups_repeated_binding_callbacks','three_groups_independent_contents_recalled','mixed_group_move_mobile_only_structure_fixed','mixed_group_attack_combat_only_replicated_damage','native_group_recall_prunes_dead_member','native_wheel_up_and_release','native_wheel_down_restores_width','injected_arrow_down_polled','virtual_focus_injected_pan_hits_world_limit','simulated_lost_focus_flushes_arrow_and_modifiers','native_rematch_epoch_reset_reuses_ids_clears_selection_queue','old_group_empty_after_reused_ids_epoch_reset','rendered_captures_written')
+    if($HigherGroups) { $requiredChecks=Get-HigherGroupRequiredChecks }
     $renderedLog=Get-Content -LiteralPath $processes[2].Log -Raw
     $result.startupDiagnostics=Get-InputStartupEvidence $renderedLog
     $ready=$result.startupDiagnostics.last
@@ -325,18 +369,22 @@ try {
         $clientEvidence.startupReadiness.sample -ne $ready.sample -or $clientEvidence.startupReadiness.failedMask -ne 0) {
         throw 'Missing exact ready-gate/per-manager startup evidence.'
     }
+    if($HigherGroups -and ($ready.inputState.higherDigitsBoundMask -ne 63 -or $clientEvidence.startupReadiness.inputState.higherDigitsBoundMask -ne 63)) { throw 'HigherGroups readiness must prove all six higher digit bindings.' }
     foreach($check in $requiredChecks) {
         if($check -notin $clientEvidence.checks -or $renderedLog -notmatch ('PROOF_INPUT_BINDING_CHECK[^\r\n]*status=pass evidence='+[regex]::Escape($check)+'\b')) { throw "Missing exact engine-input assertion: $check" }
     }
     $result.requiredChecks=$requiredChecks
-    if($clientEvidence.injectedEdges -lt 40 -or $clientEvidence.nativeCallbacks.left -lt 8 -or $clientEvidence.nativeCallbacks.right -lt 4 -or $clientEvidence.nativeCallbacks.groups -ne 17 -or $clientEvidence.nativeCallbacks.produce -ne 2 -or $clientEvidence.nativeCallbacks.build -ne 2 -or $clientEvidence.nativeCallbacks.wheelUp -ne 1 -or $clientEvidence.nativeCallbacks.wheelDown -ne 1 -or $clientEvidence.nativeCallbacks.rematch -ne 1) { throw 'Missing expected native binding callback/edge counts.' }
+    if($HigherGroups) { $result.requiredSlotChecks=@(Get-HigherGroupSlotChecks) }
+    if($HigherGroups) { Assert-HigherGroupEvidence $clientEvidence $renderedLog }
+    if(-not $HigherGroups -and ($clientEvidence.injectedEdges -lt 40 -or $clientEvidence.nativeCallbacks.left -lt 8 -or $clientEvidence.nativeCallbacks.right -lt 4 -or $clientEvidence.nativeCallbacks.groups -ne 17 -or $clientEvidence.nativeCallbacks.produce -ne 2 -or $clientEvidence.nativeCallbacks.build -ne 2 -or $clientEvidence.nativeCallbacks.wheelUp -ne 1 -or $clientEvidence.nativeCallbacks.wheelDown -ne 1 -or $clientEvidence.nativeCallbacks.rematch -ne 1)) { throw 'Missing expected native binding callback/edge counts.' }
     if($clientEvidence.inputSource -ne 'engineInjection' -or $clientEvidence.pointerSource -ne 'projectedSynthetic' -or $clientEvidence.physicalInputVerified -ne $false -or $clientEvidence.osWindowFocusVerified -ne $false -or $clientEvidence.positiveRealFocusPanVerified -ne $false) { throw 'Incorrect client input-source or desktop-acceptance classification.' }
     $maps=@()
     foreach($entry in @($processes[1],$processes[2],$processes[3])) {
         $log=Get-Content -LiteralPath $entry.Log -Raw
         if($log -match 'PROOF_INPUT_BINDING_(CHECK|COMPLETE)[^\r\n]*status=fail') { throw "$($entry.Role) reported input fixture failure." }
-        if($entry.Role -eq 'host' -and $log -notmatch 'PROOF_INPUT_BINDING_DUEL epoch=1 victim=\d+ attacker=\d+ commandsAccepted=3') { throw 'Missing ordinary bot duel commands.' }
+        if(-not $HigherGroups -and $entry.Role -eq 'host' -and $log -notmatch 'PROOF_INPUT_BINDING_DUEL epoch=1 victim=\d+ attacker=\d+ commandsAccepted=3') { throw 'Missing ordinary bot duel commands.' }
         if($entry.Role -in @('rendered','observer') -and $log -notmatch 'Set CVar \[\[net\.IpConnectionDisableResolution:1\]\]') { throw 'Missing literal resolver startup evidence.' }
+        if($HigherGroups -and $entry.Role -eq 'host' -and $log -match 'PROOF_INPUT_BINDING_DUEL') { throw 'HigherGroups unexpectedly submitted bot duel commands.' }
         $map=@{}
         foreach($m in [regex]::Matches($log,'PROOF_SNAPSHOT role=(host|client) owner=\d+ epoch=(\d+) revision=(\d+) digest=([A-Za-z0-9]+)')) {
             $key=$m.Groups[2].Value+':'+$m.Groups[3].Value; $digest=$m.Groups[4].Value
@@ -350,10 +398,13 @@ try {
     foreach($key in $common) {
         if($maps[0][$key] -ne $maps[1][$key] -or $maps[0][$key] -ne $maps[2][$key]) { throw "Replicated digest mismatch at $key." }
     }
-    if(-not @($common | Where-Object {$_ -like '2:*'}).Count) { throw 'Missing shared snapshot after ordinary rematch.' }
+    if($HigherGroups) {
+        if(@($common | Where-Object {$_ -notlike '1:*'}).Count) { throw 'HigherGroups unexpectedly changed match epoch.' }
+    } elseif(-not @($common | Where-Object {$_ -like '2:*'}).Count) { throw 'Missing shared snapshot after ordinary rematch.' }
     $result.commonRevisions=$common
     $result.clientEvidencePath=$evidencePath
-    foreach($name in @('01-selected-group.png','02-group-moved.png','03-group-attacked.png','04-terminal.png')) {
+    $captureNames=if($HigherGroups){@('higher-groups-initial.png','higher-groups-overwritten.png')}else{@('01-selected-group.png','02-group-moved.png','03-group-attacked.png','04-terminal.png')}
+    foreach($name in $captureNames) {
         $path=Join-Path $images $name
         if(-not(Test-Path -LiteralPath $path)) { throw "Missing fresh engine screenshot $name." }
         $file=Get-Item -LiteralPath $path

@@ -197,4 +197,18 @@ private:
     void AdvanceInputFixture(int32 Stage);
     void FinishInputBindingFixture(bool bPass, const TCHAR* Reason);
     void CaptureInputFixture(const TCHAR* Name);
+    bool IsHigherGroupInputFixture() const;
+    void TickHigherGroupInputFixture();
+    void QueueHigherGroupSelection(bool bOverwrite);
+    void QueueHigherGroupClear();
+    bool AreHigherGroupKeysReleased() const;
+    int32 HigherGroupRound = 0;
+    int32 HigherGroupAssignIndex = 0;
+    int32 HigherGroupRecallIndex = 0;
+    int32 HigherGroupExpectedSelection = INDEX_NONE;
+    int32 HigherGroupLeftBefore = 0;
+    int32 HigherGroupCallbackBefore = 0;
+    TArray<int32> HigherGroupExpectedIds;
+    FDateTime HigherGroupInitialCaptureTime;
+    FDateTime HigherGroupFinalCaptureTime;
 };

@@ -28,6 +28,13 @@ bool AProofRTSPawn::IsInputFixtureReadyForInjection() const
     if (!PC || !PC->PlayerInput || PC->GetPawnOrSpectator() != this || !InputComponent
         || !InputComponent->IsRegistered() || !InputEnabled() || !ViewportClient || ViewportClient->IgnoreInput()
         || PC->GetFixtureProcessedInputFrame(InputComponent.Get()) == 0) return false;
+    if (IsHigherGroupInputFixture())
+    {
+        for (const FKey& Key : {EKeys::Four, EKeys::Five, EKeys::Six, EKeys::Seven, EKeys::Eight, EKeys::Nine})
+            if (!InputComponent->KeyBindings.ContainsByPredicate([Key](const FInputKeyBinding& Binding)
+                { return Binding.Chord.Key == Key && Binding.KeyEvent == IE_Pressed && Binding.KeyDelegate.IsBound(); })) return false;
+        return true;
+    }
     return InputComponent->KeyBindings.ContainsByPredicate([](const FInputKeyBinding& Binding)
     { return Binding.Chord.Key == EKeys::R && Binding.KeyEvent == IE_Pressed && Binding.KeyDelegate.IsBound(); });
 }
@@ -52,10 +59,27 @@ FString AProofRTSPawn::GetInputFixtureBootstrapJson() const
     {
         bRBound |= Binding.Chord.Key == EKeys::R && Binding.KeyEvent == IE_Pressed && Binding.KeyDelegate.IsBound();
     }
+    uint32 HigherDigitsDownMask = 0, HigherDigitsBoundMask = 0;
+    FString DigitsDown;
+    const FKey HigherKeys[] = {EKeys::Four, EKeys::Five, EKeys::Six, EKeys::Seven, EKeys::Eight, EKeys::Nine};
+    for (int32 Index = 0; Index < UE_ARRAY_COUNT(HigherKeys); ++Index)
+    {
+        if (PC && PC->IsInputKeyDown(HigherKeys[Index]))
+        {
+            HigherDigitsDownMask |= 1u << Index;
+            if (!DigitsDown.IsEmpty()) DigitsDown += TEXT(",");
+            DigitsDown += FString::FromInt(Index + 4);
+        }
+        if (InputComponent && InputComponent->KeyBindings.ContainsByPredicate([Key = HigherKeys[Index]](const FInputKeyBinding& Binding)
+            { return Binding.Chord.Key == Key && Binding.KeyEvent == IE_Pressed && Binding.KeyDelegate.IsBound(); })) HigherDigitsBoundMask |= 1u << Index;
+    }
+    const bool bLeftControl = PC && PC->IsInputKeyDown(EKeys::LeftControl);
+    const bool bRightControl = PC && PC->IsInputKeyDown(EKeys::RightControl);
     return FString::Printf(TEXT("{\"controlledPawnMatches\":%s,\"acknowledgedPawnMatches\":%s,")
         TEXT("\"playerInputId\":%u,\"pawnInputId\":%u,\"registered\":%s,\"inputEnabled\":%s,\"rBound\":%s,")
         TEXT("\"processedStackFrame\":%llu,\"frame\":%llu,\"viewportIgnoresInput\":%s,\"rDown\":%s,")
-        TEXT("\"hitOwnedId\":%d,\"pendingOrders\":%d,\"lastRequestedSequence\":%d,\"selected\":[%s],\"readyForInjection\":%s}"),
+        TEXT("\"hitOwnedId\":%d,\"pendingOrders\":%d,\"lastRequestedSequence\":%d,\"selected\":[%s],\"readyForInjection\":%s,")
+        TEXT("\"leftControlDown\":%s,\"rightControlDown\":%s,\"controlDown\":%s,\"higherDigitsDownMask\":%u,\"higherDigitsBoundMask\":%u,\"digitsDown\":[%s]}"),
         PC && PC->GetPawnOrSpectator() == this ? TEXT("true") : TEXT("false"),
         PC && PC->AcknowledgedPawn == this ? TEXT("true") : TEXT("false"),
         PC && PC->PlayerInput ? PC->PlayerInput->GetUniqueID() : 0,
@@ -66,7 +90,9 @@ FString AProofRTSPawn::GetInputFixtureBootstrapJson() const
         ViewportClient && ViewportClient->IgnoreInput() ? TEXT("true") : TEXT("false"),
         PC && PC->IsInputKeyDown(EKeys::R) ? TEXT("true") : TEXT("false"),
         FindUnitUnderCursor(true), GroupOrders.NumPending(), LastRequestedSequence, *SelectedUnits,
-        IsInputFixtureReadyForInjection() ? TEXT("true") : TEXT("false"));
+        IsInputFixtureReadyForInjection() ? TEXT("true") : TEXT("false"),
+        bLeftControl ? TEXT("true") : TEXT("false"), bRightControl ? TEXT("true") : TEXT("false"),
+        bLeftControl || bRightControl ? TEXT("true") : TEXT("false"), HigherDigitsDownMask, HigherDigitsBoundMask, *DigitsDown);
 }
 
 void AProofRTSPawn::ObserveInputFixtureReadiness(double Now, bool bForce)
@@ -195,12 +221,13 @@ void AProofRTSPawn::FinishInputBindingFixture(bool bPass, const TCHAR* Reason)
         Checks += FString::Printf(TEXT("\"%s\""), *Check);
     }
     const FString Result = FString::Printf(TEXT("{\n\"status\":\"%s\",\"reason\":\"%s\",\"stage\":%d,\n")
-        TEXT("\"inputSource\":\"engineInjection\",\"pointerSource\":\"projectedSynthetic\",\n")
+        TEXT("\"fixtureMode\":\"%s\",\"inputSource\":\"engineInjection\",\"pointerSource\":\"projectedSynthetic\",\n")
         TEXT("\"physicalInputVerified\":false,\"osWindowFocusVerified\":false,\"positiveRealFocusPanVerified\":false,\n")
         TEXT("\"positivePanFocusSource\":\"%s\",\"simulatedLostFocus\":%s,\"observedRealFocusSuppression\":%s,\n")
         TEXT("\"injectedEdges\":%d,\"inputDeviceId\":%d,\"platformUserId\":%d,\n")
         TEXT("\"nativeCallbacks\":{\"left\":%d,\"right\":%d,\"produce\":%d,\"build\":%d,\"groups\":%d,\"wheelUp\":%d,\"wheelDown\":%d,\"rematch\":%d},\n\"checks\":[%s],\n\"startupReadiness\":%s,\n\"finalInputState\":%s\n}\n"),
         bPass ? TEXT("pass") : TEXT("fail"), Reason, InputFixtureStage,
+        IsHigherGroupInputFixture() ? TEXT("higherGroups") : TEXT("full"),
         bInputFixtureVirtualFocusUsed ? TEXT("virtualFixture") : TEXT("notExercised"),
         bInputFixtureSimulatedFocusLoss ? TEXT("true") : TEXT("false"), bInputFixtureRealFocusSuppressed ? TEXT("true") : TEXT("false"), InputFixtureEdgesSent, InputFixtureDeviceId, InputFixtureUserId,
         ManualLeftPresses, ManualRightPresses, ManualProducePresses, ManualBuildPresses, ManualGroupPresses,
@@ -218,7 +245,7 @@ void AProofRTSPawn::TickInputBindingFixture(float DeltaSeconds)
     const double Now = FPlatformTime::Seconds();
     if (InputFixtureStart == 0.0) { InputFixtureStart = Now; InputFixtureStageStart = Now; }
     if (InputFixtureStage == 0) ObserveInputFixtureReadiness(Now, false);
-    if (Now - InputFixtureStart > 175.0) { FinishInputBindingFixture(false, TEXT("global_wall_timeout")); return; }
+    if (Now - InputFixtureStart > (IsHigherGroupInputFixture() ? 85.0 : 175.0)) { FinishInputBindingFixture(false, TEXT("global_wall_timeout")); return; }
     if (Now - InputFixtureStageStart > 60.0) { FinishInputBindingFixture(false, TEXT("stage_wall_timeout")); return; }
     AProofPlayerController* PC = Cast<AProofPlayerController>(GetController());
     const AProofGameState* GS = GetWorld()->GetGameState<AProofGameState>();
@@ -244,6 +271,7 @@ void AProofRTSPawn::TickInputBindingFixture(float DeltaSeconds)
         InputFixtureNextEdge = Now + 0.12; // Allow normal input-stack processing between edges.
         return;
     }
+    if (IsHigherGroupInputFixture()) { TickHigherGroupInputFixture(); return; }
     const FProofSnapshot& Snapshot = GS->Snapshot;
     auto UnitById = [&Snapshot](int32 Id) -> const FProofUnitRecord*
     { return Snapshot.Units.FindByPredicate([Id](const FProofUnitRecord& Unit) { return Unit.UnitId == Id; }); };
