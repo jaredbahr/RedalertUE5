@@ -3,7 +3,10 @@
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerController.h"
 #include "Commands/ProofCommandModel.h"
+#include "Commands/ProofIngressBudget.h"
 #include "ProofPlayerController.generated.h"
+
+class AProofGameState;
 
 UCLASS()
 class REDALERTPROOF_API AProofPlayerController : public APlayerController
@@ -19,6 +22,17 @@ public:
     virtual void Tick(float DeltaSeconds) override;
     virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 private:
+    FProofIngressBudget IngressBudget;
+    bool bIngressFixture = false;
+    bool bIngressFlood = false;
+    bool bIngressHealthy = false;
+    bool bIngressSent = false;
+    bool bIngressSecondSent = false;
+    bool bIngressFailureBound = false;
+    int32 IngressAdmitted = 0;
+    double IngressFirstSeconds = 0.0;
+    FString IngressRelease;
+    void TickIngressFixture(AProofGameState* State);
     bool bAutomation = false;
     bool bFinished = false;
     bool bAckFailure = false;

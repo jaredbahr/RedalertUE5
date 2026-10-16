@@ -61,10 +61,10 @@ try {
     $index=Join-Path $report 'index.json'
     if (-not (Test-Path -LiteralPath $index)) { throw 'No fresh Automation index.json report.' }
     $data=Get-Content -LiteralPath $index -Raw | ConvertFrom-Json
-    $expected=@('RedalertProof.Commands.Validation','RedalertProof.Commands.ResourcesAndRate','RedalertProof.Commands.SimulationAndSnapshots','RedalertProof.Commands.PhaseOrder','RedalertProof.Commands.OwnerAllocation')
+    $expected=@('RedalertProof.Commands.Validation','RedalertProof.Commands.ResourcesAndRate','RedalertProof.Commands.SimulationAndSnapshots','RedalertProof.Commands.PhaseOrder','RedalertProof.Commands.OwnerAllocation','RedalertProof.Commands.IngressBudget','RedalertProof.Commands.IngressFixture')
     $tests=@($data.tests)
     $result.testCount=$tests.Count; $result.succeeded=[int]$data.succeeded; $result.failed=[int]$data.failed
-    if ($tests.Count -ne 5 -or [int]$data.succeeded -ne 5 -or [int]$data.failed -ne 0) { throw 'Expected exactly five successful tests and zero failures.' }
+    if ($tests.Count -ne 7 -or [int]$data.succeeded -ne 7 -or [int]$data.failed -ne 0) { throw 'Expected exactly seven successful tests and zero failures.' }
     foreach($name in $expected){
         $matching=@($tests | Where-Object {$_.fullTestPath -eq $name})
         if ($matching.Count -ne 1 -or $matching[0].state -ne 'Success') { throw "Missing successful exact test $name." }
