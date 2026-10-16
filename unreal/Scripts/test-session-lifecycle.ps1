@@ -54,7 +54,7 @@ $result = [ordered]@{
     elapsedSeconds=0; scenarioElapsedSeconds=0; scenarioTimeoutSeconds=$TimeoutSeconds; scenarioCoreLimit=2
     runDirectory=$run; map='/Game/CommandProofGenerated/Maps/CommandProof'; port=$Port; topology='dedicated NullRHI host and four sequential loopback NullRHI client processes'
     transport='UE native UDP loopback'; physicalInputVerified=$false; internetTest=$false; performanceTest=$false
-    lifecycle=[ordered]@{initialOwner1Healthy=$false;owner2Disconnected=$false;owner2RejoinedSlot2=$false;rejoinDeferredUntilRematch=$true;rejoinNormalEpochs=@();thirdRejectedWhenFull=$false;terminalEpochs=@();rematchEpochs=@();staleEpochRejected=$false;freshReceiptSequences=@();commonRevisionDigests=@();terminalSnapshotAgreements=@()}
+    lifecycle=[ordered]@{initialOwner1Healthy=$false;owner2Disconnected=$false;owner2RejoinedSlot2=$false;rejoinDeferredUntilRematch=$true;rejoinNormalEpochs=@();thirdRejectedWhenFull=$false;terminalEpochs=@();rematchEpochs=@();staleEpochRejected=$false;freshReceiptSequences=@();commonRevisionDigests=@();terminalSnapshotAgreements=@();finishSignaledUtc=$null}
     storageGuard=[ordered]@{softPollingGuard=$true;intervalSeconds=10;maxCacheMiB=$MaxCacheMiB;maxTempMiB=$MaxTempMiB;checks=0;latestCacheBytes=0;latestTempBytes=0;peakCacheBytes=0;peakTempBytes=0}
     cpuPolicy=[ordered]@{availableAffinityMask=('0x{0:X}' -f $availableAffinity);fixtureAffinityMask=('0x{0:X}' -f $fixtureAffinity);logicalProcessors=$fixtureLogicalProcessors;priority='Normal';pollIntervalSeconds=1;polls=0;repairs=0;processes=@()}
     literalClientSetup=[ordered]@{startupFile=$cvars;expectedResolverDisabled=1;startupConfirmedByRole=@{};hostnameOrInternetTest=$false;osDnsChanged=$false}
@@ -189,6 +189,15 @@ function Wait-Exited($Entries) {
     }
 }
 function Signal-Gate([string]$Name) { [DateTime]::UtcNow.ToString('o') | Set-Content -LiteralPath (Join-Path $control $Name) -Encoding ascii }
+function Assert-OwnerOneActiveBeforeFinish($Entry,[DateTime]$FinishSignaledUtc) {
+    $lines=[regex]::Matches((Read-Log $Entry),'(?m)^([^\r\n]*PROOF_LIFECYCLE_LOGOUT owner=1(?:\s|$)[^\r\n]*)')
+    foreach ($match in $lines) {
+        $stamp=[regex]::Match($match.Groups[1].Value,'^\[(\d{4}\.\d{2}\.\d{2}-\d{2}\.\d{2}\.\d{2}:\d{3})\]')
+        if (-not $stamp.Success) { throw 'Cannot classify owner 1 logout without the engine log timestamp.' }
+        $loggedUtc=[DateTime]::ParseExact($stamp.Groups[1].Value,'yyyy.MM.dd-HH.mm.ss:fff',[Globalization.CultureInfo]::InvariantCulture,([Globalization.DateTimeStyles]::AssumeUniversal -bor [Globalization.DateTimeStyles]::AdjustToUniversal))
+        if ($loggedUtc -lt $FinishSignaledUtc) { throw 'Owner 1 disconnected before the lifecycle finish gate.' }
+    }
+}
 function Get-EpochSnapshots([string]$Text) {
     $snapshots=@{}
     foreach ($m in [regex]::Matches($Text,'PROOF_SNAPSHOT[^\r\n]*?epoch=(\d+)[^\r\n]*?revision=(\d+)[^\r\n]*?digest=([A-Za-z0-9]+)')) { $snapshots[($m.Groups[1].Value+':'+$m.Groups[2].Value)]=$m.Groups[3].Value }
@@ -324,7 +333,12 @@ try {
         @{owner=1;epoch=3;sequence=1;accepted=$true},
         @{owner=2;epoch=3;sequence=1;accepted=$true}
     )
+    $preFinishBoundaryUtc=[DateTime]::MaxValue
+    Assert-OwnerOneActiveBeforeFinish $serverEntry $preFinishBoundaryUtc
+    $finishSignaledUtc=[DateTime]::UtcNow
+    $finishSignaledUtc=$finishSignaledUtc.AddTicks(-($finishSignaledUtc.Ticks % [TimeSpan]::TicksPerMillisecond))
     Signal-Gate 'finish'
+    $result.lifecycle.finishSignaledUtc=$finishSignaledUtc.ToString('o')
     Wait-Marker $serverEntry 'PROOF_LIFECYCLE_COMPLETE role=host status=pass'
     Wait-Marker $lead 'PROOF_LIFECYCLE_CLIENT_COMPLETE role=lead status=pass'
     Wait-Marker $rejoin 'PROOF_LIFECYCLE_CLIENT_COMPLETE role=rejoin status=pass'
@@ -339,7 +353,7 @@ try {
             if (-not $result.literalClientSetup.startupConfirmedByRole[$entry.Role]) { throw "$($entry.Role) missing literal loopback resolver startup CVar evidence." }
         }
     }
-    if ((Read-Log $serverEntry) -match 'PROOF_LIFECYCLE_LOGOUT owner=1 ') { throw 'Owner 1 disconnected during the lifecycle scenario.' }
+    Assert-OwnerOneActiveBeforeFinish $serverEntry $finishSignaledUtc
     $result.passed=$true
 } catch { $result.error=$_.Exception.Message }
 finally {
