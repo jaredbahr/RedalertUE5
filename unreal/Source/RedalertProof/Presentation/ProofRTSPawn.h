@@ -2,6 +2,8 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Pawn.h"
+#include "Presentation/ProofSelectionState.h"
+#include "Presentation/ProofGroupOrderQueue.h"
 #include "ProofRTSPawn.generated.h"
 
 class UCameraComponent;
@@ -21,6 +23,8 @@ public:
     virtual void Tick(float DeltaSeconds) override;
     virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
     int32 GetSelectedUnitId() const { return SelectedUnitId; }
+    const TArray<int32>& GetSelectedUnitIds() const { return Selection.GetSelectedUnitIds(); }
+    bool IsCameraPanEnabled() const { return bCameraPanEnabled; }
     const FString& GetRequestStatus() const { return RequestStatus; }
     FString GetManualInputStatus() const;
     bool IsInteractiveSession() const { return bInteractiveExitEnabled; }
@@ -36,6 +40,11 @@ private:
     UPROPERTY(Transient) TObjectPtr<UStaticMesh> HarvesterMesh;
     UPROPERTY(Transient) TMap<int32, TObjectPtr<UStaticMeshComponent>> UnitViews;
     int32 SelectedUnitId = INDEX_NONE;
+    FProofSelectionState Selection;
+    FProofGroupOrderQueue GroupOrders;
+    FVector CameraGroundCenter = FVector::ZeroVector;
+    bool bCameraPanEnabled = false;
+    int32 ManualGroupPresses = 0;
     int32 LastSeenMatchEpoch = INDEX_NONE;
     int32 ManualRematchPresses = 0;
     bool bUsingBlockoutMesh = false;
@@ -112,6 +121,10 @@ private:
     void ZoomIn();
     void ZoomOut();
     void OnManualSelect();
+    void OnManualGroupOne();
+    void OnManualGroupTwo();
+    void OnManualGroupThree();
+    void HandleManualGroup(int32 Slot);
     void OnManualOrder();
     void OnManualProduce();
     void OnManualZoomIn();

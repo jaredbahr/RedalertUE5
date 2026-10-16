@@ -24,7 +24,7 @@ void AProofHUD::DrawHUD()
     const float Top = 12.f * UiScale;
     const float PanelWidth = FMath::Min(720.f * UiScale, FMath::Max(0.f, Canvas->ClipX - Left * 2.f));
     const bool bSkirmish = GS && GS->Snapshot.bSkirmish;
-    const float PanelHeight = (bSkirmish ? 178.f : 164.f) * UiScale;
+    const float PanelHeight = (bSkirmish ? 197.f : 183.f) * UiScale;
     const float Pad = 12.f * UiScale;
     const float FontScale = 1.05f * UiScale;
     UFont* Font = GEngine ? GEngine->GetMediumFont() : nullptr;
@@ -104,6 +104,8 @@ void AProofHUD::DrawHUD()
             }
             SelectedDescription = FString::Printf(TEXT("#%d %s  Cargo %d"), SelectedUnit->UnitId, KindName, SelectedUnit->Cargo);
         }
+        if (Pawn && Pawn->GetSelectedUnitIds().Num() > 1)
+            SelectedDescription = FString::Printf(TEXT("%d units (primary #%d)"), Pawn->GetSelectedUnitIds().Num(), Pawn->GetSelectedUnitId());
         DrawHudLine(TEXT("SMALL SKIRMISH  |  Destroy the opposing team's live HQ"), FLinearColor::White, Top + Pad);
         DrawHudLine(TEXT("Select: left-click   Order/gather: right-click   Zoom: wheel   Exit: Esc"),
             FLinearColor(0.85f, 0.9f, 1.f), Top + Pad + Row);
@@ -139,6 +141,11 @@ void AProofHUD::DrawHUD()
             : TEXT("Functional proof only; engine cubes are generic proxies, no approved art."),
             FLinearColor(0.72f, 0.77f, 0.84f), Top + Pad + Row * 6.f);
     }
+
+    DrawHudLine(Pawn && Pawn->IsCameraPanEnabled()
+        ? TEXT("Shift-click: toggle   Ctrl+1-3: save   1-3: recall   Arrows: pan")
+        : TEXT("Shift-click: toggle   Ctrl+1-3: save group   1-3: recall"),
+        FLinearColor(0.72f, 0.88f, 0.96f), Top + Pad + Row * 7.f);
 
     if (!GS)
     {
@@ -177,7 +184,7 @@ void AProofHUD::DrawHUD()
             continue;
         }
         const bool bOwn = Unit.OwnerId == PC->OwnerId;
-        const bool bSelected = bOwn && Pawn && Unit.UnitId == Pawn->GetSelectedUnitId();
+        const bool bSelected = bOwn && Pawn && Pawn->GetSelectedUnitIds().Contains(Unit.UnitId);
         const FProofPlayerRecord* UnitOwner = bSkirmish ? GS->Snapshot.Players.FindByPredicate([&Unit](const FProofPlayerRecord& Player)
         {
             return Player.OwnerId == Unit.OwnerId;
