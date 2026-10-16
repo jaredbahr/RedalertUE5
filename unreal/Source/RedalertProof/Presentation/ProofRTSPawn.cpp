@@ -8,6 +8,13 @@
 #include "InputCoreTypes.h"
 #include "Runtime/ProofGameState.h"
 #include "Runtime/ProofPlayerController.h"
+#include "Engine/GameViewportClient.h"
+#include "UnrealClient.h"
+#include "HAL/FileManager.h"
+#include "HAL/PlatformMisc.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
+#include "Misc/Paths.h"
 
 AProofRTSPawn::AProofRTSPawn()
 {
@@ -114,14 +121,25 @@ void AProofRTSPawn::Tick(float DeltaSeconds)
     {
         SelectedUnitId = INDEX_NONE;
     }
+    if (PC->IsControlsAutomation()) TickControlsAutomation(DeltaSeconds);
+}
+
+bool AProofRTSPawn::GetPointerScreenPosition(FVector2D& OutPoint) const
+{
+    if (bControlsCursor) { OutPoint = ControlsCursor; return true; }
+    const APlayerController* PC = Cast<APlayerController>(GetController());
+    float X = 0.f, Y = 0.f;
+    if (!PC || !PC->GetMousePosition(X, Y)) return false;
+    OutPoint = FVector2D(X, Y);
+    return true;
 }
 
 int32 AProofRTSPawn::FindUnitUnderCursor(bool bOwnOnly) const
 {
     const AProofPlayerController* PC = Cast<AProofPlayerController>(GetController());
     const AProofGameState* GS = GetWorld()->GetGameState<AProofGameState>();
-    float MouseX = 0.f, MouseY = 0.f;
-    if (!PC || !GS || !PC->GetMousePosition(MouseX, MouseY))
+    FVector2D Pointer;
+    if (!PC || !GS || !GetPointerScreenPosition(Pointer))
     {
         return INDEX_NONE;
     }
@@ -136,7 +154,7 @@ int32 AProofRTSPawn::FindUnitUnderCursor(bool bOwnOnly) const
         FVector2D Screen;
         if (PC->ProjectWorldLocationToScreen(Unit.Position, Screen))
         {
-            const float DistanceSquared = FVector2D::DistSquared(Screen, FVector2D(MouseX, MouseY));
+            const float DistanceSquared = FVector2D::DistSquared(Screen, Pointer);
             if (DistanceSquared < BestDistanceSquared)
             {
                 BestDistanceSquared = DistanceSquared;
@@ -151,7 +169,9 @@ bool AProofRTSPawn::CursorGroundPoint(FVector& OutPoint) const
 {
     const APlayerController* PC = Cast<APlayerController>(GetController());
     FVector Origin, Direction;
-    if (!PC || !PC->DeprojectMousePositionToWorld(Origin, Direction) || FMath::IsNearlyZero(Direction.Z))
+    FVector2D Pointer;
+    if (!PC || !GetPointerScreenPosition(Pointer)
+        || !PC->DeprojectScreenPositionToWorld(Pointer.X, Pointer.Y, Origin, Direction) || FMath::IsNearlyZero(Direction.Z))
     {
         return false;
     }
@@ -230,8 +250,162 @@ void AProofRTSPawn::Request(FProofCommand Command)
         return;
     }
     PC->ServerSubmitCommand(Command);
+    LastRequestedSequence = Command.Sequence;
     RequestStatus = FString::Printf(TEXT("Request #%d sent; only host snapshots change units/credits."), Command.Sequence);
 }
 
 void AProofRTSPawn::ZoomIn() { Camera->SetOrthoWidth(FMath::Max(2000.f, Camera->OrthoWidth - 500.f)); }
 void AProofRTSPawn::ZoomOut() { Camera->SetOrthoWidth(FMath::Min(18000.f, Camera->OrthoWidth + 500.f)); }
+
+bool AProofRTSPawn::SetControlsCursorFromWorld(const FVector& Position)
+{
+    const APlayerController* PC = Cast<APlayerController>(GetController());
+    int32 Width = 0, Height = 0;
+    if (!PC) return false;
+    PC->GetViewportSize(Width, Height);
+    if (!PC->ProjectWorldLocationToScreen(Position, ControlsCursor)) return false;
+    bControlsCursor = true;
+    return ControlsCursor.X >= 0.f && ControlsCursor.X < Width && ControlsCursor.Y >= 140.f && ControlsCursor.Y < Height;
+}
+
+bool AProofRTSPawn::ControlsCheck(bool bCondition, const TCHAR* Evidence)
+{
+    UE_LOG(LogTemp, Display, TEXT("PROOF_CONTROLS_CHECK step=%d status=%s evidence=%s elapsed=%.3f"),
+        ControlsStep, bCondition ? TEXT("pass") : TEXT("fail"), Evidence, ControlsElapsed);
+    if (!bCondition) FinishControls(false, Evidence);
+    return bCondition;
+}
+
+void AProofRTSPawn::FinishControls(bool bPass, const TCHAR* Reason)
+{
+    if (bControlsFinished) return;
+    bControlsFinished = true;
+    UE_LOG(LogTemp, Display, TEXT("PROOF_CONTROLS_COMPLETE role=client owner=%d status=%s reason=%s elapsed=%.3f physicalInput=unverified"),
+        Cast<AProofPlayerController>(GetController())->OwnerId, bPass ? TEXT("pass") : TEXT("fail"), Reason, ControlsElapsed);
+    FPlatformMisc::RequestExitWithStatus(false, bPass ? 0 : 1);
+}
+
+void AProofRTSPawn::CaptureControls(const TCHAR* Name)
+{
+    const FString Path = FPaths::Combine(ControlsOutput, FString(Name) + TEXT(".png"));
+    FScreenshotRequest::RequestScreenshot(Path, true, false);
+    UE_LOG(LogTemp, Display, TEXT("PROOF_CONTROLS_CAPTURE requested=%s elapsed=%.3f"), *Path, ControlsElapsed);
+}
+
+void AProofRTSPawn::TickControlsAutomation(float DeltaSeconds)
+{
+    if (bControlsFinished) return;
+    ControlsElapsed += DeltaSeconds;
+    if (ControlsElapsed > 55.f) { FinishControls(false, TEXT("timeout")); return; }
+    AProofPlayerController* PC = Cast<AProofPlayerController>(GetController());
+    const AProofGameState* GS = GetWorld()->GetGameState<AProofGameState>();
+    if (!PC || !GS || PC->OwnerId == INDEX_NONE) return;
+    int32 Width = 0, Height = 0;
+    PC->GetViewportSize(Width, Height);
+    if (Width < 1000 || Height < 600 || !PC->GetHUD()) return;
+    const FProofSnapshot& Snapshot = GS->Snapshot;
+    const auto* Own = Snapshot.Units.FindByPredicate([this, PC](const FProofUnitRecord& Unit)
+        { return ControlsOwnUnit == INDEX_NONE ? Unit.OwnerId == PC->OwnerId : Unit.UnitId == ControlsOwnUnit; });
+    const auto* Target = Snapshot.Units.FindByPredicate([this](const FProofUnitRecord& Unit)
+        { return ControlsTargetUnit == INDEX_NONE ? Unit.OwnerId == 100 && Unit.Position.IsNearlyZero(1.f) : Unit.UnitId == ControlsTargetUnit; });
+    if (!Own || !Target) return;
+    const auto* PlayerRecord = Snapshot.Players.FindByPredicate([PC](const FProofPlayerRecord& Record) { return Record.OwnerId == PC->OwnerId; });
+    if (!PlayerRecord) return;
+    if (ControlsReady < 0.f)
+    {
+        ControlsReady = ControlsElapsed;
+        ControlsOwnUnit = Own->UnitId;
+        ControlsTargetUnit = Target->UnitId;
+        ControlsInitialPosition = Own->Position;
+        ControlsCredits = PlayerRecord->Credits;
+        for (const auto& Unit : Snapshot.Units) if (Unit.OwnerId == PC->OwnerId) ++ControlsOwnCount;
+        if (!FParse::Value(FCommandLine::Get(), TEXT("ProofControlsOutput="), ControlsOutput))
+            ControlsOutput = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::ProjectDir(), TEXT("../generated/controls")));
+        IFileManager::Get().MakeDirectory(*ControlsOutput, true);
+        UE_LOG(LogTemp, Display, TEXT("PROOF_CONTROLS_VIEW_READY owner=%d width=%d height=%d own=%d target=%d elapsed=%.3f"),
+            PC->OwnerId, Width, Height, ControlsOwnUnit, ControlsTargetUnit, ControlsElapsed);
+        return;
+    }
+    FProofCommandResult Receipt;
+    const bool bHasReceipt = PC->FindReceipt(LastRequestedSequence, Receipt);
+    if (ControlsStep == 0 && Snapshot.Players.Num() >= 3 && ControlsElapsed - ControlsReady > 1.f)
+    {
+        if (!ControlsCheck(SetControlsCursorFromWorld(Target->Position), TEXT("enemy_projected_in_viewport"))) return;
+        SelectUnderCursor();
+        if (!ControlsCheck(SelectedUnitId == INDEX_NONE, TEXT("enemy_not_selected"))) return;
+        if (!ControlsCheck(SetControlsCursorFromWorld(Own->Position), TEXT("own_projected_in_viewport"))) return;
+        SelectUnderCursor();
+        if (!ControlsCheck(SelectedUnitId == ControlsOwnUnit, TEXT("owned_unit_selected"))) return;
+        if (!ControlsCheck(SetControlsCursorFromWorld(FVector(-1400.f, -800.f, 0.f)), TEXT("empty_projected_in_viewport"))) return;
+        SelectUnderCursor();
+        if (!ControlsCheck(SelectedUnitId == INDEX_NONE, TEXT("empty_clears_selection"))) return;
+        const float BeforeWidth = Camera->OrthoWidth;
+        ZoomIn();
+        if (!ControlsCheck(Camera->OrthoWidth < BeforeWidth, TEXT("zoom_in_changes_camera"))) return;
+        ZoomOut();
+        if (!ControlsCheck(FMath::IsNearlyEqual(Camera->OrthoWidth, BeforeWidth), TEXT("zoom_out_restores_camera"))) return;
+        SetControlsCursorFromWorld(Own->Position);
+        SelectUnderCursor();
+        CaptureControls(TEXT("01-selected"));
+        ControlsStageTime = ControlsElapsed;
+        ControlsStep = 1;
+    }
+    else if (ControlsStep == 1 && ControlsElapsed - ControlsStageTime > 1.f)
+    {
+        if (!ControlsCheck(SetControlsCursorFromWorld(ControlsDestination), TEXT("move_destination_projected"))) return;
+        FVector RoundTrip;
+        if (!ControlsCheck(CursorGroundPoint(RoundTrip) && FVector::Dist(RoundTrip, ControlsDestination) < 2.f,
+            TEXT("actual_viewport_projection_deprojection_roundtrip_lt2cm"))) return;
+        OrderUnderCursor();
+        ControlsStep = 2;
+    }
+    else if (ControlsStep == 2 && bHasReceipt)
+    {
+        if (!ControlsCheck(Receipt.bAccepted, TEXT("move_host_receipt_accepted"))) return;
+        if (FVector::Dist(Own->Position, ControlsDestination) > 2.f) return;
+        if (!ControlsCheck(FVector::Dist(Own->Position, ControlsInitialPosition) > 100.f, TEXT("move_replicated_destination_reached"))) return;
+        if (!ControlsCheck(SetControlsCursorFromWorld(Target->Position), TEXT("attack_target_projected"))) return;
+        OrderUnderCursor();
+        ControlsStep = 3;
+    }
+    else if (ControlsStep == 3 && bHasReceipt)
+    {
+        if (!ControlsCheck(Receipt.bAccepted, TEXT("attack_host_receipt_accepted"))) return;
+        if (Target->HitPoints >= 99.f) return;
+        if (!ControlsCheck(Target->HitPoints > 0.f, TEXT("attack_replicated_target_damage"))) return;
+        Produce();
+        ControlsStep = 4;
+    }
+    else if (ControlsStep == 4 && bHasReceipt)
+    {
+        if (!ControlsCheck(Receipt.bAccepted, TEXT("produce_host_receipt_accepted"))) return;
+        int32 Count = 0;
+        for (const auto& Unit : Snapshot.Units) if (Unit.OwnerId == PC->OwnerId) ++Count;
+        if (Count != ControlsOwnCount + 1 || PlayerRecord->Credits != ControlsCredits - FProofCommandModel::ProductionCost) return;
+        if (!ControlsCheck(true, TEXT("produce_replicated_unit_and_credit_delta"))) return;
+        // Move the original unit away from the spawn through the same handler,
+        // keeping both proxy markers readable without a presentation-only offset.
+        SetControlsCursorFromWorld(FVector(-700.f, -450.f, 0.f));
+        OrderUnderCursor();
+        ControlsStep = 5;
+    }
+    else if (ControlsStep == 5 && bHasReceipt)
+    {
+        if (!ControlsCheck(Receipt.bAccepted, TEXT("separation_move_host_receipt_accepted"))) return;
+        if (FVector::Dist(Own->Position, FVector(-700.f, -450.f, 0.f)) > 2.f) return;
+        CaptureControls(TEXT("02-moved-combat-produced"));
+        ControlsStageTime = ControlsElapsed;
+        ControlsStep = 6;
+    }
+    else if (ControlsStep == 6 && ControlsElapsed - ControlsStageTime > 1.f)
+    {
+        const bool bScreenshots = IFileManager::Get().FileSize(*FPaths::Combine(ControlsOutput, TEXT("01-selected.png"))) > 1024
+            && IFileManager::Get().FileSize(*FPaths::Combine(ControlsOutput, TEXT("02-moved-combat-produced.png"))) > 1024;
+        if (!ControlsCheck(bScreenshots, TEXT("engine_rendered_screenshots_written"))) return;
+        ControlsStep = 7;
+    }
+    else if (ControlsStep == 7 && ControlsElapsed - ControlsReady > 23.f)
+    {
+        FinishControls(true, TEXT("select_clear_zoom_project_deproject_move_attack_produce_receipts_snapshots_capture"));
+    }
+}

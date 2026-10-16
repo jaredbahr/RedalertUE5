@@ -15,7 +15,7 @@ void AProofHUD::DrawHUD()
     {
         return;
     }
-    DrawRect(FLinearColor(0.f, 0.f, 0.f, 0.75f), 8.f, 8.f, FMath::Min(790.f, Canvas->ClipX - 16.f), 126.f);
+    DrawRect(FLinearColor(0.f, 0.f, 0.f, 0.75f), 8.f, 8.f, FMath::Min(930.f, Canvas->ClipX - 16.f), 146.f);
     DrawText(TEXT("UE COMMAND PROOF - generic unapproved blockout proxies"), FLinearColor::White, 18.f, 16.f);
     DrawText(TEXT("Left-click: select own unit | Right-click: move / attack enemy | P: produce | Wheel: zoom"),
         FLinearColor::White, 18.f, 36.f);
@@ -35,10 +35,11 @@ void AProofHUD::DrawHUD()
         PC->OwnerId, GS ? GS->Snapshot.Revision : 0, Credits, Pawn ? Pawn->GetSelectedUnitId() : INDEX_NONE),
         FLinearColor::White, 18.f, 56.f);
     DrawText(Pawn ? Pawn->GetRequestStatus() : TEXT("Waiting for camera pawn."), FLinearColor::Yellow, 18.f, 76.f);
+    DrawText(PC->GetReceiptStatus(), FLinearColor(0.6f, 0.9f, 1.f), 18.f, 96.f);
     DrawText(Pawn && Pawn->IsUsingBlockoutMesh()
         ? TEXT("All records shown as Rhino proxies at 0.3 display scale; no unit types or final art scale.")
         : TEXT("Generated Rhino mesh absent: engine cubes are generic proxies."),
-        FLinearColor(0.75f, 0.8f, 0.85f), 18.f, 96.f);
+        FLinearColor(0.75f, 0.8f, 0.85f), 18.f, 116.f);
     if (!GS)
     {
         return;

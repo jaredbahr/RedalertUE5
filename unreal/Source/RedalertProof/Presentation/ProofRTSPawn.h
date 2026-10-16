@@ -33,6 +33,21 @@ private:
     int32 SelectedUnitId = INDEX_NONE;
     bool bUsingBlockoutMesh = false;
     bool bConfiguredLocalInput = false;
+    bool bControlsCursor = false;
+    FVector2D ControlsCursor = FVector2D::ZeroVector;
+    int32 LastRequestedSequence = 0;
+    int32 ControlsStep = 0;
+    int32 ControlsOwnUnit = INDEX_NONE;
+    int32 ControlsTargetUnit = INDEX_NONE;
+    int32 ControlsCredits = 0;
+    int32 ControlsOwnCount = 0;
+    float ControlsElapsed = 0.f;
+    float ControlsReady = -1.f;
+    float ControlsStageTime = 0.f;
+    bool bControlsFinished = false;
+    FVector ControlsDestination = FVector(-250.f, 0.f, 0.f);
+    FVector ControlsInitialPosition = FVector::ZeroVector;
+    FString ControlsOutput;
     FString RequestStatus = TEXT("Select one of your live units.");
 
     void SelectUnderCursor();
@@ -43,4 +58,10 @@ private:
     int32 FindUnitUnderCursor(bool bOwnOnly) const;
     bool CursorGroundPoint(FVector& OutPoint) const;
     void Request(FProofCommand Command);
+    bool GetPointerScreenPosition(FVector2D& OutPoint) const;
+    bool SetControlsCursorFromWorld(const FVector& Position);
+    void TickControlsAutomation(float DeltaSeconds);
+    bool ControlsCheck(bool bCondition, const TCHAR* Evidence);
+    void FinishControls(bool bPass, const TCHAR* Reason);
+    void CaptureControls(const TCHAR* Name);
 };

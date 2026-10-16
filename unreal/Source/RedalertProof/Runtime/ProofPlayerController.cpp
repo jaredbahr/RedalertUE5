@@ -11,6 +11,14 @@ AProofPlayerController::AProofPlayerController()
 {
     PrimaryActorTick.bCanEverTick = true;
     bAutomation = FParse::Param(FCommandLine::Get(), TEXT("ProofAutomation"));
+    bControlsAutomation = FParse::Param(FCommandLine::Get(), TEXT("ProofControlsAutomation"));
+    bControlsObserver = FParse::Param(FCommandLine::Get(), TEXT("ProofControlsObserver"));
+}
+
+bool AProofPlayerController::FindReceipt(int32 Sequence, FProofCommandResult& OutResult) const
+{
+    if (const FProofCommandResult* Result = Receipts.Find(Sequence)) { OutResult = *Result; return true; }
+    return false;
 }
 
 void AProofPlayerController::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -30,6 +38,17 @@ void AProofPlayerController::ServerSubmitCommand_Implementation(FProofCommand Co
 
 void AProofPlayerController::ClientCommandResult_Implementation(FProofCommandResult Result)
 {
+    LastReceiptSequence = Result.Sequence;
+    ReceiptStatus = FString::Printf(TEXT("Host #%d: %s (%s)"), Result.Sequence,
+        Result.bAccepted ? TEXT("ACCEPTED") : TEXT("REJECTED"), *Result.Reason);
+    // Bounded diagnostic history; no command or snapshot changes follow a receipt.
+    Receipts.Add(Result.Sequence, Result);
+    if (Receipts.Num() > 64)
+    {
+        int32 Oldest = MAX_int32;
+        for (const auto& Entry : Receipts) Oldest = FMath::Min(Oldest, Entry.Key);
+        Receipts.Remove(Oldest);
+    }
     UE_LOG(LogTemp, Display, TEXT("PROOF_RESULT owner=%d sequence=%lld accepted=%d reason=%s"),
         OwnerId, static_cast<long long>(Result.Sequence), Result.bAccepted ? 1 : 0, *Result.Reason);
     if (!bAutomation) return;
@@ -60,6 +79,25 @@ void AProofPlayerController::Tick(float DeltaSeconds)
     {
         State->LogSnapshot(TEXT("client"), OwnerId);
         LastLoggedRevision = State->Snapshot.Revision;
+    }
+    if (bControlsObserver && !bFinished)
+    {
+        if (State && State->Snapshot.Players.Num() >= 3 && OwnerId != INDEX_NONE && ControlsObserverReady < 0.f)
+        {
+            ControlsObserverReady = Lifetime;
+        }
+        if (State && ControlsObserverReady >= 0.f && Lifetime - ControlsObserverReady > 23.f)
+        {
+            bFinished = true;
+            UE_LOG(LogTemp, Display, TEXT("PROOF_CONTROLS_COMPLETE role=observer owner=%d status=pass revision=%d"), OwnerId, State->Snapshot.Revision);
+            FPlatformMisc::RequestExitWithStatus(false, 0);
+        }
+        if (Lifetime > 60.f && !bFinished)
+        {
+            bFinished = true;
+            UE_LOG(LogTemp, Error, TEXT("PROOF_CONTROLS_COMPLETE role=observer owner=%d status=fail reason=timeout"), OwnerId);
+            FPlatformMisc::RequestExitWithStatus(false, 1);
+        }
     }
     if (!bAutomation || bFinished) return;
     if (Lifetime > 40.f) { FinishAutomation(false); return; }
