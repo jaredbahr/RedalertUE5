@@ -17,22 +17,35 @@ AProofGameMode::AProofGameMode()
     HUDClass = AProofHUD::StaticClass();
     bAutomation = FParse::Param(FCommandLine::Get(), TEXT("ProofAutomation"));
     bControlsAutomation = FParse::Param(FCommandLine::Get(), TEXT("ProofControlsAutomation"));
+    bSkirmish = FParse::Param(FCommandLine::Get(), TEXT("ProofSkirmish"));
+    bSkirmishFixtureHost = bSkirmish && FParse::Param(FCommandLine::Get(), TEXT("ProofSkirmishFixtureHost"));
+    // PostLogin may precede BeginPlay for the first local player.
+    if (bSkirmish) Model.StartSkirmish();
 }
 
 void AProofGameMode::BeginPlay()
 {
     Super::BeginPlay();
-    Model.AddPlayer(100);
-    BotMover = Model.SeedUnit(100, FVector(0.f, 1000.f, 0.f));
+    if (bSkirmish)
+    {
+        if (!Model.SeedSkirmishPlayer(ProofOwnerIds::Bot, 1, FVector(1400.f, 0.f, 0.f)))
+            UE_LOG(LogTemp, Error, TEXT("PROOF_SKIRMISH_SEED_FAIL owner=100"));
+        SkirmishBot.Reset();
+        Publish();
+        UE_LOG(LogTemp, Display, TEXT("PROOF_SKIRMISH_READY fixture=%d"), bSkirmishFixtureHost ? 1 : 0);
+        return;
+    }
+    Model.AddPlayer(ProofOwnerIds::Bot);
+    BotMover = Model.SeedUnit(ProofOwnerIds::Bot, FVector(0.f, 1000.f, 0.f));
     const FVector AttackerStart = bControlsAutomation ? FVector(600.f, 600.f, 0.f) : FVector(0.f, 150.f, 0.f);
-    BotAttacker = Model.SeedUnit(100, AttackerStart);
+    BotAttacker = Model.SeedUnit(ProofOwnerIds::Bot, AttackerStart);
     InitialPositions.Add(BotMover, FVector(0.f, 1000.f, 0.f));
     InitialPositions.Add(BotAttacker, AttackerStart);
     if (bControlsAutomation)
     {
         // A separate stationary record gives the graphical human command test
         // an isolated combat target. It has no scripted bot order.
-        const int32 ControlsTarget = Model.SeedUnit(100, FVector::ZeroVector);
+        const int32 ControlsTarget = Model.SeedUnit(ProofOwnerIds::Bot, FVector::ZeroVector);
         InitialPositions.Add(ControlsTarget, FVector::ZeroVector);
         UE_LOG(LogTemp, Display, TEXT("PROOF_CONTROLS_TARGET unit=%d owner=100"), ControlsTarget);
     }
@@ -46,7 +59,35 @@ void AProofGameMode::PostLogin(APlayerController* NewPlayer)
     if (AProofPlayerController* Controller = Cast<AProofPlayerController>(NewPlayer))
     {
         // Connection order is fixture identity only; there is no login/authentication implementation.
-        Controller->OwnerId = NextOwnerId++;
+        int32 OwnerId = INDEX_NONE;
+        if (!HumanOwnerIds.TryAllocate(OwnerId))
+        {
+            UE_LOG(LogTemp, Warning, TEXT("PROOF_PLAYER_REJECT reason=owner-id-exhausted"));
+            Controller->Destroy();
+            return;
+        }
+        Controller->OwnerId = OwnerId;
+        if (bSkirmish)
+        {
+            if (OwnerId > 2)
+            {
+                UE_LOG(LogTemp, Warning, TEXT("PROOF_PLAYER_REJECT reason=skirmish-full owner=%d"), OwnerId);
+                Controller->Destroy();
+                return;
+            }
+            const FVector HQPosition = OwnerId == 1 ? FVector(-1400.f, -400.f, 0.f) : FVector(-1400.f, 600.f, 0.f);
+            if (!Model.SeedSkirmishPlayer(OwnerId, 0, HQPosition))
+            {
+                UE_LOG(LogTemp, Error, TEXT("PROOF_SKIRMISH_SEED_FAIL owner=%d"), OwnerId);
+                Controller->Destroy();
+                return;
+            }
+            UE_LOG(LogTemp, Display, TEXT("PROOF_SKIRMISH_PLAYER owner=%d team=0 hqX=%.0f hqY=%.0f"),
+                OwnerId, HQPosition.X, HQPosition.Y);
+            Controller->ForceNetUpdate();
+            Publish();
+            return;
+        }
         const FVector Position(Controller->OwnerId == 1 ? -600.f : 600.f,
             (Controller->OwnerId - 1) / 2 * 600.f, 0.f);
         Model.AddPlayer(Controller->OwnerId);
@@ -61,6 +102,8 @@ void AProofGameMode::PostLogin(APlayerController* NewPlayer)
 FProofCommandResult AProofGameMode::SubmitForOwner(int32 TrustedOwnerId, const FProofCommand& Command)
 {
     FProofCommandResult Result = Model.Submit(TrustedOwnerId, Command);
+    if (bSkirmish && Result.bAccepted && TrustedOwnerId == ProofOwnerIds::Bot && Command.Type == EProofCommandType::Attack)
+        bSkirmishBotAttackAccepted = true;
     if (bControlsAutomation && Result.bAccepted && TrustedOwnerId != 100 && Command.Type == EProofCommandType::Attack)
     {
         // Conservatively discard attribution if another source could damage
@@ -97,13 +140,13 @@ void AProofGameMode::StartBotIfReady()
     Move.Type = EProofCommandType::Move;
     Move.UnitId = BotMover;
     Move.Destination = FVector(1000.f, 1000.f, 0.f);
-    SubmitForOwner(100, Move);
+    SubmitForOwner(ProofOwnerIds::Bot, Move);
     FProofCommand Attack;
     Attack.Sequence = ++BotSequence;
     Attack.Type = EProofCommandType::Attack;
     Attack.UnitId = BotAttacker;
     Attack.TargetUnitId = Target;
-    SubmitForOwner(100, Attack);
+    SubmitForOwner(ProofOwnerIds::Bot, Attack);
     if (bControlsAutomation)
     {
         UE_LOG(LogTemp, Display, TEXT("PROOF_CONTROLS_BOT_START mover=%d attacker=%d target=%d targetOwner=2"),
@@ -167,21 +210,93 @@ void AProofGameMode::Publish()
     if (AProofGameState* State = GetGameState<AProofGameState>()) State->Publish(Model.GetSnapshot());
 }
 
+void AProofGameMode::ObserveSkirmish(const FProofSnapshot& Snapshot)
+{
+    for (const FProofUnitRecord& Unit : Snapshot.Units)
+    {
+        if (Unit.OwnerId != ProofOwnerIds::Bot && Unit.OwnerId != 1 && Unit.OwnerId != 2) continue;
+        const bool bBot = Unit.OwnerId == ProofOwnerIds::Bot;
+        if (Unit.Kind == EProofUnitKind::Refinery) (bBot ? bSkirmishBotRefinery : bSkirmishHumanRefinery) = true;
+        if (Unit.Kind == EProofUnitKind::Factory) (bBot ? bSkirmishBotFactory : bSkirmishHumanFactory) = true;
+        if (Unit.Kind == EProofUnitKind::Combat) (bBot ? bSkirmishBotProduced : bSkirmishHumanProduced) = true;
+    }
+    for (const FProofPlayerRecord& Player : Snapshot.Players)
+        if ((Player.OwnerId == 1 || Player.OwnerId == 2) && Player.TotalGathered > 0) bSkirmishHumanGathered = true;
+}
+
 void AProofGameMode::Tick(float DeltaSeconds)
 {
     Super::Tick(DeltaSeconds);
     Lifetime += DeltaSeconds;
     Accumulator += DeltaSeconds;
-    StartBotIfReady();
+    if (bSkirmishFixtureHost && !bSkirmishFixtureStarted)
+    {
+        // The harness launches clients serially. Do not give the bot a loading-
+        // time head start; this is a fixture roster barrier, not a manual lobby.
+        const FProofSnapshot Waiting = Model.GetSnapshot();
+        const bool bOwner1 = Waiting.Players.ContainsByPredicate([](const FProofPlayerRecord& P) { return P.OwnerId == 1 && P.TeamId == 0; });
+        const bool bOwner2 = Waiting.Players.ContainsByPredicate([](const FProofPlayerRecord& P) { return P.OwnerId == 2 && P.TeamId == 0; });
+        Accumulator = 0.f;
+        if (bOwner1 && bOwner2)
+        {
+            bSkirmishFixtureStarted = true;
+            UE_LOG(LogTemp, Display, TEXT("PROOF_SKIRMISH_FIXTURE_START owners=1,2 simulationSeconds=0"));
+        }
+        // Lifetime and the fixture timeout still advance while waiting.
+    }
+    if (!bSkirmish) StartBotIfReady();
     // Bounded catch-up avoids a long stalled frame monopolizing the game thread.
     int32 CatchupSteps = 0;
     while (Accumulator >= 0.1f && CatchupSteps++ < 10)
     {
+        if (bSkirmish)
+        {
+            const FProofSnapshot Before = Model.GetSnapshot();
+            if (Before.MatchPhase == EProofMatchPhase::Playing)
+            {
+                for (const FProofCommand& Command : SkirmishBot.Decide(Before, ProofOwnerIds::Bot, SkirmishSeconds))
+                    SubmitForOwner(ProofOwnerIds::Bot, Command);
+                Model.Advance(0.1f);
+                SkirmishSeconds += 0.1;
+                const FProofSnapshot After = Model.GetSnapshot();
+                ObserveSkirmish(After);
+                if (After.MatchPhase == EProofMatchPhase::Finished && !bSkirmishTerminalPublished)
+                {
+                    Publish();
+                    bSkirmishTerminalPublished = true;
+                    SkirmishTerminalAt = Lifetime;
+                    UE_LOG(LogTemp, Display, TEXT("PROOF_SKIRMISH_RESULT winnerTeam=%d revision=%d"), After.WinnerTeam, After.Revision);
+                }
+                else if (++StepsSincePublish >= 2) { Publish(); StepsSincePublish = 0; }
+            }
+            Accumulator -= 0.1f;
+            continue;
+        }
         const FProofSnapshot Before = bControlsAutomation ? Model.GetSnapshot() : FProofSnapshot();
         Model.Advance(0.1f);
         if (bControlsAutomation) ObserveControlsStep(Before, Model.GetSnapshot());
         Accumulator -= 0.1f;
         if (++StepsSincePublish >= 2) { Publish(); StepsSincePublish = 0; }
+    }
+    if (bSkirmish)
+    {
+        if (bSkirmishFixtureHost && !bSkirmishFixtureFinished &&
+            (SkirmishTerminalAt >= 0.f && Lifetime - SkirmishTerminalAt >= 5.f || Lifetime >= 240.f))
+        {
+            bSkirmishFixtureFinished = true;
+            const FProofSnapshot Snapshot = Model.GetSnapshot();
+            const bool bOwner1 = Snapshot.Players.ContainsByPredicate([](const FProofPlayerRecord& P) { return P.OwnerId == 1 && P.TeamId == 0; });
+            const bool bOwner2 = Snapshot.Players.ContainsByPredicate([](const FProofPlayerRecord& P) { return P.OwnerId == 2 && P.TeamId == 0; });
+            const bool bPass = bOwner1 && bOwner2 && Snapshot.MatchPhase == EProofMatchPhase::Finished && Snapshot.WinnerTeam == 0
+                && bSkirmishHumanRefinery && bSkirmishHumanFactory && bSkirmishHumanGathered && bSkirmishHumanProduced
+                && bSkirmishBotRefinery && bSkirmishBotFactory && bSkirmishBotProduced && bSkirmishBotAttackAccepted;
+            UE_LOG(LogTemp, Display, TEXT("PROOF_SKIRMISH_COMPLETE role=host status=%s scenario=Coop winnerTeam=%d humanBuilt=%d humanGathered=%d humanProduced=%d botBuilt=%d botProduced=%d botAttack=%d"),
+                bPass ? TEXT("pass") : TEXT("fail"), Snapshot.WinnerTeam,
+                bSkirmishHumanRefinery && bSkirmishHumanFactory, bSkirmishHumanGathered, bSkirmishHumanProduced,
+                bSkirmishBotRefinery && bSkirmishBotFactory, bSkirmishBotProduced, bSkirmishBotAttackAccepted);
+            FPlatformMisc::RequestExitWithStatus(false, bPass ? 0 : 1);
+        }
+        return;
     }
     if (!bAutomation && !bControlsAutomation) return;
     if (bControlsAutomation)
@@ -217,7 +332,9 @@ void AProofGameMode::Tick(float DeltaSeconds)
     const bool bStartupTimedOut = !bBotStarted && Lifetime >= 60.f;
     if (bActiveWindowComplete || bStartupTimedOut)
     {
-        const bool bPass = NextOwnerId >= 3 && HumanAccepted >= 6 && RejectedOwnership >= 2 &&
+        const bool bPass = Snapshot.Players.ContainsByPredicate([](const FProofPlayerRecord& P) { return P.OwnerId == 1; })
+            && Snapshot.Players.ContainsByPredicate([](const FProofPlayerRecord& P) { return P.OwnerId == 2; })
+            && HumanAccepted >= 6 && RejectedOwnership >= 2 &&
             BotAccepted >= 2 && bMoved && bDamaged && bProduced;
         UE_LOG(LogTemp, Display, TEXT("PROOF_AUTOMATION_COMPLETE role=host owner=0 status=%s humanAccepted=%d rejectedOwnership=%d botAccepted=%d moved=%d damaged=%d produced=%d"),
             bPass ? TEXT("pass") : TEXT("fail"), HumanAccepted, RejectedOwnership, BotAccepted, bMoved, bDamaged, bProduced);

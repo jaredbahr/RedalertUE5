@@ -3,6 +3,8 @@
 #include "CoreMinimal.h"
 #include "GameFramework/GameModeBase.h"
 #include "Commands/ProofCommandModel.h"
+#include "Commands/ProofOwnerIds.h"
+#include "Skirmish/ProofSkirmishBot.h"
 #include "ProofGameMode.generated.h"
 
 UCLASS()
@@ -17,7 +19,8 @@ public:
     FProofCommandResult SubmitForOwner(int32 TrustedOwnerId, const FProofCommand& Command);
 private:
     FProofCommandModel Model;
-    int32 NextOwnerId = 1;
+    FProofSkirmishBot SkirmishBot;
+    FProofHumanOwnerAllocator HumanOwnerIds;
     int32 BotMover = INDEX_NONE;
     int32 BotAttacker = INDEX_NONE;
     int32 BotSequence = 0;
@@ -27,6 +30,21 @@ private:
     int32 BotAccepted = 0;
     bool bAutomation = false;
     bool bControlsAutomation = false;
+    bool bSkirmish = false;
+    bool bSkirmishFixtureHost = false;
+    bool bSkirmishFixtureStarted = false;
+    bool bSkirmishTerminalPublished = false;
+    bool bSkirmishFixtureFinished = false;
+    bool bSkirmishHumanRefinery = false;
+    bool bSkirmishHumanFactory = false;
+    bool bSkirmishHumanGathered = false;
+    bool bSkirmishHumanProduced = false;
+    bool bSkirmishBotRefinery = false;
+    bool bSkirmishBotFactory = false;
+    bool bSkirmishBotProduced = false;
+    bool bSkirmishBotAttackAccepted = false;
+    float SkirmishTerminalAt = -1.f;
+    double SkirmishSeconds = 0.0;
     bool bBotMoved = false;
     bool bBotDamaged = false;
     bool bBotTargetExclusive = true;
@@ -45,6 +63,7 @@ private:
     TSet<int32> HumanAttackTargets;
     void Publish();
     void StartBotIfReady();
+    void ObserveSkirmish(const FProofSnapshot& Snapshot);
     void ObserveControlsStep(const FProofSnapshot& Before, const FProofSnapshot& After);
     bool LogControlsCounts(const TCHAR* Phase, int32 ExpectedHumanUnits) const;
 };

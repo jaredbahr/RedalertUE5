@@ -3,7 +3,10 @@
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerController.h"
 #include "Commands/ProofCommandModel.h"
+#include "Commands/ProofIngressBudget.h"
 #include "ProofPlayerController.generated.h"
+
+class AProofGameState;
 
 UCLASS()
 class REDALERTPROOF_API AProofPlayerController : public APlayerController
@@ -24,9 +27,31 @@ public:
     virtual void Tick(float DeltaSeconds) override;
     virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 private:
+    FProofIngressBudget IngressBudget;
+    bool bIngressFixture = false;
+    bool bIngressFlood = false;
+    bool bIngressHealthy = false;
+    bool bIngressSent = false;
+    bool bIngressSecondSent = false;
+    bool bIngressFailureBound = false;
+    int32 IngressAdmitted = 0;
+    double IngressFirstSeconds = 0.0;
+    FString IngressRelease;
+    void TickIngressFixture(AProofGameState* State);
+    void TickSkirmishObserver(AProofGameState* State);
+    void FinishSkirmishObserver(bool bPass, const TCHAR* Reason, int32 WinnerTeam);
     bool bAutomation = false;
     bool bControlsAutomation = false;
     bool bControlsObserver = false;
+    bool bSkirmishObserver = false;
+    bool bSkirmishObserverReady = false;
+    bool bSkirmishObserverRefinery = false;
+    bool bSkirmishObserverFactory = false;
+    bool bSkirmishObserverGathered = false;
+    bool bSkirmishObserverProduced = false;
+    int32 SkirmishObserverStep = 0;
+    int32 SkirmishObserverPendingSequence = INDEX_NONE;
+    float SkirmishObserverTerminalAt = -1.f;
     TMap<int32, FProofCommandResult> Receipts;
     int32 LastReceiptSequence = 0;
     FString ReceiptStatus = TEXT("No host receipt yet.");
