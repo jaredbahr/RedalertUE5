@@ -1,0 +1,41 @@
+# Integration recommendation
+
+Recommendation only: no PR, branch or default branch was merged, retargeted or closed during this inspection. Integration needs Jared's explicit approval. The working source remains isolated on D:; generated assets, captures, caches and binaries remain ignored.
+
+## Review and integration order
+
+GitHub PR metadata and local ancestry were checked against main `2a41dadc72b7bb1153925b1949cfba510518dd4c`. The following is the chosen gameplay chain, not a suggestion to merge every open PR independently:
+
+| Order | Draft PR / branch | Inspected head | Dependency / review focus |
+| --- | --- | --- | --- |
+| 1 | [#3](https://github.com/jaredbahr/RedalertUE5/pull/3) `feat/first-proof` | `68a5a76` | Based on main; original authored blockout pipeline and initial command experiment. Art approval remains separate. |
+| 2 | [#9](https://github.com/jaredbahr/RedalertUE5/pull/9) `feat/ue-command-proof` | `462d2fa` | Based on #3; native authoritative command/replication foundation. Review with the corrections carried by #14. |
+| 3 | [#14](https://github.com/jaredbahr/RedalertUE5/pull/14) `feat/integrated-controls-proof` | `4b07de6` | Based on #9; rendered controls and strict pursuit fixes, plus carried command-contract and asset-validation corrections. |
+| 4 | [#19](https://github.com/jaredbahr/RedalertUE5/pull/19) `feat/local-interactive-slice` | `fd7eb1f` | Based on #14; bounded local launcher/input/HUD. Physical input acceptance is not implied by scripted handler tests. |
+| 5 | [#25](https://github.com/jaredbahr/RedalertUE5/pull/25) `feat/small-skirmish` | `eb376db` | Based on #19; includes the ported owner-allocation and ingress protections before the small economy/bot loop. Review those protections here rather than merging their obsolete side branches wholesale. |
+| 6 | [#26](https://github.com/jaredbahr/RedalertUE5/pull/26) `feat/session-lifecycle` | `4b9da35` | Based on #25; teardown, seat reuse, epochs, terminal/rematch and measured legacy model baseline. |
+| 7 | [#27](https://github.com/jaredbahr/RedalertUE5/pull/27) `feat/group-controls` | `8f78dd0` | Based on the #26 source chain; bounded selection/groups and optional pan. The final #26 evidence-doc commits were carried as equivalent cherry-picks. |
+| 8 | [#28](https://github.com/jaredbahr/RedalertUE5/pull/28) `feat/fidelity-baseline` | `0173ff8` | Based on #27; sourced baseline and stationary idle fire with retained fixture failure/repair. |
+| 9 | `feat/input-binding-fixture` | Compiled/tested `2de35c3`; later documentation only (publication head in its PR metadata) | Based on #28; engine-input integration, explicit virtual-focus limits and capture evidence in [INPUT_BINDINGS.md](INPUT_BINDINGS.md). |
+
+Review the full chosen chain before integrating it; intermediate branches are historical partial proofs. Prefer retaining commits so stacked ancestry and tested source SHAs remain accessible. If a different merge strategy rewrites commits, reconcile each child's base and rerun the affected gates at the resulting source revision. Recheck target/head workflows and hooks before any approved publication; do not enable paid products, disable required checks or alter security settings to integrate.
+
+## Side branches: carried changes versus unique work
+
+| Draft / branch | Recommendation and evidence |
+| --- | --- |
+| [#8](https://github.com/jaredbahr/RedalertUE5/pull/8) `fix/command-contract-validation` (`ea1f9a3`) | Corrective prototype files are byte-identical to the copies in #14. The carried commit is `053bc7c`. Review the fix, then propose closing the old PR as superseded after the chosen chain lands; do not merge both histories blindly. |
+| [#10](https://github.com/jaredbahr/RedalertUE5/pull/10) `fix/asset-evidence-validation` (`42d518f`) | The nine-file geometry/stale-evidence fix was reworked as `70193c5` in #14. Compared asset source files match. The old branch is not an ancestor; treat it as carried implementation, preserving unique historical evidence. |
+| [#15](https://github.com/jaredbahr/RedalertUE5/pull/15) `fix/owner-allocation` (`9ef3770`) | Ported/adapted in #25 as `00f9f7c`, with subsequent lifecycle evolution. Owner ID helper and focused tests are byte-identical. The old branch also has unique historical publication notes; retain them as history, not a second runtime merge. |
+| [#20](https://github.com/jaredbahr/RedalertUE5/pull/20) `fix/rpc-ingress-budget` (`a7d41e6`) | Ported in #25 as `3c7723f` plus compile/link fixes and evidence. Ingress helper and focused tests match. Revalidate ingress at the integrated head; propose supersession after integration, without weakening the shared budget. |
+| [#13](https://github.com/jaredbahr/RedalertUE5/pull/13) `test/asset-negative-probes` (`3057fd2`) | **Not wholly superseded.** It contains unique palette refresh, corrupted-FBX probes, export-validation requirements and stale-negative-report invalidation absent from the gameplay chain. Keep it open. Prepare a separate reconciled art-validation change on top of the selected integration head and rerun its asset gates before accepting that pipeline. Do not silently discard it or overwrite newer gameplay files with its older tree. |
+| [#16](https://github.com/jaredbahr/RedalertUE5/pull/16) `docs/github-cost-guidance-20261016` (`d631272`) | Unique `AGENTS.md` contributor/fee guidance, based on #9. Review separately as instructions affecting future work. It was fetched/read for this recommendation and was not edited or copied into this branch. |
+| `docs/project-foundation` (`eeb12d2`) | Historical planning branch without a PR in the inspected list. The chosen chain already carries and evolves the project brief/decisions/milestones; reconcile any unique wording if desired rather than replacing current documents wholesale. |
+
+The final #26 documentation patches `694bc10` / `4b9da35` were carried into #27 as `d1275af` / `8b5ca74`; current `SESSION_LIFECYCLE.md` matches #26's final version. Reconcile this equivalent history if retargeting or rewriting the stack. Patch identity alone was not used to declare source equivalence: the owner/runtime ports adapt earlier context, and the asset-probe branch has demonstrably missing unique files.
+
+## Gates before accepting an integrated result
+
+Check exact resulting source, clean worktree and retained evidence; run the affected model/command/selection/fidelity tests, ingress and loopback consistency, input fixture with inspected captures, small-match Victory/Defeat/Coop and disconnect/rematch checks using the established bounded local runners. Do not substitute results from a different source hash. The separate art-validation lane requires its own geometry/negative-probe evidence. Preserve the distinction between injected input, simulated focus and actual physical desktop acceptance.
+
+No merge, issue closure, release, asset finishing, binary/LFS upload or hosted workflow run follows automatically from this recommendation. Final visual scale, original gameplay calibration, Internet conditions and a practical army budget remain open gates in MILESTONES.md.
