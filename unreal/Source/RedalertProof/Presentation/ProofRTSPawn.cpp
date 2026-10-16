@@ -5,6 +5,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
+#include "AssetCompilingManager.h"
 #include "InputCoreTypes.h"
 #include "Runtime/ProofGameState.h"
 #include "Runtime/ProofPlayerController.h"
@@ -13,6 +14,7 @@
 #include "HAL/FileManager.h"
 #include "HAL/IConsoleManager.h"
 #include "HAL/PlatformMisc.h"
+#include "HAL/PlatformTime.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
 #include "Misc/Paths.h"
@@ -33,6 +35,7 @@ AProofRTSPawn::AProofRTSPawn()
 void AProofRTSPawn::BeginPlay()
 {
     Super::BeginPlay();
+    bGraphicsWarmup = FParse::Param(FCommandLine::Get(), TEXT("ProofGraphicsWarmup"));
     // Optional generated content stays outside tracked source. Every record is
     // deliberately a generic proxy; there is no unit-kind field in this proof.
     if (GetNetMode() != NM_DedicatedServer)
@@ -121,6 +124,11 @@ void AProofRTSPawn::Tick(float DeltaSeconds)
     if (!bSelectionAliveAndOwned)
     {
         SelectedUnitId = INDEX_NONE;
+    }
+    if (bGraphicsWarmup)
+    {
+        TickGraphicsWarmup();
+        return;
     }
     if (PC->IsControlsAutomation()) TickControlsAutomation(DeltaSeconds);
 }
@@ -265,6 +273,40 @@ void AProofRTSPawn::Request(FProofCommand Command)
 
 void AProofRTSPawn::ZoomIn() { Camera->SetOrthoWidth(FMath::Max(2000.f, Camera->OrthoWidth - 500.f)); }
 void AProofRTSPawn::ZoomOut() { Camera->SetOrthoWidth(FMath::Min(18000.f, Camera->OrthoWidth + 500.f)); }
+
+void AProofRTSPawn::TickGraphicsWarmup()
+{
+    const APlayerController* PC = Cast<APlayerController>(GetController());
+    int32 Width = 0, Height = 0;
+    if (PC) PC->GetViewportSize(Width, Height);
+    const int32 Remaining = FAssetCompilingManager::Get().GetNumRemainingAssets();
+    const double Now = FPlatformTime::Seconds();
+    const bool bReady = Width == 1280 && Height == 720 && Remaining == 0;
+    if (!bReady)
+    {
+        WarmupIdleStart = -1.0;
+        WarmupIdleFrames = 0;
+    }
+    else
+    {
+        if (WarmupIdleStart < 0.0) WarmupIdleStart = Now;
+        ++WarmupIdleFrames;
+    }
+    const double IdleSeconds = WarmupIdleStart < 0.0 ? 0.0 : Now - WarmupIdleStart;
+    if (Now - WarmupLastLog >= 1.0)
+    {
+        UE_LOG(LogTemp, Display, TEXT("PROOF_GRAPHICS_WARMUP_PENDING remaining=%d idleSeconds=%.3f frames=%d width=%d height=%d"),
+            Remaining, IdleSeconds, WarmupIdleFrames, Width, Height);
+        WarmupLastLog = Now;
+    }
+    if (bReady && IdleSeconds >= 2.0 && WarmupIdleFrames >= 3)
+    {
+        UE_LOG(LogTemp, Display, TEXT("PROOF_GRAPHICS_WARMUP_COMPLETE status=pass remaining=0 idleSeconds=%.3f frames=%d width=%d height=%d"),
+            IdleSeconds, WarmupIdleFrames, Width, Height);
+        bGraphicsWarmup = false;
+        FPlatformMisc::RequestExitWithStatus(false, 0);
+    }
+}
 
 bool AProofRTSPawn::SetControlsCursorFromWorld(const FVector& Position)
 {

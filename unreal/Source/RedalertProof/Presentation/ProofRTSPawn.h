@@ -33,6 +33,10 @@ private:
     int32 SelectedUnitId = INDEX_NONE;
     bool bUsingBlockoutMesh = false;
     bool bConfiguredLocalInput = false;
+    bool bGraphicsWarmup = false;
+    double WarmupIdleStart = -1.0;
+    double WarmupLastLog = -1.0;
+    int32 WarmupIdleFrames = 0;
     bool bControlsCursor = false;
     FVector2D ControlsCursor = FVector2D::ZeroVector;
     int32 LastRequestedSequence = 0;
@@ -67,4 +71,5 @@ private:
     bool ControlsCheck(bool bCondition, const TCHAR* Evidence);
     void FinishControls(bool bPass, const TCHAR* Reason);
     void CaptureControls(const TCHAR* Name);
+    void TickGraphicsWarmup();
 };

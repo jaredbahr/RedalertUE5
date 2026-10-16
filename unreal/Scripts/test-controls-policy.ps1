@@ -66,8 +66,9 @@ LogDerivedDataCache: Verbose: ../../../Engine/DerivedDataCache/Compressed.ddp: C
 LogDerivedDataCache: Verbose: D:/UE/Engine/DerivedDataCache/Compressed.ddp: Cache hit for MaterialShaderMap/key from 'Material Fixture'
 LogDerivedDataCache: Verbose: D:/UE/Engine/DerivedDataCache/DDC.ddp: Cache hit for Other/key from 'Texture Fixture'
 LogDerivedDataCache: Verbose: D:/OtherProject/Cache.ddp: Cache hit for GlobalShaderMap/key from 'Foreign Fixture'
+LogDerivedDataCache: Verbose: D:/UE/Engine/DerivedDataCache/Compressed.ddp: Cache hit for LegacyTEXTURE/key from '/Engine/EngineMaterials/Texture Fixture'
 LogDerivedDataCache: D:/UE/Engine/DerivedDataCache/Compressed.ddp opened for reading
 '@
 $cacheEvidence=Get-PakCacheEvidence $cacheSample
-if($cacheEvidence.allDdpHitCount -ne 4 -or $cacheEvidence.enginePakHitCount -ne 3 -or $cacheEvidence.globalShaderHitCount -ne 1 -or $cacheEvidence.materialShaderHitCount -ne 1 -or $cacheEvidence.otherEnginePakHitCount -ne 1) { throw 'Pak hit diagnostics counted opens/foreign paths or misclassified examples.' }
+if($cacheEvidence.allDdpHitCount -ne 5 -or $cacheEvidence.enginePakHitCount -ne 4 -or $cacheEvidence.globalShaderHitCount -ne 1 -or $cacheEvidence.materialRelatedHitCount -ne 2 -or $cacheEvidence.otherEnginePakHitCount -ne 1) { throw 'Pak hit diagnostics counted opens/foreign paths or misclassified examples.' }
 [pscustomobject]@{passed=$true;tests=@('owned_parent_and_child_policy','foreign_worker_untouched','affinity_reset_repaired_and_recorded','reused_pid_untouched','metadata_failure_closed','cleanup_failure_continues_parent_first_and_restores','cleanup_exit_race_ignored','actual_pak_hit_diagnostics_exclude_open_and_foreign_path');realProcessesMutated=$false;ueLaunched=$false} | ConvertTo-Json

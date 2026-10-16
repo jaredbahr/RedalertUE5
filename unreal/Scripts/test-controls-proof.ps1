@@ -52,7 +52,7 @@ $result.cpuPolicy.eventsTruncated=$false
 $result.cpuPolicy.discoveryError=$null
 $result.cleanup=[ordered]@{errors=@();ignoredExitRaces=0;parentsFirst=$true}
 $result.commandRequests=@()
-$result.cacheDiagnostics=[ordered]@{verboseEnabled=$true;diagnosticOnly=$true;classification='Engine/DerivedDataCache/*.ddp path; global/material request-name or key text';byProcess=@{};readErrors=@()}
+$result.cacheDiagnostics=[ordered]@{verboseEnabled=$true;diagnosticOnly=$true;classification='Engine/DerivedDataCache/*.ddp path; global only GlobalShaderMap/ keys; material-related request/key text may include textures';byProcess=@{};readErrors=@()}
 $workerExe=Join-Path $EngineRoot 'Engine\Binaries\Win64\ShaderCompileWorker.exe'
 $names=@('UE-LocalDataCachePath','UE-SharedDataCachePath','TEMP','TMP')
 function Mark-Stage([string]$Name) { $result.stages[$Name]=[ordered]@{utc=[DateTime]::UtcNow.ToString('o');elapsedSeconds=[math]::Round($watch.Elapsed.TotalSeconds,3)} }
@@ -134,18 +134,18 @@ function Stop-OwnedProcesses {
 }
 function Get-PakCacheEvidence([string]$Log) {
     $hits=[regex]::Matches($Log,"(?m)^.*LogDerivedDataCache:\s*(?:Verbose:\s*)?(?<path>[^\r\n]*?\.ddp): Cache hit for (?<key>\S+) from '(?<request>[^']*)'")
-    $evidence=[ordered]@{allDdpHitCount=$hits.Count;enginePakHitCount=0;globalShaderHitCount=0;materialShaderHitCount=0;otherEnginePakHitCount=0;globalExamples=@();materialExamples=@();otherExamples=@()}
+    $evidence=[ordered]@{allDdpHitCount=$hits.Count;enginePakHitCount=0;globalShaderHitCount=0;materialRelatedHitCount=0;otherEnginePakHitCount=0;globalExamples=@();materialExamples=@();otherExamples=@()}
     foreach($hit in $hits) {
         $path=$hit.Groups['path'].Value.Replace('\','/').Trim()
         if($path -notmatch '(^|/)Engine/DerivedDataCache/(Compressed|DDC)\.ddp$') { continue }
         $evidence.enginePakHitCount++
         $key=$hit.Groups['key'].Value; $request=$hit.Groups['request'].Value
         $example=@{cachePath=$path;key=$key;request=$request}
-        if(($key+' '+$request) -match 'global.?shader') {
+        if($key -match '^GlobalShaderMap/') {
             $evidence.globalShaderHitCount++
             if($evidence.globalExamples.Count -lt 3){$evidence.globalExamples+=$example}
         } elseif(($key+' '+$request) -match 'material') {
-            $evidence.materialShaderHitCount++
+            $evidence.materialRelatedHitCount++
             if($evidence.materialExamples.Count -lt 3){$evidence.materialExamples+=$example}
         } else {
             $evidence.otherEnginePakHitCount++
@@ -202,12 +202,11 @@ try {
             Start-Sleep -Milliseconds 200
         } while ($true)
     }
-    # ExecCmds is queued in UEngine::Init and executed by the engine loop's
-    # TickDeferredCommands after initialization. This warms startup shaders/RHI;
-    # it is neither a screenshot check nor controls acceptance.
+    # Warmup waits for a valid viewport and asset-compilation idle interval;
+    # first-frame deferred quit can race shader cancellation/RHI shutdown.
     $result.warmup.startedUtc=[DateTime]::UtcNow.ToString('o')
     $warmupWatch=[Diagnostics.Stopwatch]::StartNew()
-    Start-Controls 'warmup' '/Game/CommandProofGenerated/Maps/CommandProof' @('-game','-RenderOffscreen','-windowed','-ResX=1280','-ResY=720','-ExecCmds="quit"') 4
+    Start-Controls 'warmup' '/Game/CommandProofGenerated/Maps/CommandProof' @('-game','-RenderOffscreen','-windowed','-ResX=1280','-ResY=720','-ProofGraphicsWarmup') 4
     try {
         while(-not $processes[0].Process.HasExited) {
             Check-StorageBudget
@@ -218,6 +217,9 @@ try {
         if($processes[0].Process.ExitCode -ne 0) { throw "Graphics warmup exited $($processes[0].Process.ExitCode)." }
         $warmupLog=Get-Content -LiteralPath $processes[0].Log -Raw
         if($warmupLog -notmatch 'LogRHI:.*(Using Default RHI|RHI Name)' -or $warmupLog -notmatch 'LogLoad:.*LoadMap') { throw 'Warmup exited without expected RHI/map initialization evidence.' }
+        $idleEvidence=[regex]::Match($warmupLog,'PROOF_GRAPHICS_WARMUP_COMPLETE status=pass remaining=0 idleSeconds=([\d.]+) frames=(\d+) width=1280 height=720')
+        if(-not $idleEvidence.Success -or [double]::Parse($idleEvidence.Groups[1].Value,[Globalization.CultureInfo]::InvariantCulture) -lt 2 -or [int]$idleEvidence.Groups[2].Value -lt 3) { throw 'Warmup missing zero-assets idle/viewport completion evidence.' }
+        $result.warmup.idleEvidence=$idleEvidence.Value
         $result.warmup.passed=$true
         Mark-Stage 'warmupCompleted'
     } finally {
