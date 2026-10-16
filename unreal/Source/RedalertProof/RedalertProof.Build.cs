@@ -6,6 +6,7 @@ public class RedalertProof : ModuleRules
     {
         PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
         PublicIncludePaths.Add(ModuleDirectory);
+        PrivateDependencyModuleNames.Add("NetCore");
         PublicDependencyModuleNames.AddRange(new[] { "Core", "CoreUObject", "Engine", "InputCore" });
     }
 }
