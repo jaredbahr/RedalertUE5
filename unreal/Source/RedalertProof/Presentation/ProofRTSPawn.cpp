@@ -86,7 +86,7 @@ void AProofRTSPawn::SetupPlayerInputComponent(UInputComponent* Input)
     }
     if (bInputBindingFixture || FParse::Param(FCommandLine::Get(), TEXT("ProofInputBindingFixture")))
         UE_LOG(LogTemp, Display, TEXT("PROOF_INPUT_BINDING_INPUT_SETUP componentId=%u bindings=%d registered=%d"),
-            Input->GetUniqueID(), Input->GetNumKeyBindings(), Input->IsRegistered());
+            Input->GetUniqueID(), Input->KeyBindings.Num(), Input->IsRegistered());
 }
 
 void AProofRTSPawn::Tick(float DeltaSeconds)

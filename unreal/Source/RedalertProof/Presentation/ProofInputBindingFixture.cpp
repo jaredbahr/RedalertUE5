@@ -24,11 +24,10 @@
 FString AProofRTSPawn::GetInputFixtureBootstrapJson() const
 {
     const AProofPlayerController* PC = Cast<AProofPlayerController>(GetController());
-    const UGameViewportClient* ViewportClient = GetWorld()->GetGameViewport();
+    UGameViewportClient* ViewportClient = GetWorld()->GetGameViewport();
     bool bRBound = false;
-    if (InputComponent) for (int32 Index = 0; Index < InputComponent->GetNumKeyBindings(); ++Index)
+    if (InputComponent) for (const FInputKeyBinding& Binding : InputComponent->KeyBindings)
     {
-        const FInputKeyBinding& Binding = InputComponent->GetKeyBinding(Index);
         bRBound |= Binding.Chord.Key == EKeys::R && Binding.KeyEvent == IE_Pressed && Binding.KeyDelegate.IsBound();
     }
     return FString::Printf(TEXT("{\"controlledPawnMatches\":%s,\"acknowledgedPawnMatches\":%s,")
