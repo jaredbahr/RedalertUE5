@@ -21,6 +21,7 @@ private:
 
     TMap<int32, FIssuedOrder> IssuedOrders;
     int32 NextSequence = 1;
+    int32 LastAttackUnitId = INDEX_NONE;
     double FirstDecisionAt = 0.0;
     double NextDecisionAt = 0.0;
     double LastObservedAt = 0.0;

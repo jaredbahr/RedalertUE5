@@ -137,6 +137,45 @@ bool FProofSkirmishHarvestTest::RunTest(const FString&)
     return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FProofSkirmishInterruptedCargoTest, "RedalertProof.Skirmish.Economy.InterruptedFinalCargo", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FProofSkirmishInterruptedCargoTest::RunTest(const FString&)
+{
+    FProofCommandModel Model;
+    Model.StartSkirmish();
+    TestTrue(TEXT("Seed worker"), Model.SeedSkirmishPlayer(1, 0, FVector::ZeroVector));
+    const FProofSnapshot Opening = Model.GetSnapshot();
+    const int32 Harvester = FirstKind(Opening, 1, EProofUnitKind::Harvester);
+    const int32 Ore = Opening.Resources[0].ResourceId;
+    TestTrue(TEXT("Build own refinery"), Model.Submit(1, Command(1, EProofCommandType::BuildRefinery, INDEX_NONE, INDEX_NONE, FVector(300, 0, 0))).bAccepted);
+    TestTrue(TEXT("Gather finite patch"), Model.Submit(1, Command(2, EProofCommandType::Gather, Harvester, Ore)).bAccepted);
+    Model.Advance(3.f);
+    Model.Advance(2.f);
+    for (int32 Trip = 0; Trip < 8; ++Trip)
+    {
+        Model.Advance(2.f);
+        Model.Advance(2.f);
+    }
+    Model.Advance(2.f);
+    const FProofSnapshot FinalLoad = Model.GetSnapshot();
+    TestEqual(TEXT("Final extraction exhausts patch"), FinalLoad.Resources[0].Remaining, 0);
+    TestEqual(TEXT("Last load still needs deposit"), UnitById(FinalLoad, Harvester)->Cargo, 50);
+    TestEqual(TEXT("Only delivered ore earned"), PlayerById(FinalLoad, 1)->TotalGathered, 450);
+    TestTrue(TEXT("Move can interrupt return"), Model.Submit(1, Command(3, EProofCommandType::Move, Harvester, INDEX_NONE, FVector(550, 300, 0))).bAccepted);
+    Model.Advance(2.f);
+    TestEqual(TEXT("Move grants no deposit"), PlayerById(Model.GetSnapshot(), 1)->TotalGathered, 450);
+    TestTrue(TEXT("Loaded harvester can resume from depleted patch"), Model.Submit(1, Command(4, EProofCommandType::Gather, Harvester, Ore)).bAccepted);
+    TestTrue(TEXT("Repeated resume accepted without minting cargo"), Model.Submit(1, Command(5, EProofCommandType::Gather, Harvester, Ore)).bAccepted);
+    Model.Advance(3.f);
+    const FProofSnapshot Deposited = Model.GetSnapshot();
+    TestEqual(TEXT("Resumed return empties final cargo"), UnitById(Deposited, Harvester)->Cargo, 0);
+    TestEqual(TEXT("All extracted ore deposited once"), PlayerById(Deposited, 1)->TotalGathered, 500);
+    TestEqual(TEXT("Exactly starting credits minus refinery plus finite ore"), PlayerById(Deposited, 1)->Credits, 750);
+    TestEqual(TEXT("Empty harvester still cannot gather depleted patch"), Model.Submit(1, Command(6, EProofCommandType::Gather, Harvester, Ore)).Reason, FString(TEXT("resource")));
+    Model.Advance(20.f);
+    TestEqual(TEXT("No further income after final deposit"), PlayerById(Model.GetSnapshot(), 1)->Credits, 750);
+    TestEqual(TEXT("Ore remains nonnegative"), Model.GetSnapshot().Resources[0].Remaining, 0);
+    return true;
+}
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FProofSkirmishDeterminismTest, "RedalertProof.Skirmish.Economy.DeterminismAndTerminal", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FProofSkirmishDeterminismTest::RunTest(const FString&)
 {

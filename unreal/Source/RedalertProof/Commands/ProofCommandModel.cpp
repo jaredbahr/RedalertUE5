@@ -309,7 +309,9 @@ FProofCommandResult FProofCommandModel::Submit(int32 TrustedOwnerId, const FProo
         else
         {
             const FProofResourceRecord* Resource = State.Resources.FindByPredicate([&Command](const FProofResourceRecord& R) { return R.ResourceId == Command.TargetUnitId; });
-            if (!Resource || Resource->Remaining <= 0) { return Reject(TEXT("resource")); }
+            // A loaded harvester may resume its return after a Move interrupts
+            // Gather, including after its final extraction depleted the patch.
+            if (!Resource || (Resource->Remaining <= 0 && Unit->Cargo <= 0)) { return Reject(TEXT("resource")); }
             if (!FindLiveRefinery(TrustedOwnerId, Unit->Position)) { return Reject(TEXT("refinery")); }
             Order.TargetUnitId = Command.TargetUnitId;
             Order.bReturning = Unit->Cargo > 0;

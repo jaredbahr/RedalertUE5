@@ -400,7 +400,7 @@ void AProofRTSPawn::OrderUnderCursor()
             for (const FProofResourceRecord& Resource : GS->Snapshot.Resources)
             {
                 FVector2D Screen;
-                if (Resource.Remaining > 0 && PC->ProjectWorldLocationToScreen(Resource.Position, Screen))
+                if ((Resource.Remaining > 0 || Selected->Cargo > 0) && PC->ProjectWorldLocationToScreen(Resource.Position, Screen))
                 {
                     const double Distance = FVector2D::DistSquared(Pointer, Screen);
                     if (Distance < BestDistance) { BestDistance = Distance; ResourceId = Resource.ResourceId; }

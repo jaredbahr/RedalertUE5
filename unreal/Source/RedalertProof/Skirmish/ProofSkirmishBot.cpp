@@ -196,9 +196,21 @@ TArray<FProofCommand> FProofSkirmishBot::Decide(const FProofSnapshot& Snapshot, 
 
     if (NowSeconds - FirstDecisionAt >= AttackGraceSeconds)
     {
-        for (const FProofUnitRecord* Attacker : OwnUnits)
+        // Resume after the last issued attack so changing nearest targets
+        // cannot consume every decision's budget on the lowest IDs forever.
+        int32 FirstAttackerIndex = 0;
+        for (int32 Index = 0; Index < OwnUnits.Num(); ++Index)
+        {
+            if (OwnUnits[Index]->UnitId > LastAttackUnitId)
+            {
+                FirstAttackerIndex = Index;
+                break;
+            }
+        }
+        for (int32 Offset = 0; Offset < OwnUnits.Num(); ++Offset)
         {
             if (Commands.Num() >= MaxCommandsPerDecision) { break; }
+            const FProofUnitRecord* Attacker = OwnUnits[(FirstAttackerIndex + Offset) % OwnUnits.Num()];
             if (Attacker->Kind != EProofUnitKind::Combat) { continue; }
             const FProofUnitRecord* Target = nullptr;
             double BestDistance = 0.0;
@@ -228,6 +240,7 @@ TArray<FProofCommand> FProofSkirmishBot::Decide(const FProofSnapshot& Snapshot, 
                 Issued.Type = EProofCommandType::Attack;
                 Issued.TargetId = Target->UnitId;
                 Issued.IssuedAt = NowSeconds;
+                LastAttackUnitId = Attacker->UnitId;
             }
         }
     }
@@ -238,6 +251,7 @@ void FProofSkirmishBot::Reset()
 {
     IssuedOrders.Reset();
     NextSequence = 1;
+    LastAttackUnitId = INDEX_NONE;
     FirstDecisionAt = 0.0;
     NextDecisionAt = 0.0;
     LastObservedAt = 0.0;

@@ -131,6 +131,39 @@ bool FProofSkirmishBotPlannerTest::RunTest(const FString&)
     AtCap.Players[0].Credits = 500;
     FProofSkirmishBot CappedBot;
     TestEqual(TEXT("Twelve live records prevent production"), CappedBot.Decide(AtCap, 100, 0.0).Num(), 0);
+
+    // An opponent alternates which live target is nearest each second. Without
+    // fair rotation the first four combat IDs retarget forever and the other
+    // four never receive an order, despite remaining eligible throughout.
+    FProofSkirmishBot FairBot;
+    FProofSkirmishBot SameFairBot;
+    TestEqual(TEXT("Fairness fixture starts before attack grace"), FairBot.Decide(AtCap, 100, 0.0).Num(), 0);
+    SameFairBot.Decide(AtCap, 100, 0.0);
+    TSet<int32> OrderedCombatIds;
+    TArray<FProofCommand> FirstFairBatch;
+    for (int32 Decision = 0; Decision < 4; ++Decision)
+    {
+        AtCap.Units[3].Position = FVector(Decision % 2 == 0 ? 900 : 2100, 0, 0);
+        const TArray<FProofCommand> Batch = FairBot.Decide(AtCap, 100, 20.0 + Decision);
+        TestTrue(TEXT("Fair scheduling remains deterministic"),
+            SameCommands(Batch, SameFairBot.Decide(AtCap, 100, 20.0 + Decision)));
+        TestTrue(TEXT("Moving-target decision remains bounded"), Batch.Num() <= 4);
+        for (const FProofCommand& Command : Batch)
+        {
+            TestTrue(TEXT("Capped fixture emits only attacks"), Command.Type == EProofCommandType::Attack);
+            OrderedCombatIds.Add(Command.UnitId);
+        }
+        if (Decision == 0) { FirstFairBatch = Batch; }
+        if (Decision == 1)
+        {
+            TestEqual(TEXT("All eight combat units get orders within two changing-target decisions"), OrderedCombatIds.Num(), 8);
+        }
+    }
+    FairBot.Reset();
+    FairBot.Decide(AtCap, 100, 0.0);
+    AtCap.Units[3].Position = FVector(900, 0, 0);
+    TestTrue(TEXT("Reset restores fair scheduling cursor and sequence"),
+        SameCommands(FirstFairBatch, FairBot.Decide(AtCap, 100, 20.0)));
     return true;
 }
 

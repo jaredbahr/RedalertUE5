@@ -148,16 +148,12 @@ void AProofHUD::DrawHUD()
     {
         for (const FProofResourceRecord& Resource : GS->Snapshot.Resources)
         {
-            if (Resource.Remaining <= 0)
-            {
-                continue;
-            }
             FVector2D Screen;
             if (!PC->ProjectWorldLocationToScreen(Resource.Position, Screen))
             {
                 continue;
             }
-            const FLinearColor MarkerColor(0.25f, 0.88f, 1.f);
+            const FLinearColor MarkerColor = Resource.Remaining > 0 ? FLinearColor(0.25f, 0.88f, 1.f) : FLinearColor(0.5f, 0.55f, 0.6f);
             DrawLine(Screen.X - 7.f, Screen.Y, Screen.X + 7.f, Screen.Y, MarkerColor, 2.f);
             DrawLine(Screen.X, Screen.Y - 7.f, Screen.X, Screen.Y + 7.f, MarkerColor, 2.f);
             const float ResourceLabelScale = 0.86f * UiScale;
