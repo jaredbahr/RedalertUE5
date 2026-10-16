@@ -45,6 +45,8 @@ Prepared local diagnostics sample on a monotonic one-second interval, force a fi
 
 Fifteen light PowerShell parser checks passed against retained logs and explicitly synthetic diagnostic records, including valid-prefix recovery and the input-bootstrap mask bit. They are not UE execution evidence. `-IsolatedCache` uses a fresh run directory before the unchanged warmup while retaining the engine read-only pak. No existing cache is cleared. Stage/client/scenario/warmup limits remain 60/175/180/300 seconds.
 
+Reproduce the 15 parser cases without UE or retained local logs using `./unreal/Scripts/test-input-startup-parser.ps1`. This extracts only the parser function via the PowerShell AST and supplies synthetic records; it does not execute the runner, create caches, or write result files. Its successful output is parser evidence only.
+
 ### Reproduced input-bootstrap race and pending fix validation
 
 At clean `8cac8c7`, retained run `input-bindings-20261016-231245-284` established a separate stage-1 race: READY at frame 13 had no pawn input component, registration, R binding or completed input-stack frame. R press/release entered PlayerInput at frames 14/18; pawn binding setup occurred only at frame 23. No Build callback occurred before the unchanged stage deadline. Independent review confirmed injection preceded binding setup. This explains this reproduced stage-1 failure, not the original `7f6ce38` stage-zero failure.
