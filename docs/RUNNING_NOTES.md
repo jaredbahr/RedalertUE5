@@ -30,3 +30,13 @@ Packaged the inspected normal/wide PNGs as byte-identical copies under ignored `
 Library saving was attempted through the current supported prepared-upload helper. It stopped before transfer/finalization with `Library prepare_uploads is not available`; no Library item IDs were confirmed. Retain all three local delivery files and captures. Do not upload binaries to public GitHub as a delivery workaround. This is a delivery-environment blocker, not a reproduced game bug.
 
 The six command tests and two-client TCP experiment run outside UE in Node. They validate shared human/bot command rules, rejected invalid/ownership/resource/sequence requests, configurable command limits, host-owned damage and matching loopback snapshots. They do not prove UE replication, internet sessions, skirmish AI or a practical large-army budget.
+
+## Command-contract review fixes
+
+Reproduced two review findings in the Node toy prototype: an array command type `['attack']` was accepted through property-key coercion; mutual attackers starting 2.5 units apart observed partially applied movement, ending at 0/10 HP depending on insertion order. Exact string-enum validation now precedes field lookup. Tick phases derive movement from one starting snapshot, commit all movement, then derive damage from one post-movement snapshot and apply it together.
+
+Validation: all nine Node tests passed with approved localhost access, including array/object/null rejection directly and over TCP, unchanged state/sequence after malformed envelopes, and mirrored physical duels that swap insertion order. The separate 24-tick/two-client smoke matched all 48 host snapshot copies with movement, combat and bot commands combined. These remain outside-UE loopback correctness checks, not internet or scalability results. No transport redesign or art changes were included.
+
+Next: review the focused fix diff; continue engine-native command validation separately. Connection-slot identity, exact-next sequence/ack handling, transport ingress limits, client buffering and disconnect handling remain controlled-fixture limitations before any production adapter.
+
+Tracked reproduced defects: [non-string enum acceptance #4](https://github.com/jaredbahr/RedalertUE5/issues/4) and [movement/combat ordering #5](https://github.com/jaredbahr/RedalertUE5/issues/5). Root independently reran all nine regressions successfully before this focused fix was proposed.
