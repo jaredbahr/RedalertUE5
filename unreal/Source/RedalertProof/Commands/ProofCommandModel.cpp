@@ -435,6 +435,13 @@ void FProofCommandModel::Advance(float DeltaSeconds)
         const double Distance = Offset.Size();
         const bool bAttackOrder = Order->Type == EProofCommandType::Attack;
         const bool bNeedsMovement = bAttackOrder ? !IsWithinProofAttackRange(Unit.Position, Destination) : Distance > StopDistance;
+        if (State.bSkirmish && Order->Type == EProofCommandType::Move && Distance <= UE_SMALL_NUMBER)
+        {
+            // Even a representable sub-epsilon Move must finish. Avoid a
+            // division by a tiny distance and leave the legacy path unchanged.
+            State.Units[Index].Position = Destination;
+            continue;
+        }
         if (bNeedsMovement && Distance > UE_SMALL_NUMBER)
         {
             const double Remaining = FMath::Max(0.0, Distance - StopDistance);

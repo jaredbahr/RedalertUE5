@@ -127,6 +127,15 @@ bool FProofIdleOrdersTest::RunTest(const FString&)
     Fractional.Advance(1.f);
     TestEqual(TEXT("Fractional diagonal Move lands exactly at requested endpoint"), IdleCombatUnit(Fractional.GetSnapshot(), FractionalCombat).Position, Destination);
     TestEqual(TEXT("Fractional completed Move is eligible for idle fire"), IdleCombatUnit(Fractional.GetSnapshot(), IdleCombatKind(Fractional.GetSnapshot(), 2, EProofUnitKind::HQ)).HitPoints, 275.f);
+    const FVector TinyDestination = Destination + FVector(1.e-10, 0, 0);
+    TestTrue(TEXT("Tiny endpoint is distinct but below movement division threshold"),
+        TinyDestination != Destination && FVector::Dist(TinyDestination, Destination) < UE_SMALL_NUMBER);
+    TestTrue(TEXT("Tiny Move accepted"), Fractional.Submit(1,
+        IdleCombatOrder(4, EProofCommandType::Move, FractionalCombat, INDEX_NONE, TinyDestination)).bAccepted);
+    Fractional.Advance(1.f);
+    TestEqual(TEXT("Sub-epsilon Move completes exactly without division"), IdleCombatUnit(Fractional.GetSnapshot(), FractionalCombat).Position, TinyDestination);
+    TestEqual(TEXT("Sub-epsilon completed Move cannot permanently suppress idle fire"),
+        IdleCombatUnit(Fractional.GetSnapshot(), IdleCombatKind(Fractional.GetSnapshot(), 2, EProofUnitKind::HQ)).HitPoints, 250.f);
     return true;
 }
 
