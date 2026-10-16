@@ -73,3 +73,17 @@ Targeted fixes addressed omitted installed EnginePak cache, unsafe first-frame w
 Actual optimized shader mode1,30FPS cap and literal-only client setup were observed. Peak D: cache/temp37,369,645/12,472bytes;78policy polls/14affinity repairs, no cleanup errors; no owned UE process remains. Across06:29:33->06:48:03, seven audited C: roots had zero net changes; D3DSCache shrank123944bytes with unchanged file count. Shared totals do not prove zero writes or sole attribution.
 
 This proves a small scripted functional fixture with sampled three-party agreement, not continuous participation, physical input/focus, internet sessions, skirmish bots or an army budget. Retain blockout approval before finishing art, and #11/#12 lifecycle/ingress follow-ups. Main remains unchanged; draft integration only.
+
+## Evidence handoff and next independent slice
+
+Executed clean source SHA: `f836d939a9093ae320fa425db5b6d2705571ad06`. Published draft #14 initially recorded this at documentation head `4517e5a95326582480d73ccc20c002f8760a8b86`; later handoff documentation does not change the tested implementation. Exact test totals:4/4native groups,8/8runner helper cases,4typed requests/accepted receipts,53matching three-party revisions,2validated and visually inspected PNGs. Result: generated/controls-20261016-064537-040/result.json.
+
+Preserved capture paths:
+- D:/UserTemp/RedalertUE5-integrated-controls/generated/controls-20261016-064537-040/screenshots/01-selected.png
+- D:/UserTemp/RedalertUE5-integrated-controls/generated/controls-20261016-064537-040/screenshots/02-moved-combat-produced.png
+
+Resource measurements/configuration:1280x720, actual30FPS cap; two logical CPUs assigned to owned UE processes with78policy polls/14reset repairs (not continuous hard confinement). Peak observed writable D: cache37,369,645bytes and run temp12,472bytes; these soft polling measurements exclude Saved/Intermediate, installed EnginePak and driver caches. Peak RAM, CPU utilization and attributable GPU load were not measured in the successful run. C: baseline/post results and remaining validation limits are above.
+
+Library image delivery was checked with the current supported skill/actions and refreshed official helper. One ordered2image attempt returned `Library prepare_uploads is not available`, with no confirmed Library IDs. No retry or alternate upload was attempted. The existing image bytes remain local/ignored; no binaries were added to GitHub.
+
+Proposed next small independent work: the disjoint owner-allocation slice of existing issue #11. Replace unchecked human NextOwnerId++ with server-derived allocation that excludes reserved bot owner100 and fails safely at numeric exhaustion. Focused tests should cover the99/100boundary, uniqueness across repeated allocations, unchanged bot ownership/resources and no overflow, preserving initial human IDs1/2 used by fixtures. Keep disconnect/reconnect policy as separate remaining work. This is a proposed next task, not implemented or a reason to expand the art roster. No merge is authorized by this handoff.
