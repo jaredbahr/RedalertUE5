@@ -44,8 +44,11 @@ function Invoke-BoundedStage([string]$Name, [string]$Executable, [string[]]$Argu
         $stage.pid = $process.Id
         $ownedStart = $process.StartTime.ToUniversalTime()
         $ownedPath = $process.MainModule.FileName
-        $waitMilliseconds = [int](1000 * [Math]::Min($ProcessTimeoutSeconds, $remaining))
-        if (-not $process.WaitForExit($waitMilliseconds)) {
+        $stageDeadlineSeconds = [Math]::Min($ProcessTimeoutSeconds, $remaining)
+        while (-not $process.HasExited -and $stageClock.Elapsed.TotalSeconds -lt $stageDeadlineSeconds) {
+            Start-Sleep -Milliseconds 200
+        }
+        if (-not $process.HasExited) {
             $stage.timed_out = $true
             # Kill only this invocation's still-identical process, never by name/tree/project.
             $current = Get-Process -Id $process.Id -ErrorAction SilentlyContinue
@@ -88,6 +91,8 @@ try {
     $result.actual_cases = @($proof.cases)
     $result.restoration_verified = ($proof.restored_original_inputs_and_colors -eq $true)
     if ($proof.passed -ne $true -or -not $result.restoration_verified -or $proof.run_id -ne $manifest.run_id -or $proof.source_sha256 -ne $manifest.source_sha256) { throw 'Current proof identity/restoration check failed' }
+    $caseNames = @($proof.cases | ForEach-Object { $_.case } | Sort-Object)
+    if (($caseNames -join ',') -ne 'palette_change,pivot_z_offset,vertex_z_offset' -or @($proof.cases | Where-Object { $_.passed -ne $true }).Count) { throw 'Expected exactly three successful negative/material cases' }
     if ((& git -C $repoRoot rev-parse HEAD | Out-String).Trim() -ne $head) { throw 'HEAD changed during run' }
     $result.passed = $true
 } catch {
