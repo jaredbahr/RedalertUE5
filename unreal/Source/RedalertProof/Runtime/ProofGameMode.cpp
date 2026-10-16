@@ -16,6 +16,7 @@ AProofGameMode::AProofGameMode()
     DefaultPawnClass = AProofRTSPawn::StaticClass();
     HUDClass = AProofHUD::StaticClass();
     bAutomation = FParse::Param(FCommandLine::Get(), TEXT("ProofAutomation"));
+    bControlsAutomation = FParse::Param(FCommandLine::Get(), TEXT("ProofControlsAutomation"));
 }
 
 void AProofGameMode::BeginPlay()
@@ -23,9 +24,18 @@ void AProofGameMode::BeginPlay()
     Super::BeginPlay();
     Model.AddPlayer(100);
     BotMover = Model.SeedUnit(100, FVector(0.f, 1000.f, 0.f));
-    BotAttacker = Model.SeedUnit(100, FVector(0.f, 150.f, 0.f));
+    const FVector AttackerStart = bControlsAutomation ? FVector(600.f, 600.f, 0.f) : FVector(0.f, 150.f, 0.f);
+    BotAttacker = Model.SeedUnit(100, AttackerStart);
     InitialPositions.Add(BotMover, FVector(0.f, 1000.f, 0.f));
-    InitialPositions.Add(BotAttacker, FVector(0.f, 150.f, 0.f));
+    InitialPositions.Add(BotAttacker, AttackerStart);
+    if (bControlsAutomation)
+    {
+        // A separate stationary record gives the graphical human command test
+        // an isolated combat target. It has no scripted bot order.
+        const int32 ControlsTarget = Model.SeedUnit(100, FVector::ZeroVector);
+        InitialPositions.Add(ControlsTarget, FVector::ZeroVector);
+        UE_LOG(LogTemp, Display, TEXT("PROOF_CONTROLS_TARGET unit=%d owner=100"), ControlsTarget);
+    }
     Publish();
     UE_LOG(LogTemp, Display, TEXT("PROOF_READY automation=%d"), bAutomation);
 }
@@ -51,6 +61,13 @@ void AProofGameMode::PostLogin(APlayerController* NewPlayer)
 FProofCommandResult AProofGameMode::SubmitForOwner(int32 TrustedOwnerId, const FProofCommand& Command)
 {
     FProofCommandResult Result = Model.Submit(TrustedOwnerId, Command);
+    if (bControlsAutomation && Result.bAccepted && TrustedOwnerId != 100 && Command.Type == EProofCommandType::Attack)
+    {
+        // Conservatively discard attribution if another source could damage
+        // this scenario's passive target at any point after bot start.
+        HumanAttackTargets.Add(Command.TargetUnitId);
+        if (Command.TargetUnitId == BotTarget) bBotTargetExclusive = false;
+    }
     if (TrustedOwnerId == 100 && Result.bAccepted) ++BotAccepted;
     if (TrustedOwnerId != 100 && Result.bAccepted) ++HumanAccepted;
     if (TrustedOwnerId != 100 && Command.Sequence == 4 && !Result.bAccepted && Result.Reason == TEXT("ownership")) ++RejectedOwnership;
@@ -61,16 +78,19 @@ FProofCommandResult AProofGameMode::SubmitForOwner(int32 TrustedOwnerId, const F
 
 void AProofGameMode::StartBotIfReady()
 {
-    if (bBotStarted || !bAutomation) return;
+    if (bBotStarted || (!bAutomation && !bControlsAutomation)) return;
     const FProofSnapshot Snapshot = Model.GetSnapshot();
     int32 HumanCount = 0, Target = INDEX_NONE;
     for (const FProofPlayerRecord& Player : Snapshot.Players)
         if (Player.OwnerId != 100) ++HumanCount;
     if (HumanCount < 2) return;
     for (const FProofUnitRecord& Unit : Snapshot.Units)
-        if (Unit.OwnerId == 1) { Target = Unit.UnitId; break; }
+        if (Unit.OwnerId == (bControlsAutomation ? 2 : 1)) { Target = Unit.UnitId; break; }
     if (Target == INDEX_NONE) return;
+    if (bControlsAutomation) bControlsInitialCountsValid = LogControlsCounts(TEXT("initial"), 2);
     bBotStarted = true;
+    BotTarget = Target;
+    bBotTargetExclusive = !HumanAttackTargets.Contains(Target);
     BotStartedAt = Lifetime;
     FProofCommand Move;
     Move.Sequence = ++BotSequence;
@@ -84,6 +104,62 @@ void AProofGameMode::StartBotIfReady()
     Attack.UnitId = BotAttacker;
     Attack.TargetUnitId = Target;
     SubmitForOwner(100, Attack);
+    if (bControlsAutomation)
+    {
+        UE_LOG(LogTemp, Display, TEXT("PROOF_CONTROLS_BOT_START mover=%d attacker=%d target=%d targetOwner=2"),
+            BotMover, BotAttacker, BotTarget);
+    }
+}
+
+bool AProofGameMode::LogControlsCounts(const TCHAR* Phase, int32 ExpectedHumanUnits) const
+{
+    const FProofSnapshot Snapshot = Model.GetSnapshot();
+    int32 HumanOwners = 0, BotOwners = 0, HumanUnits = 0, BotUnits = 0, LiveUnits = 0;
+    for (const FProofPlayerRecord& PlayerRecord : Snapshot.Players)
+    {
+        if (PlayerRecord.OwnerId == 100) ++BotOwners;
+        else ++HumanOwners;
+    }
+    for (const FProofUnitRecord& Unit : Snapshot.Units)
+    {
+        if (Unit.OwnerId == 100) ++BotUnits;
+        else ++HumanUnits;
+        if (Unit.HitPoints > 0.f) ++LiveUnits;
+    }
+    // Unit records survive death in this fixture; live counts are observed,
+    // while the initial/final record totals prove exactly one production.
+    const bool bValid = HumanOwners == 2 && BotOwners == 1 && HumanUnits == ExpectedHumanUnits &&
+        BotUnits == 3 && Snapshot.Units.Num() == ExpectedHumanUnits + 3;
+    UE_LOG(LogTemp, Display, TEXT("PROOF_CONTROLS_COUNTS phase=%s humanOwners=%d botOwners=%d humanUnits=%d botUnits=%d liveUnits=%d totalUnits=%d status=%s"),
+        Phase, HumanOwners, BotOwners, HumanUnits, BotUnits, LiveUnits, Snapshot.Units.Num(), bValid ? TEXT("pass") : TEXT("fail"));
+    return bValid;
+}
+
+void AProofGameMode::ObserveControlsStep(const FProofSnapshot& Before, const FProofSnapshot& After)
+{
+    if (!bBotStarted) return;
+    const FProofUnitRecord* Mover = After.Units.FindByPredicate([this](const FProofUnitRecord& Unit) { return Unit.UnitId == BotMover; });
+    const FVector* MoverStart = InitialPositions.Find(BotMover);
+    const FVector MoveDestination(1000.f, 1000.f, 0.f);
+    if (!bBotMoved && Mover && MoverStart && Mover->OwnerId == 100 && FVector::Dist(Mover->Position, MoveDestination) <= 1.f)
+    {
+        bBotMoved = true;
+        UE_LOG(LogTemp, Display, TEXT("PROOF_CONTROLS_BOT_MOVE unit=%d owner=100 distance=%.3f destinationX=1000 destinationY=1000 destinationZ=0 remaining=%.3f tolerance=1 revision=%d"),
+            BotMover, FVector::Dist(Mover->Position, *MoverStart), FVector::Dist(Mover->Position, MoveDestination), After.Revision);
+    }
+    const FProofUnitRecord* TargetBefore = Before.Units.FindByPredicate([this](const FProofUnitRecord& Unit) { return Unit.UnitId == BotTarget; });
+    const FProofUnitRecord* TargetAfter = After.Units.FindByPredicate([this](const FProofUnitRecord& Unit) { return Unit.UnitId == BotTarget; });
+    const FProofUnitRecord* AttackerBefore = Before.Units.FindByPredicate([this](const FProofUnitRecord& Unit) { return Unit.UnitId == BotAttacker; });
+    const FProofUnitRecord* AttackerAfter = After.Units.FindByPredicate([this](const FProofUnitRecord& Unit) { return Unit.UnitId == BotAttacker; });
+    if (!bBotDamaged && bBotTargetExclusive && TargetBefore && TargetAfter && AttackerBefore && AttackerAfter &&
+        TargetAfter->OwnerId == 2 && AttackerBefore->OwnerId == 100 && AttackerBefore->HitPoints > 0.f &&
+        TargetBefore->HitPoints > TargetAfter->HitPoints &&
+        FVector::DistSquared(AttackerAfter->Position, TargetAfter->Position) <= FMath::Square(static_cast<double>(FProofCommandModel::AttackRange)))
+    {
+        bBotDamaged = true;
+        UE_LOG(LogTemp, Display, TEXT("PROOF_CONTROLS_BOT_DAMAGE attacker=%d attackerOwner=100 target=%d targetOwner=2 beforeHP=%.3f afterHP=%.3f revision=%d"),
+            BotAttacker, BotTarget, TargetBefore->HitPoints, TargetAfter->HitPoints, After.Revision);
+    }
 }
 
 void AProofGameMode::Publish()
@@ -101,11 +177,32 @@ void AProofGameMode::Tick(float DeltaSeconds)
     int32 CatchupSteps = 0;
     while (Accumulator >= 0.1f && CatchupSteps++ < 10)
     {
+        const FProofSnapshot Before = bControlsAutomation ? Model.GetSnapshot() : FProofSnapshot();
         Model.Advance(0.1f);
+        if (bControlsAutomation) ObserveControlsStep(Before, Model.GetSnapshot());
         Accumulator -= 0.1f;
         if (++StepsSincePublish >= 2) { Publish(); StepsSincePublish = 0; }
     }
-    if (!bAutomation) return;
+    if (!bAutomation && !bControlsAutomation) return;
+    if (bControlsAutomation)
+    {
+        const bool bActiveComplete = bBotStarted && Lifetime - BotStartedAt >= 20.f;
+        const bool bStartupTimedOut = !bBotStarted && Lifetime >= 60.f;
+        if (!bControlsComplete && (bActiveComplete || bStartupTimedOut))
+        {
+            const bool bFinalCountsValid = LogControlsCounts(TEXT("final"), 3);
+            bControlsComplete = true;
+            bControlsPassed = bBotStarted && BotAccepted >= 2 && bBotMoved && bBotDamaged && bBotTargetExclusive &&
+                bControlsInitialCountsValid && bFinalCountsValid;
+            UE_LOG(LogTemp, Display, TEXT("PROOF_CONTROLS_COMPLETE role=host owner=0 status=%s botAccepted=%d botMoved=%d botDamaged=%d exclusive=%d"),
+                bControlsPassed ? TEXT("pass") : TEXT("fail"), BotAccepted, bBotMoved, bBotDamaged, bBotTargetExclusive);
+        }
+        // Hold the server until clients finish at 23s, avoiding a disconnect
+        // before their evidence is written. Counts above reflect completion.
+        if (bControlsComplete && (bStartupTimedOut || Lifetime - BotStartedAt >= 24.f))
+            FPlatformMisc::RequestExitWithStatus(false, bControlsPassed ? 0 : 1);
+        return;
+    }
     const FProofSnapshot Snapshot = Model.GetSnapshot();
     TMap<int32, int32> Counts;
     for (const FProofUnitRecord& Unit : Snapshot.Units)

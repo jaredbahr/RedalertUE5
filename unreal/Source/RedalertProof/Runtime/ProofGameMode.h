@@ -21,10 +21,18 @@ private:
     int32 BotMover = INDEX_NONE;
     int32 BotAttacker = INDEX_NONE;
     int32 BotSequence = 0;
+    int32 BotTarget = INDEX_NONE;
     int32 HumanAccepted = 0;
     int32 RejectedOwnership = 0;
     int32 BotAccepted = 0;
     bool bAutomation = false;
+    bool bControlsAutomation = false;
+    bool bBotMoved = false;
+    bool bBotDamaged = false;
+    bool bBotTargetExclusive = true;
+    bool bControlsInitialCountsValid = false;
+    bool bControlsComplete = false;
+    bool bControlsPassed = false;
     bool bBotStarted = false;
     bool bMoved = false;
     bool bDamaged = false;
@@ -34,6 +42,9 @@ private:
     float Accumulator = 0.f;
     int32 StepsSincePublish = 0;
     TMap<int32, FVector> InitialPositions;
+    TSet<int32> HumanAttackTargets;
     void Publish();
     void StartBotIfReady();
+    void ObserveControlsStep(const FProofSnapshot& Before, const FProofSnapshot& After);
+    bool LogControlsCounts(const TCHAR* Phase, int32 ExpectedHumanUnits) const;
 };

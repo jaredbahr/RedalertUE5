@@ -14,12 +14,23 @@ public:
     UPROPERTY(Replicated) int32 OwnerId = INDEX_NONE;
     int32 NextLocalCommandSequence() { return NextLocalSequence < MAX_int32 ? NextLocalSequence++ : 0; }
     bool IsProofAutomation() const { return bAutomation; }
+    bool IsControlsAutomation() const { return bControlsAutomation; }
+    bool IsControlsObserver() const { return bControlsObserver; }
+    bool FindReceipt(int32 Sequence, FProofCommandResult& OutResult) const;
+    const FString& GetReceiptStatus() const { return ReceiptStatus; }
+    int32 GetLastReceiptSequence() const { return LastReceiptSequence; }
     UFUNCTION(Server, Reliable) void ServerSubmitCommand(FProofCommand Command);
     UFUNCTION(Client, Reliable) void ClientCommandResult(FProofCommandResult Result);
     virtual void Tick(float DeltaSeconds) override;
     virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 private:
     bool bAutomation = false;
+    bool bControlsAutomation = false;
+    bool bControlsObserver = false;
+    TMap<int32, FProofCommandResult> Receipts;
+    int32 LastReceiptSequence = 0;
+    FString ReceiptStatus = TEXT("No host receipt yet.");
+    float ControlsObserverReady = -1.f;
     bool bFinished = false;
     bool bAckFailure = false;
     bool bMoved = false;
