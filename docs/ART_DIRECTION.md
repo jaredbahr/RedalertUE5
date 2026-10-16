@@ -28,4 +28,4 @@ Pass only after Jared approves relative scale, proportions, silhouettes, faction
 
 New reference-based art is recommended. Jared's original-game ownership supports private reference access; it is not a redistribution license. Do not commit extracted EA meshes, textures, sprites, audio, music, or copied reference packs. Keep provenance and usage terms for newly created or third-party assets before sharing them.
 
-Blender is available, but no modeling or image generation is authorized in this documentation phase. Later asset work must retain editable source files on D: and pass the binary/LFS review before upload.
+Jared has authorized the first implementation batch, including original authored blockout modeling and reproducible scene generation with existing tools. This does not approve asset finishing: the visual blockout gate still applies. Keep editable source files and generated assets on D:, and pass the binary/LFS review before any binary upload.

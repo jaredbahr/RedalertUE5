@@ -20,11 +20,11 @@ These are proposals awaiting validation, not approved architecture:
 - Human players and bots use the same command model for move, attack, build, and production. Bots obey the same validation and resource rules by default.
 - Start with one compact, readable skirmish map, a minimal functional Allied/Soviet roster, and placeholder assets where needed. Prove the full match loop before extending content.
 
-Two-client correctness and active-unit performance are early gates. Scale tests must combine active movement, combat, bot decisions, and network replication in the same workload; measured results will set practical unit budgets. No unit count, frame rate, network latency, hardware target, or engine minor version is established yet. Set measurable acceptance thresholds before calling those gates passed.
+Two-client correctness and active-unit performance are early gates. Scale tests must combine active movement, combat, bot decisions, and network replication in the same workload; measured results will set practical unit budgets. No unit count, frame rate, network latency, or target hardware budget is established yet. Installed UE 5.7.4 is the first-proof baseline; this does not lock a long-term engine support policy. Set measurable acceptance thresholds before calling those gates passed.
 
 ## Tools and references
 
-Blender is installed. Jared owns original games through Steam/Origin and can use them for private visual reference. This planning phase authorizes no new installs, builds, model generation, purchases, or asset extraction/upload.
+Blender is installed. Jared owns original games through Steam/Origin for private visual reference. Jared has now authorized the first scoped implementation batch: original authored blockouts, a reproducible scene/assets pipeline, and early technical groundwork with existing tools. No purchases, new agreements, security changes, proprietary asset uploads, or unapproved installs are authorized. Asset finishing still requires blockout approval.
 
 Prefer newly authored art guided by references. Maintain provenance for future assets: creator, source/reference, usage terms, and any distribution limits. Do not upload raw EA game assets or music, and do not infer permission from ownership or invent a project license.
 
@@ -41,9 +41,9 @@ Proposed permanent layout, to confirm before creating an engine project:
 | Derived-data, shader, and tool caches | `D:\Caches\RedalertUE5` |
 | Packaged builds and captures | `D:\Builds\RedalertUE5` |
 
-Before engine/art work, verify free space and resolved paths for Unreal derived data (including the configured backend), shader/compiler work, project intermediate/saved output, Blender temporary/autosave output, logs, crash reports, and packaging/staging output. Inspect settings and actual file creation during an authorized smoke run. Record any remaining C: use and adjust supported settings where practical. D: placement alone does not establish cache behavior; cache paths have not been verified in this documentation phase.
+Before engine/art work, verify free space and resolved paths for Unreal derived data (including the configured backend), shader/compiler work, project intermediate/saved output, Blender temporary/autosave output, logs, crash reports, and packaging/staging output. Inspect settings and actual file creation during an authorized smoke run. Record any remaining C: use and adjust supported settings where practical. D: placement alone does not establish cache behavior; consult [First-proof evidence](FIRST_PROOF.md) for the paths observed during this batch; other paths remain unverified.
 
-Before importing or generating content, add and verify appropriate ignore rules for generated output such as `Binaries/`, `DerivedDataCache/`, `Intermediate/`, `Saved/`, editor/IDE caches, staged builds, and renders. Keep source/configuration files and authored assets distinct from generated data. This branch does not add ignore rules because its scope is documentation only.
+Before importing or generating content, add and verify appropriate ignore rules for generated output such as `Binaries/`, `DerivedDataCache/`, `Intermediate/`, `Saved/`, editor/IDE caches, staged builds, and renders. Keep source/configuration files and authored assets distinct from generated data. The implementation branch now includes ignore rules for generated proof output and Unreal content/caches; verify them again before extending the pipeline.
 
 Before any binary upload, review file sizes, expected growth, Git LFS tracking, and the account's current storage/bandwidth budget. Do not assume the current allowance or upload binaries to test it. Review staged files for secrets and unrelated content before every push.
 

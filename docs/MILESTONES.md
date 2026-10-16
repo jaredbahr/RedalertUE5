@@ -46,4 +46,4 @@ Pass: complete repeatable eight-slot matches with consistent economy/combat/vict
 
 ## Evidence discipline
 
-No milestone currently has implementation evidence. Record accepted results and deviations in [Decisions](DECISIONS.md); link future captures/logs without committing generated output or private information. Passing a small test does not establish final roster completeness, unlimited scale, or production readiness.
+The [first proof](FIRST_PROOF.md) supplies partial pipeline evidence, but no milestone is fully passed: art approval and the UE gameplay/network/bot/performance gates remain open. Record accepted results and deviations in [Decisions](DECISIONS.md); link future captures/logs without committing generated output or private information. Passing a small test does not establish final roster completeness, unlimited scale, or production readiness.

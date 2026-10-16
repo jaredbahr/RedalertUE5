@@ -1,0 +1,21 @@
+# Reproducible local output; source scripts/configuration remain tracked.
+/generated/
+**/__pycache__/
+*.pyc
+
+# Unreal generated files. Authored binary content needs a separate LFS budget review.
+/unreal/**/Binaries/
+/unreal/**/DerivedDataCache/
+/unreal/**/Intermediate/
+/unreal/**/Saved/
+/unreal/**/Content/
+/unreal/**/.vs/
+/unreal/**/*.sln
+/unreal/**/*.suo
+/unreal/**/*.VC.db
+/unreal/**/*.VC.opendb
+
+# Editor and OS noise.
+.vscode/
+.DS_Store
+Thumbs.db
