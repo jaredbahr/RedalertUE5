@@ -21,6 +21,17 @@
 #include "Components/InputComponent.h"
 #include "GameFramework/PlayerInput.h"
 
+bool AProofRTSPawn::IsInputFixtureReadyForInjection() const
+{
+    const AProofPlayerController* PC = Cast<AProofPlayerController>(GetController());
+    UGameViewportClient* ViewportClient = GetWorld()->GetGameViewport();
+    if (!PC || !PC->PlayerInput || PC->GetPawnOrSpectator() != this || !InputComponent
+        || !InputComponent->IsRegistered() || !InputEnabled() || !ViewportClient || ViewportClient->IgnoreInput()
+        || PC->GetFixtureProcessedInputFrame(InputComponent.Get()) == 0) return false;
+    return InputComponent->KeyBindings.ContainsByPredicate([](const FInputKeyBinding& Binding)
+    { return Binding.Chord.Key == EKeys::R && Binding.KeyEvent == IE_Pressed && Binding.KeyDelegate.IsBound(); });
+}
+
 FString AProofRTSPawn::GetInputFixtureBootstrapJson() const
 {
     const AProofPlayerController* PC = Cast<AProofPlayerController>(GetController());
@@ -44,7 +55,7 @@ FString AProofRTSPawn::GetInputFixtureBootstrapJson() const
     return FString::Printf(TEXT("{\"controlledPawnMatches\":%s,\"acknowledgedPawnMatches\":%s,")
         TEXT("\"playerInputId\":%u,\"pawnInputId\":%u,\"registered\":%s,\"inputEnabled\":%s,\"rBound\":%s,")
         TEXT("\"processedStackFrame\":%llu,\"frame\":%llu,\"viewportIgnoresInput\":%s,\"rDown\":%s,")
-        TEXT("\"hitOwnedId\":%d,\"pendingOrders\":%d,\"lastRequestedSequence\":%d,\"selected\":[%s]}"),
+        TEXT("\"hitOwnedId\":%d,\"pendingOrders\":%d,\"lastRequestedSequence\":%d,\"selected\":[%s],\"readyForInjection\":%s}"),
         PC && PC->GetPawnOrSpectator() == this ? TEXT("true") : TEXT("false"),
         PC && PC->AcknowledgedPawn == this ? TEXT("true") : TEXT("false"),
         PC && PC->PlayerInput ? PC->PlayerInput->GetUniqueID() : 0,
@@ -54,7 +65,8 @@ FString AProofRTSPawn::GetInputFixtureBootstrapJson() const
         PC ? PC->GetFixtureProcessedInputFrame(InputComponent.Get()) : 0, GFrameCounter,
         ViewportClient && ViewportClient->IgnoreInput() ? TEXT("true") : TEXT("false"),
         PC && PC->IsInputKeyDown(EKeys::R) ? TEXT("true") : TEXT("false"),
-        FindUnitUnderCursor(true), GroupOrders.NumPending(), LastRequestedSequence, *SelectedUnits);
+        FindUnitUnderCursor(true), GroupOrders.NumPending(), LastRequestedSequence, *SelectedUnits,
+        IsInputFixtureReadyForInjection() ? TEXT("true") : TEXT("false"));
 }
 
 void AProofRTSPawn::ObserveInputFixtureReadiness(double Now, bool bForce)
@@ -87,14 +99,14 @@ void AProofRTSPawn::ObserveInputFixtureReadiness(double Now, bool bForce)
         Managers += FString::Printf(TEXT("{\"type\":\"%s\",\"remaining\":%d}"),
             *Manager->GetAssetTypeName().ToString().ReplaceCharWithEscapedChar(), Count);
     }
-    // Failed bits 0..14: controller, gameState, viewportClient, viewport,
+    // Failed bits 0..15: controller, gameState, viewportClient, viewport,
     // localPlayer, HQ, harvester, enemyHQ, configuredInput, owner1, skirmish,
-    // positiveEpoch, width1280, height720, zeroRemainingAssets.
+    // positiveEpoch, width1280, height720, zeroRemainingAssets, inputBootstrap.
     const bool Gates[] = {PC != nullptr, GS != nullptr, ViewportClient != nullptr,
         ViewportClient && ViewportClient->Viewport, PC && PC->GetLocalPlayer(),
         HQ != INDEX_NONE, Harvester != INDEX_NONE, EnemyHQ != INDEX_NONE, bConfiguredLocalInput,
         SampledOwnerId == 1, Snapshot && Snapshot->bSkirmish, Snapshot && Snapshot->MatchEpoch >= 1,
-        Width == 1280, Height == 720, Remaining == 0};
+        Width == 1280, Height == 720, Remaining == 0, IsInputFixtureReadyForInjection()};
     uint32 FailedMask = 0;
     for (int32 Index = 0; Index < UE_ARRAY_COUNT(Gates); ++Index)
         if (!Gates[Index]) FailedMask |= (1u << Index);
@@ -270,7 +282,8 @@ void AProofRTSPawn::TickInputBindingFixture(float DeltaSeconds)
     {
         int32 Width = 0, Height = 0; PC->GetViewportSize(Width, Height);
         if (!HQ || !Harvester || !EnemyHQ || !bConfiguredLocalInput || PC->OwnerId != 1 || !Snapshot.bSkirmish
-            || Snapshot.MatchEpoch < 1 || Width != 1280 || Height != 720 || FAssetCompilingManager::Get().GetNumRemainingAssets() != 0) return;
+            || Snapshot.MatchEpoch < 1 || Width != 1280 || Height != 720 || FAssetCompilingManager::Get().GetNumRemainingAssets() != 0
+            || !IsInputFixtureReadyForInjection()) return;
         ObserveInputFixtureReadiness(Now, true);
         if (!InputFixtureCheck(bCameraPanEnabled && !PC->IsControlsAutomation() && !PC->IsProofAutomation()
             && SkirmishScenario.IsEmpty() && !InputFixtureOutput.IsEmpty(), TEXT("isolated_fixture_configuration"))) return;

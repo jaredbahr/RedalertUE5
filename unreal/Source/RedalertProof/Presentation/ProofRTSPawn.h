@@ -184,6 +184,7 @@ private:
     void TickInputBindingFixture(float DeltaSeconds);
     void ObserveInputFixtureReadiness(double Now, bool bForce);
     FString GetInputFixtureBootstrapJson() const;
+    bool IsInputFixtureReadyForInjection() const;
     void ApplyCameraPan(float DeltaSeconds, bool bFocused, bool bForeground);
     void QueueInputFixtureClick(FKey Key, FKey Modifier = FKey());
     bool InputFixtureCheck(bool bCondition, const TCHAR* Evidence);

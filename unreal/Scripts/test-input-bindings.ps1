@@ -85,7 +85,7 @@ function Get-InputStartupEvidence([string]$Log) {
             if($field -notin $sample.PSObject.Properties.Name) { throw "Startup sample missing $field." }
         }
         if($sample.sample -le $lastSample -or $sample.elapsedSeconds -lt $lastElapsed -or
-            $sample.failedMask -lt 0 -or $sample.failedMask -gt 32767 -or $sample.remainingAssets -lt 0 -or
+            $sample.failedMask -lt 0 -or $sample.failedMask -gt 65535 -or $sample.remainingAssets -lt 0 -or
             $sample.lastPredicateChangeElapsedSeconds -lt 0 -or $sample.lastPredicateChangeElapsedSeconds -gt $sample.elapsedSeconds) {
             throw 'Invalid or nonmonotonic startup sample.'
         }
@@ -319,6 +319,8 @@ try {
     $ready=$result.startupDiagnostics.last
     if($result.startupDiagnostics.collectionError -or -not $result.startupDiagnostics.recorded -or $ready.failedMask -ne 0 -or $ready.owner -ne 1 -or
         $ready.epoch -ne 1 -or $ready.width -ne 1280 -or $ready.height -ne 720 -or $ready.remainingAssets -ne 0 -or
+        $ready.inputState.readyForInjection -ne $true -or $ready.inputState.registered -ne $true -or
+        $ready.inputState.rBound -ne $true -or $ready.inputState.processedStackFrame -le 0 -or
         $ready.managers.Count -lt 1 -or $null -eq $clientEvidence.startupReadiness -or
         $clientEvidence.startupReadiness.sample -ne $ready.sample -or $clientEvidence.startupReadiness.failedMask -ne 0) {
         throw 'Missing exact ready-gate/per-manager startup evidence.'
