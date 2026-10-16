@@ -969,7 +969,32 @@ void AProofRTSPawn::TickSkirmishScenario(float DeltaSeconds)
     {
         FProofCommandResult Receipt;
         if (!PC->FindReceipt(LastRequestedSequence, Receipt)) return;
-        if (!Receipt.bAccepted) { FinishSkirmishScenario(false, *Receipt.Reason); return; }
+        if (!Receipt.bAccepted)
+        {
+            if (LastRequestedType == TEXT("Attack") && Receipt.Reason == TEXT("target"))
+            {
+                // Another real attacker can kill the chosen target between
+                // our replicated snapshot and authoritative validation. Wait
+                // for that death to replicate before retrying the fixture's
+                // decision, within the unchanged overall scenario deadline.
+                const FProofUnitRecord* RejectedTarget = Snapshot.Units.FindByPredicate(
+                    [this](const FProofUnitRecord& Unit) { return Unit.UnitId == LastRequestedTarget; });
+                if (RejectedTarget && RejectedTarget->HitPoints > 0.f) return;
+                UE_LOG(LogTemp, Display, TEXT("PROOF_SKIRMISH_RETRY reason=target target=%d sequence=%d snapshotRevision=%d replicatedTarget=%s"),
+                    LastRequestedTarget, LastRequestedSequence, Snapshot.Revision, RejectedTarget ? TEXT("dead") : TEXT("missing"));
+                for (auto It = SkirmishIssuedTargets.CreateIterator(); It; ++It)
+                {
+                    if (It.Value() == LastRequestedTarget) It.RemoveCurrent();
+                }
+                if (SkirmishFocusTarget == LastRequestedTarget) SkirmishFocusTarget = INDEX_NONE;
+                // The rejected command already consumed its normal sequence.
+                // Clear only this fixture receipt latch, never the allocator.
+                LastRequestedSequence = 0;
+                return;
+            }
+            FinishSkirmishScenario(false, *Receipt.Reason);
+            return;
+        }
         if (LastRequestedType == TEXT("Produce") && SkirmishProduceRecordsBefore >= 0)
         {
             int32 ReplicatedRecords = 0;
