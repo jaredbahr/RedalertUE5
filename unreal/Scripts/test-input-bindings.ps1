@@ -6,6 +6,7 @@ param(
     [ValidateRange(0,65536)][int]$MaxCacheMiB = 2048,
     [ValidateRange(0,65536)][int]$MaxTempMiB = 1024,
     [switch]$IsolatedCache,
+    [switch]$InputTrace,
     [switch]$UnoptimizedShaders,
     [switch]$CleanPresentation
 )
@@ -67,6 +68,7 @@ $result.cpuPolicy.discoveryError=$null
 $result.cleanup=[ordered]@{errors=@();ignoredExitRaces=0;parentsFirst=$true}
 $result.commandRequests=@()
 $result.cacheInitialization=if($IsolatedCache){'fresh per-run directory before unchanged warmup; engine read-only pak retained'}else{'retained fixture cache; engine read-only pak retained'}
+$result.engineInputTrace=[bool]$InputTrace
 $result.startupDiagnostics=@{recorded=$false;samples=@();last=$null;collectionError=$null}
 $result.cacheDiagnostics=[ordered]@{verboseEnabled=$true;diagnosticOnly=$true;classification='Engine/DerivedDataCache/*.ddp path; global only GlobalShaderMap/ keys; material-related request/key text may include textures';byProcess=@{};readErrors=@()}
 $workerExe=Join-Path $EngineRoot 'Engine\Binaries\Win64\ShaderCompileWorker.exe'
@@ -217,6 +219,11 @@ try {
     function Start-Controls([string]$Role,[string]$Destination,[string[]]$Mode,[int]$CoreLimit=2) {
         $log=Join-Path $run ($Role+'.log')
         $launchArguments=@(('"'+$project+'"'),$Destination)+$Mode+@('-unattended','-nosound','-nosplash','-NoSourceControl','-NoP4','-ini:GameUserSettings:[/Script/Engine.GameUserSettings]:FrameRateLimit=30','-ddc=BlockoutDDC','-logcmds="LogDerivedDataCache Verbose"',('-CoreLimit='+$CoreLimit),('-port='+$Port),('-abslog="'+$log+'"'))
+        if($InputTrace -and $Role -eq 'rendered') {
+            $launchArguments=$launchArguments | ForEach-Object {
+                if($_ -eq '-logcmds="LogDerivedDataCache Verbose"') { '-logcmds="LogDerivedDataCache Verbose,LogPlayerInput VeryVerbose"' } else { $_ }
+            }
+        }
         if($Role -in @('rendered','observer')) {
             if($Destination -notmatch '^127\.0\.0\.1:\d+$') { throw 'Literal-client startup override is restricted to this fixture loopback destination.' }
             $launchArguments+=('-cvarsini="'+$literalClientCVars+'"')

@@ -18,6 +18,32 @@
 #include "UnrealClient.h"
 #include "AssetCompilingManager.h"
 #include "IAssetCompilingManager.h"
+#include "Components/InputComponent.h"
+#include "GameFramework/PlayerInput.h"
+
+FString AProofRTSPawn::GetInputFixtureBootstrapJson() const
+{
+    const AProofPlayerController* PC = Cast<AProofPlayerController>(GetController());
+    const UGameViewportClient* ViewportClient = GetWorld()->GetGameViewport();
+    bool bRBound = false;
+    if (InputComponent) for (int32 Index = 0; Index < InputComponent->GetNumKeyBindings(); ++Index)
+    {
+        const FInputKeyBinding& Binding = InputComponent->GetKeyBinding(Index);
+        bRBound |= Binding.Chord.Key == EKeys::R && Binding.KeyEvent == IE_Pressed && Binding.KeyDelegate.IsBound();
+    }
+    return FString::Printf(TEXT("{\"controlledPawnMatches\":%s,\"acknowledgedPawnMatches\":%s,")
+        TEXT("\"playerInputId\":%u,\"pawnInputId\":%u,\"registered\":%s,\"inputEnabled\":%s,\"rBound\":%s,")
+        TEXT("\"processedStackFrame\":%llu,\"frame\":%llu,\"viewportIgnoresInput\":%s,\"rDown\":%s}"),
+        PC && PC->GetPawnOrSpectator() == this ? TEXT("true") : TEXT("false"),
+        PC && PC->AcknowledgedPawn == this ? TEXT("true") : TEXT("false"),
+        PC && PC->PlayerInput ? PC->PlayerInput->GetUniqueID() : 0,
+        InputComponent ? InputComponent->GetUniqueID() : 0,
+        InputComponent && InputComponent->IsRegistered() ? TEXT("true") : TEXT("false"),
+        InputEnabled() ? TEXT("true") : TEXT("false"), bRBound ? TEXT("true") : TEXT("false"),
+        PC ? PC->GetFixtureProcessedInputFrame(InputComponent.Get()) : 0, GFrameCounter,
+        ViewportClient && ViewportClient->IgnoreInput() ? TEXT("true") : TEXT("false"),
+        PC && PC->IsInputKeyDown(EKeys::R) ? TEXT("true") : TEXT("false"));
+}
 
 void AProofRTSPawn::ObserveInputFixtureReadiness(double Now, bool bForce)
 {
@@ -73,13 +99,13 @@ void AProofRTSPawn::ObserveInputFixtureReadiness(double Now, bool bForce)
         TEXT("{\"sample\":%d,\"elapsedSeconds\":%.3f,\"lastPredicateChangeElapsedSeconds\":%.3f,")
         TEXT("\"failedMask\":%u,\"controller\":%s,\"gameState\":%s,\"viewportClient\":%s,\"viewport\":%s,\"localPlayer\":%s,")
         TEXT("\"hqId\":%d,\"harvesterId\":%d,\"enemyHQId\":%d,\"configuredInput\":%s,\"owner\":%d,\"skirmish\":%s,")
-        TEXT("\"epoch\":%d,\"revision\":%d,\"width\":%d,\"height\":%d,\"remainingAssets\":%d,\"managers\":[%s]}"),
+        TEXT("\"epoch\":%d,\"revision\":%d,\"width\":%d,\"height\":%d,\"remainingAssets\":%d,\"managers\":[%s],\"inputState\":%s}"),
         InputFixtureReadinessSamples, Now - InputFixtureStart, InputFixtureLastReadinessChange - InputFixtureStart,
         FailedMask, PC ? TEXT("true") : TEXT("false"), GS ? TEXT("true") : TEXT("false"),
         ViewportClient ? TEXT("true") : TEXT("false"), ViewportClient && ViewportClient->Viewport ? TEXT("true") : TEXT("false"),
         PC && PC->GetLocalPlayer() ? TEXT("true") : TEXT("false"), HQ, Harvester, EnemyHQ,
         bConfiguredLocalInput ? TEXT("true") : TEXT("false"), SampledOwnerId, Snapshot && Snapshot->bSkirmish ? TEXT("true") : TEXT("false"),
-        Epoch, Snapshot ? Snapshot->Revision : INDEX_NONE, Width, Height, Remaining, *Managers);
+        Epoch, Snapshot ? Snapshot->Revision : INDEX_NONE, Width, Height, Remaining, *Managers, *GetInputFixtureBootstrapJson());
     UE_LOG(LogTemp, Display, TEXT("PROOF_INPUT_BINDING_READINESS %s"), *InputFixtureReadinessJson);
 }
 
@@ -131,6 +157,8 @@ void AProofRTSPawn::FinishInputBindingFixture(bool bPass, const TCHAR* Reason)
 {
     if (bInputFixtureFinished) return;
     if (InputFixtureStage == 0) ObserveInputFixtureReadiness(FPlatformTime::Seconds(), true);
+    UE_LOG(LogTemp, Display, TEXT("PROOF_INPUT_BINDING_INPUT_STATE stage=%d final=1 %s"),
+        InputFixtureStage, *GetInputFixtureBootstrapJson());
     bInputFixtureFinished = true;
     bInputFixtureVirtualPan = false;
     // Release through the same engine route; never leave held synthetic modifiers.
@@ -187,6 +215,8 @@ void AProofRTSPawn::TickInputBindingFixture(float DeltaSeconds)
         ++InputFixtureEdgesSent;
         UE_LOG(LogTemp, Display, TEXT("PROOF_INPUT_BINDING_EDGE index=%d key=%s pressed=%d handled=%d inputSource=engineInjection"),
             InputFixtureEdgesSent, *Edge.Key.ToString(), Edge.Value, bHandled);
+        UE_LOG(LogTemp, Display, TEXT("PROOF_INPUT_BINDING_INPUT_STATE stage=%d edge=%d %s"),
+            InputFixtureStage, InputFixtureEdgesSent, *GetInputFixtureBootstrapJson());
         InputFixtureNextEdge = Now + 0.12; // Allow normal input-stack processing between edges.
         return;
     }
