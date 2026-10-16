@@ -187,13 +187,13 @@ try {
     [Environment]::SetEnvironmentVariable('TEMP',$temp,'Process'); [Environment]::SetEnvironmentVariable('TMP',$temp,'Process')
     $scenarioWatch=[Diagnostics.Stopwatch]::StartNew()
     if ($Scenario -eq 'Coop') {
-        $host=Start-Role 'host' '/Game/CommandProofGenerated/Maps/CommandProof' @('-server','-nullrhi','-MULTIHOME=127.0.0.1','-ProofSkirmish','-ProofSkirmishFixtureHost')
-        Wait-Marker $host 'PROOF_SKIRMISH_READY fixture=1'
+        $serverEntry=Start-Role 'host' '/Game/CommandProofGenerated/Maps/CommandProof' @('-server','-nullrhi','-MULTIHOME=127.0.0.1','-ProofSkirmish','-ProofSkirmishFixtureHost')
+        Wait-Marker $serverEntry 'PROOF_SKIRMISH_READY fixture=1'
         $client=Start-Role 'rendered' ('127.0.0.1:'+$Port) @('-game','-RenderOffscreen','-windowed','-ResX=1280','-ResY=720','-ProofSkirmish','-ProofInteractive','-ProofSkirmishScenario=Coop',('-ProofSkirmishOutput="'+$images+'"'))
         Wait-Marker $client 'PROOF_SKIRMISH_READY owner=1 width=1280 height=720 maxFPS=30\.000'
         $observer=Start-Role 'observer' ('127.0.0.1:'+$Port) @('-game','-nullrhi','-ProofSkirmish','-ProofSkirmishObserver')
-        $expected=@($host,$client,$observer)
-        Wait-Marker $host 'PROOF_SKIRMISH_COMPLETE role=host status=pass scenario=Coop winnerTeam=0'
+        $expected=@($serverEntry,$client,$observer)
+        Wait-Marker $serverEntry 'PROOF_SKIRMISH_COMPLETE role=host status=pass scenario=Coop winnerTeam=0'
         Wait-Marker $observer 'PROOF_SKIRMISH_COMPLETE role=observer owner=2 status=pass scenario=Coop winnerTeam=0'
         Wait-Marker $client 'PROOF_SKIRMISH_COMPLETE role=client owner=1 status=pass scenario=Coop winnerTeam=0 built=1 gathered=1 produced=1 botBuilt=1 botProduced=1 botAttacked=1'
     } else {
