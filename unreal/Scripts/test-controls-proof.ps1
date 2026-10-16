@@ -39,12 +39,97 @@ if ($LASTEXITCODE -ne 0) { throw 'Cannot record tested HEAD.' }
 $dirty = [bool](& git -C $repoRoot status --porcelain)
 $result = [ordered]@{passed=$false;head=$head;dirtyWorkingTree=$dirty;startedUtc=[DateTime]::UtcNow.ToString('o');finishedUtc=$null;elapsedSeconds=0;scenarioElapsedSeconds=0;warmup=[ordered]@{passed=$false;startedUtc=$null;finishedUtc=$null;elapsedSeconds=0;timeoutSeconds=$WarmupTimeoutSeconds;coreLimit=4;reportedShaderWorkers=$null;unusedShaderThreads=1;unusedShaderThreadsDuringGame=1;screenshotAcceptance=$false};scenarioTimeoutSeconds=$TimeoutSeconds;scenarioCoreLimit=2;totalTimeoutBudgetSeconds=($WarmupTimeoutSeconds+$TimeoutSeconds);cachePath=$cache;stages=[ordered]@{};observedCounts=@{};runDirectory=$run;topology='one dedicated UE server, one rendered controls client, one NullRHI passive observer (after standalone graphical warmup)';transport='UE native UDP loopback';physicalMouseAndFocusVerified=$false;internetTest=$false;performanceTest=$false;port=$Port;screenshots=@();commonRevisions=@();error=$null}
 $prior=@{}; $processes=[Collections.Generic.List[object]]::new()
+$ownedWorkers=[Collections.Generic.List[object]]::new()
 $storageGuard=[ordered]@{softPollingGuard=$true;intervalSeconds=10;maxCacheMiB=$MaxCacheMiB;maxTempMiB=$MaxTempMiB;lastCheckElapsedSeconds=-10;checks=0;latestCacheBytes=0;latestTempBytes=0;peakObservedCacheBytes=0;peakObservedTempBytes=0}
 $result.storageGuard=$storageGuard
 $result.renderConfiguration=[ordered]@{unoptimizedShaders=[bool]$UnoptimizedShaders;expectedShadersOptimize=[int](-not $UnoptimizedShaders);observedShadersOptimize=$null;performanceRepresentative=$false}
 $result.cpuPolicy=[ordered]@{availableAffinityMask=('0x{0:X}' -f $availableAffinity);fixtureAffinityMask=('0x{0:X}' -f $fixtureAffinity);logicalProcessors=$fixtureLogicalProcessors;uePriority='Normal';workerPrioritySetting=0;assignedAfterProcessStart=$true;workerInheritanceVerified=$false;processes=@()}
+$result.cpuPolicy.pollIntervalSeconds=1
+$result.cpuPolicy.lastPollElapsedSeconds=-1
+$result.cpuPolicy.pollCount=0
+$result.cpuPolicy.events=@()
+$result.cpuPolicy.eventsTruncated=$false
+$result.cpuPolicy.discoveryError=$null
+$result.cleanup=[ordered]@{errors=@();ignoredExitRaces=0;parentsFirst=$true}
+$workerExe=Join-Path $EngineRoot 'Engine\Binaries\Win64\ShaderCompileWorker.exe'
 $names=@('UE-LocalDataCachePath','UE-SharedDataCachePath','TEMP','TMP')
 function Mark-Stage([string]$Name) { $result.stages[$Name]=[ordered]@{utc=[DateTime]::UtcNow.ToString('o');elapsedSeconds=[math]::Round($watch.Elapsed.TotalSeconds,3)} }
+function Get-OwnedLiveProcess($Entry) {
+    $candidate=Get-Process -Id $Entry.Process.Id -ErrorAction SilentlyContinue
+    if(-not $candidate) { return $null }
+    try {
+        if($candidate.StartTime -ne $Entry.Started -or $candidate.Path -ne $Entry.Path) { return $null }
+    } catch { if($candidate.HasExited) { return $null }; throw }
+    return $candidate
+}
+function Apply-OwnedCpuPolicy($Entry) {
+    $live=Get-OwnedLiveProcess $Entry
+    if(-not $live) { return }
+    try {
+    $beforeMask=[uint64]$live.ProcessorAffinity.ToInt64()
+    $beforePriority=$live.PriorityClass.ToString()
+    if($beforeMask -ne $fixtureAffinity) { $live.ProcessorAffinity=[IntPtr]([int64]$fixtureAffinity) }
+    if($live.PriorityClass -ne [Diagnostics.ProcessPriorityClass]::Normal) { $live.PriorityClass=[Diagnostics.ProcessPriorityClass]::Normal }
+    $live.Refresh()
+    if([uint64]$live.ProcessorAffinity.ToInt64() -ne $fixtureAffinity -or $live.PriorityClass -ne [Diagnostics.ProcessPriorityClass]::Normal) { throw "Owned $($Entry.Role) CPU policy revalidation failed." }
+    if($beforeMask -ne $fixtureAffinity -or $beforePriority -ne 'Normal') {
+        $event=@{role=$Entry.Role;pid=$live.Id;startUtc=$Entry.Started.ToUniversalTime().ToString('o');path=$Entry.Path;beforeMask=('0x{0:X}' -f $beforeMask);afterMask=('0x{0:X}' -f $fixtureAffinity);beforePriority=$beforePriority;afterPriority='Normal';utc=[DateTime]::UtcNow.ToString('o');elapsedSeconds=[math]::Round($watch.Elapsed.TotalSeconds,3)}
+        if($result.cpuPolicy.events.Count -lt 256) { $result.cpuPolicy.events+=$event } else { $result.cpuPolicy.eventsTruncated=$true }
+    }
+    } catch { if(-not(Get-OwnedLiveProcess $Entry)) { return }; throw }
+}
+function Maintain-OwnedCpuPolicy([switch]$Force) {
+    if(-not $Force -and $watch.Elapsed.TotalSeconds-$result.cpuPolicy.lastPollElapsedSeconds -lt 1) { return }
+    $result.cpuPolicy.lastPollElapsedSeconds=[math]::Round($watch.Elapsed.TotalSeconds,3)
+    $result.cpuPolicy.pollCount++
+    $liveParents=@{}
+    foreach($entry in $processes) {
+        $live=Get-OwnedLiveProcess $entry
+        if($live) { $liveParents[$live.Id]=$entry; Apply-OwnedCpuPolicy $entry }
+    }
+    if($liveParents.Count) {
+        try { $candidates=@(Get-CimInstance Win32_Process -Filter "Name='ShaderCompileWorker.exe'" -OperationTimeoutSec 2 -ErrorAction Stop) }
+        catch { $result.cpuPolicy.discoveryError=$_.Exception.Message; throw 'Cannot verify shader-worker ownership through process metadata; aborting CPU policy monitor.' }
+        foreach($candidate in $candidates) {
+            if(-not $liveParents.ContainsKey([int]$candidate.ParentProcessId)) { continue }
+            $parent=$liveParents[[int]$candidate.ParentProcessId]
+            if(-not(Get-OwnedLiveProcess $parent)) { continue }
+            $child=Get-Process -Id $candidate.ProcessId -ErrorAction SilentlyContinue
+            if(-not $child) { continue }
+            if($child.Path -ne $workerExe -or $child.StartTime -lt $parent.Started) { continue }
+            if(-not $candidate.CreationDate -or [math]::Abs(($child.StartTime.ToUniversalTime()-([DateTime]$candidate.CreationDate).ToUniversalTime()).Ticks) -gt 10000) { continue }
+            $command=[string]$candidate.CommandLine
+            if(-not $command -or $command.Replace('/','\').IndexOf($repoRoot,[StringComparison]::OrdinalIgnoreCase) -lt 0) { throw 'Cannot verify project command line for an owned-parent shader worker.' }
+            $known=@($ownedWorkers | Where-Object {$_.Process.Id -eq $child.Id -and $_.Started -eq $child.StartTime})
+            if(-not $known.Count) {
+                $ownedWorkers.Add([pscustomobject]@{Process=$child;Started=$child.StartTime;Role='shader-worker';Path=$workerExe;ParentId=$parent.Process.Id;CommandLine=$command})
+                $result.cpuPolicy.processes+=@{role='shader-worker';pid=$child.Id;parentPid=$parent.Process.Id;startUtc=$child.StartTime.ToUniversalTime().ToString('o');path=$workerExe;affinityMask=('0x{0:X}' -f [uint64]$child.ProcessorAffinity.ToInt64());priority=$child.PriorityClass.ToString();assignedUtc=[DateTime]::UtcNow.ToString('o')}
+            }
+        }
+    }
+    foreach($worker in $ownedWorkers) { Apply-OwnedCpuPolicy $worker }
+}
+function Stop-OwnedEntry($Entry) {
+    try {
+        $live=Get-OwnedLiveProcess $Entry
+        if($live) { Stop-Process -Id $live.Id -Force -ErrorAction Stop }
+    } catch {
+        $failure=$_.Exception.Message
+        try {
+            # A normal exit/PID reuse after the first check requires no action.
+            $remaining=Get-OwnedLiveProcess $Entry
+            if(-not $remaining) { $result.cleanup.ignoredExitRaces++; return }
+        } catch { $failure+='; recheck: '+$_.Exception.Message }
+        $result.cleanup.errors+=@{role=$Entry.Role;pid=$Entry.Process.Id;message=$failure}
+        $result.passed=$false
+        if(-not $result.error) { $result.error='Owned-process cleanup failed; see cleanup.errors.' }
+    }
+}
+function Stop-OwnedProcesses {
+    # Parents first: they must not replace workers while cleanup is in progress.
+    foreach($entry in $processes) { Stop-OwnedEntry $entry }
+    foreach($worker in $ownedWorkers) { Stop-OwnedEntry $worker }
+}
 function Check-StorageBudget([switch]$Force) {
     if(-not $Force -and $watch.Elapsed.TotalSeconds - $storageGuard.lastCheckElapsedSeconds -lt 10) { return }
     $cacheBytes=[int64](Get-ChildItem -LiteralPath $cache -File -Recurse -Force | Measure-Object -Property Length -Sum).Sum
@@ -85,6 +170,7 @@ try {
     function Wait-Marker($Entry,[string]$Pattern) {
         do {
             Check-StorageBudget
+            Maintain-OwnedCpuPolicy
             $content=if(Test-Path -LiteralPath $Entry.Log){Get-Content -LiteralPath $Entry.Log -Raw}else{''}
             if ($content -match $Pattern) { return }
             if ($Entry.Process.HasExited) { throw "$($Entry.Role) exited before $Pattern." }
@@ -101,6 +187,7 @@ try {
     try {
         while(-not $processes[0].Process.HasExited) {
             Check-StorageBudget
+            Maintain-OwnedCpuPolicy
             if($warmupWatch.Elapsed.TotalSeconds -ge $WarmupTimeoutSeconds) { throw 'Graphics warmup timed out before the controls scenario started.' }
             Start-Sleep -Milliseconds 200
         }
@@ -129,6 +216,7 @@ try {
     Start-Controls 'observer' ('127.0.0.1:'+$Port) @('-game','-nullrhi','-ProofControlsObserver')
     while (@($processes | Where-Object {-not $_.Process.HasExited}).Count) {
         Check-StorageBudget
+        Maintain-OwnedCpuPolicy
         if ($scenarioWatch.Elapsed.TotalSeconds -ge $TimeoutSeconds) { throw 'Controls scenario exceeded its strict timeout.' }
         Start-Sleep -Milliseconds 200
     }
@@ -195,19 +283,21 @@ try {
     $result.passed=$true
 } catch { $result.error=$_.Exception.Message }
 finally {
-    foreach($entry in $processes) {
-        if(-not $entry.Process.HasExited) {
-            $live=Get-Process -Id $entry.Process.Id -ErrorAction SilentlyContinue
-            if($live -and $live.StartTime -eq $entry.Started -and $live.Path -eq $entry.Path) {
-                $identity=Get-CimInstance Win32_Process -Filter ('ProcessId='+$entry.Process.Id) -ErrorAction SilentlyContinue
-                if($identity -and $identity.CommandLine.Contains($project)) { Stop-Process -Id $entry.Process.Id -Force }
+    try { Stop-OwnedProcesses }
+    finally {
+        try {
+            foreach($n in $names) {
+                if($prior.ContainsKey($n)) {
+                    try { [Environment]::SetEnvironmentVariable($n,$prior[$n],'Process') }
+                    catch { $result.cleanup.errors+=@{role='environment';name=$n;message=$_.Exception.Message}; $result.passed=$false; if(-not $result.error){$result.error='Process environment restoration failed.'} }
+                }
             }
+        } finally {
+            $result.finishedUtc=[DateTime]::UtcNow.ToString('o'); $result.elapsedSeconds=[math]::Round($watch.Elapsed.TotalSeconds,3)
+            if($scenarioWatch) { $result.scenarioElapsedSeconds=[math]::Round($scenarioWatch.Elapsed.TotalSeconds,3) }
+            $result | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $run 'result.json') -Encoding utf8
         }
     }
-    foreach($n in $names) { if($prior.ContainsKey($n)) { [Environment]::SetEnvironmentVariable($n,$prior[$n],'Process') } }
-    $result.finishedUtc=[DateTime]::UtcNow.ToString('o'); $result.elapsedSeconds=[math]::Round($watch.Elapsed.TotalSeconds,3)
-    if($scenarioWatch) { $result.scenarioElapsedSeconds=[math]::Round($scenarioWatch.Elapsed.TotalSeconds,3) }
-    $result | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $run 'result.json') -Encoding utf8
 }
 if(-not $result.passed) { throw "$($result.error) See $run\result.json" }
 Write-Output (Join-Path $run 'result.json')
