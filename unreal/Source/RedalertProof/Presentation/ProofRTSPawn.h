@@ -64,6 +64,7 @@ private:
     void ZoomOut();
     int32 FindUnitUnderCursor(bool bOwnOnly) const;
     bool CursorGroundPoint(FVector& OutPoint) const;
+    bool PointerWorldRay(FVector& OutOrigin, FVector& OutDirection) const;
     void Request(FProofCommand Command);
     bool GetPointerScreenPosition(FVector2D& OutPoint) const;
     bool SetControlsCursorFromWorld(const FVector& Position);

@@ -42,7 +42,7 @@ $prior=@{}; $processes=[Collections.Generic.List[object]]::new()
 $ownedWorkers=[Collections.Generic.List[object]]::new()
 $storageGuard=[ordered]@{softPollingGuard=$true;intervalSeconds=10;maxCacheMiB=$MaxCacheMiB;maxTempMiB=$MaxTempMiB;lastCheckElapsedSeconds=-10;checks=0;latestCacheBytes=0;latestTempBytes=0;peakObservedCacheBytes=0;peakObservedTempBytes=0}
 $result.storageGuard=$storageGuard
-$result.renderConfiguration=[ordered]@{unoptimizedShaders=[bool]$UnoptimizedShaders;expectedShadersOptimize=[int](-not $UnoptimizedShaders);observedShadersOptimize=$null;performanceRepresentative=$false}
+$result.renderConfiguration=[ordered]@{unoptimizedShaders=[bool]$UnoptimizedShaders;expectedShadersOptimize=[int](-not $UnoptimizedShaders);observedShadersOptimize=$null;targetFPS=30;observedMaxFPS=$null;warmupObservedMaxFPS=$null;performanceRepresentative=$false}
 $result.cpuPolicy=[ordered]@{availableAffinityMask=('0x{0:X}' -f $availableAffinity);fixtureAffinityMask=('0x{0:X}' -f $fixtureAffinity);logicalProcessors=$fixtureLogicalProcessors;uePriority='Normal';workerPrioritySetting=0;assignedAfterProcessStart=$true;workerInheritanceVerified=$false;processes=@()}
 $result.cpuPolicy.pollIntervalSeconds=1
 $result.cpuPolicy.lastPollElapsedSeconds=-1
@@ -175,10 +175,10 @@ try {
     [Environment]::SetEnvironmentVariable('TMP',(Join-Path $run 'temp'),'Process')
     function Start-Controls([string]$Role,[string]$Destination,[string[]]$Mode,[int]$CoreLimit=2) {
         $log=Join-Path $run ($Role+'.log')
-        $launchArguments=@(('"'+$project+'"'),$Destination)+$Mode+@('-unattended','-nosound','-nosplash','-NoSourceControl','-NoP4','-ddc=BlockoutDDC','-logcmds="LogDerivedDataCache Verbose"',('-CoreLimit='+$CoreLimit),'-FPS=30',('-port='+$Port),('-abslog="'+$log+'"'))
+        $launchArguments=@(('"'+$project+'"'),$Destination)+$Mode+@('-unattended','-nosound','-nosplash','-NoSourceControl','-NoP4','-ddc=BlockoutDDC','-logcmds="LogDerivedDataCache Verbose"',('-CoreLimit='+$CoreLimit),('-port='+$Port),('-abslog="'+$log+'"'))
         # One Engine override string prevents duplicate -ini:Engine switches
         # from shadowing warmup worker settings or shader optimization mode.
-        $engineOverrides=@('[DevOptions.Shaders]:WorkerProcessPriority=0')
+        $engineOverrides=@('[DevOptions.Shaders]:WorkerProcessPriority=0','[ConsoleVariables]:t.MaxFPS=30')
         if($Role -eq 'warmup') { $engineOverrides+=@('[DevOptions.Shaders]:NumUnusedShaderCompilingThreads=1','[DevOptions.Shaders]:NumUnusedShaderCompilingThreadsDuringGame=1') }
         if($UnoptimizedShaders) { $engineOverrides+=@('[ShaderCompiler]:r.Shaders.Optimize=0','[ConsoleVariables]:r.Shaders.Optimize=0') }
         if($engineOverrides.Count) { $launchArguments+=('-ini:Engine:'+($engineOverrides -join ',')) }
@@ -217,9 +217,11 @@ try {
         if($processes[0].Process.ExitCode -ne 0) { throw "Graphics warmup exited $($processes[0].Process.ExitCode)." }
         $warmupLog=Get-Content -LiteralPath $processes[0].Log -Raw
         if($warmupLog -notmatch 'LogRHI:.*(Using Default RHI|RHI Name)' -or $warmupLog -notmatch 'LogLoad:.*LoadMap') { throw 'Warmup exited without expected RHI/map initialization evidence.' }
-        $idleEvidence=[regex]::Match($warmupLog,'PROOF_GRAPHICS_WARMUP_COMPLETE status=pass remaining=0 idleSeconds=([\d.]+) frames=(\d+) width=1280 height=720')
+        $idleEvidence=[regex]::Match($warmupLog,'PROOF_GRAPHICS_WARMUP_COMPLETE status=pass remaining=0 idleSeconds=([\d.]+) frames=(\d+) width=1280 height=720 maxFPS=([\d.]+)')
         if(-not $idleEvidence.Success -or [double]::Parse($idleEvidence.Groups[1].Value,[Globalization.CultureInfo]::InvariantCulture) -lt 2 -or [int]$idleEvidence.Groups[2].Value -lt 3) { throw 'Warmup missing zero-assets idle/viewport completion evidence.' }
         $result.warmup.idleEvidence=$idleEvidence.Value
+        $result.renderConfiguration.warmupObservedMaxFPS=[double]::Parse($idleEvidence.Groups[3].Value,[Globalization.CultureInfo]::InvariantCulture)
+        if($result.renderConfiguration.warmupObservedMaxFPS -ne 30) { throw 'Warmup actual t.MaxFPS is not 30.' }
         $result.warmup.passed=$true
         Mark-Stage 'warmupCompleted'
     } finally {
@@ -272,9 +274,11 @@ try {
         }
         if ($role -eq 'client') {
             if($log -notmatch 'PROOF_CONTROLS_SCENARIO_READY owner=1 ') { throw 'Missing both-humans scenario clock marker.' }
-            $renderConfig=[regex]::Match($log,'PROOF_CONTROLS_RENDER_CONFIG shadersOptimize=(-?\d+)')
+            $renderConfig=[regex]::Match($log,'PROOF_CONTROLS_RENDER_CONFIG shadersOptimize=(-?\d+) maxFPS=([\d.]+)')
             if(-not $renderConfig.Success) { throw 'Missing observed shader optimization setting.' }
             $result.renderConfiguration.observedShadersOptimize=[int]$renderConfig.Groups[1].Value
+            $result.renderConfiguration.observedMaxFPS=[double]::Parse($renderConfig.Groups[2].Value,[Globalization.CultureInfo]::InvariantCulture)
+            if($result.renderConfiguration.observedMaxFPS -ne 30) { throw 'Controls viewport actual t.MaxFPS is not 30.' }
             if($result.renderConfiguration.observedShadersOptimize -ne $result.renderConfiguration.expectedShadersOptimize) { throw 'Shader optimization setting differs from requested rendering configuration.' }
             foreach($check in @('enemy_not_selected','owned_unit_selected','empty_clears_selection','zoom_in_changes_camera','zoom_out_restores_camera','actual_viewport_projection_deprojection_roundtrip_lt2cm','move_host_receipt_accepted','move_replicated_destination_reached','attack_host_receipt_accepted','attack_replicated_target_damage','produce_host_receipt_accepted','produce_replicated_unit_and_credit_delta','separation_move_host_receipt_accepted','engine_rendered_screenshots_written')) {
                 if($log -notmatch ('PROOF_CONTROLS_CHECK[^\r\n]*status=pass evidence='+$check+'\b')) { throw "Missing controls assertion: $check" }

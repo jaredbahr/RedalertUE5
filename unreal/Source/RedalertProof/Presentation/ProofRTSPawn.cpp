@@ -5,6 +5,8 @@
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
+#include "Engine/LocalPlayer.h"
+#include "SceneView.h"
 #include "AssetCompilingManager.h"
 #include "InputCoreTypes.h"
 #include "Runtime/ProofGameState.h"
@@ -174,13 +176,43 @@ int32 AProofRTSPawn::FindUnitUnderCursor(bool bOwnOnly) const
     return BestId;
 }
 
-bool AProofRTSPawn::CursorGroundPoint(FVector& OutPoint) const
+bool AProofRTSPawn::PointerWorldRay(FVector& OutOrigin, FVector& OutDirection) const
 {
     const APlayerController* PC = Cast<APlayerController>(GetController());
-    FVector Origin, Direction;
     FVector2D Pointer;
-    if (!PC || !GetPointerScreenPosition(Pointer)
-        || !PC->DeprojectScreenPositionToWorld(Pointer.X, Pointer.Y, Origin, Direction) || FMath::IsNearlyZero(Direction.Z))
+    const ULocalPlayer* LocalPlayer = PC ? PC->GetLocalPlayer() : nullptr;
+    if (!LocalPlayer || !LocalPlayer->ViewportClient || !LocalPlayer->ViewportClient->Viewport
+        || !GetPointerScreenPosition(Pointer) || !FMath::IsFinite(Pointer.X) || !FMath::IsFinite(Pointer.Y)) return false;
+
+    FSceneViewProjectionData Projection;
+    if (!LocalPlayer->GetProjectionData(LocalPlayer->ViewportClient->Viewport, Projection)) return false;
+    const FIntRect Rect = Projection.GetConstrainedViewRect();
+    if (Rect.Width() <= 0 || Rect.Height() <= 0) return false;
+    const FMatrix ViewProjection = Projection.ComputeViewProjectionMatrix();
+    const double Determinant = ViewProjection.Determinant();
+    if (!FMath::IsFinite(Determinant) || Determinant == 0.0) return false;
+    const FMatrix Inverse = ViewProjection.Inverse();
+    // Preserve fractional viewport coordinates. The native convenience helper
+    // truncates them to pixels, which loses centimeters in this orthographic view.
+    const double ClipX = 2.0 * (Pointer.X - Rect.Min.X) / Rect.Width() - 1.0;
+    const double ClipY = 1.0 - 2.0 * (Pointer.Y - Rect.Min.Y) / Rect.Height();
+    const FVector4 Near = Inverse.TransformFVector4(FVector4(ClipX, ClipY, 1.0, 1.0));
+    const FVector4 Far = Inverse.TransformFVector4(FVector4(ClipX, ClipY, 0.01, 1.0));
+    const auto IsFinite = [](const FVector4& Value)
+    {
+        return FMath::IsFinite(Value.X) && FMath::IsFinite(Value.Y) && FMath::IsFinite(Value.Z) && FMath::IsFinite(Value.W);
+    };
+    if (!IsFinite(Near) || !IsFinite(Far) || FMath::IsNearlyZero(Near.W) || FMath::IsNearlyZero(Far.W)) return false;
+    OutOrigin = FVector(Near.X / Near.W, Near.Y / Near.W, Near.Z / Near.W);
+    const FVector OtherPoint(Far.X / Far.W, Far.Y / Far.W, Far.Z / Far.W);
+    OutDirection = (OtherPoint - OutOrigin).GetSafeNormal();
+    return !OutOrigin.ContainsNaN() && !OutDirection.ContainsNaN() && !OutDirection.IsNearlyZero();
+}
+
+bool AProofRTSPawn::CursorGroundPoint(FVector& OutPoint) const
+{
+    FVector Origin, Direction;
+    if (!PointerWorldRay(Origin, Direction) || FMath::IsNearlyZero(Direction.Z))
     {
         return false;
     }
@@ -301,8 +333,9 @@ void AProofRTSPawn::TickGraphicsWarmup()
     }
     if (bReady && IdleSeconds >= 2.0 && WarmupIdleFrames >= 3)
     {
-        UE_LOG(LogTemp, Display, TEXT("PROOF_GRAPHICS_WARMUP_COMPLETE status=pass remaining=0 idleSeconds=%.3f frames=%d width=%d height=%d"),
-            IdleSeconds, WarmupIdleFrames, Width, Height);
+        const IConsoleVariable* MaxFPS = IConsoleManager::Get().FindConsoleVariable(TEXT("t.MaxFPS"));
+        UE_LOG(LogTemp, Display, TEXT("PROOF_GRAPHICS_WARMUP_COMPLETE status=pass remaining=0 idleSeconds=%.3f frames=%d width=%d height=%d maxFPS=%.3f"),
+            IdleSeconds, WarmupIdleFrames, Width, Height, MaxFPS ? MaxFPS->GetFloat() : -1.f);
         bGraphicsWarmup = false;
         FPlatformMisc::RequestExitWithStatus(false, 0);
     }
@@ -378,7 +411,9 @@ void AProofRTSPawn::TickControlsAutomation(float DeltaSeconds)
         UE_LOG(LogTemp, Display, TEXT("PROOF_CONTROLS_VIEW_READY owner=%d width=%d height=%d own=%d target=%d elapsed=%.3f"),
             PC->OwnerId, Width, Height, ControlsOwnUnit, ControlsTargetUnit, ControlsElapsed);
         const IConsoleVariable* OptimizeShaders = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Shaders.Optimize"));
-        UE_LOG(LogTemp, Display, TEXT("PROOF_CONTROLS_RENDER_CONFIG shadersOptimize=%d"), OptimizeShaders ? OptimizeShaders->GetInt() : -1);
+        const IConsoleVariable* MaxFPS = IConsoleManager::Get().FindConsoleVariable(TEXT("t.MaxFPS"));
+        UE_LOG(LogTemp, Display, TEXT("PROOF_CONTROLS_RENDER_CONFIG shadersOptimize=%d maxFPS=%.3f"),
+            OptimizeShaders ? OptimizeShaders->GetInt() : -1, MaxFPS ? MaxFPS->GetFloat() : -1.f);
         return;
     }
     FProofCommandResult Receipt;
@@ -423,8 +458,21 @@ void AProofRTSPawn::TickControlsAutomation(float DeltaSeconds)
     {
         if (!ControlsCheck(SetControlsCursorFromWorld(ControlsDestination), TEXT("move_destination_projected"))) return;
         if (!ControlsCheck(FindUnitUnderCursor(false) == INDEX_NONE, TEXT("move_destination_empty_pick"))) return;
-        FVector RoundTrip;
-        if (!ControlsCheck(CursorGroundPoint(RoundTrip) && FVector::Dist(RoundTrip, ControlsDestination) < 2.f,
+        FVector RoundTrip = FVector::ZeroVector;
+        const bool bGroundProjected = CursorGroundPoint(RoundTrip);
+        FVector RayOrigin = FVector::ZeroVector, RayDirection = FVector::ZeroVector;
+        const bool bRayDeprojected = PC->DeprojectScreenPositionToWorld(ControlsCursor.X, ControlsCursor.Y, RayOrigin, RayDirection);
+        const double RayPlaneDistance = bRayDeprojected && !FMath::IsNearlyZero(RayDirection.Z) ? -RayOrigin.Z / RayDirection.Z : 0.0;
+        const FVector RayIntersection = RayOrigin + RayDirection * RayPlaneDistance;
+        FVector FractionalOrigin = FVector::ZeroVector, FractionalDirection = FVector::ZeroVector;
+        const bool bFractionalRayValid = PointerWorldRay(FractionalOrigin, FractionalDirection);
+        UE_LOG(LogTemp, Display, TEXT("PROOF_CONTROLS_PROJECTION expected=%s actual=%s errorCm=%.6f groundValid=%d screenX=%.6f screenY=%.6f truncatedX=%.0f truncatedY=%.0f rayValid=%d rayOrigin=%s rayDirection=%s planeDistance=%.6f engineRayIntersection=%s nativeErrorCm=%.6f fractionalRayValid=%d fractionalRayOrigin=%s fractionalRayDirection=%s cameraLocation=%s cameraRotation=%s orthoWidth=%.3f viewportWidth=%d viewportHeight=%d"),
+            *ControlsDestination.ToString(), *RoundTrip.ToString(), FVector::Dist(RoundTrip, ControlsDestination), bGroundProjected,
+            ControlsCursor.X, ControlsCursor.Y, static_cast<double>(FMath::TruncToInt(ControlsCursor.X)), static_cast<double>(FMath::TruncToInt(ControlsCursor.Y)),
+            bRayDeprojected, *RayOrigin.ToString(), *RayDirection.ToString(), RayPlaneDistance, *RayIntersection.ToString(), FVector::Dist(RayIntersection, ControlsDestination),
+            bFractionalRayValid, *FractionalOrigin.ToString(), *FractionalDirection.ToString(),
+            *Camera->GetComponentLocation().ToString(), *Camera->GetComponentRotation().ToString(), Camera->OrthoWidth, Width, Height);
+        if (!ControlsCheck(bGroundProjected && FVector::Dist(RoundTrip, ControlsDestination) < 2.f,
             TEXT("actual_viewport_projection_deprojection_roundtrip_lt2cm"))) return;
         OrderUnderCursor();
         if (!ControlsCheck(LastRequestedSequence == 1 && LastRequestedType == TEXT("Move"), TEXT("move_request_type"))) return;
