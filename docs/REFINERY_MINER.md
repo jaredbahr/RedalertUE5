@@ -25,3 +25,11 @@ The miner uses the existing selectable generic proxy and Gather command. No auto
 Stop on failures and retain all evidence before any justified correction/retry. Do not weaken expected winners, deadlines, authoritative checks or cleanup gates to accommodate changed economy. Existing build/resource policies apply; no additional GitHub fees, hosted Actions, installs, binary uploads or zero-C:-writes claim.
 
 The model regressions are prepared source, not executed evidence until the queued Unreal run passes. PR #38's prior passes do not validate this gameplay change. Issues #2, #17, #18 and #33 retain their own unsatisfied scope; this draft alone satisfies none of their full acceptance gates.
+
+## Prepared runtime identity observations
+
+Use `-RefineryMinerEvidence` with the existing Victory/Defeat/Coop runner. The opt-in helper records synchronous accepted command before/after states: exact new ID pair, one cost, existing-state preservation, valid spawn and accepted Gather for that miner. Actual advances verify ore/cargo/delivered conservation and track load plus owned-refinery deposit, including simultaneous contributions from other miners. No new commands, RPCs, simulation gates or gameplay mutations are introduced.
+
+Host and actual receiving clients log semantic snapshots once per new epoch/revision. The offline gate requires matching epoch/revision/digest and semantic state for later identity/load/deposit checkpoints, including owners1/2/100 across allthreeCooproles (1/100 standalone). It does not claim that every immediate command revision replicated. Missing, malformed, contradictory or over-budget evidence fails the opt-in run. Limits are1536snapshot rows per role,8MiB ASCII snapshot payload,32KiB perrow and32 grants and 32 rejections per epoch. Existing outcome/deadline/screenshot/cleanup gates remain required.
+
+The strict offline policy passed35synthetic cases and independent review. Those synthetic passes do not establish actual mining or replication; C++ compilation and real-match phase observations remain pending until recorded in a validation ledger. Current source has been reconciled with independently validated HUD main d3510e5.

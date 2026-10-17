@@ -1,14 +1,14 @@
 {
-  "status": "source-reviewed-unbuilt-runtime-unverified",
-  "baseCommit": "b6e447c9a8b3fcfcd342a462f1beb2fea344bb19",
+  "status": "allocated-source-reconciled-pending-build",
+  "baseCommit": "d3510e5bfbc5ee022fd0e782e06f6f2210cb6c65",
   "branch": "feat/refinery-miner",
-  "heavySlotOwner": "Imagination",
+  "heavySlotOwner": "Red Alert",
   "after": [
-    "Imagination allocated PR130/131 work",
-    "PR38 remaining build/runtime/visual gates"
+    "Completed Imagination allocated work",
+    "Completed PR38 scoped integration at d3510e5"
   ],
   "requiresExplicitSlotHandoff": true,
-  "preRenderedRequirement": "Prepare bounded identity evidence: each first accepted refinery before/after authoritative pair, granted miner accepted Gather/cargo/deposit, Coop replicated-state agreement. Existing boolean flags alone are insufficient.",
+  "preRenderedRequirement": "Opt-in identity collection and strict later-common phase validation prepared; require successful real results, not built/gathered booleans.",
   "automaticRetry": false,
   "stopOnFailure": true,
   "engineJobsLaunched": 0,
@@ -53,7 +53,8 @@
         "Victory",
         "-CleanPresentation",
         "-TimeoutSeconds",
-        "240"
+        "240",
+        "-RefineryMinerEvidence"
       ],
       "script": "unreal/Scripts/test-small-match.ps1"
     },
@@ -63,7 +64,8 @@
         "Defeat",
         "-CleanPresentation",
         "-TimeoutSeconds",
-        "240"
+        "240",
+        "-RefineryMinerEvidence"
       ],
       "script": "unreal/Scripts/test-small-match.ps1"
     },
@@ -73,7 +75,8 @@
         "Coop",
         "-CleanPresentation",
         "-TimeoutSeconds",
-        "240"
+        "240",
+        "-RefineryMinerEvidence"
       ],
       "script": "unreal/Scripts/test-small-match.ps1"
     },
