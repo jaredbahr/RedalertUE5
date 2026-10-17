@@ -1,10 +1,10 @@
 {
-  "status": "queued-source-only-awaiting-shared-slot",
+  "status": "paused-slot-released-projection-source-fix-awaiting-build",
   "baseCommit": "49bd2e080b07476d17889f00687ffa4081ad5a60",
   "branch": "feat/hud-readability",
   "sourceCompiled": false,
   "runtimeValidated": false,
-  "heavySlotOwner": "Imagination",
+  "heavySlotOwner": "released; Imagination queued",
   "requiresExplicitSlotHandoff": true,
   "stopOnFailure": true,
   "automaticRetry": false,

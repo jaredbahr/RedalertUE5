@@ -955,9 +955,35 @@ bool AProofRTSPawn::TickHUDReadabilityCaptures()
             : FVector2D(0.30f * Width, (12.f + 197.f) * UiScale + 24.f);
         if (IFileManager::Get().FileExists(*Path))
         { FinishSkirmishScenario(false, TEXT("readability_capture_not_fresh")); return false; }
-        const double UnitsPerPixel = Camera->OrthoWidth / static_cast<double>(Width);
-        const FVector Delta = Camera->GetRightVector() * ((Projected.X - HUDEdgeTarget.X) * UnitsPerPixel)
-            + Camera->GetUpVector() * ((HUDEdgeTarget.Y - Projected.Y) * UnitsPerPixel);
+        // Unconstrained orthographic scale depends on the actual aspect-axis policy.
+        const ULocalPlayer* LocalPlayer = PC->GetLocalPlayer();
+        FSceneViewProjectionData Projection;
+        if (!LocalPlayer || !LocalPlayer->ViewportClient || !LocalPlayer->ViewportClient->Viewport
+            || !LocalPlayer->GetProjectionData(LocalPlayer->ViewportClient->Viewport, Projection))
+        { FinishSkirmishScenario(false, TEXT("readability_projection_data")); return false; }
+        const FIntRect Rect = Projection.GetConstrainedViewRect();
+        const FMatrix ViewProjection = Projection.ComputeViewProjectionMatrix();
+        const double Determinant = ViewProjection.Determinant();
+        if (Rect.Min != FIntPoint::ZeroValue || Rect.Width() != Width || Rect.Height() != Height
+            || !FMath::IsFinite(Determinant) || Determinant == 0.0)
+        { FinishSkirmishScenario(false, TEXT("readability_projection_matrix")); return false; }
+        const FMatrix Inverse = ViewProjection.Inverse();
+        const auto ScreenOrigin = [&Inverse, &Rect](const FVector2D& Point, FVector& Origin)
+        {
+            const double ClipX = 2.0 * (Point.X - Rect.Min.X) / Rect.Width() - 1.0;
+            const double ClipY = 1.0 - 2.0 * (Point.Y - Rect.Min.Y) / Rect.Height();
+            const FVector4 Near = Inverse.TransformFVector4(FVector4(ClipX, ClipY, 1.0, 1.0));
+            if (!FMath::IsFinite(Near.X) || !FMath::IsFinite(Near.Y) || !FMath::IsFinite(Near.Z)
+                || !FMath::IsFinite(Near.W) || FMath::IsNearlyZero(Near.W)) return false;
+            Origin = FVector(Near.X / Near.W, Near.Y / Near.W, Near.Z / Near.W);
+            return !Origin.ContainsNaN();
+        };
+        FVector AnchorOrigin, TargetOrigin;
+        if (!ScreenOrigin(Projected, AnchorOrigin) || !ScreenOrigin(HUDEdgeTarget, TargetOrigin))
+        { FinishSkirmishScenario(false, TEXT("readability_projection_inverse")); return false; }
+        const FVector Delta = AnchorOrigin - TargetOrigin;
+        if (Delta.ContainsNaN())
+        { FinishSkirmishScenario(false, TEXT("readability_camera_delta")); return false; }
         Camera->SetWorldLocation(Camera->GetComponentLocation() + Delta);
         // Exactly one camera adjustment per view; cached projection is checked on a later frame.
         HUDEdgePhase = 1;
@@ -966,7 +992,11 @@ bool AProofRTSPawn::TickHUDReadabilityCaptures()
     }
     if (SkirmishElapsed - HUDEdgeStageStarted < 0.25f) return false;
     if (FVector2D::Distance(Projected, HUDEdgeTarget) > 2.0)
-    { FinishSkirmishScenario(false, TEXT("readability_projection_target")); return false; }
+    {
+        UE_LOG(LogTemp, Error, TEXT("PROOF_HUD_EDGE_PROJECTION_FAILURE name=%s projectedX=%.3f projectedY=%.3f targetX=%.3f targetY=%.3f width=%d height=%d"),
+            Names[HUDEdgeIndex], Projected.X, Projected.Y, HUDEdgeTarget.X, HUDEdgeTarget.Y, Width, Height);
+        FinishSkirmishScenario(false, TEXT("readability_projection_target")); return false;
+    }
     if (HUDEdgePhase == 1)
     {
         HUDEdgeCaptureRequestedAt = FDateTime::UtcNow();

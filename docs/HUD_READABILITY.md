@@ -1,6 +1,6 @@
 # HUD readability candidate
 
-Status: source prepared on `feat/hud-readability`, based on main `49bd2e080b07476d17889f00687ffa4081ad5a60`. Compilation, Unreal automation and rendered acceptance have **not run for this source**. Imagination owns the shared heavy-test slot; wait for an explicit handoff before any build or engine launch. Existing passing evidence in [HUD diagnostics validation](HUD_DIAGNOSTICS_VALIDATION.md) belongs to the earlier source and does not validate this change.
+Status: source prepared on `feat/hud-readability`, based on main `49bd2e080b07476d17889f00687ffa4081ad5a60`. The first allocated batch stopped at a failed edge projection gate; see [retained results and pending correction](HUD_READABILITY_VALIDATION.md). The projection correction has not been built or runtime validated. The heavy slot is released; wait for a new explicit handoff before any build or engine launch. Existing passing evidence in [HUD diagnostics validation](HUD_DIAGNOSTICS_VALIDATION.md) belongs to the earlier source and does not validate this change.
 
 ## Bounded behavior
 
