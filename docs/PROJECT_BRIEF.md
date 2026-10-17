@@ -10,9 +10,9 @@ Jared says multiplayer will likely be internet-based, making internet play the p
 
 ## Gameplay fidelity and acceptable modernization
 
-Jared's clarified long-term goal is a modernized full-3D remake that plays and feels like RA2 / Yuri's Revenge. Preserve its pacing, economy, recognizable unit roles and combat. Better presentation, camera panning and modest usability improvements are acceptable; use that discretion to support the original feel, without drifting into a different RTS or RA3 tone.
+Jared's clarified north star is a near-identical-feeling UE5 recreation of Red Alert 2 / Yuri's Revenge: the old-school RTS playstyle he remembers, with modern visuals. Preserve original-style pace, economy, base building, unit roles, combat and responsiveness. Modern presentation, camera freedom and readability should support that playstyle. Do not substitute mechanics from other modern RTS games or drift toward RA3's rejected visual style. Routine fidelity work can proceed within this direction.
 
-The small-match prototype is an engineering foundation, not evidence of gameplay parity. Prioritize concrete fidelity gaps after lifecycle correctness and measured scale evidence: responsive selection/orders and camera, recognizable role-specific movement/combat, and an economy/production loop calibrated against private original-game references. Record what is measured or confirmed and keep placeholder values explicit. Check newly filed repository issues between bounded batches.
+The smallest trial should prioritize a responsive human-controlled bot skirmish with a usable launch, valid finish and restart. Original-game comparison must establish timings and behavior before claiming exact gameplay parity. The small-match prototype is an engineering foundation, not evidence of gameplay parity. Prioritize concrete fidelity gaps after lifecycle correctness and measured scale evidence: responsive selection/orders and camera, recognizable role-specific movement/combat, and an economy/production loop calibrated against private original-game references. Record what is measured or confirmed and keep placeholder values explicit. Check newly filed repository issues between bounded batches.
 ## First proof
 
 Show a Tesla Reactor, Rhino Tank, and Conscript together in the same scene at the intended RTS camera. Supply a normal gameplay view, a zoomed-out view, and motion footage. Jared must approve the blockout proportions, relative scale, silhouettes, and camera readability before asset finishing. This proof is not a commitment to final unit-to-building scale.
@@ -32,6 +32,14 @@ Two-client correctness and active-unit performance are early gates. Scale tests 
 Blender is installed. Jared owns original games through Steam/Origin for private visual reference. Jared has now authorized the first scoped implementation batch: original authored blockouts, a reproducible scene/assets pipeline, and early technical groundwork with existing tools. No purchases, new agreements, security changes, proprietary asset uploads, or unapproved installs are authorized. Asset finishing still requires blockout approval.
 
 Prefer newly authored art guided by references. Maintain provenance for future assets: creator, source/reference, usage terms, and any distribution limits. Do not upload raw EA game assets or music, and do not infer permission from ownership or invent a project license.
+
+## Reusable design and pipeline
+
+This project is a new UE5 reimplementation/remake of the original game's behavior and feel, not a port of EA's original source code. Another goal is to establish a documented core design and 3D production process that could later support an original RTS or other 3D games.
+
+Keep general command/simulation boundaries, human/bot adapters, import/validation scripts and evidence practices distinguishable from RA2-specific factions, rules, balance, art, maps and audio. Record provenance and applicable licenses for code, references and assets so later projects can identify what they may reuse. Current prototypes do not establish a finished reusable framework.
+
+Document the practical [asset workflow](ASSET_PIPELINE_EVALUATION.md#reusable-workflow-and-trial-records), including failed attempts, cleanup time and accepted results. Extract reusable lessons from working trials. The playable RA2-style trial comes first; speculative framework work or a large architecture rewrite is outside this goal.
 
 ## D: storage and repository hygiene
 
@@ -55,3 +63,5 @@ Before any binary upload, review file sizes, expected growth, Git LFS tracking, 
 ## Decisions still needed
 
 Determine exact per-player and total unit counts through measurement, confirm hosting/connectivity and any LAN requirement for the provisionally intended internet mode, and agree on target hardware and performance/network budgets, engine version, and the minimum roster. See [Decisions](DECISIONS.md). These choices affect technical feasibility and milestone acceptance, and are not silently resolved by this brief.
+
+Asset-tool candidates and their unverified evaluation gates are recorded in [asset pipeline evaluation](ASSET_PIPELINE_EVALUATION.md); asset tooling and lower-priority audio should support this gameplay direction.
