@@ -11,6 +11,61 @@ param(
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'RefineryMinerEvidence.ps1')
 . (Join-Path $PSScriptRoot 'AttackMoveEvidence.ps1')
+function Get-AttackMoveReleasePayload([ValidateSet('clients','host')][string]$Phase,[string]$Token) {
+    if($Token -cnotmatch '^[a-f0-9]{32}$'){throw 'Invalid Attack Move release token.'}
+    return $Phase+':'+$Token
+}
+function Publish-AttackMoveRelease([string]$Path,[ValidateSet('clients','host')][string]$Phase,[string]$Token) {
+    $payload=Get-AttackMoveReleasePayload $Phase $Token
+    $pending=$Path+'.pending'
+    if((Test-Path -LiteralPath $Path) -or (Test-Path -LiteralPath $pending)){throw 'Stale Attack Move release path or pending marker.'}
+    # Same-directory rename publishes complete content; readers never see a partial marker.
+    [IO.File]::WriteAllText($pending,$payload,[Text.Encoding]::ASCII)
+    [IO.File]::Move($pending,$Path)
+}
+function Read-AttackMoveRoleLog($Entry) {
+    if(Test-Path -LiteralPath $Entry.Log){return Get-Content -LiteralPath $Entry.Log -Raw}
+    return ''
+}
+function Test-AttackMoveClientsReleased($HostEntry,$ClientEntries,[Collections.IDictionary]$Logs,[Collections.IDictionary]$Barrier,[bool]$HostMarkerExists,[double]$Elapsed,[double]$Limit) {
+    $null=Get-AttackMoveReleasePayload 'clients' $Barrier.token
+    if($Elapsed -ge $Limit){throw 'Attack Move scenario exceeded its strict wall timeout.'}
+    if(-not $Barrier.preReleaseValidationPassed -or -not $Barrier.created){throw 'Client release requires strict pre-release validation.'}
+    if($HostMarkerExists){throw 'Host release existed before verified client completion.'}
+    if($Logs.host -match 'PROOF_ATTACK_MOVE_COMPLETE' -or $HostEntry.Process.HasExited){throw 'Host completed or exited before verified client completion.'}
+    if(@($ClientEntries).Count -ne 2 -or @($ClientEntries|Where-Object{$_.Role -ceq 'rendered'}).Count -ne 1 -or @($ClientEntries|Where-Object{$_.Role -ceq 'observer'}).Count -ne 1){throw 'Need exactly the two original Attack Move clients.'}
+    foreach($role in @('host','rendered','observer')){
+        if($Logs[$role] -match 'PROOF_ATTACK_MOVE_ERROR|PROOF_ATTACK_MOVE_[^\r\n]*status=fail|Fatal error:|Assertion failed:|Unhandled Exception:'){throw "$role reported an Attack Move fixture/runtime failure."}
+    }
+    $allExited=$true
+    foreach($entry in $ClientEntries){
+        if(-not $entry.PinnedHandle -or $entry.PinnedHandle.IsClosed -or $entry.PinnedHandle.IsInvalid){throw 'Original client handle unavailable for release confirmation.'}
+        $text=$Logs[$entry.Role]
+        # Confirm first, then reread: the caller's snapshot may predate the last
+        # marker flush while the process exits between log read and zero-wait.
+        $signaled=$entry.Process.WaitForExit(0)
+        if($signaled){$text=Read-AttackMoveRoleLog $entry}
+        if($text -match 'PROOF_ATTACK_MOVE_ERROR|PROOF_ATTACK_MOVE_[^\r\n]*status=fail|Fatal error:|Assertion failed:|Unhandled Exception:'){throw "$($entry.Role) reported an Attack Move fixture/runtime failure."}
+        $pattern='(?m)PROOF_ATTACK_MOVE_COMPLETE role='+$entry.Role+' status=pass input=synthetic physicalInput=unverified\r?$'
+        $complete=[regex]::Matches($text,$pattern)
+        if($complete.Count -gt 1 -or [regex]::Matches($text,'PROOF_ATTACK_MOVE_COMPLETE[^\r\n]*').Count -ne $complete.Count){throw "$($entry.Role) has duplicate or wrong completion markers."}
+        $releasePattern='(?m)PROOF_ATTACK_MOVE_RELEASE role='+$entry.Role+' phase=clients token='+[regex]::Escape($Barrier.token)+'\r?$'
+        $releaseMarkers=[regex]::Matches($text,$releasePattern)
+        if($releaseMarkers.Count -gt 1 -or [regex]::Matches($text,'PROOF_ATTACK_MOVE_RELEASE[^\r\n]*').Count -ne $releaseMarkers.Count){throw "$($entry.Role) has duplicate or wrong release markers."}
+        # Finite zero-wait on the retained original Process is kernel signaling,
+        # unlike HasExited's early exit-status observation. No PID reopening here.
+        if($entry.Process.HasExited -and $entry.Process.ExitCode -ne 0){throw "$($entry.Role) exited $($entry.Process.ExitCode)."}
+        if($signaled){
+            if($entry.Process.ExitCode -ne 0 -or $complete.Count -ne 1 -or $releaseMarkers.Count -ne 1){throw "$($entry.Role) lacks exact successful client release/completion and exit0."}
+        }else{$allExited=$false}
+    }
+    return $allExited
+}
+function Publish-AttackMoveHostRelease($HostEntry,$ClientEntries,[Collections.IDictionary]$Logs,[Collections.IDictionary]$Barrier,[double]$Elapsed,[double]$Limit) {
+    if(-not (Test-AttackMoveClientsReleased $HostEntry $ClientEntries $Logs $Barrier (Test-Path -LiteralPath $Barrier.hostPath) $Elapsed $Limit)){throw 'Clients have not completed and signaled exit before host release.'}
+    Publish-AttackMoveRelease $Barrier.hostPath 'host' $Barrier.token
+    $Barrier.hostCreated=$true;$Barrier.hostCreatedUtc=[DateTime]::UtcNow.ToString('o')
+}
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $repoRoot = (Resolve-Path (Join-Path $projectRoot '..')).Path
 $project = Join-Path $projectRoot 'RedalertProof.uproject'
@@ -25,6 +80,8 @@ $run = Join-Path $repoRoot ('generated\attack-move-proof-' + [DateTime]::UtcNow.
 if(Test-Path -LiteralPath $run){throw 'Fresh Attack Move run directory already exists.'}
 $images = Join-Path $run 'screenshots'
 $release = Join-Path $run 'release'
+$hostRelease = $release+'.host'
+$releaseToken=[Guid]::NewGuid().ToString('N')
 $cache = Join-Path $repoRoot 'generated\attack-move-proof-cache'
 New-Item -ItemType Directory -Force -Path $run,$images,$cache,(Join-Path $run 'temp') | Out-Null
 $literalClientCVars=Join-Path $run 'client-literal-cvars.ini'
@@ -71,7 +128,7 @@ $result.globalMovementProofVerified=$false
 $result.readyMarkersByRole=@{}
 $result.completeMarkersByRole=@{}
 $result.attackMoveEvidence=$null
-$result.releaseBarrier=[ordered]@{path=$release;preReleaseValidationPassed=$false;created=$false;createdUtc=$null;preReleaseEvidence=$null}
+$result.releaseBarrier=[ordered]@{path=$release;hostPath=$hostRelease;token=$releaseToken;preReleaseValidationPassed=$false;created=$false;createdUtc=$null;hostCreated=$false;hostCreatedUtc=$null;clientExitsConfirmed=$false;clientExitEvidence=@();preReleaseEvidence=$null}
 $result.cacheDiagnostics=[ordered]@{verboseEnabled=$true;diagnosticOnly=$true;classification='Engine/DerivedDataCache/*.ddp path; global only GlobalShaderMap/ keys; material-related request/key text may include textures';byProcess=@{};readErrors=@()}
 $workerExe=Join-Path $EngineRoot 'Engine\Binaries\Win64\ShaderCompileWorker.exe'
 $names=@('UE-LocalDataCachePath','UE-SharedDataCachePath','TEMP','TMP')
@@ -222,7 +279,7 @@ try {
         if($UnoptimizedShaders) { $engineOverrides+=@('[ShaderCompiler]:r.Shaders.Optimize=0','[ConsoleVariables]:r.Shaders.Optimize=0') }
         if($engineOverrides.Count) { $launchArguments+=('-ini:Engine:'+($engineOverrides -join ',')) }
         $p=Start-Process -FilePath $editor -ArgumentList $launchArguments -WorkingDirectory $projectRoot -WindowStyle Hidden -PassThru
-        $processes.Add([pscustomobject]@{Process=$p;Started=$p.StartTime;Role=$Role;Log=$log;Path=$editor})
+        $processes.Add([pscustomobject]@{Process=$p;PinnedHandle=$p.SafeHandle;Started=$p.StartTime;Role=$Role;Log=$log;Path=$editor})
         $p.ProcessorAffinity=[IntPtr]([int64]$fixtureAffinity)
         $p.PriorityClass=[Diagnostics.ProcessPriorityClass]::Normal
         $p.Refresh()
@@ -302,7 +359,7 @@ try {
             Start-Sleep -Milliseconds 200
         }
     }
-    $commonFlags=@('-ProofSkirmish','-ProofRefineryMinerEvidence',('-ProofAttackMoveRelease="'+$release+'"'))
+    $commonFlags=@('-ProofSkirmish','-ProofRefineryMinerEvidence',('-ProofAttackMoveRelease="'+$release+'"'),('-ProofAttackMoveReleaseToken='+$releaseToken))
     Start-AttackMove 'host' '/Game/CommandProofGenerated/Maps/CommandProof' (@('-server','-nullrhi','-MULTIHOME=127.0.0.1','-ProofAttackMoveFixtureHost')+$commonFlags)
     Wait-AttackMoveMarker $processes[1] 'PROOF_SKIRMISH_READY\b'
     Mark-Stage 'hostSkirmishReady'
@@ -346,11 +403,26 @@ try {
     $result.releaseBarrier.preReleaseValidationPassed=$true
     Mark-Stage 'preReleaseEvidenceVerified'
     Check-AttackMoveProgress
-    if(Test-Path -LiteralPath $release){throw 'Release file existed before strict evidence validation.'}
-    'release' | Set-Content -LiteralPath $release -Encoding ascii
+    if((Test-Path -LiteralPath $release) -or (Test-Path -LiteralPath $hostRelease)){throw 'Release file existed before strict evidence validation.'}
+    Publish-AttackMoveRelease $release 'clients' $releaseToken
     $result.releaseBarrier.created=$true
     $result.releaseBarrier.createdUtc=[DateTime]::UtcNow.ToString('o')
     Mark-Stage 'validatedReleaseWritten'
+    $clientEntries=@($processes|Where-Object{$_.Role -in @('rendered','observer')})
+    while($true){
+        Check-AttackMoveProgress -AllowExited
+        $fixtureLogs=Read-AttackMoveLogs
+        if(Test-AttackMoveClientsReleased $processes[1] $clientEntries $fixtureLogs $result.releaseBarrier (Test-Path -LiteralPath $hostRelease) $scenarioWatch.Elapsed.TotalSeconds $TimeoutSeconds){break}
+        Start-Sleep -Milliseconds 200
+    }
+    Check-AttackMoveProgress -AllowExited
+    $fixtureLogs=Read-AttackMoveLogs
+    if(-not (Test-AttackMoveClientsReleased $processes[1] $clientEntries $fixtureLogs $result.releaseBarrier (Test-Path -LiteralPath $hostRelease) $scenarioWatch.Elapsed.TotalSeconds $TimeoutSeconds)){throw 'Client exit confirmation changed before host release.'}
+    $result.releaseBarrier.clientExitsConfirmed=$true
+    foreach($entry in $clientEntries){$result.releaseBarrier.clientExitEvidence+=@{role=$entry.Role;pid=$entry.Process.Id;startUtc=$entry.Started.ToUniversalTime().ToString('o');exitCode=$entry.Process.ExitCode;originalHandleSignaled=$true}}
+    Mark-Stage 'clientsCompletedAndExited'
+    Publish-AttackMoveHostRelease $processes[1] $clientEntries $fixtureLogs $result.releaseBarrier $scenarioWatch.Elapsed.TotalSeconds $TimeoutSeconds
+    Mark-Stage 'validatedHostReleaseWritten'
     while(@($processes|Where-Object {-not $_.Process.HasExited}).Count){
         Check-AttackMoveProgress -AllowExited
         Start-Sleep -Milliseconds 200

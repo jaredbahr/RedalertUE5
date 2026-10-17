@@ -1,4 +1,5 @@
 #include "Runtime/ProofAttackMoveRuntimeState.h"
+#include "Runtime/ProofAttackMoveReleasePolicy.h"
 #include "Runtime/ProofGameMode.h"
 #include "Runtime/ProofGameState.h"
 #include "Runtime/ProofPlayerController.h"
@@ -11,6 +12,7 @@
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
 #include "Misc/Paths.h"
+#include "Misc/FileHelper.h"
 #include "UnrealClient.h"
 
 namespace
@@ -42,31 +44,55 @@ bool AMRuntimeRoster(const FProofSnapshot& S)
 }
 bool AMRuntimeConfig(FProofAttackMoveRuntimeState& R, const TCHAR* Role)
 {
-    if (!R.Release.IsEmpty()) return true;
+    if (R.bReleaseConfigured) return true;
     const TCHAR* Cmd = FCommandLine::Get();
     FString OtherScenario;
     if (!FParse::Param(Cmd, TEXT("ProofSkirmish")) || !FParse::Param(Cmd, TEXT("ProofRefineryMinerEvidence"))
         || !FParse::Value(Cmd, TEXT("ProofAttackMoveRelease="), R.Release) || FPaths::IsRelative(R.Release)
+        || !FParse::Value(Cmd, TEXT("ProofAttackMoveReleaseToken="), R.ReleaseToken)
         || FParse::Value(Cmd, TEXT("ProofSkirmishScenario="), OtherScenario))
     { AMRuntimeFail(Role, TEXT("fixture_configuration")); return false; }
     for (const TCHAR* Flag : {TEXT("ProofAutomation"), TEXT("ProofControlsAutomation"), TEXT("ProofControlsObserver"),
         TEXT("ProofSkirmishObserver"), TEXT("ProofSkirmishFixtureHost"), TEXT("ProofLifecycleFixtureHost"),
         TEXT("ProofFactoryRallyEvidence"), TEXT("ProofStopControls"), TEXT("ProofTypeSelectionControls"), TEXT("ProofCameraPan"), TEXT("ProofCameraEdgePan")})
         if (FParse::Param(Cmd, Flag)) { AMRuntimeFail(Role, TEXT("incompatible_fixture_flags")); return false; }
-    if (IFileManager::Get().FileExists(*R.Release)) { AMRuntimeFail(Role, TEXT("stale_release")); return false; }
+    const auto Startup = FProofAttackMoveReleasePolicy::Evaluate(true, FCString::Strcmp(Role, TEXT("host")) == 0, false,
+        IFileManager::Get().FileExists(*R.Release), FString(),
+        IFileManager::Get().FileExists(*(R.Release + TEXT(".host"))), FString(), R.ReleaseToken);
+    if (Startup.Error) { AMRuntimeFail(Role, Startup.Error); return false; }
+    R.bReleaseConfigured = true;
     UE_LOG(LogTemp, Display, TEXT("PROOF_ATTACK_MOVE_CONFIG role=%s activeSeconds=55 range=300 speed=150 dps=25 commandCap=32 clockCap=1024 input=synthetic physicalInput=unverified"), Role);
     return true;
 }
 bool AMRuntimeRelease(FProofAttackMoveRuntimeState& R, const TCHAR* Role)
 {
-    if (!IFileManager::Get().FileExists(*R.Release)) return false;
-    if (!R.bReady) AMRuntimeFail(Role, TEXT("premature_release"));
-    else
+    if (R.bReleaseComplete) return true;
+    const FString HostPath = R.Release + TEXT(".host");
+    const bool bClientsExist = IFileManager::Get().FileExists(*R.Release);
+    const bool bHostExists = IFileManager::Get().FileExists(*HostPath);
+    FString Clients, Host;
+    const auto ReadMarker = [](const FString& Path, FString& Text)
     {
+        const int64 Size = IFileManager::Get().FileSize(*Path);
+        return Size > 0 && Size <= 64 && FFileHelper::LoadFileToString(Text, *Path);
+    };
+    if ((bClientsExist && !ReadMarker(R.Release, Clients)) || (bHostExists && !ReadMarker(HostPath, Host)))
+    { AMRuntimeFail(Role, TEXT("release_read")); return true; }
+    const auto Decision = FProofAttackMoveReleasePolicy::Evaluate(false, FCString::Strcmp(Role, TEXT("host")) == 0,
+        R.bReady, bClientsExist, Clients, bHostExists, Host, R.ReleaseToken);
+    if (Decision.Error) { AMRuntimeFail(Role, Decision.Error); return true; }
+    if (bClientsExist && !R.bReleaseObserved)
+    {
+        R.bReleaseObserved = true;
+        UE_LOG(LogTemp, Display, TEXT("PROOF_ATTACK_MOVE_RELEASE role=%s phase=clients token=%s"), Role, *R.ReleaseToken);
+    }
+    if (Decision.bComplete)
+    {
+        R.bReleaseComplete = true;
         UE_LOG(LogTemp, Display, TEXT("PROOF_ATTACK_MOVE_COMPLETE role=%s status=pass input=synthetic physicalInput=unverified"), Role);
         FPlatformMisc::RequestExitWithStatus(false, 0);
     }
-    return true;
+    return Decision.bStopTick;
 }
 int32 AMRuntimeReceipt(AProofPlayerController* PC, int32 Sequence, const TCHAR* Role)
 {
