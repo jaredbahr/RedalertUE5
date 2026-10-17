@@ -279,12 +279,28 @@ bool FProofSkirmishBotRefineryPlanningTest::RunTest(const FString&)
     // These are foreign mobile blockers, so factory's existing structure-only
     // placement policy can still find a site; only the refinery grant lacks room.
     FProofSnapshot Blocked = SmallSnapshot();
-    for (int32 Owner = 2; Owner <= 7; ++Owner) Blocked.Players.Add(Player(Owner, 0, 0));
+    for (int32 Owner = 2; Owner <= 11; ++Owner) Blocked.Players.Add(Player(Owner, 0, 0));
     int32 BlockerId = 10000;
     int32 ForeignSlot = 2; // Existing owner 1 already has two records.
-    for (int32 X = -1600; X <= 1600; X += 400)
-        for (int32 Y = -1600; Y <= 1600; Y += 400)
+    for (int32 X = -1500; X <= 1500; X += 300)
+        for (int32 Y = -1500; Y <= 1500; Y += 300)
             Blocked.Units.Add(Unit(BlockerId++, 1 + ForeignSlot++ / 12, EProofUnitKind::Combat, FVector(X, Y, 0)));
+    // Check the fixture itself against the shared search. A sparse grid can
+    // leave diagonal holes even when cardinal spawn candidates are blocked.
+    const FVector BuildSites[] = {
+        FVector(350, 0, 0), FVector(-350, 0, 0), FVector(0, 350, 0), FVector(0, -350, 0),
+        FVector(350, 350, 0), FVector(-350, 350, 0), FVector(350, -350, 0), FVector(-350, -350, 0),
+        FVector(600, 0, 0), FVector(-600, 0, 0), FVector(0, 600, 0), FVector(0, -600, 0)
+    };
+    bool bAllSitesBlocked = true;
+    for (const FVector& Site : BuildSites)
+    {
+        FVector Spawn;
+        const bool bHasSpawn = FProofCommandModel::FindSkirmishSpawn(Blocked, Site, Spawn);
+        TestFalse(FString::Printf(TEXT("No-space fixture exhausts miner search at %s"), *Site.ToString()), bHasSpawn);
+        bAllSitesBlocked &= !bHasSpawn;
+    }
+    if (!bAllSitesBlocked) { return false; }
     FProofSkirmishBot BlockedBot;
     const TArray<FProofCommand> NoSpace = BlockedBot.Decide(Blocked, 100, 0.0);
     TestTrue(TEXT("No miner spawn space suppresses refinery without blocking affordable factory"), NoSpace.Num() == 1
