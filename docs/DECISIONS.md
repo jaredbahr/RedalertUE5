@@ -20,6 +20,7 @@ Status vocabulary: **Confirmed** records Jared's direction; **Proposed** is a ca
 | Repository changes | Isolated D: implementation branch, reviewed commits, and draft PRs now authorized. Preserve others' edits and branches; no changes to main, merges, force pushes, or deployment. |
 
 Jared subsequently clarified the product goal: a modernized 3D RA2/Yuri-style remake that preserves gameplay feel, pacing, economy, unit roles and combat. Camera panning and modest usability improvements are accepted implementation discretion. This is a direction decision, not approval of prototype balance or evidence of gameplay parity. The current engineering results are recorded in [Small match](SMALL_MATCH.md); broad milestone gates remain open.
+
 ## Proposed defaults, not yet approved decisions
 
 | Topic | Proposal and validation |
@@ -47,3 +48,11 @@ Jared subsequently clarified the product goal: a modernized 3D RA2/Yuri-style re
 Repository inspection found a public repository with only `README.md` (the title `# RedalertUE5`) at base commit `2a41dadc72b7bb1153925b1949cfba510518dd4c`, on default branch `main`. No engine project, repository instructions, license file, or existing implementation was present in that commit. Visibility can change; this is an inspection record, not an ongoing guarantee.
 
 The first implementation batch adds reproducible blockout and technical experiments; see [First-proof evidence](FIRST_PROOF.md) for that batch. Subsequent partial UE command, loopback and small-match evidence is recorded in [Small match](SMALL_MATCH.md), including exact revisions and limitations. Blockout approval, gameplay parity, practical army-size budgets, complete faction rosters and Internet readiness remain unproven. When a proposal is accepted or a gate passes, record the decision, approver, evidence, and any scope change here. Do not backfill an invented date, performance result, or permission grant.
+
+## Player-feature engineering evidence
+
+The [current feature/evidence record](PLAYER_FEATURES.md) documents a fresh UE 5.7.4 build at c54, 84 functional native cases and 13 runtime passes across verified c54/42 bindings, with 36 native-size reviewed PNGs. Script-only native cleanup instrumentation reuses the identical Source/Config/project/DLL and 14 local assets; prior results retain their original tested heads.
+
+The native cleanup criterion is an original PID/creation handle with a native signal and final exit code, separate from the functional deadline. Unrelated process names cannot establish our cleanup failure. Previous failures, including the old native functional-pass/batch-guard-failure distinction, remain recorded; historical crash causes are not declared fixed.
+
+This evidence does not close the 960-pixel primary-label fallback/dense-HUD issue #18, physical input/focus issue #17, art/scale approval, complete roster, Internet or active-army gates. It records engineering results, not a new approval by Jared of those unresolved choices.

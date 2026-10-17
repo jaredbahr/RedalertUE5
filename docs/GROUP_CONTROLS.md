@@ -21,7 +21,11 @@ Group planning reads replicated snapshots. It does not mutate units, credits, da
 
 The client retains at most 64 pending Move/Attack intents. A new order for a pending unit replaces that unit's earlier intent while preserving orders for other groups. Overflow rejects the new batch. At most two intents are released per 0.1 wall-clock seconds, without catch-up bursts. Ownership, life, unit role, target team and match phase are checked again before release. A later single-unit Move/Attack/Gather cancels that unit's pending group intent. Epoch/owner changes clear the queue. This pacing does not replace or relax the server ingress limit; other manual command types still share that existing limit.
 
-Formation offsets preserve the units' current arrangement; there is no navigation, collision avoidance, formation editor, box selection or attack-move in this slice.
+Formation offsets preserve the units' current arrangement; there is no navigation, collision avoidance, formation editor or box selection in this slice. Attack Move is the separately validated playing-skirmish action described above.
+
+## Current validation
+
+The [player-feature evidence](PLAYER_FEATURES.md) records the current 84-case/13-runtime engineering set and exact c54/42 bindings. Earlier results below remain revision-specific history. Hardware input/focus acceptance is still outstanding; 960-pixel primary annotation omissions keep issue #18 open.
 
 ## Verified source and remaining acceptance
 

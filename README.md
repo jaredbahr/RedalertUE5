@@ -6,7 +6,7 @@ A personal full-3D Unreal Engine 5 RTS project inspired by Red Alert 2 and Yuri'
 
 This branch adds original authored Blender blockouts of a Tesla Reactor, Rhino Tank, and Conscript; normal and zoomed-out RTS views; and a short placeholder motion review. Source scripts regenerate the local scene, FBX exports and captures. These silhouettes and relative scales await Jared's approval before finishing assets.
 
-A UE 5.7 project and editor import script provide the engine scene foundation. This branch adds a native C++ command fixture with host-owned simulation, a shared human/bot validation route, replicated snapshots and basic RTS controls. Four native command tests and one host/two-client UE UDP loopback run passed. Graphics/input, internet play, performance and large armies remain unverified. See [native evidence and instructions](docs/UE_NATIVE_PROOF.md).
+A UE 5.7 project and editor import script provide the engine scene foundation. This branch adds a native C++ command fixture with host-owned simulation, a shared human/bot validation route, replicated snapshots and basic RTS controls. The first batch recorded four native command tests and one host/two-client UE UDP loopback pass. Later scoped graphical/command validation is described below; hardware input, Internet play and large-army performance remain unverified. See [native evidence and instructions](docs/UE_NATIVE_PROOF.md).
 
 The separate dependency-free Node experiment is an earlier contract prototype running outside UE. See [first-proof evidence and limits](docs/FIRST_PROOF.md).
 
@@ -15,6 +15,13 @@ Internet multiplayer is provisionally intended and large armies are the ambition
 ## Current small-match foundation
 
 The prototype now includes finite harvesting, base building, unit production and a shared-command bot, with a bounded local two-slot lifecycle and terminal rematch. It is an engineering foundation, not RA2/Yuri gameplay parity. Preserve the original pacing, economy, roles and combat feel while improving 3D presentation and modest camera/usability behavior. See [small-match evidence](docs/SMALL_MATCH.md) and [lifecycle, launcher and measured model baseline](docs/SESSION_LIFECYCLE.md) for exact tested revisions and remaining limits.
+
+## Player features and scoped validation
+
+The current source includes bounded HUD label placement, optional edge scrolling, visible type selection, factory rally and Attack Move. The documented engineering set passed 84 functional native cases and 13 runtime rows, with 36 engine captures reviewed across exact c54/42 source bindings. See [player controls, evidence and limits](docs/PLAYER_FEATURES.md) for how to run it and what remains unverified.
+
+At 960x540, four reviewed frames omit the selected unit's world ID/HP annotation; the selection bracket and primary panel remain readable. Dense unselected omissions and legacy label overlap remain, so issue #18 is open. Physical input/focus, art approval, full factions, Internet sessions and active-army performance are separate gates.
+
 ## Run and review
 
 - [Art pipeline](docs/ART_PIPELINE.md): generate original blockouts and local still/motion previews with the installed Blender; no downloads required.
