@@ -4,7 +4,7 @@
   "dirtyWorkingTree": false,
   "engineSourceBase": "0c7b07c21b6c794b83973f3735e8eb75dea49d9c",
   "engineSourceUnchanged": true,
-  "runDirectory": "generated/session-lifecycle-20261017-010059-344",
+  "runDirectory": "generated/session-lifecycle-<local-run>",
   "rawResultSha256": "33FCD53CF71B74DF0313C6D4E9F869868C23D34A47F932710DBC946AC75CD677",
   "passed": true,
   "elapsedSeconds": 117.309,
@@ -79,7 +79,7 @@
     ]
   },
   "timing": {
-    "scenarioStartedUtc": "2026-10-17T01:00:59.4746261Z",
+    "scenarioStartedUtc": "<private-runtime-time>",
     "clock": "Stopwatch monotonic; UTC is correlation only",
     "maxEvents": 256,
     "droppedEvents": 0,
@@ -87,7 +87,7 @@
       "kind": "wait-exit",
       "role": "runner",
       "detail": "host,lead,rejoin,third",
-      "observedUtc": "2026-10-17T01:02:55.7428659Z",
+      "observedUtc": "<private-runtime-time>",
       "scenarioElapsedSeconds": 116.269,
       "remainingBudgetSeconds": 123.731,
       "engineLogUtc": ""
@@ -98,7 +98,7 @@
         "kind": "scenario-start",
         "role": "runner",
         "detail": "fixed total budget seconds=240",
-        "observedUtc": "2026-10-17T01:00:59.4796609Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 0.005,
         "remainingBudgetSeconds": 239.995,
         "engineLogUtc": ""
@@ -107,7 +107,7 @@
         "kind": "role-start-request",
         "role": "host",
         "detail": "/Game/CommandProofGenerated/Maps/CommandProof",
-        "observedUtc": "2026-10-17T01:00:59.4919042Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 0.018,
         "remainingBudgetSeconds": 239.982,
         "engineLogUtc": ""
@@ -115,8 +115,8 @@
       {
         "kind": "role-process-started",
         "role": "host",
-        "detail": "2026-10-17T01:00:59.531517Z",
-        "observedUtc": "2026-10-17T01:00:59.540956Z",
+        "detail": "<private-runtime-time>",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 0.067,
         "remainingBudgetSeconds": 239.933,
         "engineLogUtc": ""
@@ -125,7 +125,7 @@
         "kind": "wait-marker",
         "role": "host",
         "detail": "PROOF_LIFECYCLE_READY epoch=1",
-        "observedUtc": "2026-10-17T01:00:59.555049Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 0.081,
         "remainingBudgetSeconds": 239.919,
         "engineLogUtc": ""
@@ -134,7 +134,7 @@
         "kind": "marker-observed",
         "role": "host",
         "detail": "PROOF_LIFECYCLE_READY epoch=1",
-        "observedUtc": "2026-10-17T01:01:04.5710957Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 5.097,
         "remainingBudgetSeconds": 234.903,
         "engineLogUtc": "2026.10.17-01.01.04:528"
@@ -143,7 +143,7 @@
         "kind": "role-start-request",
         "role": "lead",
         "detail": "127.0.0.1:26466",
-        "observedUtc": "2026-10-17T01:01:04.5716104Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 5.097,
         "remainingBudgetSeconds": 234.903,
         "engineLogUtc": ""
@@ -151,8 +151,8 @@
       {
         "kind": "role-process-started",
         "role": "lead",
-        "detail": "2026-10-17T01:01:04.5756228Z",
-        "observedUtc": "2026-10-17T01:01:04.5807469Z",
+        "detail": "<private-runtime-time>",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 5.107,
         "remainingBudgetSeconds": 234.893,
         "engineLogUtc": ""
@@ -161,7 +161,7 @@
         "kind": "wait-marker",
         "role": "host",
         "detail": "PROOF_LIFECYCLE_JOIN owner=1 epoch=1 seeded=1",
-        "observedUtc": "2026-10-17T01:01:04.5811476Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 5.107,
         "remainingBudgetSeconds": 234.893,
         "engineLogUtc": ""
@@ -170,7 +170,7 @@
         "kind": "marker-observed",
         "role": "host",
         "detail": "PROOF_LIFECYCLE_JOIN owner=1 epoch=1 seeded=1",
-        "observedUtc": "2026-10-17T01:01:09.6497999Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 10.176,
         "remainingBudgetSeconds": 229.824,
         "engineLogUtc": "2026.10.17-01.01.09:420"
@@ -179,7 +179,7 @@
         "kind": "role-start-request",
         "role": "owner2",
         "detail": "127.0.0.1:26466",
-        "observedUtc": "2026-10-17T01:01:09.6500006Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 10.176,
         "remainingBudgetSeconds": 229.824,
         "engineLogUtc": ""
@@ -187,8 +187,8 @@
       {
         "kind": "role-process-started",
         "role": "owner2",
-        "detail": "2026-10-17T01:01:09.65584Z",
-        "observedUtc": "2026-10-17T01:01:09.6616005Z",
+        "detail": "<private-runtime-time>",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 10.187,
         "remainingBudgetSeconds": 229.813,
         "engineLogUtc": ""
@@ -197,7 +197,7 @@
         "kind": "wait-marker",
         "role": "host",
         "detail": "PROOF_LIFECYCLE_JOIN owner=2 epoch=1 seeded=1",
-        "observedUtc": "2026-10-17T01:01:09.6625188Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 10.188,
         "remainingBudgetSeconds": 229.812,
         "engineLogUtc": ""
@@ -206,7 +206,7 @@
         "kind": "marker-observed",
         "role": "host",
         "detail": "PROOF_LIFECYCLE_JOIN owner=2 epoch=1 seeded=1",
-        "observedUtc": "2026-10-17T01:01:16.4551678Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 16.981,
         "remainingBudgetSeconds": 223.019,
         "engineLogUtc": "2026.10.17-01.01.16:188"
@@ -215,7 +215,7 @@
         "kind": "wait-marker",
         "role": "lead",
         "detail": "PROOF_SNAPSHOT role=client owner=1 epoch=1 revision=\\d+ digest=[A-Za-z0-9]+",
-        "observedUtc": "2026-10-17T01:01:16.4552771Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 16.981,
         "remainingBudgetSeconds": 223.019,
         "engineLogUtc": ""
@@ -224,7 +224,7 @@
         "kind": "marker-observed",
         "role": "lead",
         "detail": "PROOF_SNAPSHOT role=client owner=1 epoch=1 revision=\\d+ digest=[A-Za-z0-9]+",
-        "observedUtc": "2026-10-17T01:01:16.4657973Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 16.992,
         "remainingBudgetSeconds": 223.008,
         "engineLogUtc": "2026.10.17-01.01.09:457"
@@ -233,7 +233,7 @@
         "kind": "wait-marker",
         "role": "owner2",
         "detail": "PROOF_SNAPSHOT role=client owner=2 epoch=1 revision=\\d+ digest=[A-Za-z0-9]+",
-        "observedUtc": "2026-10-17T01:01:16.4658684Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 16.992,
         "remainingBudgetSeconds": 223.008,
         "engineLogUtc": ""
@@ -242,7 +242,7 @@
         "kind": "marker-observed",
         "role": "owner2",
         "detail": "PROOF_SNAPSHOT role=client owner=2 epoch=1 revision=\\d+ digest=[A-Za-z0-9]+",
-        "observedUtc": "2026-10-17T01:01:16.4762578Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 17.002,
         "remainingBudgetSeconds": 222.998,
         "engineLogUtc": "2026.10.17-01.01.16:226"
@@ -251,7 +251,7 @@
         "kind": "wait-common-snapshots",
         "role": "runner",
         "detail": "epoch=1",
-        "observedUtc": "2026-10-17T01:01:16.48108Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 17.007,
         "remainingBudgetSeconds": 222.993,
         "engineLogUtc": ""
@@ -260,7 +260,7 @@
         "kind": "wait-marker",
         "role": "host",
         "detail": "PROOF_LIFECYCLE_LOGOUT owner=2 epoch=1",
-        "observedUtc": "2026-10-17T01:01:16.6747805Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 17.201,
         "remainingBudgetSeconds": 222.799,
         "engineLogUtc": ""
@@ -269,7 +269,7 @@
         "kind": "marker-observed",
         "role": "host",
         "detail": "PROOF_LIFECYCLE_LOGOUT owner=2 epoch=1",
-        "observedUtc": "2026-10-17T01:01:17.1022297Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 17.628,
         "remainingBudgetSeconds": 222.372,
         "engineLogUtc": "2026.10.17-01.01.16:694"
@@ -278,7 +278,7 @@
         "kind": "role-start-request",
         "role": "rejoin",
         "detail": "127.0.0.1:26466",
-        "observedUtc": "2026-10-17T01:01:17.1029097Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 17.629,
         "remainingBudgetSeconds": 222.371,
         "engineLogUtc": ""
@@ -286,8 +286,8 @@
       {
         "kind": "role-process-started",
         "role": "rejoin",
-        "detail": "2026-10-17T01:01:17.1063499Z",
-        "observedUtc": "2026-10-17T01:01:17.1115233Z",
+        "detail": "<private-runtime-time>",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 17.637,
         "remainingBudgetSeconds": 222.363,
         "engineLogUtc": ""
@@ -296,7 +296,7 @@
         "kind": "wait-marker",
         "role": "host",
         "detail": "PROOF_LIFECYCLE_JOIN owner=2 epoch=1 seeded=0",
-        "observedUtc": "2026-10-17T01:01:17.1119119Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 17.638,
         "remainingBudgetSeconds": 222.362,
         "engineLogUtc": ""
@@ -305,7 +305,7 @@
         "kind": "marker-observed",
         "role": "host",
         "detail": "PROOF_LIFECYCLE_JOIN owner=2 epoch=1 seeded=0",
-        "observedUtc": "2026-10-17T01:01:23.2882898Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 23.814,
         "remainingBudgetSeconds": 216.186,
         "engineLogUtc": "2026.10.17-01.01.23:079"
@@ -314,7 +314,7 @@
         "kind": "role-start-request",
         "role": "third",
         "detail": "127.0.0.1:26466",
-        "observedUtc": "2026-10-17T01:01:23.2890261Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 23.815,
         "remainingBudgetSeconds": 216.185,
         "engineLogUtc": ""
@@ -322,8 +322,8 @@
       {
         "kind": "role-process-started",
         "role": "third",
-        "detail": "2026-10-17T01:01:23.2919148Z",
-        "observedUtc": "2026-10-17T01:01:23.2968794Z",
+        "detail": "<private-runtime-time>",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 23.823,
         "remainingBudgetSeconds": 216.177,
         "engineLogUtc": ""
@@ -332,7 +332,7 @@
         "kind": "wait-marker",
         "role": "host",
         "detail": "PROOF_LIFECYCLE_REJECT reason=full",
-        "observedUtc": "2026-10-17T01:01:23.2987501Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 23.825,
         "remainingBudgetSeconds": 216.175,
         "engineLogUtc": ""
@@ -341,7 +341,7 @@
         "kind": "marker-observed",
         "role": "host",
         "detail": "PROOF_LIFECYCLE_REJECT reason=full",
-        "observedUtc": "2026-10-17T01:01:30.6027182Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 31.129,
         "remainingBudgetSeconds": 208.871,
         "engineLogUtc": "2026.10.17-01.01.30:317"
@@ -350,7 +350,7 @@
         "kind": "wait-marker",
         "role": "third",
         "detail": "PROOF_LIFECYCLE_CLIENT_REJECT reason=full",
-        "observedUtc": "2026-10-17T01:01:30.6028142Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 31.129,
         "remainingBudgetSeconds": 208.871,
         "engineLogUtc": ""
@@ -359,7 +359,7 @@
         "kind": "marker-observed",
         "role": "third",
         "detail": "PROOF_LIFECYCLE_CLIENT_REJECT reason=full",
-        "observedUtc": "2026-10-17T01:01:30.6143415Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 31.14,
         "remainingBudgetSeconds": 208.86,
         "engineLogUtc": "2026.10.17-01.01.30:320"
@@ -368,7 +368,7 @@
         "kind": "gate-written",
         "role": "runner",
         "detail": "play-epoch-1",
-        "observedUtc": "2026-10-17T01:01:30.6173256Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 31.143,
         "remainingBudgetSeconds": 208.857,
         "engineLogUtc": ""
@@ -377,7 +377,7 @@
         "kind": "wait-marker",
         "role": "host",
         "detail": "PROOF_LIFECYCLE_TERMINAL epoch=1 winnerTeam=-?\\d+",
-        "observedUtc": "2026-10-17T01:01:30.6173869Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 31.143,
         "remainingBudgetSeconds": 208.857,
         "engineLogUtc": ""
@@ -386,7 +386,7 @@
         "kind": "marker-observed",
         "role": "host",
         "detail": "PROOF_LIFECYCLE_TERMINAL epoch=1 winnerTeam=-?\\d+",
-        "observedUtc": "2026-10-17T01:02:09.5511712Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 70.077,
         "remainingBudgetSeconds": 169.923,
         "engineLogUtc": "2026.10.17-01.02.09:411"
@@ -395,7 +395,7 @@
         "kind": "wait-common-snapshots",
         "role": "runner",
         "detail": "epoch=1",
-        "observedUtc": "2026-10-17T01:02:09.5561711Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 70.082,
         "remainingBudgetSeconds": 169.918,
         "engineLogUtc": ""
@@ -404,7 +404,7 @@
         "kind": "wait-terminal-agreement",
         "role": "runner",
         "detail": "epoch=1 winner=1",
-        "observedUtc": "2026-10-17T01:02:09.5919877Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 70.118,
         "remainingBudgetSeconds": 169.882,
         "engineLogUtc": ""
@@ -413,7 +413,7 @@
         "kind": "gate-written",
         "role": "runner",
         "detail": "rematch-epoch-1",
-        "observedUtc": "2026-10-17T01:02:09.6049377Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 70.131,
         "remainingBudgetSeconds": 169.869,
         "engineLogUtc": ""
@@ -422,7 +422,7 @@
         "kind": "wait-marker",
         "role": "host",
         "detail": "PROOF_LIFECYCLE_REMATCH epoch=2",
-        "observedUtc": "2026-10-17T01:02:09.6049921Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 70.131,
         "remainingBudgetSeconds": 169.869,
         "engineLogUtc": ""
@@ -431,7 +431,7 @@
         "kind": "marker-observed",
         "role": "host",
         "detail": "PROOF_LIFECYCLE_REMATCH epoch=2",
-        "observedUtc": "2026-10-17T01:02:09.8204059Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 70.346,
         "remainingBudgetSeconds": 169.654,
         "engineLogUtc": "2026.10.17-01.02.09:645"
@@ -440,7 +440,7 @@
         "kind": "wait-marker",
         "role": "host",
         "detail": "PROOF_LIFECYCLE_RESEED owner=2 epoch=2 credits=350",
-        "observedUtc": "2026-10-17T01:02:09.820494Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 70.346,
         "remainingBudgetSeconds": 169.654,
         "engineLogUtc": ""
@@ -449,7 +449,7 @@
         "kind": "marker-observed",
         "role": "host",
         "detail": "PROOF_LIFECYCLE_RESEED owner=2 epoch=2 credits=350",
-        "observedUtc": "2026-10-17T01:02:09.8245958Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 70.35,
         "remainingBudgetSeconds": 169.65,
         "engineLogUtc": "2026.10.17-01.02.09:645"
@@ -458,7 +458,7 @@
         "kind": "gate-written",
         "role": "runner",
         "detail": "stale-epoch-1",
-        "observedUtc": "2026-10-17T01:02:09.8271893Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 70.353,
         "remainingBudgetSeconds": 169.647,
         "engineLogUtc": ""
@@ -467,7 +467,7 @@
         "kind": "wait-marker",
         "role": "host",
         "detail": "PROOF_LIFECYCLE_STALE_REJECT epoch=1 current=2 owner=1 sequence=1",
-        "observedUtc": "2026-10-17T01:02:09.8272465Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 70.353,
         "remainingBudgetSeconds": 169.647,
         "engineLogUtc": ""
@@ -476,7 +476,7 @@
         "kind": "marker-observed",
         "role": "host",
         "detail": "PROOF_LIFECYCLE_STALE_REJECT epoch=1 current=2 owner=1 sequence=1",
-        "observedUtc": "2026-10-17T01:02:10.0571431Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 70.583,
         "remainingBudgetSeconds": 169.417,
         "engineLogUtc": "2026.10.17-01.02.09:845"
@@ -485,7 +485,7 @@
         "kind": "wait-marker",
         "role": "lead",
         "detail": "PROOF_STALE_RECEIPT_IGNORED owner=1 epoch=1 current=2 sequence=1",
-        "observedUtc": "2026-10-17T01:02:10.0572134Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 70.583,
         "remainingBudgetSeconds": 169.417,
         "engineLogUtc": ""
@@ -494,7 +494,7 @@
         "kind": "marker-observed",
         "role": "lead",
         "detail": "PROOF_STALE_RECEIPT_IGNORED owner=1 epoch=1 current=2 sequence=1",
-        "observedUtc": "2026-10-17T01:02:10.0704713Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 70.596,
         "remainingBudgetSeconds": 169.404,
         "engineLogUtc": "2026.10.17-01.02.09:846"
@@ -503,7 +503,7 @@
         "kind": "gate-written",
         "role": "runner",
         "detail": "play-epoch-2",
-        "observedUtc": "2026-10-17T01:02:10.0715688Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 70.597,
         "remainingBudgetSeconds": 169.403,
         "engineLogUtc": ""
@@ -512,7 +512,7 @@
         "kind": "wait-marker",
         "role": "lead",
         "detail": "PROOF_LIFECYCLE_CLIENT_RESULT owner=1 epoch=2 sequence=1 accepted=1 reason=accepted",
-        "observedUtc": "2026-10-17T01:02:10.0716261Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 70.597,
         "remainingBudgetSeconds": 169.403,
         "engineLogUtc": ""
@@ -521,7 +521,7 @@
         "kind": "marker-observed",
         "role": "lead",
         "detail": "PROOF_LIFECYCLE_CLIENT_RESULT owner=1 epoch=2 sequence=1 accepted=1 reason=accepted",
-        "observedUtc": "2026-10-17T01:02:10.3634424Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 70.889,
         "remainingBudgetSeconds": 169.111,
         "engineLogUtc": "2026.10.17-01.02.10:082"
@@ -530,7 +530,7 @@
         "kind": "wait-marker",
         "role": "rejoin",
         "detail": "PROOF_LIFECYCLE_CLIENT_RESULT owner=2 epoch=2 sequence=1 accepted=1 reason=accepted",
-        "observedUtc": "2026-10-17T01:02:10.3635326Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 70.889,
         "remainingBudgetSeconds": 169.111,
         "engineLogUtc": ""
@@ -539,7 +539,7 @@
         "kind": "marker-observed",
         "role": "rejoin",
         "detail": "PROOF_LIFECYCLE_CLIENT_RESULT owner=2 epoch=2 sequence=1 accepted=1 reason=accepted",
-        "observedUtc": "2026-10-17T01:02:10.3745253Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 70.9,
         "remainingBudgetSeconds": 169.1,
         "engineLogUtc": "2026.10.17-01.02.10:081"
@@ -548,7 +548,7 @@
         "kind": "wait-marker",
         "role": "host",
         "detail": "PROOF_LIFECYCLE_TERMINAL epoch=2 winnerTeam=-?\\d+",
-        "observedUtc": "2026-10-17T01:02:10.3746289Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 70.9,
         "remainingBudgetSeconds": 169.1,
         "engineLogUtc": ""
@@ -557,7 +557,7 @@
         "kind": "marker-observed",
         "role": "host",
         "detail": "PROOF_LIFECYCLE_TERMINAL epoch=2 winnerTeam=-?\\d+",
-        "observedUtc": "2026-10-17T01:02:54.6168389Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 115.143,
         "remainingBudgetSeconds": 124.857,
         "engineLogUtc": "2026.10.17-01.02.54:558"
@@ -566,7 +566,7 @@
         "kind": "wait-common-snapshots",
         "role": "runner",
         "detail": "epoch=2",
-        "observedUtc": "2026-10-17T01:02:54.6208806Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 115.147,
         "remainingBudgetSeconds": 124.853,
         "engineLogUtc": ""
@@ -575,7 +575,7 @@
         "kind": "wait-terminal-agreement",
         "role": "runner",
         "detail": "epoch=2 winner=1",
-        "observedUtc": "2026-10-17T01:02:54.6614144Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 115.187,
         "remainingBudgetSeconds": 124.813,
         "engineLogUtc": ""
@@ -584,7 +584,7 @@
         "kind": "gate-written",
         "role": "runner",
         "detail": "rematch-epoch-2",
-        "observedUtc": "2026-10-17T01:02:54.9944523Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 115.52,
         "remainingBudgetSeconds": 124.48,
         "engineLogUtc": ""
@@ -593,7 +593,7 @@
         "kind": "wait-marker",
         "role": "host",
         "detail": "PROOF_LIFECYCLE_REMATCH epoch=3",
-        "observedUtc": "2026-10-17T01:02:54.994511Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 115.52,
         "remainingBudgetSeconds": 124.48,
         "engineLogUtc": ""
@@ -602,7 +602,7 @@
         "kind": "marker-observed",
         "role": "host",
         "detail": "PROOF_LIFECYCLE_REMATCH epoch=3",
-        "observedUtc": "2026-10-17T01:02:55.2116528Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 115.737,
         "remainingBudgetSeconds": 124.263,
         "engineLogUtc": "2026.10.17-01.02.55:031"
@@ -611,7 +611,7 @@
         "kind": "wait-marker",
         "role": "host",
         "detail": "PROOF_LIFECYCLE_RESEED owner=2 epoch=3 credits=350",
-        "observedUtc": "2026-10-17T01:02:55.2117455Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 115.738,
         "remainingBudgetSeconds": 124.262,
         "engineLogUtc": ""
@@ -620,7 +620,7 @@
         "kind": "marker-observed",
         "role": "host",
         "detail": "PROOF_LIFECYCLE_RESEED owner=2 epoch=3 credits=350",
-        "observedUtc": "2026-10-17T01:02:55.2162545Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 115.742,
         "remainingBudgetSeconds": 124.258,
         "engineLogUtc": "2026.10.17-01.02.55:031"
@@ -629,7 +629,7 @@
         "kind": "gate-written",
         "role": "runner",
         "detail": "play-epoch-3",
-        "observedUtc": "2026-10-17T01:02:55.2169302Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 115.743,
         "remainingBudgetSeconds": 124.257,
         "engineLogUtc": ""
@@ -638,7 +638,7 @@
         "kind": "wait-marker",
         "role": "lead",
         "detail": "PROOF_LIFECYCLE_CLIENT_RESULT owner=1 epoch=3 sequence=1 accepted=1 reason=accepted",
-        "observedUtc": "2026-10-17T01:02:55.2169802Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 115.743,
         "remainingBudgetSeconds": 124.257,
         "engineLogUtc": ""
@@ -647,7 +647,7 @@
         "kind": "marker-observed",
         "role": "lead",
         "detail": "PROOF_LIFECYCLE_CLIENT_RESULT owner=1 epoch=3 sequence=1 accepted=1 reason=accepted",
-        "observedUtc": "2026-10-17T01:02:55.4417379Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 115.968,
         "remainingBudgetSeconds": 124.032,
         "engineLogUtc": "2026.10.17-01.02.55:233"
@@ -656,7 +656,7 @@
         "kind": "wait-marker",
         "role": "rejoin",
         "detail": "PROOF_LIFECYCLE_CLIENT_RESULT owner=2 epoch=3 sequence=1 accepted=1 reason=accepted",
-        "observedUtc": "2026-10-17T01:02:55.4418223Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 115.968,
         "remainingBudgetSeconds": 124.032,
         "engineLogUtc": ""
@@ -665,7 +665,7 @@
         "kind": "marker-observed",
         "role": "rejoin",
         "detail": "PROOF_LIFECYCLE_CLIENT_RESULT owner=2 epoch=3 sequence=1 accepted=1 reason=accepted",
-        "observedUtc": "2026-10-17T01:02:55.4546759Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 115.981,
         "remainingBudgetSeconds": 124.019,
         "engineLogUtc": "2026.10.17-01.02.55:231"
@@ -674,7 +674,7 @@
         "kind": "wait-common-snapshots",
         "role": "runner",
         "detail": "epoch=3",
-        "observedUtc": "2026-10-17T01:02:55.4547539Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 115.981,
         "remainingBudgetSeconds": 124.019,
         "engineLogUtc": ""
@@ -683,7 +683,7 @@
         "kind": "gate-written",
         "role": "runner",
         "detail": "finish",
-        "observedUtc": "2026-10-17T01:02:55.4894371Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 116.015,
         "remainingBudgetSeconds": 123.985,
         "engineLogUtc": ""
@@ -692,7 +692,7 @@
         "kind": "wait-marker",
         "role": "host",
         "detail": "PROOF_LIFECYCLE_COMPLETE role=host status=pass",
-        "observedUtc": "2026-10-17T01:02:55.4897968Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 116.016,
         "remainingBudgetSeconds": 123.984,
         "engineLogUtc": ""
@@ -701,7 +701,7 @@
         "kind": "marker-observed",
         "role": "host",
         "detail": "PROOF_LIFECYCLE_COMPLETE role=host status=pass",
-        "observedUtc": "2026-10-17T01:02:55.7056098Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 116.231,
         "remainingBudgetSeconds": 123.769,
         "engineLogUtc": "2026.10.17-01.02.55:502"
@@ -710,7 +710,7 @@
         "kind": "wait-marker",
         "role": "lead",
         "detail": "PROOF_LIFECYCLE_CLIENT_COMPLETE role=lead status=pass",
-        "observedUtc": "2026-10-17T01:02:55.7056793Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 116.232,
         "remainingBudgetSeconds": 123.768,
         "engineLogUtc": ""
@@ -719,7 +719,7 @@
         "kind": "marker-observed",
         "role": "lead",
         "detail": "PROOF_LIFECYCLE_CLIENT_COMPLETE role=lead status=pass",
-        "observedUtc": "2026-10-17T01:02:55.7182077Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 116.244,
         "remainingBudgetSeconds": 123.756,
         "engineLogUtc": "2026.10.17-01.02.55:489"
@@ -728,7 +728,7 @@
         "kind": "wait-marker",
         "role": "rejoin",
         "detail": "PROOF_LIFECYCLE_CLIENT_COMPLETE role=rejoin status=pass",
-        "observedUtc": "2026-10-17T01:02:55.7182698Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 116.244,
         "remainingBudgetSeconds": 123.756,
         "engineLogUtc": ""
@@ -737,7 +737,7 @@
         "kind": "marker-observed",
         "role": "rejoin",
         "detail": "PROOF_LIFECYCLE_CLIENT_COMPLETE role=rejoin status=pass",
-        "observedUtc": "2026-10-17T01:02:55.7310292Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 116.257,
         "remainingBudgetSeconds": 123.743,
         "engineLogUtc": "2026.10.17-01.02.55:489"
@@ -746,7 +746,7 @@
         "kind": "wait-marker",
         "role": "third",
         "detail": "PROOF_LIFECYCLE_CLIENT_COMPLETE role=third status=pass",
-        "observedUtc": "2026-10-17T01:02:55.7310922Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 116.257,
         "remainingBudgetSeconds": 123.743,
         "engineLogUtc": ""
@@ -755,7 +755,7 @@
         "kind": "marker-observed",
         "role": "third",
         "detail": "PROOF_LIFECYCLE_CLIENT_COMPLETE role=third status=pass",
-        "observedUtc": "2026-10-17T01:02:55.7339194Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 116.26,
         "remainingBudgetSeconds": 123.74,
         "engineLogUtc": "2026.10.17-01.01.30:320"
@@ -764,7 +764,7 @@
         "kind": "wait-exit",
         "role": "runner",
         "detail": "host,lead,rejoin,third",
-        "observedUtc": "2026-10-17T01:02:55.7428659Z",
+        "observedUtc": "<private-runtime-time>",
         "scenarioElapsedSeconds": 116.269,
         "remainingBudgetSeconds": 123.731,
         "engineLogUtc": ""
@@ -776,5 +776,6 @@
     "No engine/gameplay source change",
     "One explicit allocation, no automatic retries or deadline increase",
     "Earlier failed main run remains failed; unknown slow-startup cause"
-  ]
+  ],
+  "privacyNote": "Sanitized public summary: local paths, runtime identifiers/times and machine-specific masks are withheld; original evidence is retained privately. Pass/fail, durations, counts and source/hash bindings are unchanged."
 }

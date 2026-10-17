@@ -15,9 +15,9 @@ Status vocabulary: **Confirmed** records Jared's direction; **Proposed** is a ca
 | Army-size ambition | Jared expects large armies. Exact per-player and total unit counts remain undetermined; practical budgets must follow measured tests. Eight large armies are not proven. |
 | First art proof | Tesla Reactor, Rhino Tank, and Conscript together at the RTS camera; include zoomed-out and motion views. Jared approves blockouts before finishing. |
 | Existing tools/references | Blender installed; Jared owns Steam/Origin originals. Ownership does not establish redistribution rights. |
-| Storage | Put project/art/cache/build data on D:; verify effective cache paths and disclose residual C: use. |
+| Storage | Put project/art/cache/build data on the designated non-system drive; verify effective cache paths and disclose residual system-drive use. |
 | Current work | Jared has authorized a first scoped implementation batch using parallel agents: original authored blockouts, reproducible scene/assets pipeline, and early technical groundwork with existing tools. No purchases, new agreements, security changes, proprietary asset uploads, or unapproved installs. Blockout approval still precedes finishing. |
-| Repository changes | Isolated D: implementation branch, reviewed commits, and draft PRs now authorized. Preserve others' edits and branches; no changes to main, merges, force pushes, or deployment. |
+| Repository changes | Use isolated implementation branches and preserve others' edits. Jared subsequently authorized routine validated publication, including branch pushes, draft PRs and normal merges after applicable checks and independent review. Force pushes, unrelated changes, sensitive actions and spending remain outside that routine authorization. |
 
 Jared subsequently clarified the product goal: a modernized 3D RA2/Yuri-style remake that preserves gameplay feel, pacing, economy, unit roles and combat. Camera panning and modest usability improvements are accepted implementation discretion. This is a direction decision, not approval of prototype balance or evidence of gameplay parity. The current engineering results are recorded in [Small match](SMALL_MATCH.md); broad milestone gates remain open.
 
@@ -29,7 +29,7 @@ Jared subsequently clarified the product goal: a modernized 3D RA2/Yuri-style re
 | Commands | Shared command model for humans and bots, with host validation and common economy/ownership rules. |
 | Implementation order | Two-client and active-unit proofs early; complete a small bot skirmish before Yuri and four/eight-player expansion. See milestone gates. |
 | Art creation | Newly authored reference-based assets, checked at RTS distance and tracked with provenance. |
-| Permanent D: layout | Separate project, source art, caches, and build folders as proposed in the brief; paths and tool settings still need verification. |
+| Permanent storage layout | Separate project, source art, caches, and build folders as proposed in the brief; paths and tool settings still need verification. |
 
 ## Open choices
 

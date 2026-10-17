@@ -5,7 +5,7 @@
 PowerShell 7; JSON is emitted to standard output:
 
 ```powershell
-.\unreal\Scripts\summarize-startup-logs.ps1 -RunDirectory D:\path\to\retained-run -MaxGaps 3
+.\unreal\Scripts\summarize-startup-logs.ps1 -RunDirectory $env:PRIVATE_RUN_DIRECTORY
 .\unreal\Scripts\test-startup-log-summary.ps1
 ```
 
@@ -46,8 +46,8 @@ change is proposed. See [the retained timing review](LIFECYCLE_TIMING_REVIEW.md)
 
 The synthetic policy script passed 21 assertions. Both retained integration-checkout
 runs parsed all five roles with no missing fields: failed
-`session-lifecycle-20261017-004312-990` and passing
-`session-lifecycle-20261017-002102-766`. No engine was launched.
+`session-lifecycle-<local-run>` and passing
+`session-lifecycle-<local-run>`. No engine was launched.
 
 | Host interval, seconds | Failed | Passing |
 |---|---:|---:|

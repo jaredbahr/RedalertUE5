@@ -4,9 +4,9 @@ Main `0c7b07c21b6c794b83973f3735e8eb75dea49d9c` has the same full tree as approv
 
 ## Retained evidence
 
-Both runs are under `D:\UserTemp\RedalertUE5-integration-candidate\generated`. Use result JSON process `startUtc`, engine log timestamps and retained control-file write timestamps. Directory names are creation labels, not the scenario clock start.
+Both runs are under `.\generated`. Use result JSON process `startUtc`, engine log timestamps and retained control-file write timestamps. Directory names are creation labels, not the scenario clock start.
 
-| Interval, wall seconds | Candidate `session-lifecycle-20261017-002102-766` | Main `session-lifecycle-20261017-004312-990` |
+| Interval, wall seconds | Candidate `session-lifecycle-<local-run>` | Main `session-lifecycle-<local-run>` |
 |---|---:|---:|
 | Host process start to ready | 6.553 | 48.023 |
 | Lead process start to owner 1 join | 6.646 | 27.735 |
@@ -16,7 +16,7 @@ Both runs are under `D:\UserTemp\RedalertUE5-integration-candidate\generated`. U
 | Play epoch 1 gate to terminal 1 | 38.799 | 38.806 |
 | Play epoch 2 gate to terminal 2 | 44.493 | Not reached |
 
-The failed result records start `00:43:15.5730397Z`; play epoch 1 was written at `00:46:16.3739847Z`; terminal 1 arrived `00:46:55.180Z`; play epoch 2 was written at `00:46:56.3922460Z`. Approximately 19.2 seconds remained in the fixed 240-second scenario budget. It timed out waiting for epoch 2 terminal: scenario 240.023 seconds, total runner 242.618 seconds, cleanup errors empty. The passing run completed both terminals and epoch 3 checks in 123.808 scenario seconds.
+The failed result records start `<private-runtime-time>`; play epoch 1 was written at `<private-runtime-time>`; terminal 1 arrived `<private-runtime-time>`; play epoch 2 was written at `<private-runtime-time>`. Approximately 19.2 seconds remained in the fixed 240-second scenario budget. It timed out waiting for epoch 2 terminal: scenario 240.023 seconds, total runner 242.618 seconds, cleanup errors empty. The passing run completed both terminals and epoch 3 checks in 123.808 scenario seconds.
 
 The runner starts one monotonic scenario clock before launching the host, then launches four clients serially, including replacement and rejected clients. Startup, joins, snapshot checks, both matches and shutdown share that budget. The game holds simulation until each `play-epoch-N` file exists, then advances fixed 0.1-second steps using accumulated engine delta with bounded catch-up. Startup time does not give bots a simulation head start.
 
@@ -40,7 +40,7 @@ Record exact HEAD, clean state, phase events and existing acceptance results. Co
 
 ## Completed explicit allocation
 
-One run, `session-lifecycle-20261017-010059-344`, passed on clean `8f9dca33caeb809e138976a3a52c380a05a6309d`: 117.191 scenario seconds, 117.309 total, unchanged 240-second deadline, 75 timing events, zero dropped events and no cleanup errors. The game source is byte-identical to main. Both terminal winners were team 1; rematches reached epochs 2 and 3; both human owners received accepted fresh sequence 1 in both epochs; 420 common epoch/revision digests and both terminal snapshots agreed. Slot-2 disconnect/rejoin/deferred reseed, full-session rejection and stale-epoch rejection passed. All owned lifecycle processes exited before the separate HUD build began.
+One run, `session-lifecycle-<local-run>`, passed on clean `8f9dca33caeb809e138976a3a52c380a05a6309d`: 117.191 scenario seconds, 117.309 total, unchanged 240-second deadline, 75 timing events, zero dropped events and no cleanup errors. The game source is byte-identical to main. Both terminal winners were team 1; rematches reached epochs 2 and 3; both human owners received accepted fresh sequence 1 in both epochs; 420 common epoch/revision digests and both terminal snapshots agreed. Slot-2 disconnect/rejoin/deferred reseed, full-session rejection and stale-epoch rejection passed. All owned lifecycle processes exited before the separate HUD build began.
 
 | Monotonic observation | Elapsed seconds | Remaining budget seconds |
 |---|---:|---:|

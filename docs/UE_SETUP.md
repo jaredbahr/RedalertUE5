@@ -2,7 +2,7 @@
 
 ## Verified tools, selected baseline
 
-Read-only inspection found `D:\Epic Games\UE_5.7\Engine\Build\Build.version`: **UE 5.7.4**, changelist **51494982**. Both `UnrealEditor.exe` and `UnrealEditor-Cmd.exe`, the bundled Python runtime, and PythonScriptPlugin are present. The `UE_5.8` directory has no `Build.version`; do not select it as a working installation based on its folder name. VS Community 2022 was found via vswhere at `D:\DevTools\VisualStudio\2022\Community` (17.14.37710.0), and Windows SDK include version `10.0.26100.0` is installed. MSVC `14.44.35207/bin/Hostx64/x64/cl.exe` is present at that VS installation. Presence is not a successful compile. This content-only proof requires no C++ compilation or additional installs.
+Read-only inspection found `<UE_ROOT>\Engine\Build\Build.version`: **UE 5.7.4**, changelist **51494982**. Both `UnrealEditor.exe` and `UnrealEditor-Cmd.exe`, the bundled Python runtime, and PythonScriptPlugin are present. VS Community 2022 was found via vswhere at `<VS_ROOT>` (17.14.37710.0), and Windows SDK include version `10.0.26100.0` is installed. MSVC `14.44.35207/bin/Hostx64/x64/cl.exe` is present at that VS installation. Presence is not a successful compile. This content-only proof requires no C++ compilation or additional installs.
 
 `RedalertProof.uproject` enables the installed PythonScriptPlugin and EditorScriptingUtilities only. The bundled AndroidFileServer plugin is explicitly disabled for this project to avoid unrelated file-server settings being generated. No third-party dependencies or extracted game content are included. Generated FBX, imported materials, meshes and level stay ignored locally; inspect binary/LFS allowance before any later upload.
 
@@ -35,11 +35,11 @@ The first UE 5.7.4 headless smoke failed with exit 3 while importing through **I
 
 A first retry after that failed Interchange run should start with a clean **generated** `unreal/Content/BlockoutGenerated` folder, because partially imported Interchange assets may retain a different reimport handler. Preserve any authored work elsewhere. The launcher does not erase content automatically. A successful fresh import and successful rerun are still required before calling this remedy verified.
 
-## D: paths and evidence boundaries
+## Storage paths and evidence boundaries
 
-The launcher limits UE-reported cores to four (`-CoreLimit=4`), disables sound, writes `generated/ue-proof.log`, requires a D: checkout and applies **process-local** DDC and TEMP/TMP environment variables, restoring them when it exits. `-ddc=BlockoutDDC` selects the project's explicit filesystem-only cache graph, with `generated/ue-cache` as its environment override and shared cache disabled. Temporary files target `generated/ue-temp`; project Saved/Intermediate/Content stay under the D: project. No global registry, engine installation configuration, security setting, or machine environment variable is changed.
+The launcher limits UE-reported cores to four (`-CoreLimit=4`), disables sound, writes `generated/ue-proof.log`, requires a designated-storage checkout and applies **process-local** DDC and TEMP/TMP environment variables, restoring them when it exits. `-ddc=BlockoutDDC` selects the project's explicit filesystem-only cache graph, with `generated/ue-cache` as its environment override and shared cache disabled. Temporary files target `generated/ue-temp`; project Saved/Intermediate/Content stay under the designated-storage project. No global registry, engine installation configuration, security setting, or machine environment variable is changed.
 
-These are configured paths, not proof that every engine/plugin/Windows operation avoids C:. A smoke run must inspect the actual log for active DDC nodes/paths, temp/output locations, failures and residual C: access. This custom graph avoids selecting Zen for this invocation; do not relocate or modify a separately running Zen server. Do not claim cache verification merely because D: directories exist.
+These are configured paths, not proof that every engine/plugin/Windows operation avoids the system drive. A smoke run must inspect the actual log for active DDC nodes/paths, temp/output locations, failures and residual system-drive access. This custom graph avoids selecting Zen for this invocation; do not relocate or modify a separately running Zen server. Do not claim cache verification merely because the designated non-system drive directories exist.
 
 ## Approval and limits
 
@@ -49,7 +49,7 @@ Review normal RTS and zoom-out stills plus placeholder motion together. Jared mu
 
 ## Executed smoke evidence
 
-Fresh and repeat commandlet imports ran successfully with installed UE 5.7.4 using NullRHI, emitted REDALERT_PROOF_OK, saved the level and produced expected centimeter bounds. The importer also asserts and reports exactly eight tagged generated actors with expected labels to detect duplicate regeneration. See [First-proof evidence](FIRST_PROOF.md) for actual measurements and limits. Engine logs confirmed writable D: DDC and shader-temp paths; this does not prove all plugin/OS writes avoid C:.
+Fresh and repeat commandlet imports ran successfully with installed UE 5.7.4 using NullRHI, emitted REDALERT_PROOF_OK, saved the level and produced expected centimeter bounds. The importer also asserts and reports exactly eight tagged generated actors with expected labels to detect duplicate regeneration. See [First-proof evidence](FIRST_PROOF.md) for actual measurements and limits. Engine logs confirmed writable designated-storage DDC and shader-temp paths; this does not prove all plugin/OS writes avoid the system drive.
 
 ## Strict geometry and reimport smoke procedure
 

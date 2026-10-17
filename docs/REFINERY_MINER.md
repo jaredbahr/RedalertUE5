@@ -22,7 +22,7 @@ The miner uses the existing selectable generic proxy and Gather command. No auto
 | Actual matches and replication | Fresh Victory/Defeat/Coop and lifecycle runs retain expected outcomes, shared snapshot/digest checks, deadlines and cleanup. Identify the granted miner in evidence; a single gather flag must not be presented as both human miners gathering |
 | Player-visible behavior | Native-size captures provide selection/match context; exact granted-miner IDs, accepted Gather, travel/load/deposit and conservation come from bounded command/advance events plus matching semantic snapshots. Loaded cargo is not pictured in every phase. Physical-input claims still need Jared's human session |
 
-Stop on failures and retain all evidence before any justified correction/retry. Do not weaken expected winners, deadlines, authoritative checks or cleanup gates to accommodate changed economy. Existing build/resource policies apply; no additional GitHub fees, hosted Actions, installs, binary uploads or zero-C:-writes claim.
+Stop on failures and retain all evidence before any justified correction/retry. Do not weaken expected winners, deadlines, authoritative checks or cleanup gates to accommodate changed economy. Existing build/resource policies apply; no additional GitHub fees, hosted Actions, installs, binary uploads or zero-the system drive-writes claim.
 
 All required model and runtime gates passed on this candidate; PR #38's earlier passes were not used as a substitute. The first failed model attempt remains recorded in the validation history. Issues #2, #17, #18 and #33 retain their own unsatisfied scope.
 

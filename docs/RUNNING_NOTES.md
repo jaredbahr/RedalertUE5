@@ -2,11 +2,11 @@
 
 ## First implementation batch
 
-Decision: Jared authorized parallel implementation agents and repository housekeeping, including issues and draft PRs. Three build lanes owned separate paths (Blender pipeline, UE scene import, command experiment), followed by a fourth agent for source review. Work stays on the isolated D: checkout and `feat/first-proof`; other projects and branches are preserved. No merge/deployment is authorized.
+Decision: Jared authorized parallel implementation agents and repository housekeeping, including issues and draft PRs. Three build lanes owned separate paths (Blender pipeline, UE scene import, command experiment), followed by a fourth agent for source review. Work stays on the isolated the designated non-system drive checkout and `feat/first-proof`; other projects and branches are preserved. No merge/deployment is authorized.
 
 Changes: added original primitive blockouts and local review views; procedural FBX generation/round-trip validation; content-only UE 5.7.4 importer and map/cameras; dependency-free shared-command/two-client loopback experiment; generated-output ignore rules. Existing planning docs now reflect implementation authorization, the selected first-proof engine baseline, likely internet play, and large-army ambition without numeric caps.
 
-Validation: Blender generation and all three FBX round trips passed. Captures were visually reviewed. Six Node tests and an independent combined loopback smoke passed. UE fresh and repeat imports succeeded with expected centimeter bounds; the final report additionally checks tagged actor count/labels. Actual D: derived-data/shader-temp locations appeared in engine logs. See [evidence and limits](FIRST_PROOF.md).
+Validation: Blender generation and all three FBX round trips passed. Captures were visually reviewed. Six Node tests and an independent combined loopback smoke passed. UE fresh and repeat imports succeeded with expected centimeter bounds; the final report additionally checks tagged actor count/labels. Actual the designated non-system drive derived-data/shader-temp locations appeared in engine logs. See [evidence and limits](FIRST_PROOF.md).
 
 Resolved during this batch:
 
@@ -20,7 +20,7 @@ Next steps (planned work, not reproduced bugs):
 
 - [#1: review the normal/wide/motion blockouts](https://github.com/jaredbahr/RedalertUE5/issues/1), record approval or concrete revisions before finishing art.
 - [#2: implement the narrow UE command and two-client combined-workload proof](https://github.com/jaredbahr/RedalertUE5/issues/2), then derive practical budgets from measurements.
-- Confirm hosting/connectivity, target hardware and acceptance thresholds, permanent D: layout, broader cache/residual C: behavior, roster scope and binary/LFS allowance.
+- Confirm hosting/connectivity, target hardware and acceptance thresholds, permanent the designated non-system drive layout, broader cache/residual the system drive behavior, roster scope and binary/LFS allowance.
 
 Housekeeping: duplicate checks found no existing issues/PRs before these two planned issues were opened. Preserve local editable generated scenes/captures for review; track procedural source and configuration, excluding caches/build/render intermediates and secrets. Record further decisions, validation and actionable follow-ups here as work proceeds. Do not call the toy loopback result UE networking or eight-large-army validation.
 
@@ -34,7 +34,7 @@ The six command tests and two-client TCP experiment run outside UE in Node. They
 
 ## Native command and validation batch
 
-Jared authorized parallel implementation/review and focused draft PRs. Seven agents contributed isolated source lanes or reviews, with root scheduling heavy UE/Blender work sequentially to share the PC. Work remains on separate D: worktrees; no merges, deployments or binary uploads occurred.
+Jared authorized parallel implementation/review and focused draft PRs. Seven agents contributed isolated source lanes or reviews, with root scheduling heavy UE/Blender work sequentially to share the PC. Work remains on separate the designated non-system drive worktrees; no merges, deployments or binary uploads occurred.
 
 Added native host-owned commands, shared human/bot validation, phased movement/combat, snapshot replication, basic local RTS presentation, a separate generated gameplay map and bounded native test runners. The build uses the installed UE 5.7.4 toolchain, three parallel actions and no UBA. Compiler include/shadowing/API issues were corrected. The network fixture explicitly binds loopback and starts its active deadline only after both clients connect, with a separate startup guard.
 
@@ -60,9 +60,9 @@ Validation: three stdlib regression cases passed, covering independent geometry 
 
 The final current run identity and reports are retained under ignored generated/. These tests do not exercise material-color refresh, generic material collisions, altered FBX-local vertices/pivots or visual semantic front. Those remain unverified. Art remains unapproved blockouts; no source silhouette or palette finishing was performed. See ART_PIPELINE.md and UE_SETUP.md for reproduction and boundaries.
 
-Latest integration execution: native follow-up build succeeded; clean 2643bf8 graphical warmup failed at 300.120s (303.082s total), no gameplay/screenshots. D: peak cache/temp 18.44/2.65 MiB; eight audited C: cache roots had zero measured net growth during this run, without a zero-write guarantee. Startup affinity resets were observed and later runner policy hardened. Details: docs/INTEGRATION_SLICE.md. No main merge or art approval.
+Latest integration execution: native follow-up build succeeded; clean 2643bf8 graphical warmup failed at 300.120s (303.082s total), no gameplay/screenshots. Designated storage peak cache/temp 18.44/2.65 MiB; eight audited the system drive cache roots had zero measured net growth during this run, without a zero-write guarantee. Startup affinity resets were observed and later runner policy hardened. Details: docs/INTEGRATION_SLICE.md. No main merge or art approval.
 
-Diagnostic follow-up: one clean c93d1ea retry verified real scheduling/cleanup but timed out at300s before gameplay. Active shader compilation and a custom DDC graph omitting installed EnginePak were identified. Added project-local read-only EnginePak node without changing writable D: paths or acceptance; not yet UE-executed. No driver/headless fault or Jared install/security action is established. Details: docs/INTEGRATION_SLICE.md.
+Diagnostic follow-up: one clean c93d1ea retry verified real scheduling/cleanup but timed out at300s before gameplay. Active shader compilation and a custom DDC graph omitting installed EnginePak were identified. Added project-local read-only EnginePak node without changing writable designated-storage paths or acceptance; not yet UE-executed. No driver/headless fault or Jared install/security action is established. Details: docs/INTEGRATION_SLICE.md.
 
 ## Graphical controls fixture completed
 
@@ -70,19 +70,19 @@ Clean f836d939a9093ae320fa425db5b6d2705571ad06 passed the real UE loopback host 
 
 Targeted fixes addressed omitted installed EnginePak cache, unsafe first-frame warmup shutdown, fractional cursor truncation, overwritten FPS cap, diagonal pursuit rounding and a redundant completion wait after a synchronous capture stall. All native model groups4/4 and runner helper checks8/8 passed; prior failed runs remain recorded. Current tested source differs from later documentation-only publication commits. See INTEGRATION_SLICE.md and UE_CONTROLS.md for exact identities, acceptance and local evidence.
 
-Actual optimized shader mode1,30FPS cap and literal-only client setup were observed. Peak D: cache/temp37,369,645/12,472bytes;78policy polls/14affinity repairs, no cleanup errors; no owned UE process remains. Across06:29:33->06:48:03, seven audited C: roots had zero net changes; D3DSCache shrank123944bytes with unchanged file count. Shared totals do not prove zero writes or sole attribution.
+Actual optimized shader mode1,30FPS cap and literal-only client setup were observed. Peak the designated non-system drive cache/temp37,369,645/12,472bytes;78policy polls/14affinity repairs, no cleanup errors; no owned UE process remains. Across06:29:33->06:48:03, seven audited the system drive roots had zero net changes; D3DSCache shrank123944bytes with unchanged file count. Shared totals do not prove zero writes or sole attribution.
 
 This proves a small scripted functional fixture with sampled three-party agreement, not continuous participation, physical input/focus, internet sessions, skirmish bots or an army budget. Retain blockout approval before finishing art, and #11/#12 lifecycle/ingress follow-ups. Main remains unchanged; draft integration only.
 
 ## Evidence handoff and next independent slice
 
-Executed clean source SHA: `f836d939a9093ae320fa425db5b6d2705571ad06`. Published draft #14 initially recorded this at documentation head `4517e5a95326582480d73ccc20c002f8760a8b86`; later handoff documentation does not change the tested implementation. Exact test totals:4/4native groups,8/8runner helper cases,4typed requests/accepted receipts,53matching three-party revisions,2validated and visually inspected PNGs. Result: generated/controls-20261016-064537-040/result.json.
+Executed clean source SHA: `f836d939a9093ae320fa425db5b6d2705571ad06`. Published draft #14 initially recorded this at documentation head `4517e5a95326582480d73ccc20c002f8760a8b86`; later handoff documentation does not change the tested implementation. Exact test totals:4/4native groups,8/8runner helper cases,4typed requests/accepted receipts,53matching three-party revisions,2validated and visually inspected PNGs. Result: generated/controls-<local-run>/result.json.
 
 Preserved capture paths:
-- D:/UserTemp/RedalertUE5-integrated-controls/generated/controls-20261016-064537-040/screenshots/01-selected.png
-- D:/UserTemp/RedalertUE5-integrated-controls/generated/controls-20261016-064537-040/screenshots/02-moved-combat-produced.png
+- ./generated/controls-<local-run>/screenshots/01-selected.png
+- ./generated/controls-<local-run>/screenshots/02-moved-combat-produced.png
 
-Resource measurements/configuration:1280x720, actual30FPS cap; two logical CPUs assigned to owned UE processes with78policy polls/14reset repairs (not continuous hard confinement). Peak observed writable D: cache37,369,645bytes and run temp12,472bytes; these soft polling measurements exclude Saved/Intermediate, installed EnginePak and driver caches. Peak RAM, CPU utilization and attributable GPU load were not measured in the successful run. C: baseline/post results and remaining validation limits are above.
+Resource measurements/configuration:1280x720, actual30FPS cap; two logical CPUs assigned to owned UE processes with78policy polls/14reset repairs (not continuous hard confinement). Peak observed writable designated-storage cache37,369,645bytes and run temp12,472bytes; these soft polling measurements exclude Saved/Intermediate, installed EnginePak and driver caches. Peak RAM, CPU utilization and attributable GPU load were not measured in the successful run. the system drive baseline/post results and remaining validation limits are above.
 
 Library image delivery was checked with the current supported skill/actions and refreshed official helper. One ordered2image attempt returned `Library prepare_uploads is not available`, with no confirmed Library IDs. No retry or alternate upload was attempted. The existing image bytes remain local/ignored; no binaries were added to GitHub.
 

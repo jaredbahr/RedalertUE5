@@ -4,45 +4,45 @@
   "model": {
     "head": "596bb3d2251d253e51a37044dfc65607d3a49b1a",
     "dirtyWorkingTree": false,
-    "startedUtc": "2026-10-17T02:34:47.2469554Z",
-    "finishedUtc": "2026-10-17T02:35:00.7339984Z",
+    "startedUtc": "<private-runtime-time>",
+    "finishedUtc": "<private-runtime-time>",
     "elapsedSeconds": 13.564,
     "passed": true,
     "testCount": 5,
     "succeeded": 5,
     "failed": 0,
-    "runDirectory": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\hud-layout-model-20261017-023447-162",
+    "runDirectory": ".\\generated\\hud-layout-model-<local-run>",
     "error": null,
     "cpuPolicy": {
-      "affinityMask": 3,
+      "affinityMask": null,
       "priority": "Normal",
       "polls": 61,
       "repairs": 5,
       "events": [
         {
           "beforePriority": "Normal",
-          "beforeMask": 255,
-          "utc": "2026-10-17T02:34:47.5268093Z"
+          "beforeMask": null,
+          "utc": "<private-runtime-time>"
         },
         {
           "beforePriority": "Normal",
-          "beforeMask": 255,
-          "utc": "2026-10-17T02:34:47.9621401Z"
+          "beforeMask": null,
+          "utc": "<private-runtime-time>"
         },
         {
           "beforePriority": "Normal",
-          "beforeMask": 255,
-          "utc": "2026-10-17T02:34:48.3782361Z"
+          "beforeMask": null,
+          "utc": "<private-runtime-time>"
         },
         {
           "beforePriority": "Normal",
-          "beforeMask": 255,
-          "utc": "2026-10-17T02:34:49.4353326Z"
+          "beforeMask": null,
+          "utc": "<private-runtime-time>"
         },
         {
           "beforePriority": "Normal",
-          "beforeMask": 255,
-          "utc": "2026-10-17T02:34:53.4527914Z"
+          "beforeMask": null,
+          "utc": "<private-runtime-time>"
         }
       ],
       "peakObservedWorkingSetBytes": 2255020032,
@@ -51,7 +51,7 @@
     },
     "cleanup": {
       "launched": true,
-      "pid": 12188,
+      "pid": null,
       "verifiedExited": true,
       "terminationRequested": false,
       "error": null
@@ -62,13 +62,13 @@
     "scenario": "Victory",
     "head": "596bb3d2251d253e51a37044dfc65607d3a49b1a",
     "dirtyWorkingTree": false,
-    "startedUtc": "2026-10-17T02:35:13.6512736Z",
-    "finishedUtc": "2026-10-17T02:36:21.2750068Z",
+    "startedUtc": "<private-runtime-time>",
+    "finishedUtc": "<private-runtime-time>",
     "elapsedSeconds": 67.697,
     "scenarioElapsedSeconds": 67.473,
     "scenarioTimeoutSeconds": 240,
     "scenarioCoreLimit": 2,
-    "runDirectory": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\small-match-victory-20261017-023513-569",
+    "runDirectory": ".\\generated\\small-match-victory-<local-run>",
     "map": "/Game/CommandProofGenerated/Maps/CommandProof",
     "topology": "one rendered standalone match client",
     "transport": "UE native UDP loopback",
@@ -100,18 +100,18 @@
       "repairs": 3,
       "processes": [
         {
-          "pid": 2796,
-          "startUtc": "2026-10-17T02:35:13.8529225Z",
+          "pid": null,
+          "startUtc": "<private-runtime-time>",
           "role": "rendered",
-          "path": "D:\\Epic Games\\UE_5.7\\Engine\\Binaries\\Win64\\UnrealEditor.exe",
+          "path": "<private-local-path>",
           "priority": "Normal",
-          "affinityMask": "0x3"
+          "affinityMask": null
         }
       ],
       "lastPollElapsedSeconds": 67.195
     },
     "literalClientSetup": {
-      "startupFile": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\small-match-victory-20261017-023513-569\\literal-client-cvars.ini",
+      "startupFile": ".\\generated\\small-match-victory-<local-run>\\literal-client-cvars.ini",
       "expectedResolverDisabled": 1,
       "startupConfirmedByRole": {},
       "hostnameOrInternetTest": false,
@@ -130,12 +130,12 @@
     },
     "processes": [
       {
-        "pid": 2796,
-        "startUtc": "2026-10-17T02:35:13.8529225Z",
+        "pid": null,
+        "startUtc": "<private-runtime-time>",
         "role": "rendered",
-        "path": "D:\\Epic Games\\UE_5.7\\Engine\\Binaries\\Win64\\UnrealEditor.exe",
+        "path": "<private-local-path>",
         "priority": "Normal",
-        "affinityMask": "0x3"
+        "affinityMask": null
       }
     ],
     "screenshots": [],
@@ -160,18 +160,19 @@
     },
     {
       "sha256": "5814445d381fd994ecea5093d1836689825a7fcae7db3c8bb282e019156eefe2",
-      "path": "generated/hud-layout-model-20261017-023447-162/result.json",
+      "path": "generated/hud-layout-model-<local-run>/result.json",
       "bytes": 1493
     },
     {
       "sha256": "5aecac89b8a5d8b6dde90a33a02f05b624c0f2be235450be7bf5d68a4670ad21",
-      "path": "generated/small-match-victory-20261017-023513-569/result.json",
+      "path": "generated/small-match-victory-<local-run>/result.json",
       "bytes": 2794
     },
     {
       "sha256": "dc94f3cac32621615231f292358d43a8638fc96eaf57bcb39d7aebfca6eaf405",
-      "path": "generated/small-match-victory-20261017-023513-569/rendered.log",
+      "path": "generated/small-match-victory-<local-run>/rendered.log",
       "bytes": 455350
     }
-  ]
+  ],
+  "privacyNote": "Sanitized public summary: local paths, runtime identifiers/times and machine-specific masks are withheld; original evidence is retained privately. Pass/fail, durations, counts and source/hash bindings are unchanged."
 }

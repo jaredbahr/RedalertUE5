@@ -4,7 +4,7 @@ This narrow fixture moves the shared command route into UE C++. The host derives
 
 ## Reproduce locally
 
-Use this D: checkout and installed UE 5.7.4, Visual Studio 2022/MSVC 14.44 and Windows SDK 10.0.26100.0. No install is required. First generate the original FBXs as described in [the art pipeline](ART_PIPELINE.md), then run from the repository root:
+Use this the designated non-system drive checkout and installed UE 5.7.4, Visual Studio 2022/MSVC 14.44 and Windows SDK 10.0.26100.0. No install is required. First generate the original FBXs as described in [the art pipeline](ART_PIPELINE.md), then run from the repository root:
 
 ```powershell
 ./unreal/Scripts/build-native-proof.ps1
@@ -13,7 +13,7 @@ Use this D: checkout and installed UE 5.7.4, Visual Studio 2022/MSVC 14.44 and W
 ./unreal/Scripts/test-native-proof.ps1 -TimeoutSeconds 90
 ```
 
-Builds use three parallel actions with UBA disabled. The launch/test helpers set process-local D: cache and temporary paths. Verify the emitted logs; this does not promise zero C: writes by installed tools. Do not run a second heavy build/render alongside these checks.
+Builds use three parallel actions with UBA disabled. The launch/test helpers set process-local the designated non-system drive cache and temporary paths. Verify the emitted logs; this does not promise zero system-drive writes by installed tools. Do not run a second heavy build/render alongside these checks.
 
 Native setup imports the unchanged, unapproved blockouts and creates `/Game/CommandProofGenerated/Maps/CommandProof`, with four tagged fixture actors. `/Game/BlockoutGenerated/Maps/VisualProof` remains the separate art review scene. Source scripts are tracked; generated maps, assets, logs, reports and binaries are ignored.
 
@@ -23,8 +23,8 @@ The editor module compiled successfully with the installed UE 5.7.4 toolchain. T
 
 | Run | Result |
 | --- | --- |
-| `native-model-20261016-042845-446/result.json` | Four exact native test groups succeeded; zero failures. |
-| `native-network-20261016-042935-443/result.json` | One headless UE host and two headless UE clients exited successfully; 53 common revisions had matching snapshot digests. |
+| `native-model-<local-run>/result.json` | Four exact native test groups succeeded; zero failures. |
+| `native-network-<local-run>/result.json` | One headless UE host and two headless UE clients exited successfully; 53 common revisions had matching snapshot digests. |
 
 The host bound to `127.0.0.1:28777`. It accepted six human commands and two bot commands and rejected two wrong-owner requests. Both clients acknowledged the expected ordered requests and observed movement, damage and production. These flags describe aggregate replicated activity; they do not prove bot-specific movement/combat outcomes or a skirmish AI. Independent source/evidence review found no blocker within this fixture's scope.
 
