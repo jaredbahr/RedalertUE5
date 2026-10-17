@@ -1,4 +1,22 @@
-# HUD readability validation: first allocated batch
+# HUD readability validation
+
+Scoped acceptance passed at clean **2f3e5947b9907db023a9c27079ca43166fccf84f**. Publication changes afterward are evidence/documentation only. The [accepted-batch ledger](evidence/hud-readability-accepted-batch.json) retains result hashes, screenshot hashes, counts, projection records and runner/source identities.
+
+| Final gate | Retained run | Result |
+|---|---|---|
+| Build | hud-readability-build-timeprecision.log | Passed11.16s |
+| Actual helper cases | hud-layout-model-20261017-024302-244 |5/5,0failed,12.516s,verifiedexit |
+| Victory1280x720 | small-match-victory-20261017-024342-373 |68.701scenario/68.918total,5freshPNG,cleanup[] |
+| Victory960x540 | small-match-victory-20261017-024528-792 |68.958scenario/69.210total,5freshPNG,cleanup[] |
+| Legacy controls | controls-20261017-024649-118 |41.422scenario/51.466total,55sharedrevisions,2freshPNG,cleanup.errors[] |
+
+Root and independent review inspected all twelve images at native size. Both viewports retain primaryidentifier/panelHP100/Cargo0, ore text and contained left/right/panel-edge annotations. All six targets logged0.000pixelerror for the same selected unit32 perrun; actual meshes and frozen snapshot guards passed. All eligible groups were placed, with zero omissions. Eligible unit counts were12/14/5/10/11 at1280 and12/15/5/11/3 at960. Corresponding culls were0/0/9/4/3 and0/0/10/4/12; these include deliberate offscreen/UI occlusion, not unreadable groups hidden from the count.
+
+This supports the bounded layout improvement. It does **not** satisfy all of issue #18: individual unselected bars/tethers remain ambiguous in the overlapping combat pile, and960panel-edge rematch text has weak contrast over light geometry. Keep #18 open with those gaps. Startup #33 remains unresolved. No physical-input, final-art, Internet or army-performance claim is added.
+
+The rig move and precision fixes each followed a specific retained failure and independent source review. No assertion, two-pixel tolerance, deadline or gameplay outcome was weakened; no failed result was converted into a pass. The legacy path retains its original labels and selected-unit/control outcomes. Owned processes exited before publication work.
+
+## First allocated batch (historical failure)
 
 This batch does not pass PR #38's integration gates. Main remains `49bd2e080b07476d17889f00687ffa4081ad5a60`; issues #18 and #33 remain open. Raw logs/results and both PNGs remain locally ignored. Their hashes, exact source identities, counts and process cleanup are retained in [the first-batch ledger](evidence/hud-readability-first-batch.json).
 

@@ -1,10 +1,10 @@
 {
-  "status": "paused-slot-released-projection-source-fix-awaiting-build",
+  "status": "completed-scoped-acceptance",
   "baseCommit": "49bd2e080b07476d17889f00687ffa4081ad5a60",
   "branch": "feat/hud-readability",
-  "sourceCompiled": false,
-  "runtimeValidated": false,
-  "heavySlotOwner": "released; Imagination queued",
+  "sourceCompiled": true,
+  "runtimeValidated": true,
+  "heavySlotOwner": "Red Alert; PR41 next",
   "requiresExplicitSlotHandoff": true,
   "stopOnFailure": true,
   "automaticRetry": false,
@@ -62,5 +62,6 @@
     18,
     33
   ],
-  "noIssueClosureFromSourceReview": true
+  "noIssueClosureFromSourceReview": true,
+  "rerunPending": false
 }

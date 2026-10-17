@@ -1,6 +1,6 @@
 # HUD readability candidate
 
-Status: source prepared on `feat/hud-readability`, based on main `49bd2e080b07476d17889f00687ffa4081ad5a60`. The first allocated batch stopped at a failed edge projection gate; see [retained results and pending correction](HUD_READABILITY_VALIDATION.md). The projection correction has not been built or runtime validated. The heavy slot is released; wait for a new explicit handoff before any build or engine launch. Existing passing evidence in [HUD diagnostics validation](HUD_DIAGNOSTICS_VALIDATION.md) belongs to the earlier source and does not validate this change.
+Status: scoped build/model/runtime/visual gates passed at clean `2f3e5947b9907db023a9c27079ca43166fccf84f`. See [acceptance and retained failures](HUD_READABILITY_VALIDATION.md). Dense individual HP/tether ambiguity and rematch-hint contrast remain open under issue #18. The full successful batch must not be automatically repeated.
 
 ## Bounded behavior
 
