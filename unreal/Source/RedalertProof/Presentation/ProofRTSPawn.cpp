@@ -1030,8 +1030,14 @@ bool AProofRTSPawn::TickHUDReadabilityCaptures()
         return false;
     }
     if (IFileManager::Get().FileSize(*Path) <= 1024) return false;
-    if (IFileManager::Get().GetTimeStamp(*Path) < HUDEdgeCaptureRequestedAt)
+    const FDateTime FileTimestamp = IFileManager::Get().GetTimeStamp(*Path);
+    // UE's Windows file API intentionally truncates FILETIME to whole seconds.
+    // Match that precision; the path must also be absent before the request,
+    // and the runner independently checks native filesystem freshness and PNGs.
+    if (FileTimestamp.ToUnixTimestamp() < HUDEdgeCaptureRequestedAt.ToUnixTimestamp())
     { FinishSkirmishScenario(false, TEXT("readability_capture_timestamp")); return false; }
+    UE_LOG(LogTemp, Display, TEXT("PROOF_HUD_EDGE_FILE name=%s requestedUtc=%s fileUtc=%s comparisonPrecision=seconds"),
+        Names[HUDEdgeIndex], *HUDEdgeCaptureRequestedAt.ToIso8601(), *FileTimestamp.ToIso8601());
     UE_LOG(LogTemp, Display, TEXT("PROOF_HUD_EDGE_CAPTURE name=%s unit=%d projectedX=%.3f projectedY=%.3f targetX=%.3f targetY=%.3f width=%d height=%d written=1 physicalInput=unverified"),
         Names[HUDEdgeIndex], HUDEdgeAnchorUnit, Projected.X, Projected.Y, HUDEdgeTarget.X, HUDEdgeTarget.Y, Width, Height);
     ++HUDEdgeIndex;
