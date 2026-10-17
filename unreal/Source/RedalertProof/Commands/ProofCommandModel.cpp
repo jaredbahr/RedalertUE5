@@ -31,6 +31,11 @@ FString FProofSnapshot::ComputeDigest() const
         Canonical += FString::Printf(TEXT("u:%d,%d,%.17g,%.17g,%.17g,%.17g,%d,%d;"),
             Unit.UnitId, Unit.OwnerId, Unit.Position.X, Unit.Position.Y, Unit.Position.Z,
             static_cast<double>(Unit.HitPoints), static_cast<int32>(Unit.Kind), Unit.Cargo);
+        // Preserve existing no-rally snapshot digests. Any nondefault rally
+        // field, including an unexpected disabled/nonzero point, is committed.
+        if (Unit.bHasRallyPoint || Unit.RallyPoint != FVector::ZeroVector)
+            Canonical += FString::Printf(TEXT("q:%d,%d,%.17g,%.17g,%.17g;"), Unit.UnitId,
+                Unit.bHasRallyPoint ? 1 : 0, Unit.RallyPoint.X, Unit.RallyPoint.Y, Unit.RallyPoint.Z);
     }
     for (const FProofResourceRecord& Resource : SortedResources)
     {
@@ -276,10 +281,12 @@ FProofCommandResult FProofCommandModel::Submit(int32 TrustedOwnerId, const FProo
     const bool bBuildFactory = Command.Type == EProofCommandType::BuildFactory;
     const bool bGather = Command.Type == EProofCommandType::Gather;
     const bool bStop = Command.Type == EProofCommandType::Stop;
-    if ((!bMove && !bAttack && !bProduce && !bBuildRefinery && !bBuildFactory && !bGather && !bStop)
-        || ((!State.bSkirmish) && (bBuildRefinery || bBuildFactory || bGather)) || Command.Sequence <= 0
+    const bool bSetRally = Command.Type == EProofCommandType::SetRally;
+    if ((!bMove && !bAttack && !bProduce && !bBuildRefinery && !bBuildFactory && !bGather && !bStop && !bSetRally)
+        || ((!State.bSkirmish) && (bBuildRefinery || bBuildFactory || bGather || bSetRally)) || Command.Sequence <= 0
         || !IsFinitePosition(Command.Destination)
-        || ((bMove || bAttack || bGather || bStop || (State.bSkirmish && bProduce)) && Command.UnitId <= 0)
+        || ((bMove || bAttack || bGather || bStop || bSetRally || (State.bSkirmish && bProduce)) && Command.UnitId <= 0)
+        || (bSetRally && Command.TargetUnitId != INDEX_NONE)
         || ((bAttack || bGather) && Command.TargetUnitId <= 0))
     {
         return Reject(TEXT("malformed"));
@@ -315,8 +322,30 @@ FProofCommandResult FProofCommandModel::Submit(int32 TrustedOwnerId, const FProo
         {
             if (!FindSkirmishSpawn(State, Anchor->Position, Spawn)) { return Reject(TEXT("spawn")); }
         }
-        if (AddUnit(TrustedOwnerId, Spawn, EProofUnitKind::Combat, 100.f) == INDEX_NONE) { return Reject(TEXT("capacity")); }
+        // AddUnit can reallocate State.Units. Copy the validated factory state
+        // before spawning, then use only the returned ID for its ordinary Move.
+        const bool bApplyRally = State.bSkirmish && Anchor->bHasRallyPoint;
+        const FVector RallyPoint = bApplyRally ? Anchor->RallyPoint : FVector::ZeroVector;
+        const int32 ProducedId = AddUnit(TrustedOwnerId, Spawn, EProofUnitKind::Combat, 100.f);
+        if (ProducedId == INDEX_NONE) { return Reject(TEXT("capacity")); }
+        if (bApplyRally)
+        {
+            FOrder Order;
+            Order.Type = EProofCommandType::Move;
+            Order.Destination = RallyPoint;
+            Orders.Add(ProducedId, Order);
+        }
         Player->Credits -= ProductionCost;
+    }
+    else if (bSetRally)
+    {
+        if (!IsInWorld(Command.Destination) || Command.Destination.Z != 0.0) { return Reject(TEXT("position")); }
+        FProofUnitRecord* Factory = State.Units.FindByPredicate([&Command](const FProofUnitRecord& Unit)
+            { return Unit.UnitId == Command.UnitId; });
+        if (!Factory || Factory->OwnerId != TrustedOwnerId || Factory->HitPoints <= 0.f) { return Reject(TEXT("ownership")); }
+        if (Factory->Kind != EProofUnitKind::Factory) { return Reject(TEXT("role")); }
+        Factory->bHasRallyPoint = true;
+        Factory->RallyPoint = Command.Destination;
     }
     else if (bBuildRefinery || bBuildFactory)
     {
@@ -542,7 +571,15 @@ void FProofCommandModel::Advance(float DeltaSeconds)
         {
             Unit.HitPoints = static_cast<float>(FMath::Max(0.0, static_cast<double>(Unit.HitPoints) - *Amount));
         }
-        if (Unit.HitPoints <= 0.f) { Orders.Remove(Unit.UnitId); }
+        if (Unit.HitPoints <= 0.f)
+        {
+            Orders.Remove(Unit.UnitId);
+            if (Unit.Kind == EProofUnitKind::Factory)
+            {
+                Unit.bHasRallyPoint = false;
+                Unit.RallyPoint = FVector::ZeroVector;
+            }
+        }
     }
 
     if (State.bSkirmish)

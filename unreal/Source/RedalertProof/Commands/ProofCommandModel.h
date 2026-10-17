@@ -12,7 +12,8 @@ enum class EProofCommandType : uint8
     BuildRefinery,
     BuildFactory,
     Gather,
-    Stop
+    Stop,
+    SetRally
 };
 
 UENUM()
@@ -67,6 +68,9 @@ struct REDALERTPROOF_API FProofUnitRecord
     UPROPERTY() float HitPoints = 100.f;
     UPROPERTY() EProofUnitKind Kind = EProofUnitKind::Combat;
     UPROPERTY() int32 Cargo = 0;
+    // Only live factories can own a rally. New records and resets have none.
+    UPROPERTY() bool bHasRallyPoint = false;
+    UPROPERTY() FVector RallyPoint = FVector::ZeroVector;
 };
 
 USTRUCT()
