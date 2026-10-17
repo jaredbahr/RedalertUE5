@@ -143,7 +143,7 @@ function Maintain-OwnedCpuPolicy([switch]$Force) {
                 if (-not $command -or $command.Replace('/','\').IndexOf($project,[StringComparison]::OrdinalIgnoreCase) -lt 0) { throw 'Cannot verify owned ShaderCompileWorker project command line.' }
                 $known=@($ownedWorkers | Where-Object {$_.Process.Id -eq $child.Id -and $_.Started -eq $child.StartTime})
                 if (-not $known.Count) {
-                    $worker=[pscustomobject]@{Process=$child;Started=$child.StartTime;Role='shader-worker';Path=$workerExe;ParentId=$parentId;ParentStarted=$parent.Started;CommandLine=$command}
+                    $worker=[pscustomobject]@{Process=$child;PinnedHandle=$child.SafeHandle;Started=$child.StartTime;Role='shader-worker';Path=$workerExe;ParentId=$parentId;ParentStarted=$parent.Started;CommandLine=$command}
                     $ownedWorkers.Add($worker)
                     $result.cpuPolicy.processes+=@{role='shader-worker';pid=$child.Id;parentPid=$parentId;startUtc=$child.StartTime.ToUniversalTime().ToString('o');path=$workerExe;affinityMask=('0x{0:X}' -f [uint64]$child.ProcessorAffinity.ToInt64());priority=$child.PriorityClass.ToString();projectCommandVerified=$true}
                 }
@@ -163,6 +163,49 @@ function Check-StorageBudget([switch]$Force) {
     if ($MaxTempMiB -gt 0 -and $tempBytes -gt ([int64]$MaxTempMiB*1MB)) { throw "D: temp soft guard exceeded: $tempBytes bytes." }
 }
 function Read-Log($Entry) { if (Test-Path -LiteralPath $Entry.Log) { return Get-Content -LiteralPath $Entry.Log -Raw }; return '' }
+function Assert-OwnedRolesHealthy {
+    foreach ($entry in $script:entries) {
+        # Intentional disconnect exempts only owner2's exit code, never crash/failure evidence.
+        if ((Read-Log $entry) -match 'PROOF_LIFECYCLE_[A-Z_]+[^\r\n]*status=fail|Fatal error|Assertion failed') { throw "$($entry.Role) has failure/crash evidence." }
+        $entry.Process.Refresh()
+        if ($entry.Process.HasExited -and $entry.Process.ExitCode -ne 0 -and -not ($entry.Role -ceq 'owner2' -and $entry.IntentionalStop)) {
+            throw "$($entry.Role) exited with code $($entry.Process.ExitCode)."
+        }
+    }
+}
+function Stop-OwnedEntry($Entry,[switch]$Worker,[switch]$IntentionalStop) {
+    if ($IntentionalStop -and $Entry.Role -cne 'owner2') { throw 'Only owner2 may be intentionally disconnected.' }
+    $original=$Entry.Process
+    if (-not $Entry.PinnedHandle -or $Entry.PinnedHandle.IsClosed -or $Entry.PinnedHandle.IsInvalid) { throw 'Original owned process handle is unavailable.' }
+    # Never signal a freshly reopened PID. The Process retains its original handle.
+    try {
+        $original.Refresh()
+        if (-not $original.HasExited) {
+            $live=if ($Worker) { Get-OwnedWorkerLiveProcess $Entry } else { Get-OwnedLiveProcess $Entry }
+            if (-not $live) {
+                $original.Refresh()
+                if (-not $original.HasExited) { throw 'Owned process identity unavailable before termination.' }
+            } else {
+                $original.Refresh()
+                if (-not $original.HasExited) {
+                    $original.Kill()
+                    if ($IntentionalStop) {
+                        $Entry.IntentionalStop=$true
+                    }
+                }
+            }
+        }
+    } catch {
+        # Only pre-wait normal-exit/lookup races may be recovered here.
+        $original.Refresh()
+        if (-not $original.HasExited) { throw }
+    }
+    # HasExited may observe exit status before the kernel signals. This finite
+    # wait must return true, even when no live PID lookup remains available.
+    if (-not $original.WaitForExit(5000)) { throw 'Owned process did not signal exit within the 5000ms cleanup bound.' }
+    $original.Refresh()
+    if (-not $original.HasExited) { throw 'Owned process remained live after exit confirmation.' }
+}
 function Start-Role([string]$Role,[string]$Destination,[string[]]$Mode) {
     $log=Join-Path $run ($Role+'.log')
     $launchArguments=@(('"'+$project+'"'),$Destination)+$Mode+@('-unattended','-nosound','-nosplash','-NoSourceControl','-NoP4','-CoreLimit=2','-ddc=BlockoutDDC','-logcmds="LogDerivedDataCache Verbose"',('-port='+$Port),'-ini:Engine:[DevOptions.Shaders]:WorkerProcessPriority=0,[ConsoleVariables]:t.MaxFPS=30,[AssetRegistry]:EditorGameScansAR=Async,[ShaderCompiler]:r.Shaders.Optimize=1,[ConsoleVariables]:r.Shaders.Optimize=1',('-abslog="'+$log+'"'))
@@ -170,7 +213,7 @@ function Start-Role([string]$Role,[string]$Destination,[string[]]$Mode) {
     Record-TimingEvent 'role-start-request' $Role $Destination
     $p=Start-Process -FilePath $editor -ArgumentList $launchArguments -WorkingDirectory $projectRoot -WindowStyle Hidden -PassThru
     Record-TimingEvent 'role-process-started' $Role ($p.StartTime.ToUniversalTime().ToString('o'))
-    $entry=[pscustomobject]@{Process=$p;Started=$p.StartTime;Role=$Role;Log=$log;Path=$editor;IntentionalStop=$false}
+    $entry=[pscustomobject]@{Process=$p;PinnedHandle=$p.SafeHandle;Started=$p.StartTime;Role=$Role;Log=$log;Path=$editor;IntentionalStop=$false}
     $entries.Add($entry)
     $p.ProcessorAffinity=[IntPtr]([int64]$fixtureAffinity); $p.PriorityClass=[Diagnostics.ProcessPriorityClass]::Normal; $p.Refresh()
     if ([uint64]$p.ProcessorAffinity.ToInt64() -ne $fixtureAffinity -or $p.PriorityClass -ne [Diagnostics.ProcessPriorityClass]::Normal) { throw "Could not apply/verify owned $Role CPU policy." }
@@ -181,9 +224,11 @@ function Start-Role([string]$Role,[string]$Destination,[string[]]$Mode) {
 function Wait-Marker($Entry,[string]$Pattern) {
     Record-TimingEvent 'wait-marker' $Entry.Role $Pattern
     while ($true) {
+        Assert-OwnedRolesHealthy
         Check-StorageBudget; Maintain-OwnedCpuPolicy
         $log=Read-Log $Entry
         if ($log -match $Pattern) {
+            Assert-OwnedRolesHealthy
             $line=[regex]::Match($log,'(?m)^\[(?<stamp>\d{4}\.\d{2}\.\d{2}-\d{2}\.\d{2}\.\d{2}:\d{3})\][^\r\n]*'+$Pattern)
             Record-TimingEvent 'marker-observed' $Entry.Role $Pattern $line.Groups['stamp'].Value
             return
@@ -195,11 +240,14 @@ function Wait-Marker($Entry,[string]$Pattern) {
 }
 function Wait-Exited($Entries) {
     Record-TimingEvent 'wait-exit' 'runner' (($Entries | ForEach-Object { $_.Role }) -join ',')
+    Assert-OwnedRolesHealthy
     while (@($Entries | Where-Object { -not $_.Process.HasExited }).Count -gt 0) {
+        Assert-OwnedRolesHealthy
         Check-StorageBudget; Maintain-OwnedCpuPolicy
         if ($scenarioWatch.Elapsed.TotalSeconds -ge $TimeoutSeconds) { throw 'Lifecycle scenario exceeded its strict timeout.' }
         Start-Sleep -Milliseconds 200
     }
+    Assert-OwnedRolesHealthy
     foreach ($entry in $Entries) {
         if ($entry.Process.ExitCode -ne 0) { throw "$($entry.Role) exited with code $($entry.Process.ExitCode)." }
         $record=@($result.processes | Where-Object {$_.role -eq $entry.Role})[0]
@@ -207,6 +255,7 @@ function Wait-Exited($Entries) {
     }
 }
 function Signal-Gate([string]$Name) {
+    Assert-OwnedRolesHealthy
     [DateTime]::UtcNow.ToString('o') | Set-Content -LiteralPath (Join-Path $control $Name) -Encoding ascii
     Record-TimingEvent 'gate-written' 'runner' $Name
 }
@@ -228,6 +277,7 @@ function Assert-CommonEpochSnapshots([int]$Epoch,$ActiveEntries) {
     Record-TimingEvent 'wait-common-snapshots' 'runner' ('epoch='+$Epoch)
     if ($ActiveEntries.Count -lt 3) { throw "Need host plus two clients for epoch $Epoch snapshot agreement." }
     while ($true) {
+        Assert-OwnedRolesHealthy
         Check-StorageBudget; Maintain-OwnedCpuPolicy
         $maps=@(); foreach ($entry in $ActiveEntries) { $maps+=,(Get-EpochSnapshots (Read-Log $entry)) }
         # Use the same epoch:revision key across host and clients; dictionary
@@ -236,6 +286,7 @@ function Assert-CommonEpochSnapshots([int]$Epoch,$ActiveEntries) {
             $_ -like ([string]$Epoch+':*') -and $maps[1].ContainsKey($_) -and $maps[2].ContainsKey($_)
         } | Sort-Object { [int](($_ -split ':')[1]) })
         if ($common.Count -gt 0) {
+            Assert-OwnedRolesHealthy
             foreach ($key in $common) {
                 if ($maps[0][$key] -ne $maps[1][$key] -or $maps[0][$key] -ne $maps[2][$key]) { throw "Snapshot digest mismatch at epoch/revision $key." }
                 $result.lifecycle.commonRevisionDigests+=@{epoch=$Epoch;revision=[int](($key -split ':')[1]);digest=$maps[0][$key]}
@@ -250,6 +301,7 @@ function Assert-CommonEpochSnapshots([int]$Epoch,$ActiveEntries) {
 function Wait-TerminalSnapshotAgreement([int]$Epoch,[int]$Winner,$ActiveEntries) {
     Record-TimingEvent 'wait-terminal-agreement' 'runner' ('epoch='+$Epoch+' winner='+$Winner)
     while ($true) {
+        Assert-OwnedRolesHealthy
         Check-StorageBudget; Maintain-OwnedCpuPolicy
         $maps=@(); foreach ($entry in $ActiveEntries) { $maps+=,(Get-EpochSnapshots (Read-Log $entry)) }
         $hostKeys=@($maps[0].Keys | Where-Object { $_ -like ([string]$Epoch+':*') } | Sort-Object { [int](($_ -split ':')[1]) })
@@ -259,6 +311,7 @@ function Wait-TerminalSnapshotAgreement([int]$Epoch,[int]$Winner,$ActiveEntries)
                 if (-not $maps[$index].ContainsKey($key) -or $maps[$index][$key] -ne $maps[0][$key]) { $shared=$false; break }
             }
             if ($shared) {
+                Assert-OwnedRolesHealthy
                 $revision=[int](($key -split ':')[1])
                 $result.lifecycle.terminalSnapshotAgreements+=@{epoch=$Epoch;winnerTeam=$Winner;revision=$revision;digest=$maps[0][$key]}
                 return
@@ -270,15 +323,15 @@ function Wait-TerminalSnapshotAgreement([int]$Epoch,[int]$Winner,$ActiveEntries)
 }
 function Stop-OwnedProcesses {
     foreach ($entry in $entries) {
-        try { $live=Get-OwnedLiveProcess $entry; if ($live) { Stop-Process -Id $live.Id -Force -ErrorAction Stop } }
-        catch { $result.cleanupErrors+=@{role=$entry.Role;pid=$entry.Process.Id;message=$_.Exception.Message}; $result.passed=$false }
+        try { Stop-OwnedEntry $entry }
+        catch { $result.cleanupErrors+=@{role=$entry.Role;pid=$entry.Process.Id;message=$_.Exception.Message}; $result.passed=$false; if (-not $result.error) { $result.error='Owned-process cleanup failed; see cleanupErrors.' } }
     }
     foreach ($worker in $ownedWorkers) {
         try {
             $parentEntry=@($entries | Where-Object {$_.Process.Id -eq $worker.ParentId -and $_.Started -eq $worker.ParentStarted})
             if (-not $parentEntry.Count -and (Get-OwnedWorkerLiveProcess $worker)) { throw 'Owned shader-worker parent identity is unavailable during cleanup.' }
-            $live=Get-OwnedWorkerLiveProcess $worker; if ($live) { Stop-Process -Id $live.Id -Force -ErrorAction Stop }
-        } catch { $result.cleanupErrors+=@{role='shader-worker';pid=$worker.Process.Id;message=$_.Exception.Message}; $result.passed=$false }
+            Stop-OwnedEntry $worker -Worker
+        } catch { $result.cleanupErrors+=@{role='shader-worker';pid=$worker.Process.Id;message=$_.Exception.Message}; $result.passed=$false; if (-not $result.error) { $result.error='Owned-process cleanup failed; see cleanupErrors.' } }
     }
 }
 try {
@@ -302,10 +355,10 @@ try {
     $result.lifecycle.initialOwner1Healthy=$true
     $owner2Live=Get-OwnedLiveProcess $owner2
     if (-not $owner2Live) { throw 'Owner 2 exited before the planned disconnect.' }
-    Stop-Process -Id $owner2Live.Id -Force -ErrorAction Stop
-    $owner2Live.WaitForExit(); $owner2Live.Refresh(); $owner2.IntentionalStop=$true
+    Assert-OwnedRolesHealthy
+    Stop-OwnedEntry $owner2 -IntentionalStop
     $owner2ProcessRecord=@($result.processes | Where-Object {$_.role -eq 'owner2'})[0]
-    $owner2ProcessRecord.intentionalDisconnect=$true; $owner2ProcessRecord.exitCode=$owner2Live.ExitCode
+    $owner2ProcessRecord.intentionalDisconnect=$true; $owner2ProcessRecord.exitCode=$owner2.Process.ExitCode
     Wait-Marker $serverEntry 'PROOF_LIFECYCLE_LOGOUT owner=2 epoch=1'
     $result.lifecycle.owner2Disconnected=$true
     $rejoin=Start-Role 'rejoin' ('127.0.0.1:'+$Port) @('-game','-nullrhi','-ProofSkirmish','-ProofLifecycleRole=rejoin',('-ProofLifecycleControl="'+$control+'"'))
@@ -379,6 +432,7 @@ try {
         }
     }
     Assert-OwnerOneActiveBeforeFinish $serverEntry $finishSignaledUtc
+    Assert-OwnedRolesHealthy
     $result.passed=$true
 } catch {
     $result.error=$_.Exception.Message
