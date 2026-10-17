@@ -54,6 +54,7 @@ void AProofRTSPawn::BeginPlay()
     bGraphicsWarmup = FParse::Param(FCommandLine::Get(), TEXT("ProofGraphicsWarmup"));
     bStopControls = FParse::Param(FCommandLine::Get(), TEXT("ProofStopControls"));
     bFactoryRallyEvidence = FParse::Param(FCommandLine::Get(), TEXT("ProofFactoryRallyEvidence"));
+    CoopContext.bEnabled = FParse::Param(FCommandLine::Get(), TEXT("ProofCoopContextEvidence"));
     FParse::Value(FCommandLine::Get(), TEXT("ProofSkirmishScenario="), SkirmishScenario);
     FParse::Value(FCommandLine::Get(), TEXT("ProofSkirmishOutput="), SkirmishOutput);
     bHUDReadabilityCaptures = FParse::Param(FCommandLine::Get(), TEXT("ProofHUDReadabilityCaptures"));
@@ -205,6 +206,9 @@ void AProofRTSPawn::Tick(float DeltaSeconds)
         FactoryRallySeenAt = FactoryRallySpawnSeenAt = FactoryRallyCaptureAt = -1.f;
         FactoryRallyBeforeIds.Reset();
         FactoryRallyProgressRevisions.Reset();
+        const bool bCoopContextEnabled = CoopContext.bEnabled;
+        CoopContext = FProofCoopContextRuntimeState();
+        CoopContext.bEnabled = bCoopContextEnabled;
         RequestStatus = TEXT("Match state refreshed. Select an owned live unit.");
         LastSeenMatchEpoch = GS->Snapshot.MatchEpoch;
     }
@@ -1315,6 +1319,8 @@ void AProofRTSPawn::TickSkirmishScenario(float DeltaSeconds)
     { FinishSkirmishScenario(false, TEXT("camera_edge_requires_victory_readability")); return; }
     if (bHUDReadabilityCaptures && SkirmishScenario != TEXT("Victory"))
     { FinishSkirmishScenario(false, TEXT("readability_requires_victory")); return; }
+    if (CoopContext.bEnabled && (!bFactoryRallyEvidence || SkirmishScenario != TEXT("Coop")))
+    { FinishSkirmishScenario(false, TEXT("context_requires_cooperative_rally")); return; }
     SkirmishElapsed += DeltaSeconds;
     if (SkirmishElapsed > 220.f) { FinishSkirmishScenario(false, TEXT("scenario_timeout")); return; }
     AProofPlayerController* PC = Cast<AProofPlayerController>(GetController());
@@ -1394,7 +1400,8 @@ void AProofRTSPawn::TickSkirmishScenario(float DeltaSeconds)
             const int32 ExpectedWinner = SkirmishScenario == TEXT("Defeat") ? 1 : 0;
             const bool bPass = Snapshot.WinnerTeam == ExpectedWinner && bSkirmishBuilt && bSkirmishGathered
                 && bSkirmishProduced && bSkirmishBotRefinery && bSkirmishBotFactory && bSkirmishBotProduced
-                && bSkirmishBotAttacked && bSkirmishBaseCaptured && (!bFactoryRallyEvidence || FactoryRallyStage == 4);
+                && bSkirmishBotAttacked && bSkirmishBaseCaptured && (!bFactoryRallyEvidence || FactoryRallyStage == 4)
+                && (!CoopContext.bEnabled || CoopContext.Stage == 8);
             if (bPass && bHUDReadabilityCaptures && !TickHUDReadabilityCaptures()) return;
             FinishSkirmishScenario(bPass, bPass ? TEXT("complete_loop") : TEXT("outcome_or_evidence"));
         }
@@ -1489,6 +1496,7 @@ void AProofRTSPawn::TickSkirmishScenario(float DeltaSeconds)
     }
     if (SkirmishStage < 3) return;
     if (bFactoryRallyEvidence && !TickFactoryRallyFixture()) return;
+    if (CoopContext.bEnabled && !TickCoopContextFixture()) return;
     if (bSkirmishBuilt && bSkirmishGathered && !bSkirmishBaseCaptureRequested)
     {
         IFileManager::Get().MakeDirectory(*SkirmishOutput, true);
@@ -1603,7 +1611,11 @@ bool AProofRTSPawn::TickFactoryRallyFixture()
         FactoryRallyNativeRight = ManualRightPresses;
         FactoryRallyDestination = Factory->Position + FVector(-600, -350, 0);
         // Synthetic shared-handler invocation, not native physical input.
-        if (!SetFactoryRally(FactoryRallyDestination)) { FinishSkirmishScenario(false, TEXT("factory_rally_not_sent")); return false; }
+        if (CoopContext.bEnabled)
+        {
+            if (!PrepareCoopContextFactoryClick()) return false;
+        }
+        else if (!SetFactoryRally(FactoryRallyDestination)) { FinishSkirmishScenario(false, TEXT("factory_rally_not_sent")); return false; }
         FactoryRallySetSequence = LastRequestedSequence;
         FactoryRallyStage = 1;
         return false;
