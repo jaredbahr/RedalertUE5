@@ -10,6 +10,11 @@ struct FProofOreReselectionFixture
         for (int32 A = 0, B = Model.State.Resources.Num() - 1; A < B; ++A, --B)
             Model.State.Resources.Swap(A, B);
     }
+    static void SetPosition(FProofCommandModel& Model, int32 Id, const FVector& Position)
+    {
+        for (FProofResourceRecord& Resource : Model.State.Resources)
+            if (Resource.ResourceId == Id) Resource.Position = Position;
+    }
     static void SetRemaining(FProofCommandModel& Model, int32 Id, int32 Amount)
     {
         for (FProofResourceRecord& Resource : Model.State.Resources)
@@ -96,6 +101,29 @@ bool FProofOreNearestTest::RunTest(const FString&)
         TestEqual(TEXT("No new credit merely from choosing or approaching ore"), OreOwner(After).TotalGathered, 500);
         TestEqual(TEXT("Reselection cannot create or destroy finite resources"), OreAccounted(After), 1500);
     }
+    // The nearer replacement differs at the exhausted patch and at the
+    // refinery. Choose after unloading, from the actual departure position.
+    FProofCommandModel Returning; int32 Miner, Patch, Granted;
+    if (!TestTrue(TEXT("Seed post-deposit distance fixture"),
+        OreSetup(Returning, Miner, Patch, Granted, true, true))) return false;
+    const FProofSnapshot Opening = Returning.GetSnapshot();
+    const int32 NearRefinery = Opening.Resources[1].ResourceId;
+    const int32 NearExhaustedPatch = Opening.Resources[2].ResourceId;
+    FProofOreReselectionFixture::SetPosition(Returning, NearRefinery, FVector(0, 100, 0));
+    FProofOreReselectionFixture::SetPosition(Returning, NearExhaustedPatch, FVector(800, 0, 0));
+    if (!TestTrue(TEXT("Unload entire original patch before reselection"),
+        OreFinishFirstPatch(Returning, Miner, Patch))) return false;
+    const FVector Departure = OreMiner(Returning.GetSnapshot(), Miner).Position;
+    TestEqual(TEXT("Replacement departure is the refinery"), Departure, FVector(300, 0, 0));
+    Returning.Advance(1.f);
+    const FProofSnapshot After = Returning.GetSnapshot();
+    const FVector Step = OreMiner(After, Miner).Position - Departure;
+    TestTrue(TEXT("Nearest is evaluated from post-deposit position, not the depleted patch"),
+        Step.X < 0.0 && Step.Y > 0.0 && Step.Size() <= FProofCommandModel::MovementSpeed + 0.000001);
+    TestEqual(TEXT("Selection does not remotely extract nearby replacement ore"), OrePatch(After, NearRefinery).Remaining, 500);
+    TestEqual(TEXT("The patch nearest the old extraction site remains untouched"), OrePatch(After, NearExhaustedPatch).Remaining, 500);
+    TestEqual(TEXT("Post-deposit selection retains the credited total"), OreOwner(After).TotalGathered, 500);
+    TestEqual(TEXT("Post-deposit selection conserves finite ore"), OreAccounted(After), 1500);
     return true;
 }
 
