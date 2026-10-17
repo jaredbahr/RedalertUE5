@@ -158,6 +158,7 @@ private:
     void OrderUnderCursor();
     bool SetFactoryRally(const FVector& GroundPoint);
     void StopSelected();
+    void AttackMoveUnderCursor();
     void Produce();
     void ZoomIn();
     void ZoomOut();

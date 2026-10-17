@@ -60,6 +60,10 @@ bool FProofGroupOrderQueue::IsValidIntent(const FProofSnapshot& Snapshot, int32 
     {
         return Unit->Kind == EProofUnitKind::Combat || Unit->Kind == EProofUnitKind::Harvester;
     }
+    if (Command.Type == EProofCommandType::AttackMove)
+    {
+        return Snapshot.bSkirmish && Unit->Kind == EProofUnitKind::Combat && IsFiniteQueuePosition(Command.Destination);
+    }
     if (Command.Type == EProofCommandType::Move)
     {
         return (Unit->Kind == EProofUnitKind::Combat || Unit->Kind == EProofUnitKind::Harvester)
@@ -92,7 +96,7 @@ bool FProofGroupOrderQueue::Enqueue(const FProofSnapshot& Snapshot, int32 Curren
     for (const FProofCommand& Command : Commands)
     {
         if ((Command.Type != EProofCommandType::Move && Command.Type != EProofCommandType::Attack
-            && Command.Type != EProofCommandType::Stop)
+            && Command.Type != EProofCommandType::Stop && Command.Type != EProofCommandType::AttackMove)
             || Command.UnitId <= 0 || (Command.Type == EProofCommandType::Attack && Command.TargetUnitId <= 0))
         {
             return false;
@@ -106,7 +110,7 @@ bool FProofGroupOrderQueue::Enqueue(const FProofSnapshot& Snapshot, int32 Curren
             Intent.TargetUnitId = INDEX_NONE;
             Intent.Destination = FVector::ZeroVector;
         }
-        if (Intent.Type == EProofCommandType::Move)
+        if (Intent.Type == EProofCommandType::Move || Intent.Type == EProofCommandType::AttackMove)
         {
             if (!FMath::IsFinite(Intent.Destination.X) || !FMath::IsFinite(Intent.Destination.Y)
                 || !FMath::IsFinite(Intent.Destination.Z)) { return false; }
@@ -114,6 +118,11 @@ bool FProofGroupOrderQueue::Enqueue(const FProofSnapshot& Snapshot, int32 Curren
             Intent.Destination.X = FMath::Clamp(Intent.Destination.X, -Extent, Extent);
             Intent.Destination.Y = FMath::Clamp(Intent.Destination.Y, -Extent, Extent);
             Intent.Destination.Z = FMath::Clamp(Intent.Destination.Z, -Extent, Extent);
+        }
+        if (Intent.Type == EProofCommandType::AttackMove)
+        {
+            Intent.TargetUnitId = INDEX_NONE;
+            if (!IsValidIntent(Snapshot, CurrentOwnerId, Intent)) { return false; }
         }
         const int32 ExistingIndex = Proposed.IndexOfByPredicate([&Intent](const FProofCommand& PendingCommand)
             { return PendingCommand.UnitId == Intent.UnitId; });

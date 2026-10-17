@@ -13,7 +13,8 @@ enum class EProofCommandType : uint8
     BuildFactory,
     Gather,
     Stop,
-    SetRally
+    SetRally = 7,
+    AttackMove = 8
 };
 
 UENUM()
@@ -173,5 +174,7 @@ private:
     int32 AddUnit(int32 OwnerId, const FVector& Position, EProofUnitKind Kind, float HitPoints);
     int32 CountLiveOwnerUnits(int32 OwnerId) const;
     int32 TeamForOwner(int32 OwnerId) const;
+    const FProofUnitRecord* FindAttackMoveTarget(const TArray<FProofUnitRecord>& Units,
+        const FProofUnitRecord& Unit, int32 PreferredTargetId) const;
     const FProofUnitRecord* FindLiveRefinery(int32 OwnerId, const FVector& From) const;
 };

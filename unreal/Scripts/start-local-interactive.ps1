@@ -42,6 +42,7 @@ try {
     Write-Output 'Opening the Red Alert local practice window in 5 seconds. Left-click select, right-click move/attack, P produce, S stop selected mobile units, wheel zoom, Escape exit.'
     if($Skirmish) { Write-Output 'Small match: R refinery at cursor; F factory at cursor; select Harvester/right-click ore; P produces at factory. Destroy enemy HQ.' }
     Write-Output 'Shift-click toggles units; Ctrl+1-9 saves a group; 1-9 recalls. Group ground orders move mobile units; enemy orders attack with combat units.'
+    if($Skirmish) { Write-Output 'Ctrl+Shift+right-click ground: Attack Move with selected Combat units; S stops the route. In-range acquisition only; no pursuit outside weapon range.' }
     if($CameraPan) { Write-Output 'Optional camera pan enabled (-CameraPan): arrow keys while the game viewport is focused and foreground.' }
     Start-Sleep -Seconds 5
     $process=Start-Process -FilePath $editor -ArgumentList $launchArguments -WorkingDirectory $projectRoot -WindowStyle Normal -PassThru

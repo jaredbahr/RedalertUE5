@@ -247,6 +247,27 @@ int32 FProofCommandModel::TeamForOwner(int32 OwnerId) const
     return Player ? Player->TeamId : INDEX_NONE;
 }
 
+const FProofUnitRecord* FProofCommandModel::FindAttackMoveTarget(const TArray<FProofUnitRecord>& Units,
+    const FProofUnitRecord& Unit, int32 PreferredTargetId) const
+{
+    const int32 Team = TeamForOwner(Unit.OwnerId);
+    const FProofUnitRecord* Best = nullptr;
+    double BestDistance = 0.0;
+    for (const FProofUnitRecord& Candidate : Units)
+    {
+        if (Candidate.HitPoints <= 0.f || Candidate.OwnerId == Unit.OwnerId || Team == INDEX_NONE
+            || TeamForOwner(Candidate.OwnerId) == INDEX_NONE || TeamForOwner(Candidate.OwnerId) == Team
+            || !IsWithinProofAttackRange(Unit.Position, Candidate.Position)) { continue; }
+        // Retain an acquired in-range target. Otherwise nearest distance and
+        // then lowest stable unit ID determine acquisition, never array order.
+        if (Candidate.UnitId == PreferredTargetId) return &Candidate;
+        const double Distance = FVector::DistSquared(Unit.Position, Candidate.Position);
+        if (!Best || Distance < BestDistance || (Distance == BestDistance && Candidate.UnitId < Best->UnitId))
+        { Best = &Candidate; BestDistance = Distance; }
+    }
+    return Best;
+}
+
 const FProofUnitRecord* FProofCommandModel::FindLiveRefinery(int32 OwnerId, const FVector& From) const
 {
     const FProofUnitRecord* Best = nullptr;
@@ -282,12 +303,13 @@ FProofCommandResult FProofCommandModel::Submit(int32 TrustedOwnerId, const FProo
     const bool bGather = Command.Type == EProofCommandType::Gather;
     const bool bStop = Command.Type == EProofCommandType::Stop;
     const bool bSetRally = Command.Type == EProofCommandType::SetRally;
-    if ((!bMove && !bAttack && !bProduce && !bBuildRefinery && !bBuildFactory && !bGather && !bStop && !bSetRally)
-        || ((!State.bSkirmish) && (bBuildRefinery || bBuildFactory || bGather || bSetRally)) || Command.Sequence <= 0
+    const bool bAttackMove = Command.Type == EProofCommandType::AttackMove;
+    if ((!bMove && !bAttack && !bProduce && !bBuildRefinery && !bBuildFactory && !bGather && !bStop && !bSetRally && !bAttackMove)
+        || ((!State.bSkirmish) && (bBuildRefinery || bBuildFactory || bGather || bSetRally || bAttackMove)) || Command.Sequence <= 0
         || !IsFinitePosition(Command.Destination)
-        || ((bMove || bAttack || bGather || bStop || bSetRally || (State.bSkirmish && bProduce)) && Command.UnitId <= 0)
-        || (bSetRally && Command.TargetUnitId != INDEX_NONE)
-        || ((bAttack || bGather) && Command.TargetUnitId <= 0))
+        || ((bMove || bAttackMove || bAttack || bGather || bStop || bSetRally || (State.bSkirmish && bProduce)) && Command.UnitId <= 0)
+        || ((bAttack || bGather) && Command.TargetUnitId <= 0)
+        || ((bSetRally || bAttackMove) && Command.TargetUnitId != INDEX_NONE))
     {
         return Reject(TEXT("malformed"));
     }
@@ -388,7 +410,7 @@ FProofCommandResult FProofCommandModel::Submit(int32 TrustedOwnerId, const FProo
         if (!Unit || Unit->OwnerId != TrustedOwnerId || Unit->HitPoints <= 0.f) { return Reject(TEXT("ownership")); }
         if (State.bSkirmish && ((bMove && (Unit->Kind == EProofUnitKind::HQ || Unit->Kind == EProofUnitKind::Refinery || Unit->Kind == EProofUnitKind::Factory))
             || (bStop && Unit->Kind != EProofUnitKind::Combat && Unit->Kind != EProofUnitKind::Harvester)
-            || (bAttack && Unit->Kind != EProofUnitKind::Combat) || (bGather && Unit->Kind != EProofUnitKind::Harvester)))
+            || ((bAttack || bAttackMove) && Unit->Kind != EProofUnitKind::Combat) || (bGather && Unit->Kind != EProofUnitKind::Harvester)))
         {
             return Reject(TEXT("role"));
         }
@@ -402,7 +424,7 @@ FProofCommandResult FProofCommandModel::Submit(int32 TrustedOwnerId, const FProo
         {
             FOrder Order;
             Order.Type = Command.Type;
-            if (bMove)
+            if (bMove || bAttackMove)
             {
                 if (!IsInWorld(Command.Destination)) { return Reject(TEXT("position")); }
                 Order.Destination = Command.Destination;
@@ -446,10 +468,16 @@ void FProofCommandModel::Advance(float DeltaSeconds)
     for (int32 Index = 0; Index < BeforeMove.Num(); ++Index)
     {
         const FProofUnitRecord& Unit = BeforeMove[Index];
-        const FOrder* Order = Orders.Find(Unit.UnitId);
+        FOrder* Order = Orders.Find(Unit.UnitId);
         if (Unit.HitPoints <= 0.f || !Order) { continue; }
         FVector Destination = Order->Destination;
         double StopDistance = 0.0;
+        if (Order->Type == EProofCommandType::AttackMove)
+        {
+            const FProofUnitRecord* Target = FindAttackMoveTarget(BeforeMove, Unit, Order->TargetUnitId);
+            Order->TargetUnitId = Target ? Target->UnitId : INDEX_NONE;
+            if (Target) { continue; } // Hold position while an enemy is in range; never chase.
+        }
         if (Order->Type == EProofCommandType::Attack)
         {
             const FProofUnitRecord* Target = BeforeMove.FindByPredicate([Order](const FProofUnitRecord& U) { return U.UnitId == Order->TargetUnitId && U.HitPoints > 0.f; });
@@ -472,7 +500,7 @@ void FProofCommandModel::Advance(float DeltaSeconds)
                 Destination = Resource->Position;
             }
         }
-        else if (Order->Type != EProofCommandType::Move)
+        else if (Order->Type != EProofCommandType::Move && Order->Type != EProofCommandType::AttackMove)
         {
             continue;
         }
@@ -480,7 +508,7 @@ void FProofCommandModel::Advance(float DeltaSeconds)
         const double Distance = Offset.Size();
         const bool bAttackOrder = Order->Type == EProofCommandType::Attack;
         const bool bNeedsMovement = bAttackOrder ? !IsWithinProofAttackRange(Unit.Position, Destination) : Distance > StopDistance;
-        if (State.bSkirmish && Order->Type == EProofCommandType::Move && Distance <= UE_SMALL_NUMBER)
+        if (State.bSkirmish && (Order->Type == EProofCommandType::Move || Order->Type == EProofCommandType::AttackMove) && Distance <= UE_SMALL_NUMBER)
         {
             // Even a representable sub-epsilon Move must finish. Avoid a
             // division by a tiny distance and leave the legacy path unchanged.
@@ -492,7 +520,7 @@ void FProofCommandModel::Advance(float DeltaSeconds)
             const double Remaining = FMath::Max(0.0, Distance - StopDistance);
             const double Step = FMath::Min(static_cast<double>(MovementSpeed) * DeltaSeconds, Remaining);
             FVector Landing = Unit.Position + Offset * (Step / Distance);
-            if (State.bSkirmish && Order->Type == EProofCommandType::Move && Step == Remaining)
+            if (State.bSkirmish && (Order->Type == EProofCommandType::Move || Order->Type == EProofCommandType::AttackMove) && Step == Remaining)
             {
                 // Preserve the intended exact endpoint so a completed Move
                 // becomes idle even when reconstruction would round away.
@@ -529,7 +557,7 @@ void FProofCommandModel::Advance(float DeltaSeconds)
     TMap<int32, double> Damage;
     for (const FProofUnitRecord& Unit : State.Units)
     {
-        const FOrder* Order = Orders.Find(Unit.UnitId);
+        FOrder* Order = Orders.Find(Unit.UnitId);
         if (Unit.HitPoints <= 0.f) { continue; }
         const FProofUnitRecord* Target = nullptr;
         if (Order && Order->Type == EProofCommandType::Attack)
@@ -537,6 +565,11 @@ void FProofCommandModel::Advance(float DeltaSeconds)
             // An explicit target always wins, including while it is out of
             // range. Never add a second automatic shot to an attack order.
             Target = State.Units.FindByPredicate([Order](const FProofUnitRecord& U) { return U.UnitId == Order->TargetUnitId && U.HitPoints > 0.f; });
+        }
+        else if (State.bSkirmish && Order && Order->Type == EProofCommandType::AttackMove)
+        {
+            Target = FindAttackMoveTarget(State.Units, Unit, Order->TargetUnitId);
+            Order->TargetUnitId = Target ? Target->UnitId : INDEX_NONE;
         }
         else if (State.bSkirmish && Unit.Kind == EProofUnitKind::Combat
             && (!Order || (Order->Type == EProofCommandType::Move && Unit.Position == Order->Destination)))
