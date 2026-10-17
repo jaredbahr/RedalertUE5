@@ -8,11 +8,14 @@ param(
     [switch]$CleanPresentation,
     [switch]$RefineryMinerEvidence,
     [switch]$ReadabilityCaptures,
+    [switch]$CameraEdgeCaptures,
     [ValidateSet('1280x720','960x540')][string]$Viewport = '1280x720'
 )
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'RefineryMinerEvidence.ps1')
 . (Join-Path $PSScriptRoot 'SkirmishRetryEvidence.ps1')
+. (Join-Path $PSScriptRoot 'CameraEdgeEvidence.ps1')
+if ($CameraEdgeCaptures -and (-not $ReadabilityCaptures -or $Scenario -ne 'Victory')) { throw 'CameraEdgeCaptures requires Victory and ReadabilityCaptures.' }
 if ($ReadabilityCaptures -and $Scenario -ne 'Victory') { throw 'ReadabilityCaptures requires the standalone Victory scenario.' }
 $Viewport = $Viewport.ToLowerInvariant()
 $viewportParts = $Viewport.Split('x')
@@ -57,7 +60,7 @@ $result = [ordered]@{
     storageGuard=[ordered]@{softPollingGuard=$true;intervalSeconds=10;maxCacheMiB=$MaxCacheMiB;maxTempMiB=$MaxTempMiB;checks=0;latestCacheBytes=0;latestTempBytes=0;peakCacheBytes=0;peakTempBytes=0}
     cpuPolicy=[ordered]@{availableAffinityMask=('0x{0:X}' -f $availableAffinity);fixtureAffinityMask=('0x{0:X}' -f $fixtureAffinity);logicalProcessors=$fixtureLogicalProcessors;priority='Normal';pollIntervalSeconds=1;polls=0;repairs=0;processes=@()}
     literalClientSetup=[ordered]@{startupFile=$literalClientCVars;expectedResolverDisabled=1;startupConfirmedByRole=@{};hostnameOrInternetTest=$false;osDnsChanged=$false}
-    readabilityCaptures=[bool]$ReadabilityCaptures; edgeCaptureEvidence=@(); hudLayoutCaptureEvidence=@()
+    cameraEdgeCaptures=[bool]$CameraEdgeCaptures; cameraEdgeEvidence=$null; readabilityCaptures=[bool]$ReadabilityCaptures; edgeCaptureEvidence=@(); hudLayoutCaptureEvidence=@()
     renderConfiguration=[ordered]@{realViewport=$true;offscreen=$true;width=$viewportWidth;height=$viewportHeight;optimizedShaders=1;targetFPS=30}
     processes=@(); screenshots=@(); commonRevisions=@(); expectedWinner=$(if($Scenario -eq 'Defeat'){1}else{0}); error=$null; cleanupErrors=@()
 }
@@ -210,6 +213,7 @@ function Start-Role([string]$Role,[string]$Destination,[string[]]$Mode) {
     $launchArguments=@(('"'+$project+'"'),$Destination)+$Mode+@('-unattended','-nosound','-nosplash','-NoSourceControl','-NoP4','-CoreLimit=2','-ddc=BlockoutDDC','-logcmds="LogDerivedDataCache Verbose"',('-port='+$Port),'-ini:GameUserSettings:[/Script/Engine.GameUserSettings]:FrameRateLimit=30','-ini:Engine:[DevOptions.Shaders]:WorkerProcessPriority=0,[ConsoleVariables]:t.MaxFPS=30,[AssetRegistry]:EditorGameScansAR=Async,[ShaderCompiler]:r.Shaders.Optimize=1,[ConsoleVariables]:r.Shaders.Optimize=1',('-abslog="'+$log+'"'))
     if ($RefineryMinerEvidence) { $launchArguments+='-ProofRefineryMinerEvidence' }
     if ($ReadabilityCaptures -and $Role -eq 'rendered') { $launchArguments+='-ProofHUDReadabilityCaptures' }
+    if ($CameraEdgeCaptures -and $Role -eq 'rendered') { $launchArguments+='-ProofCameraEdgeCaptures' }
     $needsLiteralLoopback = $Scenario -eq 'Coop' -and $Role -in @('rendered','observer')
     if ($needsLiteralLoopback) {
         if ($Destination -notmatch '^127\.0\.0\.1:\d+$') { throw 'Literal-client CVar override is restricted to loopback destinations.' }
@@ -304,6 +308,10 @@ try {
     if ($ReadabilityCaptures) {
         $result.edgeCaptureEvidence=@(Get-HUDEdgeCaptureEvidence (Read-Log $client) $viewportWidth $viewportHeight)
         $captureNames+=@('03-left-edge.png','04-right-edge.png','05-panel-edge.png')
+        if ($CameraEdgeCaptures) {
+            $captureNames+=@('06-camera-before.png','07-camera-after.png')
+            $result.cameraEdgeEvidence=Get-CameraEdgeCaptureEvidence (Read-Log $client)
+        }
         $result.hudLayoutCaptureEvidence=@(Get-HUDLayoutCaptureEvidence (Read-Log $client) $captureNames)
     }
     foreach ($name in $captureNames) {

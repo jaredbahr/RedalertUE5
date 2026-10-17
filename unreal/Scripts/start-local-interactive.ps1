@@ -2,7 +2,8 @@ param(
     [string]$EngineRoot = 'D:\Epic Games\UE_5.7',
     [ValidateRange(60,1800)][int]$SessionSeconds = 900,
     [switch]$Skirmish,
-    [switch]$CameraPan
+    [switch]$CameraPan,
+    [switch]$CameraEdgePan
 )
 $ErrorActionPreference='Stop'
 $projectRoot=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
@@ -38,11 +39,14 @@ try {
     $launchArguments=@(('"'+$project+'"'),'/Game/CommandProofGenerated/Maps/CommandProof','-game','-windowed','-ResX=1280','-ResY=720','-nosound','-nosplash','-unattended','-NoSourceControl','-NoP4','-ddc=BlockoutDDC','-CoreLimit=2','-ProofInteractive','-ExecCmds="DisableAllScreenMessages"','-ini:GameUserSettings:[/Script/Engine.GameUserSettings]:FrameRateLimit=30','-ini:Engine:[AssetRegistry]:EditorGameScansAR=Async,[ConsoleVariables]:t.MaxFPS=30,[DevOptions.Shaders]:WorkerProcessPriority=0,[DevOptions.Shaders]:NumUnusedShaderCompilingThreads=1,[DevOptions.Shaders]:NumUnusedShaderCompilingThreadsDuringGame=1',('-abslog="'+$result.log+'"'))
     if($Skirmish) { $launchArguments+='-ProofSkirmish' }
     if($CameraPan) { $launchArguments+='-ProofCameraPan' }
+    if($CameraEdgePan) { $launchArguments+='-ProofCameraEdgePan' }
     $result.cameraPanEnabled=[bool]$CameraPan
+    $result.cameraEdgePanEnabled=[bool]$CameraEdgePan
     Write-Output 'Opening the Red Alert local practice window in 5 seconds. Left-click select, right-click move/attack, P produce, S stop selected mobile units, wheel zoom, Escape exit.'
     if($Skirmish) { Write-Output 'Small match: R refinery at cursor; F factory at cursor; select Harvester/right-click ore; P produces at factory. Destroy enemy HQ.' }
     Write-Output 'Shift-click toggles units; Ctrl+1-9 saves a group; 1-9 recalls. Group ground orders move mobile units; enemy orders attack with combat units.'
     if($CameraPan) { Write-Output 'Optional camera pan enabled (-CameraPan): arrow keys while the game viewport is focused and foreground.' }
+    if($CameraEdgePan) { Write-Output 'Optional edge pan enabled (-CameraEdgePan): outer 16 viewport pixels; paused over the HUD, while a mouse button is held, or without viewport focus/foreground.' }
     Start-Sleep -Seconds 5
     $process=Start-Process -FilePath $editor -ArgumentList $launchArguments -WorkingDirectory $projectRoot -WindowStyle Normal -PassThru
     $started=$process.StartTime

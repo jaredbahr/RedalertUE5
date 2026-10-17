@@ -44,6 +44,7 @@ private:
     FProofGroupOrderQueue GroupOrders;
     FVector CameraGroundCenter = FVector::ZeroVector;
     bool bCameraPanEnabled = false;
+    bool bCameraEdgePanEnabled = false;
     int32 ManualGroupPresses = 0;
     int32 LastSeenMatchEpoch = INDEX_NONE;
     int32 ManualRematchPresses = 0;
@@ -98,6 +99,20 @@ private:
     FString ControlsOutput;
     FString RequestStatus = TEXT("Select one of your live units.");
 
+    bool ApplyCameraPanInput(const FVector2D& Direction, float DeltaSeconds);
+    bool bCameraEdgeCaptures = false;
+    int32 CameraEdgeCaptureStage = 0;
+    float CameraEdgeStageStarted = -1.f;
+    FVector2D CameraEdgeProjectionBefore = FVector2D::ZeroVector;
+    FVector2D CameraEdgeProjectionExpected = FVector2D::ZeroVector;
+    FVector CameraEdgeRigBefore = FVector::ZeroVector;
+    FVector CameraEdgeCameraBefore = FVector::ZeroVector;
+    FQuat CameraEdgeRotationBefore = FQuat::Identity;
+    float CameraEdgeWidthBefore = 0.f;
+    FString CameraEdgeDigestBefore;
+    TMap<int32, FTransform> CameraEdgeViewTransforms;
+    FDateTime CameraEdgeCaptureRequestedAt;
+    bool TickCameraEdgeCaptures();
     bool bHUDReadabilityCaptures = false;
     int32 HUDEdgeAnchorUnit = INDEX_NONE;
     int32 HUDEdgeIndex = 0;

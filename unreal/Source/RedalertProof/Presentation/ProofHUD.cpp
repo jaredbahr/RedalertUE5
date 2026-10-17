@@ -1,4 +1,5 @@
 #include "Presentation/ProofHUD.h"
+#include "Presentation/ProofHUDPanelLayout.h"
 #include "Presentation/ProofMarkerLayout.h"
 #include "Presentation/ProofRTSPawn.h"
 #include "Engine/Canvas.h"
@@ -24,11 +25,12 @@ void AProofHUD::DrawHUD()
 
     // Keep the information panel readable while taking only a small, fixed part
     // of the view. Scale its footprint down on smaller windows.
-    const float UiScale = FMath::Clamp(Canvas->ClipX / 1280.f, 0.72f, 1.f);
-    const float Left = 12.f * UiScale;
-    const float Top = 12.f * UiScale;
-    const float PanelWidth = FMath::Min(720.f * UiScale, FMath::Max(0.f, Canvas->ClipX - Left * 2.f));
     const bool bSkirmish = GS && GS->Snapshot.bSkirmish;
+    const FProofHUDPanelLayout Panel(Canvas->ClipX, bSkirmish);
+    const float UiScale = Panel.Scale;
+    const float Left = Panel.Left;
+    const float Top = Panel.Top;
+    const float PanelWidth = Panel.Width;
     // Observe only a requested UI screenshot in the explicit fixture mode.
     // This is a layout record for this DrawHUD, not proof that PNG encoding succeeded.
     const bool bCaptureLayout = bSkirmish
@@ -50,7 +52,7 @@ void AProofHUD::DrawHUD()
         bool bPrimaryGlyphVisible = false;
         bool bPrimaryGroupPlaced = false;
     } CaptureStats;
-    const float PanelHeight = (bSkirmish ? 197.f : 183.f) * UiScale;
+    const float PanelHeight = Panel.Height;
     const float Pad = 12.f * UiScale;
     const float FontScale = 1.05f * UiScale;
     UFont* Font = GEngine ? GEngine->GetMediumFont() : nullptr;

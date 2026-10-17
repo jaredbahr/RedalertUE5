@@ -1,6 +1,7 @@
 #include "Presentation/ProofRTSPawn.h"
 #include "Presentation/ProofCameraPan.h"
 #include "Presentation/ProofSkirmishOwnershipRecovery.h"
+#include "Presentation/ProofHUDPanelLayout.h"
 #include "Camera/CameraComponent.h"
 #include "Components/InputComponent.h"
 #include "Components/SceneComponent.h"
@@ -28,6 +29,7 @@ AProofRTSPawn::AProofRTSPawn()
     PrimaryActorTick.bCanEverTick = true;
     bInteractiveExitEnabled = FParse::Param(FCommandLine::Get(), TEXT("ProofInteractive"));
     bCameraPanEnabled = FParse::Param(FCommandLine::Get(), TEXT("ProofCameraPan"));
+    bCameraEdgePanEnabled = FParse::Param(FCommandLine::Get(), TEXT("ProofCameraEdgePan"));
     RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("ViewRoot"));
     Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("RTSCamera"));
     Camera->SetupAttachment(RootComponent);
@@ -46,6 +48,7 @@ void AProofRTSPawn::BeginPlay()
     FParse::Value(FCommandLine::Get(), TEXT("ProofSkirmishScenario="), SkirmishScenario);
     FParse::Value(FCommandLine::Get(), TEXT("ProofSkirmishOutput="), SkirmishOutput);
     bHUDReadabilityCaptures = FParse::Param(FCommandLine::Get(), TEXT("ProofHUDReadabilityCaptures"));
+    bCameraEdgeCaptures = FParse::Param(FCommandLine::Get(), TEXT("ProofCameraEdgeCaptures"));
     // Fixture-only viewport contract; defaults preserve the existing trace.
     FString FixtureViewport = TEXT("1280x720");
     FParse::Value(FCommandLine::Get(), TEXT("ProofSkirmishViewport="), FixtureViewport);
@@ -125,14 +128,36 @@ void AProofRTSPawn::Tick(float DeltaSeconds)
         bConfiguredLocalInput = true;
     }
     ObserveViewportFocus();
-    if (bCameraPanEnabled && bConfiguredLocalInput && bViewportFocused && bViewportForeground
+    if ((bCameraPanEnabled || (bCameraEdgePanEnabled && bInteractiveExitEnabled)) && bConfiguredLocalInput && bViewportFocused && bViewportForeground
         && !PC->IsProofAutomation() && !PC->IsControlsAutomation() && SkirmishScenario.IsEmpty())
     {
-        const FVector2D Direction(
-            (PC->IsInputKeyDown(EKeys::Right) ? 1.0 : 0.0) - (PC->IsInputKeyDown(EKeys::Left) ? 1.0 : 0.0),
-            (PC->IsInputKeyDown(EKeys::Up) ? 1.0 : 0.0) - (PC->IsInputKeyDown(EKeys::Down) ? 1.0 : 0.0));
-        CameraGroundCenter = FProofCameraPan::Apply(CameraGroundCenter, Direction, DeltaSeconds);
-        Camera->SetWorldLocation(CameraGroundCenter + FVector(0.f, -3200.f, 3200.f));
+        FVector2D Direction = FVector2D::ZeroVector;
+        if (bCameraPanEnabled)
+        {
+            Direction = FVector2D(
+                (PC->IsInputKeyDown(EKeys::Right) ? 1.0 : 0.0) - (PC->IsInputKeyDown(EKeys::Left) ? 1.0 : 0.0),
+                (PC->IsInputKeyDown(EKeys::Up) ? 1.0 : 0.0) - (PC->IsInputKeyDown(EKeys::Down) ? 1.0 : 0.0));
+        }
+        // Edge scrolling is opt-in manual practice only. Read the real viewport
+        // pointer, never the fixture cursor, and leave mouse-button gestures alone.
+        const UGameViewportClient* Viewport = GetWorld()->GetGameViewport();
+        if (bCameraEdgePanEnabled && bInteractiveExitEnabled && !bGraphicsWarmup && !bControlsCursor
+            && Viewport && Viewport->Viewport && PC->GetHUD())
+        {
+            int32 Width = 0, Height = 0;
+            PC->GetViewportSize(Width, Height);
+            float MouseX = 0.f, MouseY = 0.f;
+            if (PC->GetMousePosition(MouseX, MouseY))
+            {
+                const AProofGameState* CameraState = GetWorld()->GetGameState<AProofGameState>();
+                const FProofHUDPanelLayout Panel(static_cast<float>(Width), CameraState && CameraState->Snapshot.bSkirmish);
+                const bool bMouseHeld = PC->IsInputKeyDown(EKeys::LeftMouseButton)
+                    || PC->IsInputKeyDown(EKeys::RightMouseButton) || PC->IsInputKeyDown(EKeys::MiddleMouseButton);
+                Direction += FProofCameraPan::EdgeInput(FVector2D(MouseX, MouseY), FVector2D(Width, Height),
+                    Panel.Bounds(), true, Viewport->Viewport->HasFocus(), bViewportForeground, bMouseHeld);
+            }
+        }
+        ApplyCameraPanInput(Direction, DeltaSeconds);
     }
     if (bInteractiveExitEnabled && bConfiguredLocalInput && !bInteractiveReadyLogged && PC->OwnerId != INDEX_NONE)
     {
@@ -1073,7 +1098,7 @@ bool AProofRTSPawn::TickHUDReadabilityCaptures()
     { return Unit.UnitId == HUDEdgeAnchorUnit && Unit.OwnerId == PC->OwnerId && Unit.HitPoints > 0.f; });
     if (!Anchor || SelectedUnitId != HUDEdgeAnchorUnit)
     { FinishSkirmishScenario(false, TEXT("readability_anchor_lost")); return false; }
-    if (HUDEdgeIndex >= 3) return true;
+    if (HUDEdgeIndex >= 3) return !bCameraEdgeCaptures || TickCameraEdgeCaptures();
     const TCHAR* Names[] = { TEXT("03-left-edge.png"), TEXT("04-right-edge.png"), TEXT("05-panel-edge.png") };
     const FString Path = FPaths::Combine(SkirmishOutput, Names[HUDEdgeIndex]);
     FVector2D Projected;
@@ -1177,12 +1202,14 @@ bool AProofRTSPawn::TickHUDReadabilityCaptures()
     ++HUDEdgeIndex;
     HUDEdgePhase = 0;
     HUDEdgeStageStarted = SkirmishElapsed;
-    return HUDEdgeIndex == 3;
+    return HUDEdgeIndex == 3 && (!bCameraEdgeCaptures || TickCameraEdgeCaptures());
 }
 void AProofRTSPawn::TickSkirmishScenario(float DeltaSeconds)
 {
     if (!bSkirmishViewportValid) { FinishSkirmishScenario(false, TEXT("fixture_viewport")); return; }
     if (bSkirmishFinished) return;
+    if (bCameraEdgeCaptures && (!bHUDReadabilityCaptures || SkirmishScenario != TEXT("Victory")))
+    { FinishSkirmishScenario(false, TEXT("camera_edge_requires_victory_readability")); return; }
     if (bHUDReadabilityCaptures && SkirmishScenario != TEXT("Victory"))
     { FinishSkirmishScenario(false, TEXT("readability_requires_victory")); return; }
     SkirmishElapsed += DeltaSeconds;
