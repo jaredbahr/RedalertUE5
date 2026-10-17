@@ -580,10 +580,8 @@ void AProofRTSPawn::OrderUnderCursor()
     {
         if (PC->IsProofAutomation()) { RequestStatus = TEXT("Manual orders disabled during automation."); return; }
         const int32 TargetId = FindUnitUnderCursor(false);
-        const FProofUnitRecord* Target = GS->Snapshot.Units.FindByPredicate(
-            [TargetId](const FProofUnitRecord& Unit) { return Unit.UnitId == TargetId; });
         TArray<FProofCommand> Commands;
-        if (Target && Target->OwnerId != PC->OwnerId)
+        if (FProofSelectionState::IsHostileTarget(GS->Snapshot, PC->OwnerId, TargetId))
             Commands = Selection.PlanAttack(GS->Snapshot, PC->OwnerId, TargetId);
         else
         {
@@ -604,9 +602,7 @@ void AProofRTSPawn::OrderUnderCursor()
     if (GS->Snapshot.bSkirmish && Selected && Selected->Kind == EProofUnitKind::Factory)
     {
         const int32 PointedId = FindUnitUnderCursor(false);
-        const FProofUnitRecord* Pointed = GS->Snapshot.Units.FindByPredicate(
-            [PointedId](const FProofUnitRecord& Unit) { return Unit.UnitId == PointedId; });
-        if (Pointed && Pointed->OwnerId != PC->OwnerId)
+        if (FProofSelectionState::IsHostileTarget(GS->Snapshot, PC->OwnerId, PointedId))
         {
             RequestStatus = TEXT("Factory rally requires ground; right-click away from enemy units.");
             return;
@@ -642,9 +638,7 @@ void AProofRTSPawn::OrderUnderCursor()
         }
     }
     const int32 TargetId = FindUnitUnderCursor(false);
-    const FProofUnitRecord* Target = GS->Snapshot.Units.FindByPredicate(
-        [TargetId](const FProofUnitRecord& Unit) { return Unit.UnitId == TargetId; });
-    if (Target && Target->OwnerId != PC->OwnerId)
+    if (FProofSelectionState::IsHostileTarget(GS->Snapshot, PC->OwnerId, TargetId))
     {
         Command.Type = EProofCommandType::Attack;
         Command.TargetUnitId = TargetId;

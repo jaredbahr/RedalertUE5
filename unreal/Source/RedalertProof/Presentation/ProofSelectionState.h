@@ -20,6 +20,8 @@ public:
     // Visible means a finite projected center in the half-open viewport. The
     // caller supplies projected IDs; ownership, life and generic Kind recheck here.
     static bool IsViewportCenterVisible(const FVector2D& Center, const FIntPoint& Viewport);
+    // Snapshot-only relationship check shared by all right-click branches.
+    static bool IsHostileTarget(const FProofSnapshot& Snapshot, int32 OwnerId, int32 TargetUnitId);
     bool SelectVisibleType(const FProofSnapshot& Snapshot, int32 OwnerId, const TArray<int32>& VisibleUnitIds);
     void AssignGroup(int32 Slot, const FProofSnapshot& Snapshot, int32 OwnerId);
     void RecallGroup(int32 Slot, const FProofSnapshot& Snapshot, int32 OwnerId);
