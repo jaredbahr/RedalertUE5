@@ -1,5 +1,6 @@
 #include "Presentation/ProofRTSPawn.h"
 #include "Presentation/ProofCameraPan.h"
+#include "Presentation/ProofSkirmishOwnershipRecovery.h"
 #include "Camera/CameraComponent.h"
 #include "Components/InputComponent.h"
 #include "Components/SceneComponent.h"
@@ -1275,29 +1276,16 @@ void AProofRTSPawn::TickSkirmishScenario(float DeltaSeconds)
         if (!PC->FindReceipt(LastRequestedSequence, Receipt)) return;
         if (!Receipt.bAccepted)
         {
-            if (LastRequestedType == TEXT("Attack") && Receipt.Reason == TEXT("ownership")
-                && bLastRequestedSourceWasOwnedLive)
+            const int32 RejectedSequence = LastRequestedSequence;
+            const EProofSkirmishOwnershipRecovery OwnershipRecovery = FProofSkirmishOwnershipRecovery::Apply(
+                Snapshot, PC->OwnerId, LastRequestedType, Receipt, LastRequestedUnitId,
+                bLastRequestedSourceWasOwnedLive, SkirmishIssuedTargets, LastRequestedSequence);
+            if (OwnershipRecovery == EProofSkirmishOwnershipRecovery::Wait) return;
+            if (OwnershipRecovery == EProofSkirmishOwnershipRecovery::Recovered)
             {
-                // The selected attacker can die between the client snapshot
-                // and host validation. Recover only after that exact retained
-                // record is confirmed owned and dead; missing/foreign records
-                // still reach the normal rejection failure below.
-                const FProofUnitRecord* RejectedUnit = Snapshot.Units.FindByPredicate(
-                    [this](const FProofUnitRecord& Unit) { return Unit.UnitId == LastRequestedUnitId; });
-                if (RejectedUnit && RejectedUnit->OwnerId == PC->OwnerId)
-                {
-                    if (RejectedUnit->HitPoints > 0.f) return;
-                    if (RejectedUnit->HitPoints <= 0.f)
-                    {
-                        UE_LOG(LogTemp, Display, TEXT("PROOF_SKIRMISH_RETRY reason=ownership unit=%d sequence=%d snapshotRevision=%d replicatedUnit=owned-dead"),
-                            LastRequestedUnitId, LastRequestedSequence, Snapshot.Revision);
-                        SkirmishIssuedTargets.Remove(LastRequestedUnitId);
-                        // Validation consumed the ordinary sequence. Only the
-                        // fixture receipt latch is cleared, never its allocator.
-                        LastRequestedSequence = 0;
-                        return;
-                    }
-                }
+                UE_LOG(LogTemp, Display, TEXT("PROOF_SKIRMISH_RETRY reason=ownership unit=%d sequence=%d snapshotRevision=%d replicatedUnit=owned-dead"),
+                    LastRequestedUnitId, RejectedSequence, Snapshot.Revision);
+                return;
             }
             if (LastRequestedType == TEXT("Attack") && Receipt.Reason == TEXT("target"))
             {
