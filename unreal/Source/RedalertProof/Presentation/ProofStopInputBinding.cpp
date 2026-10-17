@@ -13,7 +13,7 @@
 bool AProofRTSPawn::IsStopInputReady() const
 {
     const AProofPlayerController* PC = Cast<AProofPlayerController>(GetController());
-    const UGameViewportClient* Viewport = GetWorld() ? GetWorld()->GetGameViewport() : nullptr;
+    UGameViewportClient* Viewport = GetWorld() ? GetWorld()->GetGameViewport() : nullptr;
     if (!bStopInputBinding || !PC || !PC->IsLocalController() || !PC->GetLocalPlayer() || !PC->PlayerInput
         || PC->GetPawnOrSpectator() != this || PC->AcknowledgedPawn != this || !InputComponent
         || !InputComponent->IsRegistered() || !InputEnabled() || !Viewport || !Viewport->Viewport || Viewport->IgnoreInput()) return false;
