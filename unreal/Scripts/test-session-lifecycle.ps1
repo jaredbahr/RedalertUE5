@@ -58,6 +58,7 @@ $result = [ordered]@{
     storageGuard=[ordered]@{softPollingGuard=$true;intervalSeconds=10;maxCacheMiB=$MaxCacheMiB;maxTempMiB=$MaxTempMiB;checks=0;latestCacheBytes=0;latestTempBytes=0;peakCacheBytes=0;peakTempBytes=0}
     cpuPolicy=[ordered]@{availableAffinityMask=('0x{0:X}' -f $availableAffinity);fixtureAffinityMask=('0x{0:X}' -f $fixtureAffinity);logicalProcessors=$fixtureLogicalProcessors;priority='Normal';pollIntervalSeconds=1;polls=0;repairs=0;processes=@()}
     literalClientSetup=[ordered]@{startupFile=$cvars;expectedResolverDisabled=1;startupConfirmedByRole=@{};hostnameOrInternetTest=$false;osDnsChanged=$false}
+    timing=[ordered]@{scenarioStartedUtc=$null;clock='Stopwatch monotonic; UTC is correlation only';maxEvents=256;droppedEvents=0;activePhase=$null;failurePhase=$null;events=@()}
     processes=@(); commonRevisions=@(); error=$null; cleanupErrors=@()
 }
 $entries = [Collections.Generic.List[object]]::new()
@@ -65,6 +66,14 @@ $ownedWorkers = [Collections.Generic.List[object]]::new()
 $prior = @{}
 $lastStorage = -10.0
 $result.cpuPolicy.lastPollElapsedSeconds = -1.0
+# Diagnostic observations only: these never reset or extend the scenario clock.
+function Record-TimingEvent([string]$Kind,[string]$Role,[string]$Detail,[string]$EngineLogUtc='') {
+    $elapsed = if ($scenarioWatch) { $scenarioWatch.Elapsed.TotalSeconds } else { 0.0 }
+    $phase = [ordered]@{kind=$Kind;role=$Role;detail=$Detail;observedUtc=[DateTime]::UtcNow.ToString('o');scenarioElapsedSeconds=[math]::Round($elapsed,3);remainingBudgetSeconds=[math]::Round([math]::Max(0.0,([double]$TimeoutSeconds-$elapsed)),3);engineLogUtc=$EngineLogUtc}
+    $result.timing.activePhase=$phase
+    if ($result.timing.events.Count -lt $result.timing.maxEvents) { $result.timing.events+=@($phase) }
+    else { $result.timing.droppedEvents++ }
+}
 function Get-OwnedLiveProcess($Entry) {
     $candidate = Get-Process -Id $Entry.Process.Id -ErrorAction SilentlyContinue
     if (-not $candidate) { return $null }
@@ -158,7 +167,9 @@ function Start-Role([string]$Role,[string]$Destination,[string[]]$Mode) {
     $log=Join-Path $run ($Role+'.log')
     $launchArguments=@(('"'+$project+'"'),$Destination)+$Mode+@('-unattended','-nosound','-nosplash','-NoSourceControl','-NoP4','-CoreLimit=2','-ddc=BlockoutDDC','-logcmds="LogDerivedDataCache Verbose"',('-port='+$Port),'-ini:Engine:[DevOptions.Shaders]:WorkerProcessPriority=0,[ConsoleVariables]:t.MaxFPS=30,[AssetRegistry]:EditorGameScansAR=Async,[ShaderCompiler]:r.Shaders.Optimize=1,[ConsoleVariables]:r.Shaders.Optimize=1',('-abslog="'+$log+'"'))
     if ($Role -ne 'host') { $launchArguments+=('-cvarsini="'+$cvars+'"') }
+    Record-TimingEvent 'role-start-request' $Role $Destination
     $p=Start-Process -FilePath $editor -ArgumentList $launchArguments -WorkingDirectory $projectRoot -WindowStyle Hidden -PassThru
+    Record-TimingEvent 'role-process-started' $Role ($p.StartTime.ToUniversalTime().ToString('o'))
     $entry=[pscustomobject]@{Process=$p;Started=$p.StartTime;Role=$Role;Log=$log;Path=$editor;IntentionalStop=$false}
     $entries.Add($entry)
     $p.ProcessorAffinity=[IntPtr]([int64]$fixtureAffinity); $p.PriorityClass=[Diagnostics.ProcessPriorityClass]::Normal; $p.Refresh()
@@ -168,15 +179,22 @@ function Start-Role([string]$Role,[string]$Destination,[string[]]$Mode) {
     return $entry
 }
 function Wait-Marker($Entry,[string]$Pattern) {
+    Record-TimingEvent 'wait-marker' $Entry.Role $Pattern
     while ($true) {
         Check-StorageBudget; Maintain-OwnedCpuPolicy
-        if ((Read-Log $Entry) -match $Pattern) { return }
+        $log=Read-Log $Entry
+        if ($log -match $Pattern) {
+            $line=[regex]::Match($log,'(?m)^\[(?<stamp>\d{4}\.\d{2}\.\d{2}-\d{2}\.\d{2}\.\d{2}:\d{3})\][^\r\n]*'+$Pattern)
+            Record-TimingEvent 'marker-observed' $Entry.Role $Pattern $line.Groups['stamp'].Value
+            return
+        }
         if ($Entry.Process.HasExited) { throw "$($Entry.Role) exited before expected marker: $Pattern" }
         if ($scenarioWatch.Elapsed.TotalSeconds -ge $TimeoutSeconds) { throw "Scenario timed out waiting for $Pattern" }
         Start-Sleep -Milliseconds 200
     }
 }
 function Wait-Exited($Entries) {
+    Record-TimingEvent 'wait-exit' 'runner' (($Entries | ForEach-Object { $_.Role }) -join ',')
     while (@($Entries | Where-Object { -not $_.Process.HasExited }).Count -gt 0) {
         Check-StorageBudget; Maintain-OwnedCpuPolicy
         if ($scenarioWatch.Elapsed.TotalSeconds -ge $TimeoutSeconds) { throw 'Lifecycle scenario exceeded its strict timeout.' }
@@ -188,7 +206,10 @@ function Wait-Exited($Entries) {
         $record.exitCode=$entry.Process.ExitCode; $record.expectedExitCode=0
     }
 }
-function Signal-Gate([string]$Name) { [DateTime]::UtcNow.ToString('o') | Set-Content -LiteralPath (Join-Path $control $Name) -Encoding ascii }
+function Signal-Gate([string]$Name) {
+    [DateTime]::UtcNow.ToString('o') | Set-Content -LiteralPath (Join-Path $control $Name) -Encoding ascii
+    Record-TimingEvent 'gate-written' 'runner' $Name
+}
 function Assert-OwnerOneActiveBeforeFinish($Entry,[DateTime]$FinishSignaledUtc) {
     $lines=[regex]::Matches((Read-Log $Entry),'(?m)^([^\r\n]*PROOF_LIFECYCLE_LOGOUT owner=1(?:\s|$)[^\r\n]*)')
     foreach ($match in $lines) {
@@ -204,6 +225,7 @@ function Get-EpochSnapshots([string]$Text) {
     return $snapshots
 }
 function Assert-CommonEpochSnapshots([int]$Epoch,$ActiveEntries) {
+    Record-TimingEvent 'wait-common-snapshots' 'runner' ('epoch='+$Epoch)
     if ($ActiveEntries.Count -lt 3) { throw "Need host plus two clients for epoch $Epoch snapshot agreement." }
     while ($true) {
         Check-StorageBudget; Maintain-OwnedCpuPolicy
@@ -226,6 +248,7 @@ function Assert-CommonEpochSnapshots([int]$Epoch,$ActiveEntries) {
     }
 }
 function Wait-TerminalSnapshotAgreement([int]$Epoch,[int]$Winner,$ActiveEntries) {
+    Record-TimingEvent 'wait-terminal-agreement' 'runner' ('epoch='+$Epoch+' winner='+$Winner)
     while ($true) {
         Check-StorageBudget; Maintain-OwnedCpuPolicy
         $maps=@(); foreach ($entry in $ActiveEntries) { $maps+=,(Get-EpochSnapshots (Read-Log $entry)) }
@@ -265,6 +288,8 @@ try {
     [Environment]::SetEnvironmentVariable('UE-SharedDataCachePath','None','Process')
     [Environment]::SetEnvironmentVariable('TEMP',$temp,'Process'); [Environment]::SetEnvironmentVariable('TMP',$temp,'Process')
     $scenarioWatch=[Diagnostics.Stopwatch]::StartNew()
+    $result.timing.scenarioStartedUtc=[DateTime]::UtcNow.ToString('o')
+    Record-TimingEvent 'scenario-start' 'runner' ('fixed total budget seconds='+$TimeoutSeconds)
     $serverEntry=Start-Role 'host' '/Game/CommandProofGenerated/Maps/CommandProof' @('-server','-nullrhi','-MULTIHOME=127.0.0.1','-ProofSkirmish','-ProofLifecycleFixtureHost',('-ProofLifecycleControl="'+$control+'"'))
     Wait-Marker $serverEntry 'PROOF_LIFECYCLE_READY epoch=1'
     $lead=Start-Role 'lead' ('127.0.0.1:'+$Port) @('-game','-nullrhi','-ProofSkirmish','-ProofLifecycleRole=lead',('-ProofLifecycleControl="'+$control+'"'))
@@ -355,7 +380,11 @@ try {
     }
     Assert-OwnerOneActiveBeforeFinish $serverEntry $finishSignaledUtc
     $result.passed=$true
-} catch { $result.error=$_.Exception.Message }
+} catch {
+    $result.error=$_.Exception.Message
+    $result.timing.failurePhase=$result.timing.activePhase
+    Record-TimingEvent 'failure' 'runner' $result.error
+}
 finally {
     Stop-OwnedProcesses
     foreach ($name in $prior.Keys) { try { [Environment]::SetEnvironmentVariable($name,$prior[$name],'Process') } catch { $result.cleanupErrors+=@{role='environment';name=$name;message=$_.Exception.Message}; $result.passed=$false } }
