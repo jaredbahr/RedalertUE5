@@ -7,6 +7,9 @@
 #include "Skirmish/ProofSkirmishBot.h"
 #include "Runtime/ProofRefineryMinerEvidence.h"
 #include "Runtime/ProofStopEvidence.h"
+#include "Runtime/ProofFactoryRallyEvidence.h"
+#include "Runtime/ProofAttackMoveEvidence.h"
+#include "Runtime/ProofAttackMoveRuntimeState.h"
 #include "ProofGameMode.generated.h"
 
 class AProofPlayerController;
@@ -28,8 +31,12 @@ public:
     bool IsCurrentController(const AProofPlayerController* Controller) const;
 private:
     FProofCommandModel Model;
+    FProofAttackMoveRuntimeState AttackMoveRuntime;
+    FProofAttackMoveEvidence AttackMoveEvidence;
+    void TickAttackMoveRuntime(float DeltaSeconds);
     FProofRefineryMinerEvidence RefineryEvidence;
     FProofStopEvidence StopEvidence;
+    FProofFactoryRallyEvidence FactoryRallyEvidence;
     FProofSkirmishBot SkirmishBot;
     FProofHumanOwnerAllocator HumanOwnerIds;
     TWeakObjectPtr<AProofPlayerController> SkirmishOwner1;
@@ -46,6 +53,10 @@ private:
     int32 BotAccepted = 0;
     bool bAutomation = false;
     bool bControlsAutomation = false;
+    bool bTypeSelectionControls = false;
+    double TypeSelectionSimulationSeconds = 0.0;
+    int32 TypeSelectionOwnerSubmissions = 0;
+    int32 TypeSelectionClockRows = 0;
     bool bSkirmish = false;
     bool bSkirmishFixtureHost = false;
     bool bLifecycleFixtureHost = false;

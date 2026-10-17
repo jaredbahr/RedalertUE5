@@ -7,7 +7,7 @@ This is a small engine-native correctness fixture, not a playable RA2 roster or 
 - Left-click within 40 screen pixels of an owned live unit's ground marker to select it. Clicking elsewhere clears selection.
 - Right-click ground to request movement, or an enemy marker to request attack. The ground plane is world Z=0; no navigation or terrain raycast is implied.
 - Press **P** to request one generic unit using the fixture's toy credits and production rule. Production does not require a building in this proof.
-- Use the mouse wheel to change the fixed oblique orthographic camera width. The camera stays centered on the fixture origin; panning is not implemented.
+- Use the mouse wheel to change the fixed oblique orthographic camera width. Translation is optional in the interactive launchers: `-CameraPan` enables arrow keys and `-CameraEdgePan` enables edge scrolling; both are off by default. See [current player features](PLAYER_FEATURES.md) for scope and input limits.
 
 Click the game viewport first if the editor has keyboard focus. Green markers identify owned units, red markers identify other owners, and yellow brackets identify the selected owned unit. The HUD shows the host-assigned owner, replicated snapshot revision, toy credits, selection, the last request sent, and a separate host **ACCEPTED/REJECTED** receipt with its sequence and reason. A receipt does not predict a state change: the views and credits still update only from snapshots.
 
@@ -96,3 +96,7 @@ The fixture also overrides GameUserSettings FrameRateLimit30 per invocation. Sta
 ## Successful graphical execution
 
 Clean tested source `f836d939a9093ae320fa425db5b6d2705571ad06`, local report `generated/controls-20261016-064537-040/result.json`, passed: warmup14.740s, scenario87.909s, total103.929s. All three roles completed/exited successfully;53shared revision digests matched. All required viewport handlers, command types/receipts, replicated outcomes, isolated bot outcomes and fresh capture gates passed. Initial5unit records became6(5live), credits200->150. Both1280x720 images were visually inspected; unfinished debug text overlaps the HUD. This is sampled three-party overlap, not continuous connectivity throughout the host observation. Physical input/focus, internet, skirmish AI, army performance and art approval remain unverified. Exact hashes, configuration/storage observations and prior failures are in [integration evidence](INTEGRATION_SLICE.md). Later documentation-only commits do not change this tested source identity.
+
+## Current engineering evidence
+
+The [current player-feature validation](PLAYER_FEATURES.md) supersedes older preparation-only status for its exact tested source: 84 native cases, 13 runtime rows and 36 native-size reviewed captures across c54/42 bindings. Synthetic shared handlers still do not establish hardware input or focus behavior. The 960-pixel selected annotation fallback and legacy label overlaps remain explicit; no art/army/Internet approval is implied.

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Runtime/ProofAttackMoveRuntimeState.h"
 #include "GameFramework/Pawn.h"
 #include "Presentation/ProofSelectionState.h"
 #include "Presentation/ProofGroupOrderQueue.h"
@@ -34,6 +35,8 @@ protected:
     virtual void BeginPlay() override;
 
 private:
+    FProofAttackMoveRuntimeState AttackMoveRuntime;
+    void TickAttackMoveRuntime(float DeltaSeconds);
     UPROPERTY(VisibleAnywhere) TObjectPtr<UCameraComponent> Camera;
     UPROPERTY(Transient) TObjectPtr<UStaticMesh> ProxyMesh;
     UPROPERTY(Transient) TObjectPtr<UStaticMesh> StructureMesh;
@@ -44,7 +47,9 @@ private:
     FProofGroupOrderQueue GroupOrders;
     FVector CameraGroundCenter = FVector::ZeroVector;
     bool bCameraPanEnabled = false;
+    bool bCameraEdgePanEnabled = false;
     int32 ManualGroupPresses = 0;
+    int32 ManualTypeSelectPresses = 0;
     int32 LastSeenMatchEpoch = INDEX_NONE;
     int32 ManualRematchPresses = 0;
     bool bUsingBlockoutMesh = false;
@@ -75,6 +80,15 @@ private:
     FString LastRequestedType;
     int32 LastRequestedTarget = INDEX_NONE;
     TSet<FString> ControlsPassedEvidence;
+    bool bTypeSelectionControls = false;
+    int32 TypeSelectionStage = 0;
+    int32 TypeSelectionLastRevision = INDEX_NONE;
+    int32 TypeSelectionRows = 0;
+    float TypeSelectionStarted = 0.f;
+    TArray<int32> TypeSelectionExpected;
+    TMap<int32, FVector> TypeSelectionPositions;
+    void TickTypeSelectionControls();
+    bool LogTypeSelectionFrame(const TCHAR* Phase, const FString& ActionBefore = FString());
     int32 ControlsStep = 0;
     int32 ControlsOwnUnit = INDEX_NONE;
     int32 ControlsTargetUnit = INDEX_NONE;
@@ -98,6 +112,20 @@ private:
     FString ControlsOutput;
     FString RequestStatus = TEXT("Select one of your live units.");
 
+    bool ApplyCameraPanInput(const FVector2D& Direction, float DeltaSeconds);
+    bool bCameraEdgeCaptures = false;
+    int32 CameraEdgeCaptureStage = 0;
+    float CameraEdgeStageStarted = -1.f;
+    FVector2D CameraEdgeProjectionBefore = FVector2D::ZeroVector;
+    FVector2D CameraEdgeProjectionExpected = FVector2D::ZeroVector;
+    FVector CameraEdgeRigBefore = FVector::ZeroVector;
+    FVector CameraEdgeCameraBefore = FVector::ZeroVector;
+    FQuat CameraEdgeRotationBefore = FQuat::Identity;
+    float CameraEdgeWidthBefore = 0.f;
+    FString CameraEdgeDigestBefore;
+    TMap<int32, FTransform> CameraEdgeViewTransforms;
+    FDateTime CameraEdgeCaptureRequestedAt;
+    bool TickCameraEdgeCaptures();
     bool bHUDReadabilityCaptures = false;
     int32 HUDEdgeAnchorUnit = INDEX_NONE;
     int32 HUDEdgeIndex = 0;
@@ -133,6 +161,22 @@ private:
     int32 SkirmishFocusTarget = INDEX_NONE;
     int32 SkirmishProduceRecordsBefore = -1;
     bool bSkirmishCounterattack = false;
+    bool bFactoryRallyEvidence = false;
+    int32 FactoryRallyStage = 0;
+    int32 FactoryRallyFactory = INDEX_NONE;
+    int32 FactoryRallyUnit = INDEX_NONE;
+    int32 FactoryRallySetSequence = 0;
+    int32 FactoryRallyProduceSequence = 0;
+    int32 FactoryRallySpawnRevision = INDEX_NONE;
+    int32 FactoryRallyNativeRight = 0;
+    float FactoryRallySeenAt = -1.f;
+    float FactoryRallySpawnSeenAt = -1.f;
+    float FactoryRallyCaptureAt = -1.f;
+    FVector FactoryRallyDestination = FVector::ZeroVector;
+    FVector FactoryRallyObservedSpawn = FVector::ZeroVector;
+    TSet<int32> FactoryRallyBeforeIds;
+    TSet<int32> FactoryRallyProgressRevisions;
+    bool TickFactoryRallyFixture();
     void BuildUnderCursor(EProofCommandType Type);
     void OnManualRefinery();
     void OnManualFactory();
@@ -140,11 +184,15 @@ private:
     void FinishSkirmishScenario(bool bPass, const TCHAR* Reason);
     void SelectUnderCursor();
     void OrderUnderCursor();
+    bool SetFactoryRally(const FVector& GroundPoint);
     void StopSelected();
+    void AttackMoveUnderCursor();
     void Produce();
     void ZoomIn();
     void ZoomOut();
     void OnManualSelect();
+    void OnManualTypeSelect();
+    void SelectVisibleType();
     void OnManualGroupOne();
     void OnManualGroupTwo();
     void OnManualGroupThree();

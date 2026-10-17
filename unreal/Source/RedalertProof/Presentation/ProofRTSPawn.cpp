@@ -1,6 +1,7 @@
 #include "Presentation/ProofRTSPawn.h"
 #include "Presentation/ProofCameraPan.h"
 #include "Presentation/ProofSkirmishOwnershipRecovery.h"
+#include "Presentation/ProofHUDPanelLayout.h"
 #include "Camera/CameraComponent.h"
 #include "Components/InputComponent.h"
 #include "Components/SceneComponent.h"
@@ -28,6 +29,7 @@ AProofRTSPawn::AProofRTSPawn()
     PrimaryActorTick.bCanEverTick = true;
     bInteractiveExitEnabled = FParse::Param(FCommandLine::Get(), TEXT("ProofInteractive"));
     bCameraPanEnabled = FParse::Param(FCommandLine::Get(), TEXT("ProofCameraPan"));
+    bCameraEdgePanEnabled = FParse::Param(FCommandLine::Get(), TEXT("ProofCameraEdgePan"));
     RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("ViewRoot"));
     Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("RTSCamera"));
     Camera->SetupAttachment(RootComponent);
@@ -41,11 +43,21 @@ AProofRTSPawn::AProofRTSPawn()
 void AProofRTSPawn::BeginPlay()
 {
     Super::BeginPlay();
+    bTypeSelectionControls = FParse::Param(FCommandLine::Get(), TEXT("ProofTypeSelectionControls"));
+    if (bTypeSelectionControls && (FParse::Param(FCommandLine::Get(), TEXT("ProofStopControls")) || FParse::Param(FCommandLine::Get(), TEXT("ProofSkirmish")) || !FParse::Param(FCommandLine::Get(), TEXT("ProofControlsAutomation"))))
+    {
+        UE_LOG(LogTemp, Error, TEXT("PROOF_TYPE_SELECTION_ERROR incompatible_fixture_flags"));
+        FPlatformMisc::RequestExitWithStatus(false, 1);
+        return;
+    }
+    AttackMoveRuntime.bEnabled = FParse::Param(FCommandLine::Get(), TEXT("ProofAttackMoveFixture"));
     bGraphicsWarmup = FParse::Param(FCommandLine::Get(), TEXT("ProofGraphicsWarmup"));
     bStopControls = FParse::Param(FCommandLine::Get(), TEXT("ProofStopControls"));
+    bFactoryRallyEvidence = FParse::Param(FCommandLine::Get(), TEXT("ProofFactoryRallyEvidence"));
     FParse::Value(FCommandLine::Get(), TEXT("ProofSkirmishScenario="), SkirmishScenario);
     FParse::Value(FCommandLine::Get(), TEXT("ProofSkirmishOutput="), SkirmishOutput);
     bHUDReadabilityCaptures = FParse::Param(FCommandLine::Get(), TEXT("ProofHUDReadabilityCaptures"));
+    bCameraEdgeCaptures = FParse::Param(FCommandLine::Get(), TEXT("ProofCameraEdgeCaptures"));
     // Fixture-only viewport contract; defaults preserve the existing trace.
     FString FixtureViewport = TEXT("1280x720");
     FParse::Value(FCommandLine::Get(), TEXT("ProofSkirmishViewport="), FixtureViewport);
@@ -86,6 +98,7 @@ void AProofRTSPawn::SetupPlayerInputComponent(UInputComponent* Input)
     Input->BindKey(EKeys::R, IE_Pressed, this, &AProofRTSPawn::OnManualRefinery);
     Input->BindKey(EKeys::F, IE_Pressed, this, &AProofRTSPawn::OnManualFactory);
     Input->BindKey(EKeys::N, IE_Pressed, this, &AProofRTSPawn::OnManualRematch);
+    Input->BindKey(EKeys::T, IE_Pressed, this, &AProofRTSPawn::OnManualTypeSelect);
     Input->BindKey(EKeys::One, IE_Pressed, this, &AProofRTSPawn::OnManualGroupOne);
     Input->BindKey(EKeys::Two, IE_Pressed, this, &AProofRTSPawn::OnManualGroupTwo);
     Input->BindKey(EKeys::Three, IE_Pressed, this, &AProofRTSPawn::OnManualGroupThree);
@@ -125,14 +138,36 @@ void AProofRTSPawn::Tick(float DeltaSeconds)
         bConfiguredLocalInput = true;
     }
     ObserveViewportFocus();
-    if (bCameraPanEnabled && bConfiguredLocalInput && bViewportFocused && bViewportForeground
+    if ((bCameraPanEnabled || (bCameraEdgePanEnabled && bInteractiveExitEnabled)) && bConfiguredLocalInput && bViewportFocused && bViewportForeground
         && !PC->IsProofAutomation() && !PC->IsControlsAutomation() && SkirmishScenario.IsEmpty())
     {
-        const FVector2D Direction(
-            (PC->IsInputKeyDown(EKeys::Right) ? 1.0 : 0.0) - (PC->IsInputKeyDown(EKeys::Left) ? 1.0 : 0.0),
-            (PC->IsInputKeyDown(EKeys::Up) ? 1.0 : 0.0) - (PC->IsInputKeyDown(EKeys::Down) ? 1.0 : 0.0));
-        CameraGroundCenter = FProofCameraPan::Apply(CameraGroundCenter, Direction, DeltaSeconds);
-        Camera->SetWorldLocation(CameraGroundCenter + FVector(0.f, -3200.f, 3200.f));
+        FVector2D Direction = FVector2D::ZeroVector;
+        if (bCameraPanEnabled)
+        {
+            Direction = FVector2D(
+                (PC->IsInputKeyDown(EKeys::Right) ? 1.0 : 0.0) - (PC->IsInputKeyDown(EKeys::Left) ? 1.0 : 0.0),
+                (PC->IsInputKeyDown(EKeys::Up) ? 1.0 : 0.0) - (PC->IsInputKeyDown(EKeys::Down) ? 1.0 : 0.0));
+        }
+        // Edge scrolling is opt-in manual practice only. Read the real viewport
+        // pointer, never the fixture cursor, and leave mouse-button gestures alone.
+        const UGameViewportClient* Viewport = GetWorld()->GetGameViewport();
+        if (bCameraEdgePanEnabled && bInteractiveExitEnabled && !bGraphicsWarmup && !bControlsCursor
+            && Viewport && Viewport->Viewport && PC->GetHUD())
+        {
+            int32 Width = 0, Height = 0;
+            PC->GetViewportSize(Width, Height);
+            float MouseX = 0.f, MouseY = 0.f;
+            if (PC->GetMousePosition(MouseX, MouseY))
+            {
+                const AProofGameState* CameraState = GetWorld()->GetGameState<AProofGameState>();
+                const FProofHUDPanelLayout Panel(static_cast<float>(Width), CameraState && CameraState->Snapshot.bSkirmish);
+                const bool bMouseHeld = PC->IsInputKeyDown(EKeys::LeftMouseButton)
+                    || PC->IsInputKeyDown(EKeys::RightMouseButton) || PC->IsInputKeyDown(EKeys::MiddleMouseButton);
+                Direction += FProofCameraPan::EdgeInput(FVector2D(MouseX, MouseY), FVector2D(Width, Height),
+                    Panel.Bounds(), true, Viewport->Viewport->HasFocus(), bViewportForeground, bMouseHeld);
+            }
+        }
+        ApplyCameraPanInput(Direction, DeltaSeconds);
     }
     if (bInteractiveExitEnabled && bConfiguredLocalInput && !bInteractiveReadyLogged && PC->OwnerId != INDEX_NONE)
     {
@@ -164,6 +199,12 @@ void AProofRTSPawn::Tick(float DeltaSeconds)
         bLastRequestedSourceWasOwnedLive = false;
         LastRequestedTarget = INDEX_NONE;
         LastRequestedType.Reset();
+        FactoryRallyStage = 0;
+        FactoryRallyFactory = FactoryRallyUnit = INDEX_NONE;
+        FactoryRallySetSequence = FactoryRallyProduceSequence = 0;
+        FactoryRallySeenAt = FactoryRallySpawnSeenAt = FactoryRallyCaptureAt = -1.f;
+        FactoryRallyBeforeIds.Reset();
+        FactoryRallyProgressRevisions.Reset();
         RequestStatus = TEXT("Match state refreshed. Select an owned live unit.");
         LastSeenMatchEpoch = GS->Snapshot.MatchEpoch;
     }
@@ -233,7 +274,8 @@ void AProofRTSPawn::Tick(float DeltaSeconds)
     {
         Request(Command);
     }
-    if (GS->Snapshot.bSkirmish && !SkirmishScenario.IsEmpty()) TickSkirmishScenario(DeltaSeconds);
+    if (AttackMoveRuntime.bEnabled && PC->OwnerId == 1) TickAttackMoveRuntime(DeltaSeconds);
+    else if (GS->Snapshot.bSkirmish && !SkirmishScenario.IsEmpty()) TickSkirmishScenario(DeltaSeconds);
     else if (PC->IsControlsAutomation()) TickControlsAutomation(DeltaSeconds);
 }
 
@@ -303,6 +345,35 @@ void AProofRTSPawn::OnManualSelect()
         SelectedUnitId == INDEX_NONE ? TEXT("selection cleared") : FString::Printf(TEXT("selected unit %d"), SelectedUnitId));
 }
 
+void AProofRTSPawn::OnManualTypeSelect()
+{
+    SelectVisibleType();
+    // Only the bound callback records a native input edge. Shared actions and
+    // model tests cannot produce a physical-input verification claim.
+    RecordManualInput(TEXT("T"), ManualTypeSelectPresses, RequestStatus);
+}
+
+void AProofRTSPawn::SelectVisibleType()
+{
+    const AProofPlayerController* PC = Cast<AProofPlayerController>(GetController());
+    const AProofGameState* GS = GetWorld() ? GetWorld()->GetGameState<AProofGameState>() : nullptr;
+    if (!PC || !GS || !PC->IsLocalController()) return;
+    int32 Width = 0, Height = 0;
+    PC->GetViewportSize(Width, Height);
+    if (Width <= 0 || Height <= 0) { RequestStatus = TEXT("Type selection needs an active viewport."); return; }
+    TArray<int32> VisibleIds;
+    for (const FProofUnitRecord& Unit : GS->Snapshot.Units)
+    {
+        if (Unit.OwnerId != PC->OwnerId || !(Unit.HitPoints > 0.f)) continue;
+        FVector2D Screen;
+        if (PC->ProjectWorldLocationToScreen(Unit.Position, Screen)
+            && FProofSelectionState::IsViewportCenterVisible(Screen, FIntPoint(Width, Height))) VisibleIds.Add(Unit.UnitId);
+    }
+    const bool bSelected = Selection.SelectVisibleType(GS->Snapshot, PC->OwnerId, VisibleIds);
+    SelectedUnitId = Selection.GetPrimaryUnitId();
+    RequestStatus = bSelected ? FString::Printf(TEXT("%d visible owned units of the same generic kind selected."), Selection.GetSelectedUnitIds().Num())
+        : TEXT("Select an owned live unit before type selection.");
+}
 void AProofRTSPawn::OnManualGroupOne() { HandleManualGroup(1); }
 void AProofRTSPawn::OnManualGroupTwo() { HandleManualGroup(2); }
 void AProofRTSPawn::OnManualGroupThree() { HandleManualGroup(3); }
@@ -330,7 +401,11 @@ void AProofRTSPawn::HandleManualGroup(int32 Slot)
 void AProofRTSPawn::OnManualOrder()
 {
     const int32 BeforeSequence = LastRequestedSequence;
-    OrderUnderCursor();
+    const AProofPlayerController* PC = Cast<AProofPlayerController>(GetController());
+    const bool bControl = PC && (PC->IsInputKeyDown(EKeys::LeftControl) || PC->IsInputKeyDown(EKeys::RightControl));
+    const bool bShift = PC && (PC->IsInputKeyDown(EKeys::LeftShift) || PC->IsInputKeyDown(EKeys::RightShift));
+    if (bControl && bShift) AttackMoveUnderCursor();
+    else OrderUnderCursor();
     RecordManualInput(TEXT("RMB"), ManualRightPresses,
         LastRequestedSequence != BeforeSequence
             ? FString::Printf(TEXT("%s request #%d"), *LastRequestedType, LastRequestedSequence)
@@ -526,6 +601,21 @@ void AProofRTSPawn::OrderUnderCursor()
     Command.UnitId = SelectedUnitId;
     const FProofUnitRecord* Selected = GS->Snapshot.Units.FindByPredicate(
         [this](const FProofUnitRecord& Unit) { return Unit.UnitId == SelectedUnitId; });
+    if (GS->Snapshot.bSkirmish && Selected && Selected->Kind == EProofUnitKind::Factory)
+    {
+        const int32 PointedId = FindUnitUnderCursor(false);
+        const FProofUnitRecord* Pointed = GS->Snapshot.Units.FindByPredicate(
+            [PointedId](const FProofUnitRecord& Unit) { return Unit.UnitId == PointedId; });
+        if (Pointed && Pointed->OwnerId != PC->OwnerId)
+        {
+            RequestStatus = TEXT("Factory rally requires ground; right-click away from enemy units.");
+            return;
+        }
+        FVector GroundPoint;
+        if (!CursorGroundPoint(GroundPoint)) { RequestStatus = TEXT("Cursor did not project onto the ground."); return; }
+        SetFactoryRally(GroundPoint);
+        return;
+    }
     if (GS->Snapshot.bSkirmish && Selected && Selected->Kind == EProofUnitKind::Harvester)
     {
         FVector2D Pointer;
@@ -569,6 +659,46 @@ void AProofRTSPawn::OrderUnderCursor()
         }
     }
     Request(Command);
+}
+
+bool AProofRTSPawn::SetFactoryRally(const FVector& GroundPoint)
+{
+    AProofPlayerController* PC = Cast<AProofPlayerController>(GetController());
+    const AProofGameState* GS = GetWorld() ? GetWorld()->GetGameState<AProofGameState>() : nullptr;
+    if (!PC || !PC->IsLocalController() || !GS || PC->IsProofAutomation() || !GS->Snapshot.bSkirmish
+        || GS->Snapshot.MatchPhase != EProofMatchPhase::Playing || Selection.GetSelectedUnitIds().Num() != 1)
+    {
+        RequestStatus = TEXT("Select one owned live factory to set a rally point.");
+        return false;
+    }
+    const FProofUnitRecord* Factory = GS->Snapshot.Units.FindByPredicate([this, PC](const FProofUnitRecord& Unit)
+        { return Unit.UnitId == SelectedUnitId && Unit.OwnerId == PC->OwnerId
+            && Unit.Kind == EProofUnitKind::Factory && Unit.HitPoints > 0.f; });
+    if (!Factory) { RequestStatus = TEXT("Select one owned live factory to set a rally point."); return false; }
+    FProofCommand Command;
+    Command.Type = EProofCommandType::SetRally;
+    Command.UnitId = Factory->UnitId;
+    Command.Destination = GroundPoint;
+    const int32 BeforeSequence = LastRequestedSequence;
+    Request(Command);
+    return LastRequestedSequence > BeforeSequence && LastRequestedType == TEXT("SetRally");
+}
+
+void AProofRTSPawn::AttackMoveUnderCursor()
+{
+    const AProofPlayerController* PC = Cast<AProofPlayerController>(GetController());
+    const AProofGameState* GS = GetWorld() ? GetWorld()->GetGameState<AProofGameState>() : nullptr;
+    if (!PC || !PC->IsLocalController() || PC->OwnerId == INDEX_NONE || !GS || PC->IsProofAutomation())
+    { RequestStatus = TEXT("Attack Move requires a current manual player and match state."); return; }
+    FVector Destination;
+    if (!CursorGroundPoint(Destination))
+    { RequestStatus = TEXT("Cursor did not project onto the ground."); return; }
+    const TArray<FProofCommand> Commands = Selection.PlanAttackMove(GS->Snapshot, PC->OwnerId, Destination);
+    if (Commands.IsEmpty())
+    { RequestStatus = TEXT("Select owned live Combat units in a playing skirmish for Attack Move."); return; }
+    RequestStatus = GroupOrders.Enqueue(GS->Snapshot, PC->OwnerId, Commands)
+        ? FString::Printf(TEXT("Queued Attack Move for %d units; waiting for host snapshots."), Commands.Num())
+        : TEXT("Attack Move queue full; previous pending orders retained.");
 }
 
 void AProofRTSPawn::StopSelected()
@@ -650,7 +780,8 @@ void AProofRTSPawn::Request(FProofCommand Command)
         return;
     }
     if (Command.Type == EProofCommandType::Move || Command.Type == EProofCommandType::Attack
-        || Command.Type == EProofCommandType::Gather || Command.Type == EProofCommandType::Stop) GroupOrders.CancelUnit(Command.UnitId);
+        || Command.Type == EProofCommandType::Gather || Command.Type == EProofCommandType::Stop
+        || Command.Type == EProofCommandType::AttackMove) GroupOrders.CancelUnit(Command.UnitId);
     // Capture the exact replicated source before submission; a local authority
     // may publish a newer snapshot synchronously while handling the request.
     const FProofUnitRecord* Source = GS->Snapshot.Units.FindByPredicate(
@@ -666,7 +797,9 @@ void AProofRTSPawn::Request(FProofCommand Command)
         : Command.Type == EProofCommandType::BuildRefinery ? TEXT("BuildRefinery")
         : Command.Type == EProofCommandType::BuildFactory ? TEXT("BuildFactory")
         : Command.Type == EProofCommandType::Gather ? TEXT("Gather")
-        : Command.Type == EProofCommandType::Stop ? TEXT("Stop") : TEXT("Produce");
+        : Command.Type == EProofCommandType::Stop ? TEXT("Stop")
+        : Command.Type == EProofCommandType::SetRally ? TEXT("SetRally")
+        : Command.Type == EProofCommandType::AttackMove ? TEXT("AttackMove") : TEXT("Produce");
     if (GS && GS->Snapshot.bSkirmish)
         UE_LOG(LogTemp, Display, TEXT("PROOF_SKIRMISH_REQUEST owner=%d sequence=%d type=%s unit=%d target=%d"),
             PC->OwnerId, Command.Sequence, *LastRequestedType, Command.UnitId, Command.TargetUnitId);
@@ -899,6 +1032,7 @@ void AProofRTSPawn::TickControlsAutomation(float DeltaSeconds)
         ControlsStageTime = ControlsElapsed;
         ControlsStep = 6;
     }
+    else if (ControlsStep == 7 && bTypeSelectionControls) TickTypeSelectionControls();
     else if (ControlsStep == 6 && ControlsElapsed - ControlsStageTime > 1.f)
     {
         const bool bScreenshots = IFileManager::Get().FileSize(*FPaths::Combine(ControlsOutput, TEXT("01-selected.png"))) > 1024
@@ -907,8 +1041,8 @@ void AProofRTSPawn::TickControlsAutomation(float DeltaSeconds)
         if (!bStopControls)
         {
             ControlsStep = 7;
-            // All required default evidence is complete. Keep the existing exit.
-            FinishControls(true, TEXT("select_clear_zoom_project_deproject_move_attack_produce_receipts_snapshots_capture"));
+            // Type selection owns step seven; the ordinary path keeps its exit.
+            if (!bTypeSelectionControls) FinishControls(true, TEXT("select_clear_zoom_project_deproject_move_attack_produce_receipts_snapshots_capture"));
             return;
         }
         ControlsStopNativeBaseline = ManualStopPresses;
@@ -1073,7 +1207,7 @@ bool AProofRTSPawn::TickHUDReadabilityCaptures()
     { return Unit.UnitId == HUDEdgeAnchorUnit && Unit.OwnerId == PC->OwnerId && Unit.HitPoints > 0.f; });
     if (!Anchor || SelectedUnitId != HUDEdgeAnchorUnit)
     { FinishSkirmishScenario(false, TEXT("readability_anchor_lost")); return false; }
-    if (HUDEdgeIndex >= 3) return true;
+    if (HUDEdgeIndex >= 3) return !bCameraEdgeCaptures || TickCameraEdgeCaptures();
     const TCHAR* Names[] = { TEXT("03-left-edge.png"), TEXT("04-right-edge.png"), TEXT("05-panel-edge.png") };
     const FString Path = FPaths::Combine(SkirmishOutput, Names[HUDEdgeIndex]);
     FVector2D Projected;
@@ -1177,12 +1311,14 @@ bool AProofRTSPawn::TickHUDReadabilityCaptures()
     ++HUDEdgeIndex;
     HUDEdgePhase = 0;
     HUDEdgeStageStarted = SkirmishElapsed;
-    return HUDEdgeIndex == 3;
+    return HUDEdgeIndex == 3 && (!bCameraEdgeCaptures || TickCameraEdgeCaptures());
 }
 void AProofRTSPawn::TickSkirmishScenario(float DeltaSeconds)
 {
     if (!bSkirmishViewportValid) { FinishSkirmishScenario(false, TEXT("fixture_viewport")); return; }
     if (bSkirmishFinished) return;
+    if (bCameraEdgeCaptures && (!bHUDReadabilityCaptures || SkirmishScenario != TEXT("Victory")))
+    { FinishSkirmishScenario(false, TEXT("camera_edge_requires_victory_readability")); return; }
     if (bHUDReadabilityCaptures && SkirmishScenario != TEXT("Victory"))
     { FinishSkirmishScenario(false, TEXT("readability_requires_victory")); return; }
     SkirmishElapsed += DeltaSeconds;
@@ -1264,7 +1400,7 @@ void AProofRTSPawn::TickSkirmishScenario(float DeltaSeconds)
             const int32 ExpectedWinner = SkirmishScenario == TEXT("Defeat") ? 1 : 0;
             const bool bPass = Snapshot.WinnerTeam == ExpectedWinner && bSkirmishBuilt && bSkirmishGathered
                 && bSkirmishProduced && bSkirmishBotRefinery && bSkirmishBotFactory && bSkirmishBotProduced
-                && bSkirmishBotAttacked && bSkirmishBaseCaptured;
+                && bSkirmishBotAttacked && bSkirmishBaseCaptured && (!bFactoryRallyEvidence || FactoryRallyStage == 4);
             if (bPass && bHUDReadabilityCaptures && !TickHUDReadabilityCaptures()) return;
             FinishSkirmishScenario(bPass, bPass ? TEXT("complete_loop") : TEXT("outcome_or_evidence"));
         }
@@ -1358,6 +1494,7 @@ void AProofRTSPawn::TickSkirmishScenario(float DeltaSeconds)
         return;
     }
     if (SkirmishStage < 3) return;
+    if (bFactoryRallyEvidence && !TickFactoryRallyFixture()) return;
     if (bSkirmishBuilt && bSkirmishGathered && !bSkirmishBaseCaptureRequested)
     {
         IFileManager::Get().MakeDirectory(*SkirmishOutput, true);
@@ -1440,4 +1577,92 @@ void AProofRTSPawn::TickSkirmishScenario(float DeltaSeconds)
         return;
     }
     if (bShouldProduce) Produce();
+}
+
+bool AProofRTSPawn::TickFactoryRallyFixture()
+{
+    if (FactoryRallyStage == 4) return true;
+    AProofPlayerController* PC = Cast<AProofPlayerController>(GetController());
+    const AProofGameState* GS = GetWorld() ? GetWorld()->GetGameState<AProofGameState>() : nullptr;
+    if (!PC || !GS || SkirmishScenario != TEXT("Coop"))
+    { FinishSkirmishScenario(false, TEXT("factory_rally_fixture_context")); return false; }
+    const FProofSnapshot& Snapshot = GS->Snapshot;
+    const FProofUnitRecord* Factory = Snapshot.Units.FindByPredicate([this, PC](const FProofUnitRecord& U)
+        { return U.OwnerId == PC->OwnerId && U.Kind == EProofUnitKind::Factory && U.HitPoints > 0.f
+            && (FactoryRallyFactory == INDEX_NONE || U.UnitId == FactoryRallyFactory); });
+    if (!Factory) return false;
+    const auto LogPhase = [this, &Snapshot, PC](const TCHAR* Phase, const FProofUnitRecord* Unit)
+    {
+        const FVector Position = Unit ? Unit->Position : FVector::ZeroVector;
+        UE_LOG(LogTemp, Display, TEXT("PROOF_FACTORY_RALLY_FIXTURE {\"phase\":\"%s\",\"owner\":%d,\"epoch\":%d,\"revision\":%d,\"factory\":%d,\"unit\":%d,\"setSequence\":%d,\"produceSequence\":%d,\"x\":%.6f,\"y\":%.6f,\"z\":%.6f,\"rallyX\":%.17g,\"rallyY\":%.17g,\"rallyZ\":%.17g,\"selected\":%d,\"selectionCount\":%d,\"nativeRight\":%d,\"elapsed\":%.6f}"),
+            Phase, PC->OwnerId, Snapshot.MatchEpoch, Snapshot.Revision, FactoryRallyFactory, Unit ? Unit->UnitId : INDEX_NONE,
+            FactoryRallySetSequence, FactoryRallyProduceSequence, Position.X, Position.Y, Position.Z,
+            FactoryRallyDestination.X, FactoryRallyDestination.Y, FactoryRallyDestination.Z,
+            SelectedUnitId, Selection.GetSelectedUnitIds().Num(), ManualRightPresses, SkirmishElapsed);
+    };
+    if (FactoryRallyStage == 0)
+    {
+        if (!SetControlsCursorFromWorld(Factory->Position)) return false;
+        SelectUnderCursor();
+        if (SelectedUnitId != Factory->UnitId) { FinishSkirmishScenario(false, TEXT("factory_rally_selection")); return false; }
+        FactoryRallyFactory = Factory->UnitId;
+        FactoryRallyNativeRight = ManualRightPresses;
+        FactoryRallyDestination = Factory->Position + FVector(-600, -350, 0);
+        // Synthetic shared-handler invocation, not native physical input.
+        if (!SetFactoryRally(FactoryRallyDestination)) { FinishSkirmishScenario(false, TEXT("factory_rally_not_sent")); return false; }
+        FactoryRallySetSequence = LastRequestedSequence;
+        FactoryRallyStage = 1;
+        return false;
+    }
+    if (SelectedUnitId != FactoryRallyFactory || Selection.GetSelectedUnitIds().Num() != 1 || ManualRightPresses != FactoryRallyNativeRight)
+    { FinishSkirmishScenario(false, TEXT("factory_rally_selection_or_native_counter")); return false; }
+    if (!Factory->bHasRallyPoint || Factory->RallyPoint != FactoryRallyDestination) return false;
+    if (FactoryRallyStage == 1)
+    {
+        FProofCommandResult Receipt;
+        if (!PC->FindReceipt(FactoryRallySetSequence, Receipt) || !Receipt.bAccepted) return false;
+        if (FactoryRallySeenAt < 0.f) { FactoryRallySeenAt = SkirmishElapsed; LogPhase(TEXT("rallied"), nullptr); }
+        // Give each role a chance to observe the same published rally state.
+        if (SkirmishElapsed - FactoryRallySeenAt < 1.f) return false;
+        for (const FProofUnitRecord& U : Snapshot.Units) FactoryRallyBeforeIds.Add(U.UnitId);
+        Produce();
+        if (LastRequestedType != TEXT("Produce") || LastRequestedSequence <= FactoryRallySetSequence)
+        { FinishSkirmishScenario(false, TEXT("factory_rally_produce_not_sent")); return false; }
+        FactoryRallyProduceSequence = LastRequestedSequence;
+        FactoryRallyStage = 2;
+        return false;
+    }
+    const FProofUnitRecord* Produced = Snapshot.Units.FindByPredicate([this, PC](const FProofUnitRecord& U)
+        { return U.OwnerId == PC->OwnerId && U.Kind == EProofUnitKind::Combat && U.HitPoints > 0.f
+            && (FactoryRallyUnit == INDEX_NONE ? !FactoryRallyBeforeIds.Contains(U.UnitId) : U.UnitId == FactoryRallyUnit); });
+    if (!Produced) return false;
+    if (FactoryRallyStage == 2)
+    {
+        FProofCommandResult Receipt;
+        if (!PC->FindReceipt(FactoryRallyProduceSequence, Receipt) || !Receipt.bAccepted) return false;
+        FactoryRallyUnit = Produced->UnitId;
+        FactoryRallyObservedSpawn = Produced->Position;
+        FactoryRallySpawnRevision = Snapshot.Revision;
+        FactoryRallySpawnSeenAt = SkirmishElapsed;
+        LogPhase(TEXT("spawned"), Produced);
+        FactoryRallyStage = 3;
+    }
+    if (Snapshot.Revision > FactoryRallySpawnRevision) FactoryRallyProgressRevisions.Add(Snapshot.Revision);
+    if (FactoryRallyStage == 3 && FactoryRallyCaptureAt < 0.f
+        && FactoryRallyProgressRevisions.Num() >= 2 && SkirmishElapsed - FactoryRallySpawnSeenAt >= 1.f
+        && FVector::Distance(Produced->Position, FactoryRallyObservedSpawn) > 50.f
+        && FVector::Distance(Produced->Position, FactoryRallyDestination) < FVector::Distance(FactoryRallyObservedSpawn, FactoryRallyDestination))
+    {
+        LogPhase(TEXT("moved"), Produced);
+        FScreenshotRequest::RequestScreenshot(FPaths::Combine(SkirmishOutput, TEXT("03-factory-rally.png")), true, false);
+        FactoryRallyCaptureAt = SkirmishElapsed;
+    }
+    if (FactoryRallyCaptureAt >= 0.f && SkirmishElapsed - FactoryRallyCaptureAt >= 0.5f
+        && IFileManager::Get().FileSize(*FPaths::Combine(SkirmishOutput, TEXT("03-factory-rally.png"))) > 1024)
+    {
+        UE_LOG(LogTemp, Display, TEXT("PROOF_FACTORY_RALLY_CAPTURE name=03-factory-rally.png selected=%d written=1 physicalInputVerified=0"), SelectedUnitId);
+        FactoryRallyStage = 4;
+        return true;
+    }
+    return false;
 }

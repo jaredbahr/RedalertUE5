@@ -17,16 +17,22 @@ public:
     void Synchronize(const FProofSnapshot& Snapshot, int32 OwnerId);
     void SelectSingle(const FProofSnapshot& Snapshot, int32 OwnerId, int32 UnitId);
     void Toggle(const FProofSnapshot& Snapshot, int32 OwnerId, int32 UnitId);
+    // Visible means a finite projected center in the half-open viewport. The
+    // caller supplies projected IDs; ownership, life and generic Kind recheck here.
+    static bool IsViewportCenterVisible(const FVector2D& Center, const FIntPoint& Viewport);
+    bool SelectVisibleType(const FProofSnapshot& Snapshot, int32 OwnerId, const TArray<int32>& VisibleUnitIds);
     void AssignGroup(int32 Slot, const FProofSnapshot& Snapshot, int32 OwnerId);
     void RecallGroup(int32 Slot, const FProofSnapshot& Snapshot, int32 OwnerId);
 
     // Intent templates. The pawn stamps each command with its sequence and
     // match epoch immediately before sending it through the existing route.
     TArray<FProofCommand> PlanMove(const FProofSnapshot& Snapshot, int32 OwnerId, const FVector& Destination) const;
+    TArray<FProofCommand> PlanAttackMove(const FProofSnapshot& Snapshot, int32 OwnerId, const FVector& Destination) const;
     TArray<FProofCommand> PlanAttack(const FProofSnapshot& Snapshot, int32 OwnerId, int32 TargetUnitId) const;
     TArray<FProofCommand> PlanStop(const FProofSnapshot& Snapshot, int32 OwnerId) const;
 
 private:
+    TArray<FProofCommand> PlanTravel(const FProofSnapshot& Snapshot, int32 OwnerId, const FVector& Destination, EProofCommandType Type) const;
     struct FGroup
     {
         TArray<int32> UnitIds;

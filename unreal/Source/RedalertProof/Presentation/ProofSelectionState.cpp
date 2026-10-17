@@ -104,6 +104,43 @@ void FProofSelectionState::Toggle(const FProofSnapshot& Snapshot, int32 OwnerId,
     }
 }
 
+bool FProofSelectionState::IsViewportCenterVisible(const FVector2D& Center, const FIntPoint& Viewport)
+{
+    return Viewport.X > 0 && Viewport.Y > 0 && FMath::IsFinite(Center.X) && FMath::IsFinite(Center.Y)
+        && Center.X >= 0.0 && Center.Y >= 0.0 && Center.X < Viewport.X && Center.Y < Viewport.Y;
+}
+
+bool FProofSelectionState::SelectVisibleType(const FProofSnapshot& Snapshot, int32 OwnerId,
+    const TArray<int32>& VisibleUnitIds)
+{
+    const bool bCurrentContext = IsCurrentContext(Snapshot, OwnerId);
+    const int32 SourcePrimary = PrimaryUnitId;
+    Synchronize(Snapshot, OwnerId);
+    const FProofUnitRecord* Primary = FindUnit(Snapshot, SourcePrimary);
+    // A stale/empty anchor cannot implicitly choose a new kind after pruning or
+    // carry a selection across an epoch/owner change. Normal pruning still runs.
+    if (!bCurrentContext || !IsOwnedLiveUnit(Snapshot, OwnerId, SourcePrimary) || !Primary
+        || !FMath::IsFinite(Primary->HitPoints) || !IsFiniteWorldPosition(Primary->Position)) return false;
+    TArray<int32> Matches;
+    for (int32 UnitId : VisibleUnitIds)
+    {
+        const FProofUnitRecord* Unit = FindUnit(Snapshot, UnitId);
+        if (Unit && IsOwnedLiveUnit(Snapshot, OwnerId, UnitId) && Unit->Kind == Primary->Kind
+            && FMath::IsFinite(Unit->HitPoints) && IsFiniteWorldPosition(Unit->Position)) Matches.AddUnique(UnitId);
+    }
+    Matches.Sort();
+    const bool bKeepPrimary = Matches.Contains(SourcePrimary);
+    if (Matches.Num() > MaxSelectedUnits)
+    {
+        // Reserve one slot for the visible anchor, then take the lowest IDs.
+        if (bKeepPrimary) Matches.Remove(SourcePrimary);
+        Matches.SetNum(bKeepPrimary ? MaxSelectedUnits - 1 : MaxSelectedUnits, EAllowShrinking::No);
+        if (bKeepPrimary) { Matches.Add(SourcePrimary); Matches.Sort(); }
+    }
+    SelectedUnitIds = MoveTemp(Matches);
+    PrimaryUnitId = bKeepPrimary ? SourcePrimary : (SelectedUnitIds.IsEmpty() ? INDEX_NONE : SelectedUnitIds[0]);
+    return true;
+}
 void FProofSelectionState::AssignGroup(int32 Slot, const FProofSnapshot& Snapshot, int32 OwnerId)
 {
     if (Slot < 1 || Slot > MaxControlGroups) { return; }
@@ -128,6 +165,19 @@ void FProofSelectionState::RecallGroup(int32 Slot, const FProofSnapshot& Snapsho
 TArray<FProofCommand> FProofSelectionState::PlanMove(const FProofSnapshot& Snapshot, int32 OwnerId,
     const FVector& Destination) const
 {
+    return PlanTravel(Snapshot, OwnerId, Destination, EProofCommandType::Move);
+}
+
+TArray<FProofCommand> FProofSelectionState::PlanAttackMove(const FProofSnapshot& Snapshot, int32 OwnerId,
+    const FVector& Destination) const
+{
+    if (!Snapshot.bSkirmish || !FindPlayer(Snapshot, OwnerId)) { return {}; }
+    return PlanTravel(Snapshot, OwnerId, Destination, EProofCommandType::AttackMove);
+}
+
+TArray<FProofCommand> FProofSelectionState::PlanTravel(const FProofSnapshot& Snapshot, int32 OwnerId,
+    const FVector& Destination, EProofCommandType Type) const
+{
     TArray<FProofCommand> Commands;
     if (!IsCurrentContext(Snapshot, OwnerId) || (Snapshot.bSkirmish && Snapshot.MatchPhase != EProofMatchPhase::Playing)
         || !FMath::IsFinite(Destination.X) || !FMath::IsFinite(Destination.Y) || !FMath::IsFinite(Destination.Z))
@@ -141,6 +191,7 @@ TArray<FProofCommand> FProofSelectionState::PlanMove(const FProofSnapshot& Snaps
     {
         const FProofUnitRecord* Unit = FindUnit(Snapshot, UnitId);
         if (!Unit || !IsOwnedLiveUnit(Snapshot, OwnerId, UnitId) || !CanMove(*Unit)
+            || (Type == EProofCommandType::AttackMove && Unit->Kind != EProofUnitKind::Combat)
             || !IsFiniteWorldPosition(Unit->Position)) { continue; }
         Movers.Add(Unit);
         Center += Unit->Position;
@@ -168,7 +219,7 @@ TArray<FProofCommand> FProofSelectionState::PlanMove(const FProofSnapshot& Snaps
     for (const FProofUnitRecord* Unit : Movers)
     {
         FProofCommand Command;
-        Command.Type = EProofCommandType::Move;
+        Command.Type = Type;
         Command.UnitId = Unit->UnitId;
         Command.Destination = BoundedCenter + (Unit->Position - Center);
         const double Extent = FProofCommandModel::WorldExtent;

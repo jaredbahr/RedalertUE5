@@ -174,4 +174,80 @@ bool FProofMarkerPriorityLayoutTest::RunTest(const FString&)
     TestTrue(TEXT("Selected rectangle stays at preferred position"), Selected.Min.Equals(FVector2D(40.0, 40.0), 0.0));
     return true;
 }
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FProofMarkerLinkedObstaclesTest, "RedalertProof.HUD.MarkerLayout.LinkedObstacles", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FProofMarkerLinkedObstaclesTest::RunTest(const FString&)
+{
+    const FVector2D Viewport(240.0, 220.0);
+    const FBox2D Glyph(FVector2D(89.0, 89.0), FVector2D(111.0, 111.0));
+    const FVector2D Preferred(85.0, 140.0), Size(30.0, 9.0);
+    FProofMarkerLayout Layout(Viewport);
+    FProofMarkerLayout Repeat(Viewport);
+    const int32 Source = Layout.Reserve(Glyph);
+    const int32 RepeatedSource = Repeat.Reserve(Glyph);
+    const FBox2D Obstacle(FVector2D(90.0, 125.0), FVector2D(110.0, 130.0));
+    Layout.Reserve(Obstacle);
+    Repeat.Reserve(Obstacle);
+    FBox2D Bounds, RepeatedBounds;
+    FVector2D Start, End, RepeatedStart, RepeatedEnd;
+    TestTrue(TEXT("Blocked preferred leader searches for a clear bounded alternative"),
+        Layout.TryPlaceLinked(Preferred, Size, Source, Bounds, Start, End));
+    TestTrue(TEXT("Same linked history succeeds deterministically"),
+        Repeat.TryPlaceLinked(Preferred, Size, RepeatedSource, RepeatedBounds, RepeatedStart, RepeatedEnd));
+    TestTrue(TEXT("Obstacle requires displacement"), Bounds.bIsValid && !Bounds.Min.Equals(Preferred, 0.0));
+    TestTrue(TEXT("Linked result stays in displacement budget"), Bounds.bIsValid && FVector2D::Distance(Bounds.Min, Preferred) <= 64.0);
+    TestTrue(TEXT("Rectangle and leader repeat exactly"), Bounds.Min.Equals(RepeatedBounds.Min, 0.0)
+        && Start.Equals(RepeatedStart, 0.0) && End.Equals(RepeatedEnd, 0.0));
+
+    FProofMarkerLayout Blocked(Viewport, 4.f, 2.f, 0.f);
+    const int32 BlockedSource = Blocked.Reserve(Glyph);
+    Blocked.Reserve(Obstacle);
+    TestFalse(TEXT("Foreign reservation blocks leader even when group rectangle fits"),
+        Blocked.TryPlaceLinked(Preferred, Size, BlockedSource, Bounds, Start, End));
+    TestFalse(TEXT("Failed linked placement clears old bounds"), !!Bounds.bIsValid);
+    TestTrue(TEXT("Failed linked placement clears endpoints"), Start.IsZero() && End.IsZero());
+    TestTrue(TEXT("Failed leader reserves no candidate rectangle"), Blocked.TryPlace(Preferred, Size, Bounds));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FProofMarkerLinkedPriorityTest, "RedalertProof.HUD.MarkerLayout.LinkedPriorityAndCrossings", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FProofMarkerLinkedPriorityTest::RunTest(const FString&)
+{
+    FProofMarkerLayout Layout(FVector2D(240.0, 200.0), 4.f, 2.f, 0.f);
+    const int32 SelectedSource = Layout.Reserve(FBox2D(FVector2D(50.0, 50.0), FVector2D(70.0, 70.0)));
+    const int32 OrdinarySource = Layout.Reserve(FBox2D(FVector2D(100.0, 80.0), FVector2D(120.0, 100.0)));
+    FBox2D Selected, Ordinary;
+    FVector2D Start, End;
+    TestTrue(TEXT("Selected priority keeps valid group before ordinary allocation"),
+        Layout.TryPlaceLinked(FVector2D(50.0, 120.0), FVector2D(20.0, 10.0), SelectedSource, Selected, Start, End));
+    TestTrue(TEXT("Leader begins at source edge, not unit center"), Start.Equals(FVector2D(60.0, 70.0), 0.0));
+    TestFalse(TEXT("Later group cannot paint over selected leader"),
+        Layout.TryPlace(FVector2D(55.0, 90.0), FVector2D(10.0, 10.0), Ordinary));
+    TestFalse(TEXT("Ordinary leader cannot cross selected leader"),
+        Layout.TryPlaceLinked(FVector2D(20.0, 80.0), FVector2D(20.0, 10.0), OrdinarySource, Ordinary, Start, End));
+    TestTrue(TEXT("Failed ordinary placements leave free space usable"),
+        Layout.TryPlace(FVector2D(80.0, 90.0), FVector2D(10.0, 10.0), Ordinary));
+    TestTrue(TEXT("Selected rectangle is unchanged by later failure"), Selected.Min.Equals(FVector2D(50.0, 120.0), 0.0));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FProofMarkerLinkedIdentityTest, "RedalertProof.HUD.MarkerLayout.LinkedSourceIdentity", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FProofMarkerLinkedIdentityTest::RunTest(const FString&)
+{
+    FProofMarkerLayout Layout(FVector2D(200.0, 200.0));
+    const FBox2D Glyph(FVector2D(89.0, 89.0), FVector2D(111.0, 111.0));
+    const int32 Source = Layout.Reserve(Glyph);
+    Layout.Reserve(Glyph);
+    FBox2D Bounds;
+    FVector2D Start, End;
+    TestFalse(TEXT("Coincident foreign glyph is not exempted with source"),
+        Layout.TryPlaceLinked(FVector2D(85.0, 120.0), FVector2D(30.0, 9.0), Source, Bounds, Start, End));
+    TestFalse(TEXT("Missing reservation token fails"),
+        Layout.TryPlaceLinked(FVector2D(85.0, 120.0), FVector2D(30.0, 9.0), INDEX_NONE, Bounds, Start, End));
+    TestFalse(TEXT("Out-of-range token fails"),
+        Layout.TryPlaceLinked(FVector2D(85.0, 120.0), FVector2D(30.0, 9.0), 99, Bounds, Start, End));
+    const int32 Offscreen = Layout.Reserve(FBox2D(FVector2D(-1.0, 20.0), FVector2D(10.0, 30.0)));
+    TestFalse(TEXT("Offscreen source cannot produce a border ghost"),
+        Layout.TryPlaceLinked(FVector2D(15.0, 20.0), FVector2D(20.0, 9.0), Offscreen, Bounds, Start, End));
+    return true;
+}
 #endif

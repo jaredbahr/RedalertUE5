@@ -46,6 +46,8 @@ Pass: complete repeatable eight-slot matches with consistent economy/combat/vict
 
 ## Current engineering integration order
 
+The [current player-feature validation](PLAYER_FEATURES.md) records 84 functional native cases, 13 runtime passes and 36 reviewed engine captures across exact c54/42 bindings. This is a scoped generic-unit engineering pass; the product/visual/performance pass criteria above remain unchanged. The older preparation ordering immediately below is historical and is superseded for this integrated slice; it must not be read as the current GitHub status of those PRs.
+
 The native proof and small match are a foundation using generic units and placeholder values. The milestone pass criteria above still govern; the model-only stress result does not pass the combined active-scale gate.
 
 1. Review the draft stack in dependency order: shared command/controls proof, ingress protection, small skirmish (PR25), local lifecycle (PR26), then the selection/groups branch. Integration requires explicit merge approval; none of these branches changes main. Keep issues 17/18 (input/HUD), 21-24 (small-match loop/economy/bot/result) and 11 (broader lifecycle) mapped to their actual evidence and outstanding gaps rather than closing them from a partial pass.

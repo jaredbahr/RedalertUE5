@@ -9,6 +9,9 @@
 #include "HAL/PlatformMisc.h"
 #include "HAL/FileManager.h"
 #include "Misc/Paths.h"
+#include "Dom/JsonObject.h"
+#include "Serialization/JsonSerializer.h"
+#include "Serialization/JsonWriter.h"
 
 AProofGameMode::AProofGameMode()
 {
@@ -19,7 +22,9 @@ AProofGameMode::AProofGameMode()
     HUDClass = AProofHUD::StaticClass();
     bAutomation = FParse::Param(FCommandLine::Get(), TEXT("ProofAutomation"));
     bControlsAutomation = FParse::Param(FCommandLine::Get(), TEXT("ProofControlsAutomation"));
+    bTypeSelectionControls = FParse::Param(FCommandLine::Get(), TEXT("ProofTypeSelectionControls"));
     bSkirmish = FParse::Param(FCommandLine::Get(), TEXT("ProofSkirmish"));
+    AttackMoveRuntime.bEnabled = FParse::Param(FCommandLine::Get(), TEXT("ProofAttackMoveFixtureHost"));
     bLifecycleFixtureHost = bSkirmish && FParse::Param(FCommandLine::Get(), TEXT("ProofLifecycleFixtureHost"));
     FParse::Value(FCommandLine::Get(), TEXT("ProofLifecycleControl="), LifecycleControl);
     bSkirmishFixtureHost = bSkirmish && !bLifecycleFixtureHost && FParse::Param(FCommandLine::Get(), TEXT("ProofSkirmishFixtureHost"));
@@ -31,6 +36,15 @@ AProofGameMode::AProofGameMode()
 void AProofGameMode::BeginPlay()
 {
     Super::BeginPlay();
+    if (bTypeSelectionControls && (!bControlsAutomation || bSkirmish || FParse::Param(FCommandLine::Get(), TEXT("ProofStopControls"))))
+    {
+        UE_LOG(LogTemp, Error, TEXT("PROOF_TYPE_SELECTION_ERROR incompatible_fixture_flags"));
+        FPlatformMisc::RequestExitWithStatus(false, 1);
+        return;
+    }
+    if (AttackMoveRuntime.bEnabled && (!bSkirmish || GetNetMode() != NM_DedicatedServer || bAutomation || bControlsAutomation
+        || bLifecycleFixtureHost || bSkirmishFixtureHost || !RefineryEvidence.Enabled()))
+    { UE_LOG(LogTemp, Error, TEXT("PROOF_ATTACK_MOVE_ERROR role=host reason=incompatible_flags")); FPlatformMisc::RequestExitWithStatus(false, 1); return; }
     if (bSkirmish)
     {
         if (!Model.SeedSkirmishPlayer(ProofOwnerIds::Bot, 1, FVector(1400.f, 0.f, 0.f)))
@@ -232,6 +246,7 @@ void AProofGameMode::ResetSkirmishFixtureState()
 
 FProofCommandResult AProofGameMode::SubmitForOwner(int32 TrustedOwnerId, const FProofCommand& Command)
 {
+    if (bTypeSelectionControls && TrustedOwnerId == 1) ++TypeSelectionOwnerSubmissions;
     if (bSkirmish && Command.MatchEpoch != MatchEpoch)
     {
         FProofCommandResult Result;
@@ -251,7 +266,19 @@ FProofCommandResult AProofGameMode::SubmitForOwner(int32 TrustedOwnerId, const F
     const FProofSnapshot EvidenceBefore = bRefineryEvidence ? Model.GetSnapshot() : FProofSnapshot();
     TOptional<FProofSnapshot> StopBefore;
     if (StopEvidence.WantsCommand(Command.Type)) { StopBefore.Emplace(Model.GetSnapshot()); }
+    TOptional<FProofSnapshot> RallyBefore;
+    if (FactoryRallyEvidence.WantsCommand(TrustedOwnerId, Command.Type)) { RallyBefore.Emplace(Model.GetSnapshot()); }
+    TOptional<FProofSnapshot> AttackMoveBefore;
+    if (AttackMoveEvidence.Enabled()) AttackMoveBefore.Emplace(Model.GetSnapshot());
     FProofCommandResult Result = Model.Submit(TrustedOwnerId, Command);
+    if (AttackMoveBefore.IsSet()) AttackMoveEvidence.ObserveCommand(MatchEpoch, TrustedOwnerId, Command, Result, AttackMoveBefore.GetValue(), Model.GetSnapshot());
+    if (AttackMoveRuntime.bEnabled && Result.bAccepted && TrustedOwnerId == 1)
+    {
+        if (Command.Type == EProofCommandType::AttackMove) { AttackMoveRuntime.Unit = Command.UnitId; }
+        if (Command.Type == EProofCommandType::Stop && Command.UnitId == AttackMoveRuntime.Unit)
+        { AttackMoveRuntime.StopAt = AttackMoveRuntime.SimulatedSeconds; AttackMoveRuntime.StopPosition = Model.GetSnapshot().Units.FindByPredicate([&Command](const FProofUnitRecord& U) { return U.UnitId == Command.UnitId; })->Position; }
+    }
+    if (RallyBefore.IsSet()) FactoryRallyEvidence.ObserveCommand(MatchEpoch, TrustedOwnerId, Command, Result, RallyBefore.GetValue(), Model.GetSnapshot());
     if (bSkirmish && !bLifecycleFixtureHost && Command.Type == EProofCommandType::Attack
         && !Result.bAccepted && Result.Reason == TEXT("ownership"))
     {
@@ -399,7 +426,37 @@ void AProofGameMode::Publish()
         Snapshot.MatchEpoch = MatchEpoch;
         State->Publish(Snapshot);
         RefineryEvidence.LogSnapshot(Snapshot, TEXT("host"), 0);
+        AttackMoveEvidence.LogClock(MatchEpoch, Snapshot, AttackMoveRuntime.SimulatedSeconds);
         if (StopEvidence.Enabled()) { StopEvidence.LogSnapshot(Snapshot, TEXT("host"), 0); }
+        if (bTypeSelectionControls)
+        {
+            if (++TypeSelectionClockRows > 1024)
+            {
+                UE_LOG(LogTemp, Error, TEXT("PROOF_TYPE_SELECTION_ERROR clock_row_cap"));
+                FPlatformMisc::RequestExitWithStatus(false, 1);
+            }
+            else
+            {
+                TSharedRef<FJsonObject> Row = MakeShared<FJsonObject>();
+                Row->SetNumberField(TEXT("epoch"), Snapshot.MatchEpoch); Row->SetNumberField(TEXT("revision"), Snapshot.Revision);
+                Row->SetStringField(TEXT("digest"), Snapshot.ComputeDigest());
+                Row->SetNumberField(TEXT("simulatedSeconds"), TypeSelectionSimulationSeconds);
+                Row->SetNumberField(TEXT("owner1Submissions"), TypeSelectionOwnerSubmissions);
+                TArray<TSharedPtr<FJsonValue>> Units;
+                for (const FProofUnitRecord& Unit : Snapshot.Units)
+                {
+                    TSharedRef<FJsonObject> U = MakeShared<FJsonObject>();
+                    U->SetNumberField(TEXT("id"),Unit.UnitId); U->SetNumberField(TEXT("owner"),Unit.OwnerId);
+                    U->SetNumberField(TEXT("kind"),static_cast<int32>(Unit.Kind)); U->SetNumberField(TEXT("hp"),Unit.HitPoints); U->SetNumberField(TEXT("cargo"),Unit.Cargo);
+                    U->SetNumberField(TEXT("x"),Unit.Position.X); U->SetNumberField(TEXT("y"),Unit.Position.Y); U->SetNumberField(TEXT("z"),Unit.Position.Z);
+                    Units.Add(MakeShared<FJsonValueObject>(U));
+                }
+                Row->SetArrayField(TEXT("units"),Units);
+                FString Json; const TSharedRef<TJsonWriter<TCHAR,TCondensedJsonPrintPolicy<TCHAR>>> Writer=TJsonWriterFactory<TCHAR,TCondensedJsonPrintPolicy<TCHAR>>::Create(&Json);
+                FJsonSerializer::Serialize(Row,Writer);
+                UE_LOG(LogTemp,Display,TEXT("PROOF_TYPE_SELECTION_CLOCK %s"),*Json);
+            }
+        }
     }
 }
 
@@ -420,6 +477,7 @@ void AProofGameMode::ObserveSkirmish(const FProofSnapshot& Snapshot)
 void AProofGameMode::Tick(float DeltaSeconds)
 {
     Super::Tick(DeltaSeconds);
+    if (AttackMoveRuntime.bEnabled) { TickAttackMoveRuntime(DeltaSeconds); return; }
     if (bLifecycleFixtureHost && !LifecycleControl.IsEmpty() &&
         IFileManager::Get().FileExists(*FPaths::Combine(LifecycleControl, TEXT("finish"))))
     {
@@ -487,6 +545,7 @@ void AProofGameMode::Tick(float DeltaSeconds)
         const FProofSnapshot Before = bControlsAutomation ? Model.GetSnapshot() : FProofSnapshot();
         Model.Advance(0.1f);
         if (StopEvidence.Enabled()) { StopEvidence.ObserveAdvance(MatchEpoch, 0.1f); }
+        if (bTypeSelectionControls) TypeSelectionSimulationSeconds += static_cast<double>(0.1f);
         if (bControlsAutomation) ObserveControlsStep(Before, Model.GetSnapshot());
         Accumulator -= 0.1f;
         if (++StepsSincePublish >= 2) { Publish(); StepsSincePublish = 0; }
