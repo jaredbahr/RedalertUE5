@@ -106,8 +106,8 @@ void FProofSelectionState::Toggle(const FProofSnapshot& Snapshot, int32 OwnerId,
 
 void FProofSelectionState::AssignGroup(int32 Slot, const FProofSnapshot& Snapshot, int32 OwnerId)
 {
+    if (Slot < 1 || Slot > MaxControlGroups) { return; }
     Synchronize(Snapshot, OwnerId);
-    if (Slot < 1 || Slot > 3) { return; }
     FGroup& Group = Groups[Slot - 1];
     Group.UnitIds = SelectedUnitIds;
     Group.PrimaryUnitId = PrimaryUnitId;
@@ -115,8 +115,8 @@ void FProofSelectionState::AssignGroup(int32 Slot, const FProofSnapshot& Snapsho
 
 void FProofSelectionState::RecallGroup(int32 Slot, const FProofSnapshot& Snapshot, int32 OwnerId)
 {
+    if (Slot < 1 || Slot > MaxControlGroups) { return; }
     Synchronize(Snapshot, OwnerId);
-    if (Slot < 1 || Slot > 3) { return; }
     FGroup& Group = Groups[Slot - 1];
     PruneIds(Group.UnitIds, Snapshot, OwnerId);
     SelectedUnitIds = Group.UnitIds;

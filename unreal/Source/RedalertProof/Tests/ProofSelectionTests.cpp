@@ -200,4 +200,76 @@ bool FProofSelectionCapTest::RunTest(const FString&)
     TestEqual(TEXT("Selection prunes stale IDs in latest snapshot"), Selection.GetSelectedUnitIds().Num(), 10);
     return true;
 }
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FProofSelectionNineGroupsTest, "RedalertProof.Controls.SelectionNineGroups",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FProofSelectionNineGroupsTest::RunTest(const FString&)
+{
+    FProofSnapshot Snapshot = SelectionFixture();
+    for (int32 UnitId = 70; UnitId <= 75; ++UnitId)
+    {
+        AddUnit(Snapshot, UnitId, 1, EProofUnitKind::Combat, FVector(UnitId, 0, 0));
+    }
+    const int32 GroupUnitIds[FProofSelectionState::MaxControlGroups] = { 10, 20, 30, 70, 71, 72, 73, 74, 75 };
+    FProofSelectionState Selection;
+    for (int32 Slot = 1; Slot <= FProofSelectionState::MaxControlGroups; ++Slot)
+    {
+        Selection.SelectSingle(Snapshot, 1, GroupUnitIds[Slot - 1]);
+        Selection.AssignGroup(Slot, Snapshot, 1);
+    }
+    Selection.SelectSingle(Snapshot, 1, 10);
+    const FString BeforeRecall = Snapshot.ComputeDigest();
+    for (int32 Slot = 1; Slot <= FProofSelectionState::MaxControlGroups; ++Slot)
+    {
+        Selection.RecallGroup(Slot, Snapshot, 1);
+        TestEqual(FString::Printf(TEXT("Group %d retains its independent copy"), Slot),
+            Selection.GetPrimaryUnitId(), GroupUnitIds[Slot - 1]);
+        TestEqual(FString::Printf(TEXT("Group %d has one selected unit"), Slot),
+            Selection.GetSelectedUnitIds().Num(), 1);
+    }
+    TestEqual(TEXT("Recalling nine groups does not mutate snapshot"), Snapshot.ComputeDigest(), BeforeRecall);
+
+    Selection.SelectSingle(Snapshot, 1, 20);
+    Selection.AssignGroup(0, Snapshot, 1);
+    Selection.AssignGroup(FProofSelectionState::MaxControlGroups + 1, Snapshot, 1);
+    Selection.RecallGroup(0, Snapshot, 1);
+    Selection.RecallGroup(FProofSelectionState::MaxControlGroups + 1, Snapshot, 1);
+    TestEqual(TEXT("Invalid slots leave current selection unchanged"), Selection.GetPrimaryUnitId(), 20);
+    Selection.RecallGroup(9, Snapshot, 1);
+    TestEqual(TEXT("Invalid assignments leave group nine unchanged"), Selection.GetPrimaryUnitId(), 75);
+    Selection.RecallGroup(1, Snapshot, 1);
+    TestEqual(TEXT("Invalid assignments leave group one unchanged"), Selection.GetPrimaryUnitId(), 10);
+
+    Selection.SelectSingle(Snapshot, 1, 73);
+    Selection.Toggle(Snapshot, 1, 74);
+    Selection.Toggle(Snapshot, 1, 75);
+    Selection.AssignGroup(8, Snapshot, 1);
+    for (FProofUnitRecord& Unit : Snapshot.Units)
+    {
+        if (Unit.UnitId == 74) { Unit.HitPoints = 0.f; }
+        if (Unit.UnitId == 75) { Unit.OwnerId = 2; }
+    }
+    Selection.SelectSingle(Snapshot, 1, 10);
+    const FString BeforePrunedRecall = Snapshot.ComputeDigest();
+    Selection.RecallGroup(8, Snapshot, 1);
+    TestEqual(TEXT("Upper slot filters dead and foreign units"), Selection.GetSelectedUnitIds().Num(), 1);
+    TestEqual(TEXT("Upper slot keeps still-owned live unit"), Selection.GetPrimaryUnitId(), 73);
+    TestEqual(TEXT("Upper-slot filtering does not mutate snapshot"), Snapshot.ComputeDigest(), BeforePrunedRecall);
+
+    Snapshot.MatchEpoch = 2;
+    Selection.Synchronize(Snapshot, 1);
+    Selection.RecallGroup(8, Snapshot, 1);
+    TestEqual(TEXT("Epoch change clears upper group eight"), Selection.GetSelectedUnitIds().Num(), 0);
+    Selection.RecallGroup(9, Snapshot, 1);
+    TestEqual(TEXT("Epoch change clears upper group nine"), Selection.GetSelectedUnitIds().Num(), 0);
+    Selection.SelectSingle(Snapshot, 1, 73);
+    Selection.AssignGroup(9, Snapshot, 1);
+    for (FProofUnitRecord& Unit : Snapshot.Units)
+    {
+        if (Unit.UnitId == 73) { Unit.OwnerId = 2; }
+    }
+    Selection.Synchronize(Snapshot, 2);
+    Selection.RecallGroup(9, Snapshot, 2);
+    TestEqual(TEXT("Owner change clears upper group nine despite reused ID"), Selection.GetSelectedUnitIds().Num(), 0);
+    return true;
+}
 #endif

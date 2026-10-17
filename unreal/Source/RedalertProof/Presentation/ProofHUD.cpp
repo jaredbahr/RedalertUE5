@@ -143,8 +143,8 @@ void AProofHUD::DrawHUD()
     }
 
     DrawHudLine(Pawn && Pawn->IsCameraPanEnabled()
-        ? TEXT("Shift-click: toggle   Ctrl+1-3: save   1-3: recall   Arrows: pan")
-        : TEXT("Shift-click: toggle   Ctrl+1-3: save group   1-3: recall"),
+        ? TEXT("Shift-click: toggle   Ctrl+1-9: save   1-9: recall   Arrows: pan")
+        : TEXT("Shift-click: toggle   Ctrl+1-9: save group   1-9: recall"),
         FLinearColor(0.72f, 0.88f, 0.96f), Top + Pad + Row * 7.f);
 
     if (!GS)
