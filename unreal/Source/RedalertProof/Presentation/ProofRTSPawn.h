@@ -70,6 +70,8 @@ private:
     bool bControlsCursor = false;
     FVector2D ControlsCursor = FVector2D::ZeroVector;
     int32 LastRequestedSequence = 0;
+    int32 LastRequestedUnitId = INDEX_NONE;
+    bool bLastRequestedSourceWasOwnedLive = false;
     FString LastRequestedType;
     int32 LastRequestedTarget = INDEX_NONE;
     TSet<FString> ControlsPassedEvidence;

@@ -159,6 +159,8 @@ void AProofRTSPawn::Tick(float DeltaSeconds)
         UnitViews.Reset();
         SelectedUnitId = INDEX_NONE;
         LastRequestedSequence = 0;
+        LastRequestedUnitId = INDEX_NONE;
+        bLastRequestedSourceWasOwnedLive = false;
         LastRequestedTarget = INDEX_NONE;
         LastRequestedType.Reset();
         RequestStatus = TEXT("Match state refreshed. Select an owned live unit.");
@@ -648,8 +650,15 @@ void AProofRTSPawn::Request(FProofCommand Command)
     }
     if (Command.Type == EProofCommandType::Move || Command.Type == EProofCommandType::Attack
         || Command.Type == EProofCommandType::Gather || Command.Type == EProofCommandType::Stop) GroupOrders.CancelUnit(Command.UnitId);
+    // Capture the exact replicated source before submission; a local authority
+    // may publish a newer snapshot synchronously while handling the request.
+    const FProofUnitRecord* Source = GS->Snapshot.Units.FindByPredicate(
+        [&Command](const FProofUnitRecord& Unit) { return Unit.UnitId == Command.UnitId; });
+    const bool bSourceWasOwnedLive = Source && Source->OwnerId == PC->OwnerId && Source->HitPoints > 0.f;
     PC->ServerSubmitCommand(Command);
     LastRequestedSequence = Command.Sequence;
+    LastRequestedUnitId = Command.UnitId;
+    bLastRequestedSourceWasOwnedLive = bSourceWasOwnedLive;
     LastRequestedTarget = Command.TargetUnitId;
     LastRequestedType = Command.Type == EProofCommandType::Move ? TEXT("Move")
         : Command.Type == EProofCommandType::Attack ? TEXT("Attack")
@@ -1266,6 +1275,30 @@ void AProofRTSPawn::TickSkirmishScenario(float DeltaSeconds)
         if (!PC->FindReceipt(LastRequestedSequence, Receipt)) return;
         if (!Receipt.bAccepted)
         {
+            if (LastRequestedType == TEXT("Attack") && Receipt.Reason == TEXT("ownership")
+                && bLastRequestedSourceWasOwnedLive)
+            {
+                // The selected attacker can die between the client snapshot
+                // and host validation. Recover only after that exact retained
+                // record is confirmed owned and dead; missing/foreign records
+                // still reach the normal rejection failure below.
+                const FProofUnitRecord* RejectedUnit = Snapshot.Units.FindByPredicate(
+                    [this](const FProofUnitRecord& Unit) { return Unit.UnitId == LastRequestedUnitId; });
+                if (RejectedUnit && RejectedUnit->OwnerId == PC->OwnerId)
+                {
+                    if (RejectedUnit->HitPoints > 0.f) return;
+                    if (RejectedUnit->HitPoints <= 0.f)
+                    {
+                        UE_LOG(LogTemp, Display, TEXT("PROOF_SKIRMISH_RETRY reason=ownership unit=%d sequence=%d snapshotRevision=%d replicatedUnit=owned-dead"),
+                            LastRequestedUnitId, LastRequestedSequence, Snapshot.Revision);
+                        SkirmishIssuedTargets.Remove(LastRequestedUnitId);
+                        // Validation consumed the ordinary sequence. Only the
+                        // fixture receipt latch is cleared, never its allocator.
+                        LastRequestedSequence = 0;
+                        return;
+                    }
+                }
+            }
             if (LastRequestedType == TEXT("Attack") && Receipt.Reason == TEXT("target"))
             {
                 // Another real attacker can kill the chosen target between

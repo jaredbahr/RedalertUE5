@@ -12,6 +12,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'RefineryMinerEvidence.ps1')
+. (Join-Path $PSScriptRoot 'SkirmishRetryEvidence.ps1')
 if ($ReadabilityCaptures -and $Scenario -ne 'Victory') { throw 'ReadabilityCaptures requires the standalone Victory scenario.' }
 $Viewport = $Viewport.ToLowerInvariant()
 $viewportParts = $Viewport.Split('x')
@@ -52,7 +53,7 @@ $result = [ordered]@{
     startedUtc=[DateTime]::UtcNow.ToString('o'); finishedUtc=$null; elapsedSeconds=0; scenarioElapsedSeconds=0
     scenarioTimeoutSeconds=$TimeoutSeconds; scenarioCoreLimit=2; runDirectory=$run; map='/Game/CommandProofGenerated/Maps/CommandProof'
     topology=$(if($Scenario -eq 'Coop'){'dedicated NullRHI fixture host, one rendered owner-1 client, one NullRHI owner-2 observer'}else{'one rendered standalone match client'})
-    transport='UE native UDP loopback'; refineryMinerEvidenceEnabled=[bool]$RefineryMinerEvidence; refineryMinerEvidence=$null; physicalInputVerified=$false; internetTest=$false; performanceTest=$false; cleanPresentation=[bool]$CleanPresentation
+    transport='UE native UDP loopback'; refineryMinerEvidenceEnabled=[bool]$RefineryMinerEvidence; refineryMinerEvidence=$null; ownershipRetryEvidence=@(); physicalInputVerified=$false; internetTest=$false; performanceTest=$false; cleanPresentation=[bool]$CleanPresentation
     storageGuard=[ordered]@{softPollingGuard=$true;intervalSeconds=10;maxCacheMiB=$MaxCacheMiB;maxTempMiB=$MaxTempMiB;checks=0;latestCacheBytes=0;latestTempBytes=0;peakCacheBytes=0;peakTempBytes=0}
     cpuPolicy=[ordered]@{availableAffinityMask=('0x{0:X}' -f $availableAffinity);fixtureAffinityMask=('0x{0:X}' -f $fixtureAffinity);logicalProcessors=$fixtureLogicalProcessors;priority='Normal';pollIntervalSeconds=1;polls=0;repairs=0;processes=@()}
     literalClientSetup=[ordered]@{startupFile=$literalClientCVars;expectedResolverDisabled=1;startupConfirmedByRole=@{};hostnameOrInternetTest=$false;osDnsChanged=$false}
@@ -321,6 +322,9 @@ try {
         if($Scenario -eq 'Coop') { $evidenceLogs.observer=Read-Log $observer }
         $result.refineryMinerEvidence=Get-RefineryMinerEvidence -Logs $evidenceLogs -Scenario $Scenario
     }
+    $retryLog=Read-Log $client
+    if($Scenario -eq 'Coop'){$retryLog=(Read-Log $serverEntry)+[Environment]::NewLine+$retryLog}
+    $result.ownershipRetryEvidence=Get-SkirmishOwnershipRetryEvidence -Log $retryLog -RequireSemanticEvidence:$RefineryMinerEvidence
     $result.passed=$true
 } catch { $result.error=$_.Exception.Message }
 finally {

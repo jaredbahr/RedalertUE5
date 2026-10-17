@@ -252,6 +252,39 @@ FProofCommandResult AProofGameMode::SubmitForOwner(int32 TrustedOwnerId, const F
     TOptional<FProofSnapshot> StopBefore;
     if (StopEvidence.WantsCommand(Command.Type)) { StopBefore.Emplace(Model.GetSnapshot()); }
     FProofCommandResult Result = Model.Submit(TrustedOwnerId, Command);
+    if (bSkirmish && !bLifecycleFixtureHost && Command.Type == EProofCommandType::Attack
+        && !Result.bAccepted && Result.Reason == TEXT("ownership"))
+    {
+        FString ScriptedScenario;
+        const bool bScriptedFixture = bSkirmishFixtureHost
+            || (FParse::Value(FCommandLine::Get(), TEXT("ProofSkirmishScenario="), ScriptedScenario)
+                && (ScriptedScenario == TEXT("Victory") || ScriptedScenario == TEXT("Defeat") || ScriptedScenario == TEXT("Coop")));
+        if (bScriptedFixture)
+        {
+            if (SkirmishOwnershipDiagnosticRows >= 64)
+            {
+                if (SkirmishOwnershipDiagnosticRows == 64)
+                {
+                    ++SkirmishOwnershipDiagnosticRows; // Latch the single explicit overflow failure.
+                    UE_LOG(LogTemp, Error, TEXT("PROOF_SKIRMISH_OWNERSHIP_REJECTION_ERROR reason=diagnostic-limit"));
+                    FPlatformMisc::RequestExitWithStatus(false, 1);
+                }
+            }
+            else
+            {
+                ++SkirmishOwnershipDiagnosticRows;
+                // Submit has returned without an intervening Advance. Report the
+                // exact validation state; do not infer why ownership rejected.
+                const FProofSnapshot RejectedState = Model.GetSnapshot();
+                const FProofUnitRecord* RejectedUnit = RejectedState.Units.FindByPredicate(
+                    [&Command](const FProofUnitRecord& Unit) { return Unit.UnitId == Command.UnitId; });
+                UE_LOG(LogTemp, Display, TEXT("PROOF_SKIRMISH_OWNERSHIP_REJECTION owner=%d sequence=%lld unit=%d exists=%d unitOwner=%d hp=%.9g revision=%d epoch=%d type=Attack reason=ownership"),
+                    TrustedOwnerId, static_cast<long long>(Command.Sequence), Command.UnitId, RejectedUnit ? 1 : 0,
+                    RejectedUnit ? RejectedUnit->OwnerId : INDEX_NONE, RejectedUnit ? static_cast<double>(RejectedUnit->HitPoints) : 0.0,
+                    RejectedState.Revision, MatchEpoch);
+            }
+        }
+    }
     if (StopBefore.IsSet()) { StopEvidence.ObserveCommand(MatchEpoch, TrustedOwnerId, Command, Result, StopBefore.GetValue(), Model.GetSnapshot()); }
     if (bRefineryEvidence) RefineryEvidence.ObserveCommand(MatchEpoch, TrustedOwnerId, Command, Result, EvidenceBefore, Model.GetSnapshot());
     Result.MatchEpoch = Command.MatchEpoch;

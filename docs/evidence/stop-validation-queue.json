@@ -1,5 +1,5 @@
 {
-  "status": "reviewed-source-pending-build",
+  "status": "blocked-retained-victory-failure-correction-prepared-unbuilt",
   "baseCommit": "8984bbc36e8eb23732a422e006df2634674cab23",
   "branch": "feat/stop-command",
   "scope": "Player S/shared Stop, bounded selection queue replacement, opt-in actual command and replicated stationary/resume evidence",
@@ -12,8 +12,7 @@
     "independentParserReview": "clear after six adversarial gaps corrected",
     "modelRunnerVerifiedExitCleanup": "copied from accepted HUD runner; independent review clear"
   },
-  "heavySlotOwner": "Red Alert",
-  "engineJobsLaunched": 0,
+  "heavySlotOwner": "released; awaiting next parent allocation",
   "integrationReady": false,
   "automaticRetry": false,
   "stopOnFailure": true,
@@ -116,5 +115,11 @@
     "No installs, new art, purchases, hosted Actions or binary uploads.",
     "Existing deadlines, expected winners, dispatch limits, resource and CPU policies unchanged.",
     "All engine jobs serialized; retain failure and diagnose before any justified retry."
-  ]
+  ],
+  "firstTestedCommit": "e6728863a2c1f24e92c09eceff560444eec357fd",
+  "retainedBatch": "stop-first-batch.json",
+  "heavySlotReleased": true,
+  "correctionBuilt": false,
+  "ownershipRetryPolicySyntheticCases": 22,
+  "correctionIndependentReview": "fixture/host diagnostics and strict retry parser clear; 22 synthetic retry cases pass; correction unbuilt"
 }

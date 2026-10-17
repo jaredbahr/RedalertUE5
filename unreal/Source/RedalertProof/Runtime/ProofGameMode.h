@@ -42,6 +42,7 @@ private:
     int32 BotTarget = INDEX_NONE;
     int32 HumanAccepted = 0;
     int32 RejectedOwnership = 0;
+    int32 SkirmishOwnershipDiagnosticRows = 0;
     int32 BotAccepted = 0;
     bool bAutomation = false;
     bool bControlsAutomation = false;
