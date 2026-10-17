@@ -1,0 +1,87 @@
+{
+  "status": "source-reviewed-unbuilt-runtime-unverified",
+  "baseCommit": "b6e447c9a8b3fcfcd342a462f1beb2fea344bb19",
+  "branch": "feat/refinery-miner",
+  "heavySlotOwner": "Imagination",
+  "after": [
+    "Imagination allocated PR130/131 work",
+    "PR38 remaining build/runtime/visual gates"
+  ],
+  "requiresExplicitSlotHandoff": true,
+  "preRenderedRequirement": "Prepare bounded identity evidence: each first accepted refinery before/after authoritative pair, granted miner accepted Gather/cargo/deposit, Coop replicated-state agreement. Existing boolean flags alone are insufficient.",
+  "automaticRetry": false,
+  "stopOnFailure": true,
+  "engineJobsLaunched": 0,
+  "queuedCommands": [
+    {
+      "arguments": [],
+      "script": "unreal/Scripts/build-native-proof.ps1"
+    },
+    {
+      "arguments": [
+        "-TimeoutSeconds",
+        "90"
+      ],
+      "script": "unreal/Scripts/test-skirmish-model.ps1",
+      "expectedExactCases": 22
+    },
+    {
+      "arguments": [],
+      "script": "unreal/Scripts/test-native-model.ps1"
+    },
+    {
+      "arguments": [],
+      "script": "unreal/Scripts/test-group-controls.ps1"
+    },
+    {
+      "arguments": [],
+      "script": "unreal/Scripts/test-fidelity-model.ps1"
+    },
+    {
+      "arguments": [],
+      "script": "unreal/Scripts/test-native-proof.ps1"
+    },
+    {
+      "arguments": [
+        "-CleanPresentation"
+      ],
+      "script": "unreal/Scripts/test-controls-proof.ps1"
+    },
+    {
+      "arguments": [
+        "-Scenario",
+        "Victory",
+        "-CleanPresentation",
+        "-TimeoutSeconds",
+        "240"
+      ],
+      "script": "unreal/Scripts/test-small-match.ps1"
+    },
+    {
+      "arguments": [
+        "-Scenario",
+        "Defeat",
+        "-CleanPresentation",
+        "-TimeoutSeconds",
+        "240"
+      ],
+      "script": "unreal/Scripts/test-small-match.ps1"
+    },
+    {
+      "arguments": [
+        "-Scenario",
+        "Coop",
+        "-CleanPresentation",
+        "-TimeoutSeconds",
+        "240"
+      ],
+      "script": "unreal/Scripts/test-small-match.ps1"
+    },
+    {
+      "arguments": [],
+      "script": "unreal/Scripts/test-session-lifecycle.ps1"
+    }
+  ],
+  "integrationReady": false,
+  "issueClosureFromThisDraft": false
+}

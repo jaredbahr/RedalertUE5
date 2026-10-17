@@ -16,7 +16,7 @@ Authorized local lookup found a residual RA2 folder in an existing Steam library
 | Production takes time; funds shortages suspend it until money returns. | RA2 p17 | `Submit` immediately debits the full price and creates the record. No production job, progress, hold/resume or queue. |
 | Power shortages affect production and some defenses/radar. | RA2 p18 | No power model; a Tesla mesh is only a display proxy. |
 | Idle units engage approaching enemies; Guard adds return-to-position behavior. | RA2 pp21,23 | Previously required explicit Attack. This branch adds only the stationary, in-weapon-range idle-fire subset described below. |
-| Refineries include a miner; Barracks and War Factories produce different categories. | RA2 pp38,41 | One starter Harvester is seeded independently. A new Refinery grants no miner. One Factory produces only generic Combat. |
+| Refineries include a miner; Barracks and War Factories produce different categories. | RA2 pp38,41 | One starter Harvester is seeded independently. The [refinery-miner candidate](REFINERY_MINER.md) adds one unarmed Harvester per accepted refinery; source reviewed, build/runtime acceptance pending. One Factory still produces only generic Combat. |
 | Conscript, Rhino and armed War Miner have distinct roles. | RA2 pp33-35 | Generic Combat does not distinguish infantry/vehicles/armor; generic Harvester remains unarmed. Mesh names do not prove these roles. |
 | Slave Miner uses deployed workers/local processing; Industrial Plant modifies vehicle production. | Yuri manual: Slave Miner, Industrial Plant | Neither system exists. Do not treat the generic return-to-refinery Harvester as Yuri mining. |
 

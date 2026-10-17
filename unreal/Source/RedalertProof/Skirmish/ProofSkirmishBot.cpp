@@ -11,6 +11,8 @@ constexpr double DecisionIntervalSeconds = 1.0;
 constexpr double OrderRetrySeconds = 5.0;
 constexpr double AttackGraceSeconds = 20.0;
 constexpr double StructureSeparationSquared = 250.0 * 250.0;
+// Local planning reservation, matching the shared spawn helper's clearance.
+constexpr double PlannedMinerSeparationSquared = 260.0 * 260.0;
 constexpr double WorldExtent = FProofCommandModel::WorldExtent;
 
 bool IsStructure(EProofUnitKind Kind)
@@ -18,11 +20,15 @@ bool IsStructure(EProofUnitKind Kind)
     return Kind == EProofUnitKind::HQ || Kind == EProofUnitKind::Refinery || Kind == EProofUnitKind::Factory;
 }
 
-bool IsValidBuildPosition(const FProofSnapshot& Snapshot, const FVector& Position)
+bool IsValidBuildPosition(const FProofSnapshot& Snapshot, const FVector& Position, const FVector* PlannedMiner)
 {
     if (!FMath::IsFinite(Position.X) || !FMath::IsFinite(Position.Y) || !FMath::IsFinite(Position.Z)
         || FMath::Abs(Position.X) > WorldExtent || FMath::Abs(Position.Y) > WorldExtent
         || FMath::Abs(Position.Z) > WorldExtent)
+    {
+        return false;
+    }
+    if (PlannedMiner && FVector::DistSquared(Position, *PlannedMiner) < PlannedMinerSeparationSquared)
     {
         return false;
     }
@@ -37,7 +43,8 @@ bool IsValidBuildPosition(const FProofSnapshot& Snapshot, const FVector& Positio
     return true;
 }
 
-bool FindBuildPosition(const FProofSnapshot& Snapshot, const FVector& HQPosition, FVector& OutPosition)
+bool FindBuildPosition(const FProofSnapshot& Snapshot, const FVector& HQPosition, FVector& OutPosition,
+    FVector* OutMinerPosition = nullptr, const FVector* PlannedMiner = nullptr)
 {
     // These points are all within 800 cm of HQ, with the nearer cardinals
     // preferred. The fixed order makes placement independent of array order.
@@ -49,8 +56,12 @@ bool FindBuildPosition(const FProofSnapshot& Snapshot, const FVector& HQPosition
     for (const FVector& Offset : Offsets)
     {
         const FVector Candidate = HQPosition + Offset;
-        if (IsValidBuildPosition(Snapshot, Candidate))
+        if (IsValidBuildPosition(Snapshot, Candidate, PlannedMiner))
         {
+            if (OutMinerPosition && !FProofCommandModel::FindSkirmishSpawn(Snapshot, Candidate, *OutMinerPosition))
+            {
+                continue;
+            }
             OutPosition = Candidate;
             return true;
         }
@@ -90,7 +101,6 @@ TArray<FProofCommand> FProofSkirmishBot::Decide(const FProofSnapshot& Snapshot, 
     const FProofUnitRecord* HQ = nullptr;
     const FProofUnitRecord* Refinery = nullptr;
     const FProofUnitRecord* Factory = nullptr;
-    const FProofUnitRecord* Harvester = nullptr;
     for (const FProofUnitRecord& Unit : Snapshot.Units)
     {
         if (Unit.OwnerId != OwnerId || Unit.HitPoints <= 0.f) { continue; }
@@ -98,7 +108,6 @@ TArray<FProofCommand> FProofSkirmishBot::Decide(const FProofSnapshot& Snapshot, 
         if (Unit.Kind == EProofUnitKind::HQ && (!HQ || Unit.UnitId < HQ->UnitId)) { HQ = &Unit; }
         if (Unit.Kind == EProofUnitKind::Refinery && (!Refinery || Unit.UnitId < Refinery->UnitId)) { Refinery = &Unit; }
         if (Unit.Kind == EProofUnitKind::Factory && (!Factory || Unit.UnitId < Factory->UnitId)) { Factory = &Unit; }
-        if (Unit.Kind == EProofUnitKind::Harvester && (!Harvester || Unit.UnitId < Harvester->UnitId)) { Harvester = &Unit; }
     }
     OwnUnits.Sort([](const FProofUnitRecord& A, const FProofUnitRecord& B) { return A.UnitId < B.UnitId; });
     for (auto It = IssuedOrders.CreateIterator(); It; ++It)
@@ -128,25 +137,34 @@ TArray<FProofCommand> FProofSkirmishBot::Decide(const FProofSnapshot& Snapshot, 
     FProofSnapshot PlacementView = Snapshot;
     int32 SpendableCredits = Player->Credits;
     int32 PlannedLiveCount = OwnUnits.Num();
-    if (HQ && !Refinery && SpendableCredits >= RefineryCost && PlannedLiveCount < MaxLiveUnitsPerOwner)
+    FVector PlannedMinerPosition;
+    bool bPlannedMiner = false;
+    if (HQ && !Refinery && SpendableCredits >= RefineryCost && PlannedLiveCount <= MaxLiveUnitsPerOwner - 2)
     {
-        FVector Site;
-        if (FindBuildPosition(PlacementView, HQ->Position, Site)
+        FVector Site, MinerPosition;
+        if (FindBuildPosition(PlacementView, HQ->Position, Site, &MinerPosition)
             && AddCommand(EProofCommandType::BuildRefinery, INDEX_NONE, INDEX_NONE, Site))
         {
             SpendableCredits -= RefineryCost;
-            ++PlannedLiveCount;
+            PlannedLiveCount += 2;
             FProofUnitRecord Reserved;
             Reserved.Kind = EProofUnitKind::Refinery;
             Reserved.HitPoints = 1.f;
             Reserved.Position = Site;
             PlacementView.Units.Add(Reserved);
+            Reserved.Kind = EProofUnitKind::Harvester;
+            Reserved.Position = MinerPosition;
+            PlacementView.Units.Add(Reserved);
+            PlannedMinerPosition = MinerPosition;
+            bPlannedMiner = true;
         }
     }
     if (HQ && !Factory && SpendableCredits >= FactoryCost && PlannedLiveCount < MaxLiveUnitsPerOwner)
     {
         FVector Site;
-        if (FindBuildPosition(PlacementView, HQ->Position, Site)
+        // Only this decision's grant gets an extra footprint reservation. The
+        // authoritative factory/live-mobile placement policy remains unchanged.
+        if (FindBuildPosition(PlacementView, HQ->Position, Site, nullptr, bPlannedMiner ? &PlannedMinerPosition : nullptr)
             && AddCommand(EProofCommandType::BuildFactory, INDEX_NONE, INDEX_NONE, Site))
         {
             SpendableCredits -= FactoryCost;
@@ -154,32 +172,51 @@ TArray<FProofCommand> FProofSkirmishBot::Decide(const FProofSnapshot& Snapshot, 
         }
     }
 
-    if (Harvester && Refinery)
+    if (Refinery)
     {
-        const FProofResourceRecord* Resource = nullptr;
-        double BestDistance = 0.0;
-        for (const FProofResourceRecord& Candidate : Snapshot.Resources)
+        // One miner intent per decision leaves production/attacks room in the
+        // existing four-command budget. Rotate by stable ID so granted miners
+        // join the same command path without starving behind the starter miner.
+        int32 FirstMinerIndex = 0;
+        for (int32 Index = 0; Index < OwnUnits.Num(); ++Index)
         {
-            if (Candidate.ResourceId <= 0 || Candidate.Remaining <= 0) { continue; }
-            const double Distance = FVector::DistSquared(Harvester->Position, Candidate.Position);
-            if (!Resource || Distance < BestDistance || (Distance == BestDistance && Candidate.ResourceId < Resource->ResourceId))
+            if (OwnUnits[Index]->UnitId > LastGatherUnitId)
             {
-                Resource = &Candidate;
-                BestDistance = Distance;
+                FirstMinerIndex = Index;
+                break;
             }
         }
-        if (Resource)
+        for (int32 Offset = 0; Offset < OwnUnits.Num(); ++Offset)
         {
-            const FIssuedOrder* Last = IssuedOrders.Find(Harvester->UnitId);
-            if (!Last || Last->Type != EProofCommandType::Gather || Last->TargetId != Resource->ResourceId
-                || NowSeconds - Last->IssuedAt >= OrderRetrySeconds)
+            const FProofUnitRecord* Harvester = OwnUnits[(FirstMinerIndex + Offset) % OwnUnits.Num()];
+            if (Harvester->Kind != EProofUnitKind::Harvester) { continue; }
+            const FProofResourceRecord* Resource = nullptr;
+            double BestDistance = 0.0;
+            for (const FProofResourceRecord& Candidate : Snapshot.Resources)
             {
-                if (AddCommand(EProofCommandType::Gather, Harvester->UnitId, Resource->ResourceId, FVector::ZeroVector))
+                if (Candidate.ResourceId <= 0 || Candidate.Remaining <= 0) { continue; }
+                const double Distance = FVector::DistSquared(Harvester->Position, Candidate.Position);
+                if (!Resource || Distance < BestDistance || (Distance == BestDistance && Candidate.ResourceId < Resource->ResourceId))
                 {
-                    FIssuedOrder& Issued = IssuedOrders.FindOrAdd(Harvester->UnitId);
-                    Issued.Type = EProofCommandType::Gather;
-                    Issued.TargetId = Resource->ResourceId;
-                    Issued.IssuedAt = NowSeconds;
+                    Resource = &Candidate;
+                    BestDistance = Distance;
+                }
+            }
+            if (Resource)
+            {
+                const FIssuedOrder* Last = IssuedOrders.Find(Harvester->UnitId);
+                if (!Last || Last->Type != EProofCommandType::Gather || Last->TargetId != Resource->ResourceId
+                    || NowSeconds - Last->IssuedAt >= OrderRetrySeconds)
+                {
+                    if (AddCommand(EProofCommandType::Gather, Harvester->UnitId, Resource->ResourceId, FVector::ZeroVector))
+                    {
+                        FIssuedOrder& Issued = IssuedOrders.FindOrAdd(Harvester->UnitId);
+                        Issued.Type = EProofCommandType::Gather;
+                        Issued.TargetId = Resource->ResourceId;
+                        Issued.IssuedAt = NowSeconds;
+                        LastGatherUnitId = Harvester->UnitId;
+                        break;
+                    }
                 }
             }
         }
@@ -252,6 +289,7 @@ void FProofSkirmishBot::Reset()
     IssuedOrders.Reset();
     NextSequence = 1;
     LastAttackUnitId = INDEX_NONE;
+    LastGatherUnitId = INDEX_NONE;
     FirstDecisionAt = 0.0;
     NextDecisionAt = 0.0;
     LastObservedAt = 0.0;
