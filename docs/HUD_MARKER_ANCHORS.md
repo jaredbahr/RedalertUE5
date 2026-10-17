@@ -1,6 +1,6 @@
 # Projected marker text anchors
 
-Prepared on `fix/hud-marker-anchors` from main `0c7b07c21b6c794b83973f3735e8eb75dea49d9c`. This is a narrow presentation correction. One build and the 1280x720 Victory render have passed; smaller-viewport verification remains pending.
+Prepared on `fix/hud-marker-anchors` from main `0c7b07c21b6c794b83973f3735e8eb75dea49d9c`. This is a narrow presentation correction. Historical source `8dc1f9f` passed one build and the 1280x720 Victory render. The current fixture-preparation follow-up is unbuilt; smaller-viewport verification remains pending.
 
 Installed UE 5.7's `Engine/Source/Runtime/Engine/Private/HUD.cpp`, `AHUD::DrawText` (line 933), multiplies `ScreenX` and `ScreenY` by `Scale` when `bScalePosition` is true, then scales the font separately. Our unit/resource markers already use projected viewport pixels. Scaling those coordinates again displaces their labels toward the top-left relative to the brackets, ore crosses and HP bars. At 1280-wide UI scale, a unit-label anchor `(800, 400)` becomes `(704, 352)` with label scale 0.88.
 
@@ -18,6 +18,8 @@ One `test-small-match.ps1 -Scenario Victory -TimeoutSeconds 240 -CleanPresentati
 
 Both `01-base.png` and `02-result.png` were visually inspected. Unit labels are anchored above their markers and ore labels beneath their crosses, correcting the previous scaled-coordinate displacement. The result capture shows the Victory banner and rematch hint. Dense groups still overlap labels. `-CleanPresentation` is an existing fixture option that suppresses engine screen messages while retaining logs; its use is explicit and is not a source change in this fix.
 
-The fixture currently requires 1280x720 in `ProofRTSPawn.cpp`; this batch did not change its acceptance code to run a smaller viewport. That part of the original verification plan remains pending. This narrow 1280 anchor result does not close #18 or claim physical-input, final-art, Internet or performance acceptance.
+At tested revision `8dc1f9f`, the fixture required 1280x720 in `ProofRTSPawn.cpp`; that batch did not change its acceptance code to run a smaller viewport. The current branch prepares explicit second-preset support, but has not built or run that follow-up. That part of the original verification plan remains pending. This narrow 1280 anchor result does not close #18 or claim physical-input, final-art, Internet or performance acceptance.
 
 [Curated build/render evidence and capture hashes](evidence/hud-marker-anchors-20261017.json). Captures remain locally in `generated/small-match-victory-20261017-010406-277/screenshots` under the integration checkout; no generated binaries or raw images were uploaded. This publication commit adds documentation/evidence after the actual tested source revision. No PR or main merge is implied.
+
+See [pending viewport and dense-overlap checks](HUD_VIEWPORT_CHECKS.md). Source review and PowerShell parameter binding cover preparation only; all current-candidate build/render gates remain pending.
