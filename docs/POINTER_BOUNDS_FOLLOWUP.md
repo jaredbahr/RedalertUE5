@@ -1,6 +1,6 @@
 # Pointer bounds follow-up
 
-Local branch `fix/pointer-viewport-bounds` starts directly at validated commit `8d9e4ddab4c51cc4ad9270844b738dba4e99fbcc`. That base subsequently merged through [PR #43](https://github.com/jaredbahr/RedalertUE5/pull/43), whose merge tree exactly matches the validated tree. This follow-up remains separate and local for issue #17.
+Local branch `fix/pointer-viewport-bounds` starts directly at validated commit `8d9e4ddab4c51cc4ad9270844b738dba4e99fbcc`. That base subsequently merged through [PR #43](https://github.com/jaredbahr/RedalertUE5/pull/43), whose merge tree exactly matches the validated tree. This follow-up addresses pointer handling within issue #17.
 
 Source inspection found that `GetPointerScreenPosition` accepted any successful mouse lookup (or synthetic pointer), and `PointerWorldRay` accepted finite points outside its constrained view rectangle. Such coordinates could become an offscreen ground order. A failed lookup also made ordinary selection clear itself through the no-hit path. This is a source-verified gap, not a reproduced physical desktop failure.
 
@@ -27,4 +27,4 @@ Controls and Attack Move graphics warmup remained separately bounded at 300 seco
 
 These scenarios establish valid-pointer compatibility through synthetic shared handlers, with host receipts and matching replicated state. They do not inject an unavailable mouse lookup or a constrained/invalid pointer into the engine. Those negative branches remain covered by the production-header tests and independent source review. Physical input, Alt-Tab/focus, and rendered selection preservation after a failed lookup remain unverified. Keep issue #17 open. The 960x540 base frame still omits its primary world annotation group; other dense labels remain omitted, so issue #18 stays open too.
 
-Earlier 84-case/13-scenario/36-image evidence belongs to its original source bindings and is not transferred to this changed source. No full model-suite rerun, Internet, performance, final-art or broader faction acceptance is claimed here. This follow-up is unpushed and unmerged; only the separately authorized base PR was published and merged.
+Earlier 84-case/13-scenario/36-image evidence belongs to its original source bindings and is not transferred to this changed source. No full model-suite rerun, Internet, performance, final-art or broader faction acceptance is claimed here. Publication does not close issue #17 or #18; the acceptance limits above remain in force.
