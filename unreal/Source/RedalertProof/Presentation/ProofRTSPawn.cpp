@@ -1,5 +1,6 @@
 #include "Presentation/ProofRTSPawn.h"
 #include "Presentation/ProofCameraPan.h"
+#include "Presentation/ProofPointerBounds.h"
 #include "Presentation/ProofSkirmishOwnershipRecovery.h"
 #include "Presentation/ProofHUDPanelLayout.h"
 #include "Camera/CameraComponent.h"
@@ -468,11 +469,19 @@ void AProofRTSPawn::OnManualRematch()
 
 bool AProofRTSPawn::GetPointerScreenPosition(FVector2D& OutPoint) const
 {
-    if (bControlsCursor) { OutPoint = ControlsCursor; return true; }
     const APlayerController* PC = Cast<APlayerController>(GetController());
-    float X = 0.f, Y = 0.f;
-    if (!PC || !PC->GetMousePosition(X, Y)) return false;
-    OutPoint = FVector2D(X, Y);
+    if (!PC) return false;
+    FVector2D Point = ControlsCursor;
+    if (!bControlsCursor)
+    {
+        float X = 0.f, Y = 0.f;
+        if (!PC->GetMousePosition(X, Y)) return false;
+        Point = FVector2D(X, Y);
+    }
+    int32 Width = 0, Height = 0;
+    PC->GetViewportSize(Width, Height);
+    if (!FProofPointerBounds::Contains(Point.X, Point.Y, 0.0, 0.0, Width, Height)) return false;
+    OutPoint = Point;
     return true;
 }
 
@@ -518,7 +527,7 @@ bool AProofRTSPawn::PointerWorldRay(FVector& OutOrigin, FVector& OutDirection) c
     FSceneViewProjectionData Projection;
     if (!LocalPlayer->GetProjectionData(LocalPlayer->ViewportClient->Viewport, Projection)) return false;
     const FIntRect Rect = Projection.GetConstrainedViewRect();
-    if (Rect.Width() <= 0 || Rect.Height() <= 0) return false;
+    if (!FProofPointerBounds::Contains(Pointer.X, Pointer.Y, Rect.Min.X, Rect.Min.Y, Rect.Max.X, Rect.Max.Y)) return false;
     const FMatrix ViewProjection = Projection.ComputeViewProjectionMatrix();
     const double Determinant = ViewProjection.Determinant();
     if (!FMath::IsFinite(Determinant) || Determinant == 0.0) return false;
@@ -562,6 +571,8 @@ void AProofRTSPawn::SelectUnderCursor()
     const AProofPlayerController* PC = Cast<AProofPlayerController>(GetController());
     const AProofGameState* GS = GetWorld()->GetGameState<AProofGameState>();
     if (!PC || !GS) return;
+    FVector2D Pointer;
+    if (!GetPointerScreenPosition(Pointer)) return;
     Selection.SelectSingle(GS->Snapshot, PC->OwnerId, FindUnitUnderCursor(true));
     SelectedUnitId = Selection.GetPrimaryUnitId();
     RequestStatus = SelectedUnitId == INDEX_NONE ? TEXT("No owned live unit selected.") : TEXT("Owned unit selected. Right-click ground or an enemy.");
