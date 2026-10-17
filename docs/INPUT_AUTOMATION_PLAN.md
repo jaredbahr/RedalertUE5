@@ -1,6 +1,6 @@
 # Engine input automation plan
 
-This is a source-reviewed plan, not an executed input test. No OS input was injected, cursor moved, window activated, game launched or focus/security setting changed during planning.
+The supported route below is now implemented and exercised by an opt-in fixture. See [executed input evidence](INPUT_BINDINGS.md) for the exact clean source, two passing runs, inspected captures, retained failures and remaining limits. Engine injection uses a projected synthetic pointer; physical input and actual OS focus transitions remain unverified. No OS input injection, physical cursor movement, window activation or focus/security setting changes were used.
 
 ## Supported route
 

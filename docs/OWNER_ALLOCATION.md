@@ -1,6 +1,8 @@
 # Human owner allocation
 
-This narrow slice of [issue #11](https://github.com/jaredbahr/RedalertUE5/issues/11) prevents server-assigned human identities from colliding with the current reserved bot owner100. It is based on native draft #9, independently of the tested controls draft #14. Main and those existing heads must remain unchanged.
+This preserves the original [PR #15](https://github.com/jaredbahr/RedalertUE5/pull/15) design and execution evidence for a narrow slice of [issue #11](https://github.com/jaredbahr/RedalertUE5/issues/11): disjoint human identities and reserved bot owner100. The original branch was based on native draft #9. Its adapted port `00f9f7c` is an ancestor of #25; original head `9ef3770` is not. Current skirmish lifecycle uses two bounded seats and epoch-aware reuse; see [session lifecycle](SESSION_LIFECYCLE.md). The lifetime-monotonic description below concerns the original native/non-skirmish allocator, not the newer skirmish seat policy.
+
+## Original allocator and test scope
 
 The GameMode owns a monotonic allocator for its lifetime. Human identities remain positive int32 values starting1,2; reservation100 is skipped. A wider internal cursor represents exhaustion after MAX_int32 without overflow or reuse. Invalid/exhausted attempts clear the output to INDEX_NONE. On exhaustion PostLogin destroys the newly admitted controller and returns before adding model player, resources or units. The RPC still derives its owner from the server controller. The bot reservation is named centrally and used by the native bot/fixture adapter.
 
@@ -10,7 +12,11 @@ This does not implement authentication, disconnection cleanup, reclaiming/rebind
 
 ## Evidence
 
-Pending installed-toolchain build, five-group native execution and independent review. Generated evidence is ignored under generated/; do not upload binaries.
+The [final original document at `9ef3770`](https://github.com/jaredbahr/RedalertUE5/blob/9ef3770/docs/OWNER_ALLOCATION.md) records clean tested source **`6e2748e00d88f7e840b3980b594050fc142be5d3`**, `generated/native-model-20261016-070344-132/result.json`: **5/5 exact groups passed**, zero failures/test errors/warnings, exit0, 15.226 seconds within the90-second deadline. C++ was unchanged from `c277af5`; the final runner used 64-bit resource counters. Independent review reported no material source blocker. This is preserved historical evidence, not a new execution of that old SHA.
+
+That run recorded 60 owned-parent policy checks, four startup affinity repairs to mask3/Normal, maximum reported peak working set2,211,753,984bytes and last sampled process CPU12.0625seconds. Its cache was2,326,303bytes/113files and temp0bytes. The historical eight-root C: audit found seven roots unchanged and UE5.7Saved+34bytes; shared-root observations do not establish exclusive attribution or zero C: writes. The linked original document retains the full post-run resource audit and publication record. Generated evidence/binaries remain ignored.
+
+Current branch regressions include the evolved seven-group native suite and loopback/ingress/lifecycle checks at `2de35c3`; see [input evidence](INPUT_BINDINGS.md). They do not replace or backdate the original five-group result. The retained failures below remain failures.
 Initial source c277af5e05271bfbcb0c0a3267937867beab3184 passed all5groups in47.060s (generated/native-model-20261016-065937-339/result.json). The first build failed because an old fixture pass condition referenced the removed counter; after replacing it with explicit player1/player2 record checks, the corrected build passed in3.74s. External affinity sampling produced no usable observations, so a runner-only follow-up adds direct owned-process polling/repair and measured resource fields before one bounded repeat. The C++ implementation remains unchanged; no extra build is needed for this runner change.
 
 Resource-observer run432cced7c43377d60df363b25345c8df51a77ff9 failed before automation in14.015s: PowerShell selected a32bit Math.Max overload when working set exceeded2GiB. Report generated/native-model-20261016-070257-678/result.json remains failed(testCount0);44policy observations/4affinity repairs preceded the instrumentation failure. Explicit int64 inputs correct the counter, verified with2149662720bytes before another bounded run. This runner-only defect does not change the C++ allocator or relabel the prior5/5functional pass.

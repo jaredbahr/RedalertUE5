@@ -26,6 +26,7 @@ The prototype now includes finite harvesting, base building, unit production and
 
 - [Fidelity baseline](docs/FIDELITY_BASELINE.md): sourced economy/combat behavior, explicit prototype defaults, and tested stationary idle fire. [Input automation plan](docs/INPUT_AUTOMATION_PLAN.md) separates synthetic binding coverage from physical/focus acceptance.
 - [Selection groups and camera pan](docs/GROUP_CONTROLS.md): controls, exact tested source, retained failures, and remaining human acceptance.
+- [Engine input bindings](docs/INPUT_BINDINGS.md): two passing injected-input runs with inspected captures, retained failures and explicit physical/focus limits. [Integration recommendation](docs/INTEGRATION_RECOMMENDATION.md) gives the exact draft-stack order and preserves unique side-branch work.
 - [Project brief](docs/PROJECT_BRIEF.md): goals, initial scope, constraints, and storage policy.
 - [Art direction](docs/ART_DIRECTION.md): reference workflow and the first visual approval gate.
 - [Milestones](docs/MILESTONES.md): ordered deliverables and observable pass criteria.
