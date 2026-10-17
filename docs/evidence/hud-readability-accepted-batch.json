@@ -1,0 +1,1207 @@
+{
+  "testedCommit": "2f3e5947b9907db023a9c27079ca43166fccf84f",
+  "sourceTree": "d271fa006c0ae0a27de4303d96d37bb9f6749ad0",
+  "build": {
+    "path": "generated/hud-readability-build-timeprecision.log",
+    "seconds": 11.16,
+    "sha256": "dbc3c1b5147782cc5be45ddbef5c54ecd2b66a136281300b6775d08ace6d30d5"
+  },
+  "runners": {
+    "smallMatch": "48004310ec1fc5d4d42286a11c2cc173e15666d6",
+    "layout": "a3b8b66a90f9719e9b51a80480508895c28114d7",
+    "controls": "ae99d9a04abba80103e4d5368c9aeafb84d7721c"
+  },
+  "results": [
+    {
+      "head": "2f3e5947b9907db023a9c27079ca43166fccf84f",
+      "dirtyWorkingTree": false,
+      "startedUtc": "2026-10-17T02:43:02.3204086Z",
+      "finishedUtc": "2026-10-17T02:43:14.7673319Z",
+      "elapsedSeconds": 12.516,
+      "passed": true,
+      "testCount": 5,
+      "succeeded": 5,
+      "failed": 0,
+      "runDirectory": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\hud-layout-model-20261017-024302-244",
+      "error": null,
+      "cpuPolicy": {
+        "affinityMask": 3,
+        "priority": "Normal",
+        "polls": 58,
+        "repairs": 6,
+        "events": [
+          {
+            "beforeMask": 255,
+            "utc": "2026-10-17T02:43:02.4156247Z",
+            "beforePriority": "Normal"
+          },
+          {
+            "beforeMask": 255,
+            "utc": "2026-10-17T02:43:02.8479056Z",
+            "beforePriority": "Normal"
+          },
+          {
+            "beforeMask": 255,
+            "utc": "2026-10-17T02:43:03.0561083Z",
+            "beforePriority": "Normal"
+          },
+          {
+            "beforeMask": 255,
+            "utc": "2026-10-17T02:43:03.2637127Z",
+            "beforePriority": "Normal"
+          },
+          {
+            "beforeMask": 255,
+            "utc": "2026-10-17T02:43:04.0957982Z",
+            "beforePriority": "Normal"
+          },
+          {
+            "beforeMask": 255,
+            "utc": "2026-10-17T02:43:07.6555095Z",
+            "beforePriority": "Normal"
+          }
+        ],
+        "peakObservedWorkingSetBytes": 2267779072,
+        "lastObservedCpuSeconds": 11.953125,
+        "pollingIsNotHardConfinement": true
+      },
+      "cleanup": {
+        "launched": true,
+        "pid": 34112,
+        "verifiedExited": true,
+        "terminationRequested": false,
+        "error": null
+      }
+    },
+    {
+      "passed": true,
+      "scenario": "Victory",
+      "head": "2f3e5947b9907db023a9c27079ca43166fccf84f",
+      "dirtyWorkingTree": false,
+      "startedUtc": "2026-10-17T02:43:42.4602956Z",
+      "finishedUtc": "2026-10-17T02:44:51.3024012Z",
+      "elapsedSeconds": 68.918,
+      "scenarioElapsedSeconds": 68.701,
+      "scenarioTimeoutSeconds": 240,
+      "scenarioCoreLimit": 2,
+      "runDirectory": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\small-match-victory-20261017-024342-373",
+      "map": "/Game/CommandProofGenerated/Maps/CommandProof",
+      "topology": "one rendered standalone match client",
+      "transport": "UE native UDP loopback",
+      "physicalInputVerified": false,
+      "internetTest": false,
+      "performanceTest": false,
+      "cleanPresentation": true,
+      "storageGuard": {
+        "softPollingGuard": true,
+        "intervalSeconds": 10,
+        "maxCacheMiB": 2048,
+        "maxTempMiB": 1024,
+        "checks": 8,
+        "latestCacheBytes": 3682854,
+        "latestTempBytes": 4490,
+        "peakCacheBytes": 3682854,
+        "peakTempBytes": 4490
+      },
+      "cpuPolicy": {
+        "availableAffinityMask": "0xFF",
+        "fixtureAffinityMask": "0x3",
+        "logicalProcessors": [
+          0,
+          1
+        ],
+        "priority": "Normal",
+        "pollIntervalSeconds": 1,
+        "polls": 61,
+        "repairs": 4,
+        "processes": [
+          {
+            "priority": "Normal",
+            "affinityMask": "0x3",
+            "role": "rendered",
+            "pid": 3748,
+            "path": "D:\\Epic Games\\UE_5.7\\Engine\\Binaries\\Win64\\UnrealEditor.exe",
+            "startUtc": "2026-10-17T02:43:42.6520579Z"
+          }
+        ],
+        "lastPollElapsedSeconds": 67.993
+      },
+      "literalClientSetup": {
+        "startupFile": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\small-match-victory-20261017-024342-373\\literal-client-cvars.ini",
+        "expectedResolverDisabled": 1,
+        "startupConfirmedByRole": {
+          "rendered": false
+        },
+        "hostnameOrInternetTest": false,
+        "osDnsChanged": false
+      },
+      "readabilityCaptures": true,
+      "edgeCaptureEvidence": [
+        {
+          "name": "03-left-edge.png",
+          "unit": 32,
+          "projectedX": 24.0,
+          "projectedY": 468.0,
+          "targetX": 24.0,
+          "targetY": 468.0,
+          "projectionErrorPixels": 0.0,
+          "width": 1280,
+          "height": 720,
+          "physicalInputVerified": false
+        },
+        {
+          "name": "04-right-edge.png",
+          "unit": 32,
+          "projectedX": 1256.0,
+          "projectedY": 468.0,
+          "targetX": 1256.0,
+          "targetY": 468.0,
+          "projectionErrorPixels": 0.0,
+          "width": 1280,
+          "height": 720,
+          "physicalInputVerified": false
+        },
+        {
+          "name": "05-panel-edge.png",
+          "unit": 32,
+          "projectedX": 384.0,
+          "projectedY": 233.0,
+          "targetX": 384.0,
+          "targetY": 233.0,
+          "projectionErrorPixels": 0.0,
+          "width": 1280,
+          "height": 720,
+          "physicalInputVerified": false
+        }
+      ],
+      "hudLayoutCaptureEvidence": [
+        {
+          "name": "01-base.png",
+          "epoch": 1,
+          "revision": 79,
+          "liveunits": 12,
+          "visibleeligibleglyphs": 12,
+          "culledglyphs": 0,
+          "offscreenglyphs": 0,
+          "occludedglyphs": 0,
+          "placedunitgroups": 12,
+          "omittedunitgroups": 0,
+          "primaryglyphvisible": 1,
+          "primarygroupplaced": 1,
+          "visibleresourceglyphs": 2,
+          "placedresourcegroups": 2,
+          "omittedresourcegroups": 0
+        },
+        {
+          "name": "02-result.png",
+          "epoch": 1,
+          "revision": 795,
+          "liveunits": 14,
+          "visibleeligibleglyphs": 14,
+          "culledglyphs": 0,
+          "offscreenglyphs": 0,
+          "occludedglyphs": 0,
+          "placedunitgroups": 14,
+          "omittedunitgroups": 0,
+          "primaryglyphvisible": 1,
+          "primarygroupplaced": 1,
+          "visibleresourceglyphs": 2,
+          "placedresourcegroups": 2,
+          "omittedresourcegroups": 0
+        },
+        {
+          "name": "03-left-edge.png",
+          "epoch": 1,
+          "revision": 795,
+          "liveunits": 14,
+          "visibleeligibleglyphs": 5,
+          "culledglyphs": 9,
+          "offscreenglyphs": 9,
+          "occludedglyphs": 0,
+          "placedunitgroups": 5,
+          "omittedunitgroups": 0,
+          "primaryglyphvisible": 1,
+          "primarygroupplaced": 1,
+          "visibleresourceglyphs": 1,
+          "placedresourcegroups": 1,
+          "omittedresourcegroups": 0
+        },
+        {
+          "name": "04-right-edge.png",
+          "epoch": 1,
+          "revision": 795,
+          "liveunits": 14,
+          "visibleeligibleglyphs": 10,
+          "culledglyphs": 4,
+          "offscreenglyphs": 4,
+          "occludedglyphs": 0,
+          "placedunitgroups": 10,
+          "omittedunitgroups": 0,
+          "primaryglyphvisible": 1,
+          "primarygroupplaced": 1,
+          "visibleresourceglyphs": 1,
+          "placedresourcegroups": 1,
+          "omittedresourcegroups": 0
+        },
+        {
+          "name": "05-panel-edge.png",
+          "epoch": 1,
+          "revision": 795,
+          "liveunits": 14,
+          "visibleeligibleglyphs": 11,
+          "culledglyphs": 3,
+          "offscreenglyphs": 0,
+          "occludedglyphs": 3,
+          "placedunitgroups": 11,
+          "omittedunitgroups": 0,
+          "primaryglyphvisible": 1,
+          "primarygroupplaced": 1,
+          "visibleresourceglyphs": 1,
+          "placedresourcegroups": 1,
+          "omittedresourcegroups": 0
+        }
+      ],
+      "renderConfiguration": {
+        "realViewport": true,
+        "offscreen": true,
+        "width": 1280,
+        "height": 720,
+        "optimizedShaders": 1,
+        "targetFPS": 30
+      },
+      "processes": [
+        {
+          "priority": "Normal",
+          "affinityMask": "0x3",
+          "role": "rendered",
+          "pid": 3748,
+          "path": "D:\\Epic Games\\UE_5.7\\Engine\\Binaries\\Win64\\UnrealEditor.exe",
+          "startUtc": "2026-10-17T02:43:42.6520579Z"
+        }
+      ],
+      "screenshots": [
+        {
+          "sha256": "C6B7BBF1F44F82C420E5DBF0FDB6552C1CFCADB8B730CA0AC5B9A6B643DA55A5",
+          "bytes": 809842,
+          "path": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\small-match-victory-20261017-024342-373\\screenshots\\01-base.png",
+          "name": "01-base.png",
+          "height": 720,
+          "width": 1280
+        },
+        {
+          "sha256": "B384086E8B6924D3F3A8BED98511350966B2AFA1F3B564540DC66DE99010CC7F",
+          "bytes": 809770,
+          "path": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\small-match-victory-20261017-024342-373\\screenshots\\02-result.png",
+          "name": "02-result.png",
+          "height": 720,
+          "width": 1280
+        },
+        {
+          "sha256": "9B614122F043B027A6261A7E0A9BCD7DD4ACA21455F4FFD1FEAF6D5292036550",
+          "bytes": 551595,
+          "path": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\small-match-victory-20261017-024342-373\\screenshots\\03-left-edge.png",
+          "name": "03-left-edge.png",
+          "height": 720,
+          "width": 1280
+        },
+        {
+          "sha256": "688FB7524ECC801C5C6F6F032D445DB474544F9ADEB411BABC72A45B07BF2799",
+          "bytes": 399698,
+          "path": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\small-match-victory-20261017-024342-373\\screenshots\\04-right-edge.png",
+          "name": "04-right-edge.png",
+          "height": 720,
+          "width": 1280
+        },
+        {
+          "sha256": "23889BB81E375AF9E31B57D5E031FB4C8C1B73CD649F6BD8D80869687B3C075A",
+          "bytes": 640549,
+          "path": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\small-match-victory-20261017-024342-373\\screenshots\\05-panel-edge.png",
+          "name": "05-panel-edge.png",
+          "height": 720,
+          "width": 1280
+        }
+      ],
+      "commonRevisions": [],
+      "expectedWinner": 0,
+      "error": null,
+      "cleanupErrors": []
+    },
+    {
+      "passed": true,
+      "scenario": "Victory",
+      "head": "2f3e5947b9907db023a9c27079ca43166fccf84f",
+      "dirtyWorkingTree": false,
+      "startedUtc": "2026-10-17T02:45:28.9034944Z",
+      "finishedUtc": "2026-10-17T02:46:38.0171646Z",
+      "elapsedSeconds": 69.21,
+      "scenarioElapsedSeconds": 68.958,
+      "scenarioTimeoutSeconds": 240,
+      "scenarioCoreLimit": 2,
+      "runDirectory": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\small-match-victory-20261017-024528-792",
+      "map": "/Game/CommandProofGenerated/Maps/CommandProof",
+      "topology": "one rendered standalone match client",
+      "transport": "UE native UDP loopback",
+      "physicalInputVerified": false,
+      "internetTest": false,
+      "performanceTest": false,
+      "cleanPresentation": true,
+      "storageGuard": {
+        "softPollingGuard": true,
+        "intervalSeconds": 10,
+        "maxCacheMiB": 2048,
+        "maxTempMiB": 1024,
+        "checks": 8,
+        "latestCacheBytes": 3682854,
+        "latestTempBytes": 4489,
+        "peakCacheBytes": 3682854,
+        "peakTempBytes": 4489
+      },
+      "cpuPolicy": {
+        "availableAffinityMask": "0xFF",
+        "fixtureAffinityMask": "0x3",
+        "logicalProcessors": [
+          0,
+          1
+        ],
+        "priority": "Normal",
+        "pollIntervalSeconds": 1,
+        "polls": 62,
+        "repairs": 3,
+        "processes": [
+          {
+            "path": "D:\\Epic Games\\UE_5.7\\Engine\\Binaries\\Win64\\UnrealEditor.exe",
+            "pid": 12576,
+            "priority": "Normal",
+            "affinityMask": "0x3",
+            "startUtc": "2026-10-17T02:45:29.1136631Z",
+            "role": "rendered"
+          }
+        ],
+        "lastPollElapsedSeconds": 68.764
+      },
+      "literalClientSetup": {
+        "startupFile": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\small-match-victory-20261017-024528-792\\literal-client-cvars.ini",
+        "expectedResolverDisabled": 1,
+        "startupConfirmedByRole": {
+          "rendered": false
+        },
+        "hostnameOrInternetTest": false,
+        "osDnsChanged": false
+      },
+      "readabilityCaptures": true,
+      "edgeCaptureEvidence": [
+        {
+          "name": "03-left-edge.png",
+          "unit": 32,
+          "projectedX": 24.0,
+          "projectedY": 351.0,
+          "targetX": 24.0,
+          "targetY": 351.0,
+          "projectionErrorPixels": 0.0,
+          "width": 960,
+          "height": 540,
+          "physicalInputVerified": false
+        },
+        {
+          "name": "04-right-edge.png",
+          "unit": 32,
+          "projectedX": 936.0,
+          "projectedY": 351.0,
+          "targetX": 936.0,
+          "targetY": 351.0,
+          "projectionErrorPixels": 0.0,
+          "width": 960,
+          "height": 540,
+          "physicalInputVerified": false
+        },
+        {
+          "name": "05-panel-edge.png",
+          "unit": 32,
+          "projectedX": 288.0,
+          "projectedY": 180.75,
+          "targetX": 288.0,
+          "targetY": 180.75,
+          "projectionErrorPixels": 0.0,
+          "width": 960,
+          "height": 540,
+          "physicalInputVerified": false
+        }
+      ],
+      "hudLayoutCaptureEvidence": [
+        {
+          "name": "01-base.png",
+          "epoch": 1,
+          "revision": 85,
+          "liveunits": 12,
+          "visibleeligibleglyphs": 12,
+          "culledglyphs": 0,
+          "offscreenglyphs": 0,
+          "occludedglyphs": 0,
+          "placedunitgroups": 12,
+          "omittedunitgroups": 0,
+          "primaryglyphvisible": 1,
+          "primarygroupplaced": 1,
+          "visibleresourceglyphs": 2,
+          "placedresourcegroups": 2,
+          "omittedresourcegroups": 0
+        },
+        {
+          "name": "02-result.png",
+          "epoch": 1,
+          "revision": 793,
+          "liveunits": 15,
+          "visibleeligibleglyphs": 15,
+          "culledglyphs": 0,
+          "offscreenglyphs": 0,
+          "occludedglyphs": 0,
+          "placedunitgroups": 15,
+          "omittedunitgroups": 0,
+          "primaryglyphvisible": 1,
+          "primarygroupplaced": 1,
+          "visibleresourceglyphs": 2,
+          "placedresourcegroups": 2,
+          "omittedresourcegroups": 0
+        },
+        {
+          "name": "03-left-edge.png",
+          "epoch": 1,
+          "revision": 793,
+          "liveunits": 15,
+          "visibleeligibleglyphs": 5,
+          "culledglyphs": 10,
+          "offscreenglyphs": 10,
+          "occludedglyphs": 0,
+          "placedunitgroups": 5,
+          "omittedunitgroups": 0,
+          "primaryglyphvisible": 1,
+          "primarygroupplaced": 1,
+          "visibleresourceglyphs": 1,
+          "placedresourcegroups": 1,
+          "omittedresourcegroups": 0
+        },
+        {
+          "name": "04-right-edge.png",
+          "epoch": 1,
+          "revision": 793,
+          "liveunits": 15,
+          "visibleeligibleglyphs": 11,
+          "culledglyphs": 4,
+          "offscreenglyphs": 4,
+          "occludedglyphs": 0,
+          "placedunitgroups": 11,
+          "omittedunitgroups": 0,
+          "primaryglyphvisible": 1,
+          "primarygroupplaced": 1,
+          "visibleresourceglyphs": 1,
+          "placedresourcegroups": 1,
+          "omittedresourcegroups": 0
+        },
+        {
+          "name": "05-panel-edge.png",
+          "epoch": 1,
+          "revision": 793,
+          "liveunits": 15,
+          "visibleeligibleglyphs": 3,
+          "culledglyphs": 12,
+          "offscreenglyphs": 0,
+          "occludedglyphs": 12,
+          "placedunitgroups": 3,
+          "omittedunitgroups": 0,
+          "primaryglyphvisible": 1,
+          "primarygroupplaced": 1,
+          "visibleresourceglyphs": 1,
+          "placedresourcegroups": 1,
+          "omittedresourcegroups": 0
+        }
+      ],
+      "renderConfiguration": {
+        "realViewport": true,
+        "offscreen": true,
+        "width": 960,
+        "height": 540,
+        "optimizedShaders": 1,
+        "targetFPS": 30
+      },
+      "processes": [
+        {
+          "path": "D:\\Epic Games\\UE_5.7\\Engine\\Binaries\\Win64\\UnrealEditor.exe",
+          "pid": 12576,
+          "priority": "Normal",
+          "affinityMask": "0x3",
+          "startUtc": "2026-10-17T02:45:29.1136631Z",
+          "role": "rendered"
+        }
+      ],
+      "screenshots": [
+        {
+          "path": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\small-match-victory-20261017-024528-792\\screenshots\\01-base.png",
+          "bytes": 430302,
+          "width": 960,
+          "sha256": "CE653F9A7247930C692E6BD3A5423A2ACAE100F693761777E78DA1E0C993890F",
+          "name": "01-base.png",
+          "height": 540
+        },
+        {
+          "path": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\small-match-victory-20261017-024528-792\\screenshots\\02-result.png",
+          "bytes": 427608,
+          "width": 960,
+          "sha256": "C7B045763517ABA53F775141E819E1DA49FEC70361AFF0AE0F431C9310248481",
+          "name": "02-result.png",
+          "height": 540
+        },
+        {
+          "path": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\small-match-victory-20261017-024528-792\\screenshots\\03-left-edge.png",
+          "bytes": 265998,
+          "width": 960,
+          "sha256": "C86B1FE1FB2764223D3636646613EBE765B6BE0ED0EB9A9CA1B0BE482470F940",
+          "name": "03-left-edge.png",
+          "height": 540
+        },
+        {
+          "path": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\small-match-victory-20261017-024528-792\\screenshots\\04-right-edge.png",
+          "bytes": 268673,
+          "width": 960,
+          "sha256": "43A5CA505A99A50ED64167ABBBA566E7194FB87EB061EF4E609DEC22447A6B37",
+          "name": "04-right-edge.png",
+          "height": 540
+        },
+        {
+          "path": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\small-match-victory-20261017-024528-792\\screenshots\\05-panel-edge.png",
+          "bytes": 316421,
+          "width": 960,
+          "sha256": "F60A2DC1CE337E7081647E9847F8862B3B99EC186BB5FA7F4C922724A11148EF",
+          "name": "05-panel-edge.png",
+          "height": 540
+        }
+      ],
+      "commonRevisions": [],
+      "expectedWinner": 0,
+      "error": null,
+      "cleanupErrors": []
+    },
+    {
+      "passed": true,
+      "head": "2f3e5947b9907db023a9c27079ca43166fccf84f",
+      "dirtyWorkingTree": false,
+      "startedUtc": "2026-10-17T02:46:49.1944646Z",
+      "finishedUtc": "2026-10-17T02:47:40.593908Z",
+      "elapsedSeconds": 51.466,
+      "scenarioElapsedSeconds": 41.422,
+      "warmup": {
+        "passed": true,
+        "startedUtc": "2026-10-17T02:46:49.34742Z",
+        "finishedUtc": "2026-10-17T02:46:59.1657391Z",
+        "elapsedSeconds": 9.818,
+        "timeoutSeconds": 300,
+        "coreLimit": 4,
+        "reportedShaderWorkers": 3,
+        "unusedShaderThreads": 1,
+        "unusedShaderThreadsDuringGame": 1,
+        "screenshotAcceptance": false,
+        "idleEvidence": "PROOF_GRAPHICS_WARMUP_COMPLETE status=pass remaining=0 idleSeconds=2.000 frames=61 width=1280 height=720 maxFPS=30.000"
+      },
+      "scenarioTimeoutSeconds": 90,
+      "scenarioCoreLimit": 2,
+      "totalTimeoutBudgetSeconds": 390,
+      "cachePath": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\controls-cache",
+      "stages": {
+        "warmupStarted": {
+          "utc": "2026-10-17T02:46:49.4181734Z",
+          "elapsedSeconds": 0.29
+        },
+        "warmupCompleted": {
+          "utc": "2026-10-17T02:46:59.1656934Z",
+          "elapsedSeconds": 10.038
+        },
+        "scenarioClockStarted": {
+          "utc": "2026-10-17T02:46:59.1728902Z",
+          "elapsedSeconds": 10.045
+        },
+        "hostStarted": {
+          "utc": "2026-10-17T02:46:59.1819816Z",
+          "elapsedSeconds": 10.054
+        },
+        "hostReady": {
+          "utc": "2026-10-17T02:47:03.9747711Z",
+          "elapsedSeconds": 14.847
+        },
+        "renderedStarted": {
+          "utc": "2026-10-17T02:47:03.983505Z",
+          "elapsedSeconds": 14.855
+        },
+        "renderedProjectionReady": {
+          "utc": "2026-10-17T02:47:10.5155323Z",
+          "elapsedSeconds": 21.387
+        },
+        "observerStarted": {
+          "utc": "2026-10-17T02:47:10.5238222Z",
+          "elapsedSeconds": 21.396
+        },
+        "processesExited": {
+          "utc": "2026-10-17T02:47:40.3446726Z",
+          "elapsedSeconds": 51.216
+        },
+        "evidenceVerified": {
+          "utc": "2026-10-17T02:47:40.5217053Z",
+          "elapsedSeconds": 51.394
+        }
+      },
+      "observedCounts": {
+        "initial": {
+          "humanOwners": 2,
+          "botOwners": 1,
+          "humanUnits": 2,
+          "botUnits": 3,
+          "liveUnits": 5,
+          "totalUnits": 5
+        },
+        "final": {
+          "humanOwners": 2,
+          "botOwners": 1,
+          "humanUnits": 3,
+          "botUnits": 3,
+          "liveUnits": 5,
+          "totalUnits": 6
+        }
+      },
+      "runDirectory": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\controls-20261017-024649-118",
+      "topology": "one dedicated UE server, one rendered controls client, one NullRHI passive observer (after standalone graphical warmup)",
+      "transport": "UE native UDP loopback",
+      "cleanPresentation": true,
+      "physicalMouseAndFocusVerified": false,
+      "internetTest": false,
+      "performanceTest": false,
+      "port": 28879,
+      "screenshots": [
+        {
+          "path": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\controls-20261017-024649-118\\screenshots\\01-selected.png",
+          "bytes": 791595,
+          "sha256": "E6A111ECBA29323EDE01CF4B84F7A07A4CA9CA19C4BCEACB73A235D68C60B151",
+          "width": 1280,
+          "height": 720
+        },
+        {
+          "path": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\controls-20261017-024649-118\\screenshots\\02-moved-combat-produced.png",
+          "bytes": 799192,
+          "sha256": "26080F100DE72EE2B3FF4598032702ED724BEB45AD219F94225E7DC8A09F3568",
+          "width": 1280,
+          "height": 720
+        }
+      ],
+      "commonRevisions": [
+        "126",
+        "130",
+        "132",
+        "134",
+        "136",
+        "138",
+        "148",
+        "150",
+        "152",
+        "154",
+        "157",
+        "159",
+        "161",
+        "163",
+        "165",
+        "167",
+        "169",
+        "171",
+        "173",
+        "175",
+        "177",
+        "179",
+        "181",
+        "183",
+        "185",
+        "188",
+        "190",
+        "192",
+        "194",
+        "196",
+        "200",
+        "203",
+        "205",
+        "207",
+        "209",
+        "211",
+        "213",
+        "215",
+        "217",
+        "219",
+        "221",
+        "223",
+        "225",
+        "227",
+        "229",
+        "231",
+        "233",
+        "235",
+        "237",
+        "239",
+        "241",
+        "243",
+        "245",
+        "247",
+        "249"
+      ],
+      "error": null,
+      "storageGuard": {
+        "softPollingGuard": true,
+        "intervalSeconds": 10,
+        "maxCacheMiB": 2048,
+        "maxTempMiB": 1024,
+        "lastCheckElapsedSeconds": 51.281,
+        "checks": 6,
+        "latestCacheBytes": 3686860,
+        "latestTempBytes": 4105,
+        "peakObservedCacheBytes": 3686860,
+        "peakObservedTempBytes": 12650
+      },
+      "renderConfiguration": {
+        "unoptimizedShaders": false,
+        "expectedShadersOptimize": 1,
+        "observedShadersOptimize": 1,
+        "targetFPS": 30,
+        "gameUserSettingsFrameRateLimit": 30,
+        "observedMaxFPS": 30.0,
+        "warmupObservedMaxFPS": 30.0,
+        "performanceRepresentative": false
+      },
+      "cpuPolicy": {
+        "availableAffinityMask": "0xFF",
+        "fixtureAffinityMask": "0x3",
+        "logicalProcessors": [
+          0,
+          1
+        ],
+        "uePriority": "Normal",
+        "workerPrioritySetting": 0,
+        "assignedAfterProcessStart": true,
+        "workerInheritanceVerified": false,
+        "processes": [
+          {
+            "priority": "Normal",
+            "assignedUtc": "2026-10-17T02:46:49.4166039Z",
+            "pid": 16000,
+            "role": "warmup",
+            "affinityMask": "0x3"
+          },
+          {
+            "priority": "Normal",
+            "assignedUtc": "2026-10-17T02:46:59.1819506Z",
+            "pid": 33692,
+            "role": "host",
+            "affinityMask": "0x3"
+          },
+          {
+            "priority": "Normal",
+            "assignedUtc": "2026-10-17T02:47:03.9834793Z",
+            "pid": 24108,
+            "role": "rendered",
+            "affinityMask": "0x3"
+          },
+          {
+            "priority": "Normal",
+            "assignedUtc": "2026-10-17T02:47:10.5237864Z",
+            "pid": 8684,
+            "role": "observer",
+            "affinityMask": "0x3"
+          }
+        ],
+        "pollIntervalSeconds": 1,
+        "lastPollElapsedSeconds": 50.559,
+        "pollCount": 47,
+        "events": [
+          {
+            "utc": "2026-10-17T02:46:50.553482Z",
+            "role": "warmup",
+            "startUtc": "2026-10-17T02:46:49.3982079Z",
+            "afterMask": "0x3",
+            "elapsedSeconds": 1.425,
+            "path": "D:\\Epic Games\\UE_5.7\\Engine\\Binaries\\Win64\\UnrealEditor.exe",
+            "pid": 16000,
+            "afterPriority": "Normal",
+            "beforePriority": "Normal",
+            "beforeMask": "0xFF"
+          },
+          {
+            "utc": "2026-10-17T02:46:51.6391584Z",
+            "role": "warmup",
+            "startUtc": "2026-10-17T02:46:49.3982079Z",
+            "afterMask": "0x3",
+            "elapsedSeconds": 2.511,
+            "path": "D:\\Epic Games\\UE_5.7\\Engine\\Binaries\\Win64\\UnrealEditor.exe",
+            "pid": 16000,
+            "afterPriority": "Normal",
+            "beforePriority": "Normal",
+            "beforeMask": "0xFF"
+          },
+          {
+            "utc": "2026-10-17T02:46:55.9196806Z",
+            "role": "warmup",
+            "startUtc": "2026-10-17T02:46:49.3982079Z",
+            "afterMask": "0x3",
+            "elapsedSeconds": 6.791,
+            "path": "D:\\Epic Games\\UE_5.7\\Engine\\Binaries\\Win64\\UnrealEditor.exe",
+            "pid": 16000,
+            "afterPriority": "Normal",
+            "beforePriority": "Normal",
+            "beforeMask": "0xFF"
+          },
+          {
+            "utc": "2026-10-17T02:47:00.3636719Z",
+            "role": "host",
+            "startUtc": "2026-10-17T02:46:59.1766875Z",
+            "afterMask": "0x3",
+            "elapsedSeconds": 11.235,
+            "path": "D:\\Epic Games\\UE_5.7\\Engine\\Binaries\\Win64\\UnrealEditor.exe",
+            "pid": 33692,
+            "afterPriority": "Normal",
+            "beforePriority": "Normal",
+            "beforeMask": "0xFF"
+          },
+          {
+            "utc": "2026-10-17T02:47:01.4722686Z",
+            "role": "host",
+            "startUtc": "2026-10-17T02:46:59.1766875Z",
+            "afterMask": "0x3",
+            "elapsedSeconds": 12.344,
+            "path": "D:\\Epic Games\\UE_5.7\\Engine\\Binaries\\Win64\\UnrealEditor.exe",
+            "pid": 33692,
+            "afterPriority": "Normal",
+            "beforePriority": "Normal",
+            "beforeMask": "0xFF"
+          },
+          {
+            "utc": "2026-10-17T02:47:03.6989184Z",
+            "role": "host",
+            "startUtc": "2026-10-17T02:46:59.1766875Z",
+            "afterMask": "0x3",
+            "elapsedSeconds": 14.571,
+            "path": "D:\\Epic Games\\UE_5.7\\Engine\\Binaries\\Win64\\UnrealEditor.exe",
+            "pid": 33692,
+            "afterPriority": "Normal",
+            "beforePriority": "Normal",
+            "beforeMask": "0xFF"
+          },
+          {
+            "utc": "2026-10-17T02:47:04.809567Z",
+            "role": "rendered",
+            "startUtc": "2026-10-17T02:47:03.9782583Z",
+            "afterMask": "0x3",
+            "elapsedSeconds": 15.681,
+            "path": "D:\\Epic Games\\UE_5.7\\Engine\\Binaries\\Win64\\UnrealEditor.exe",
+            "pid": 24108,
+            "afterPriority": "Normal",
+            "beforePriority": "Normal",
+            "beforeMask": "0xFF"
+          },
+          {
+            "utc": "2026-10-17T02:47:05.9124108Z",
+            "role": "rendered",
+            "startUtc": "2026-10-17T02:47:03.9782583Z",
+            "afterMask": "0x3",
+            "elapsedSeconds": 16.784,
+            "path": "D:\\Epic Games\\UE_5.7\\Engine\\Binaries\\Win64\\UnrealEditor.exe",
+            "pid": 24108,
+            "afterPriority": "Normal",
+            "beforePriority": "Normal",
+            "beforeMask": "0xFF"
+          },
+          {
+            "utc": "2026-10-17T02:47:10.4514302Z",
+            "role": "rendered",
+            "startUtc": "2026-10-17T02:47:03.9782583Z",
+            "afterMask": "0x3",
+            "elapsedSeconds": 21.323,
+            "path": "D:\\Epic Games\\UE_5.7\\Engine\\Binaries\\Win64\\UnrealEditor.exe",
+            "pid": 24108,
+            "afterPriority": "Normal",
+            "beforePriority": "Normal",
+            "beforeMask": "0xFF"
+          },
+          {
+            "utc": "2026-10-17T02:47:11.5566453Z",
+            "role": "observer",
+            "startUtc": "2026-10-17T02:47:10.5188495Z",
+            "afterMask": "0x3",
+            "elapsedSeconds": 22.428,
+            "path": "D:\\Epic Games\\UE_5.7\\Engine\\Binaries\\Win64\\UnrealEditor.exe",
+            "pid": 8684,
+            "afterPriority": "Normal",
+            "beforePriority": "Normal",
+            "beforeMask": "0xFF"
+          },
+          {
+            "utc": "2026-10-17T02:47:12.6320573Z",
+            "role": "observer",
+            "startUtc": "2026-10-17T02:47:10.5188495Z",
+            "afterMask": "0x3",
+            "elapsedSeconds": 23.504,
+            "path": "D:\\Epic Games\\UE_5.7\\Engine\\Binaries\\Win64\\UnrealEditor.exe",
+            "pid": 8684,
+            "afterPriority": "Normal",
+            "beforePriority": "Normal",
+            "beforeMask": "0xFF"
+          },
+          {
+            "utc": "2026-10-17T02:47:15.8775987Z",
+            "role": "observer",
+            "startUtc": "2026-10-17T02:47:10.5188495Z",
+            "afterMask": "0x3",
+            "elapsedSeconds": 26.749,
+            "path": "D:\\Epic Games\\UE_5.7\\Engine\\Binaries\\Win64\\UnrealEditor.exe",
+            "pid": 8684,
+            "afterPriority": "Normal",
+            "beforePriority": "Normal",
+            "beforeMask": "0xFF"
+          }
+        ],
+        "eventsTruncated": false,
+        "discoveryError": null
+      },
+      "literalClientSetup": {
+        "mode": "disable asynchronous resolution for literal 127.0.0.1 clients only",
+        "startupFile": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\controls-20261017-024649-118\\client-literal-cvars.ini",
+        "expectedResolverDisabled": 1,
+        "observedRenderedResolverDisabled": 1,
+        "startupConfirmedByRole": {
+          "observer": "Set CVar [[net.IpConnectionDisableResolution:1]]",
+          "rendered": "Set CVar [[net.IpConnectionDisableResolution:1]]"
+        },
+        "hostnameOrInternetTest": false,
+        "osDnsChanged": false
+      },
+      "cleanup": {
+        "errors": [],
+        "ignoredExitRaces": 0,
+        "parentsFirst": true
+      },
+      "commandRequests": [
+        {
+          "type": "Move",
+          "line": "PROOF_CONTROLS_REQUEST owner=1 sequence=1 type=Move unit=4 target=-1 destinationX=-300.000 destinationY=-300.000 destinationZ=0.000",
+          "sequence": 1
+        },
+        {
+          "type": "Attack",
+          "line": "PROOF_CONTROLS_REQUEST owner=1 sequence=2 type=Attack unit=4 target=3 destinationX=0.000 destinationY=0.000 destinationZ=0.000",
+          "sequence": 2
+        },
+        {
+          "type": "Produce",
+          "line": "PROOF_CONTROLS_REQUEST owner=1 sequence=3 type=Produce unit=-1 target=-1 destinationX=0.000 destinationY=0.000 destinationZ=0.000",
+          "sequence": 3
+        },
+        {
+          "type": "Move",
+          "line": "PROOF_CONTROLS_REQUEST owner=1 sequence=4 type=Move unit=4 target=-1 destinationX=-700.000 destinationY=-450.000 destinationZ=0.000",
+          "sequence": 4
+        }
+      ],
+      "cacheDiagnostics": {
+        "verboseEnabled": true,
+        "diagnosticOnly": true,
+        "classification": "Engine/DerivedDataCache/*.ddp path; global only GlobalShaderMap/ keys; material-related request/key text may include textures",
+        "byProcess": {
+          "observer": {
+            "allDdpHitCount": 64,
+            "enginePakHitCount": 64,
+            "globalShaderHitCount": 0,
+            "materialRelatedHitCount": 0,
+            "otherEnginePakHitCount": 64,
+            "globalExamples": [],
+            "materialExamples": [],
+            "otherExamples": [
+              {
+                "cachePath": "../../../Engine/DerivedDataCache/Compressed.ddp",
+                "key": "StaticMesh/36262075d7421076f191d10ea8b022ed6ecfe8a5",
+                "request": "/Engine/EngineMeshes/Sphere.Sphere"
+              },
+              {
+                "cachePath": "../../../Engine/DerivedDataCache/Compressed.ddp",
+                "key": "LegacyCARD/db28202397e82144f47b8e23660dc10f532bbafa",
+                "request": "/Engine/EngineMeshes/Sphere.Sphere"
+              },
+              {
+                "cachePath": "../../../Engine/DerivedDataCache/Compressed.ddp",
+                "key": "StaticMesh/76c13544d105ebba6e9794a40ac08c81b11bc13f",
+                "request": "/Engine/EditorMeshes/Camera/SM_CraneRig_Base.SM_CraneRig_Base"
+              }
+            ]
+          },
+          "rendered": {
+            "allDdpHitCount": 635,
+            "enginePakHitCount": 635,
+            "globalShaderHitCount": 331,
+            "materialRelatedHitCount": 37,
+            "otherEnginePakHitCount": 267,
+            "globalExamples": [
+              {
+                "cachePath": "../../../Engine/DerivedDataCache/Compressed.ddp",
+                "key": "GlobalShaderMap/0bd58c7415fe78654c089dc2a3969797969e4058",
+                "request": "GlobalShaderMap [PCD3D_SM5, /Engine/Private/VirtualTextureCompress.usf]"
+              },
+              {
+                "cachePath": "../../../Engine/DerivedDataCache/Compressed.ddp",
+                "key": "GlobalShaderMap/3840a34455d1667805ea29138cfe88b0a563bd97",
+                "request": "GlobalShaderMap [PCD3D_SM5, /Engine/Private/Landscape/LandscapeEditLayersWeightmaps.usf]"
+              },
+              {
+                "cachePath": "../../../Engine/DerivedDataCache/Compressed.ddp",
+                "key": "GlobalShaderMap/3ded2765e4edf297500a72802aa40fafea9e20f3",
+                "request": "GlobalShaderMap [PCD3D_SM5, /Engine/Private/ShadowProjectionPixelShader.usf]"
+              }
+            ],
+            "materialExamples": [
+              {
+                "cachePath": "../../../Engine/DerivedDataCache/Compressed.ddp",
+                "key": "LegacyTEXTURE/ff5c83fa3051f0619f6c5ebde86a29d4a5eeee7a",
+                "request": "/Engine/EngineMaterials/T_Default_Material_Grid_M.T_Default_Material_Grid_M"
+              },
+              {
+                "cachePath": "../../../Engine/DerivedDataCache/Compressed.ddp",
+                "key": "LegacyTEXTURE/ae1ea00b6cabae2b983a3b531f659ac4ea01dbae",
+                "request": "/Engine/EngineMaterials/T_Default_Material_Grid_N.T_Default_Material_Grid_N"
+              },
+              {
+                "cachePath": "../../../Engine/DerivedDataCache/Compressed.ddp",
+                "key": "LegacyTEXTURE/3b12bc37bbb2f30ad65255017bf38480a7ce60c9",
+                "request": "/Engine/EngineMaterials/DefaultDiffuse.DefaultDiffuse"
+              }
+            ],
+            "otherExamples": [
+              {
+                "cachePath": "../../../Engine/DerivedDataCache/Compressed.ddp",
+                "key": "LegacyTEXTURE/55973aaae6a910405e5e9c0dfe80dcfda5fb6da0",
+                "request": "/Engine/EngineResources/WhiteSquareTexture.WhiteSquareTexture"
+              },
+              {
+                "cachePath": "../../../Engine/DerivedDataCache/Compressed.ddp",
+                "key": "LegacyTEXTURE/3a2e107c81e7daa4d29d623bc1a769b1adda927f",
+                "request": "/Engine/EngineResources/GradientTexture0.GradientTexture0"
+              },
+              {
+                "cachePath": "../../../Engine/DerivedDataCache/Compressed.ddp",
+                "key": "LegacyTEXTURE/891aef309625f082b238dc696581edb28b8b0b20",
+                "request": "/Engine/EngineResources/Black.Black"
+              }
+            ]
+          },
+          "warmup": {
+            "allDdpHitCount": 584,
+            "enginePakHitCount": 584,
+            "globalShaderHitCount": 331,
+            "materialRelatedHitCount": 37,
+            "otherEnginePakHitCount": 216,
+            "globalExamples": [
+              {
+                "cachePath": "../../../Engine/DerivedDataCache/Compressed.ddp",
+                "key": "GlobalShaderMap/0bd58c7415fe78654c089dc2a3969797969e4058",
+                "request": "GlobalShaderMap [PCD3D_SM5, /Engine/Private/VirtualTextureCompress.usf]"
+              },
+              {
+                "cachePath": "../../../Engine/DerivedDataCache/Compressed.ddp",
+                "key": "GlobalShaderMap/3840a34455d1667805ea29138cfe88b0a563bd97",
+                "request": "GlobalShaderMap [PCD3D_SM5, /Engine/Private/Landscape/LandscapeEditLayersWeightmaps.usf]"
+              },
+              {
+                "cachePath": "../../../Engine/DerivedDataCache/Compressed.ddp",
+                "key": "GlobalShaderMap/3ded2765e4edf297500a72802aa40fafea9e20f3",
+                "request": "GlobalShaderMap [PCD3D_SM5, /Engine/Private/ShadowProjectionPixelShader.usf]"
+              }
+            ],
+            "materialExamples": [
+              {
+                "cachePath": "../../../Engine/DerivedDataCache/Compressed.ddp",
+                "key": "LegacyTEXTURE/ff5c83fa3051f0619f6c5ebde86a29d4a5eeee7a",
+                "request": "/Engine/EngineMaterials/T_Default_Material_Grid_M.T_Default_Material_Grid_M"
+              },
+              {
+                "cachePath": "../../../Engine/DerivedDataCache/Compressed.ddp",
+                "key": "LegacyTEXTURE/ae1ea00b6cabae2b983a3b531f659ac4ea01dbae",
+                "request": "/Engine/EngineMaterials/T_Default_Material_Grid_N.T_Default_Material_Grid_N"
+              },
+              {
+                "cachePath": "../../../Engine/DerivedDataCache/Compressed.ddp",
+                "key": "LegacyTEXTURE/3b12bc37bbb2f30ad65255017bf38480a7ce60c9",
+                "request": "/Engine/EngineMaterials/DefaultDiffuse.DefaultDiffuse"
+              }
+            ],
+            "otherExamples": [
+              {
+                "cachePath": "../../../Engine/DerivedDataCache/Compressed.ddp",
+                "key": "LegacyTEXTURE/55973aaae6a910405e5e9c0dfe80dcfda5fb6da0",
+                "request": "/Engine/EngineResources/WhiteSquareTexture.WhiteSquareTexture"
+              },
+              {
+                "cachePath": "../../../Engine/DerivedDataCache/Compressed.ddp",
+                "key": "LegacyTEXTURE/3a2e107c81e7daa4d29d623bc1a769b1adda927f",
+                "request": "/Engine/EngineResources/GradientTexture0.GradientTexture0"
+              },
+              {
+                "cachePath": "../../../Engine/DerivedDataCache/Compressed.ddp",
+                "key": "LegacyTEXTURE/891aef309625f082b238dc696581edb28b8b0b20",
+                "request": "/Engine/EngineResources/Black.Black"
+              }
+            ]
+          },
+          "host": {
+            "allDdpHitCount": 46,
+            "enginePakHitCount": 46,
+            "globalShaderHitCount": 0,
+            "materialRelatedHitCount": 0,
+            "otherEnginePakHitCount": 46,
+            "globalExamples": [],
+            "materialExamples": [],
+            "otherExamples": [
+              {
+                "cachePath": "../../../Engine/DerivedDataCache/Compressed.ddp",
+                "key": "StaticMesh/36262075d7421076f191d10ea8b022ed6ecfe8a5",
+                "request": "/Engine/EngineMeshes/Sphere.Sphere"
+              },
+              {
+                "cachePath": "../../../Engine/DerivedDataCache/Compressed.ddp",
+                "key": "LegacyCARD/db28202397e82144f47b8e23660dc10f532bbafa",
+                "request": "/Engine/EngineMeshes/Sphere.Sphere"
+              },
+              {
+                "cachePath": "../../../Engine/DerivedDataCache/Compressed.ddp",
+                "key": "StaticMesh/3955558d15a35d2618dbee474fa269311b1e3dac",
+                "request": "/Engine/EditorLandscapeResources/SplineEditorMesh.SplineEditorMesh"
+              }
+            ]
+          }
+        },
+        "readErrors": []
+      }
+    }
+  ],
+  "resultHashes": [
+    {
+      "path": "generated/hud-layout-model-20261017-024302-244/result.json",
+      "sha256": "752057ff71db8d893863308786be301318dadef0c563968f5904e38b1c29708e"
+    },
+    {
+      "path": "generated/small-match-victory-20261017-024342-373/result.json",
+      "sha256": "d938c3805f8bcdb53f9fef299854228ab1c8676c332974d67564c8a81ca75cdf"
+    },
+    {
+      "path": "generated/small-match-victory-20261017-024528-792/result.json",
+      "sha256": "6f3c070934aaf041ef28560b3a08a6ae5d82b241b146d6ca793e738d9091ca11"
+    },
+    {
+      "path": "generated/controls-20261017-024649-118/result.json",
+      "sha256": "647bef3e1ecc9b62b5764c2e154b3a761d79bd70fdab1ad45ef4a75adffae076"
+    }
+  ],
+  "visualReview": "Root and independent reviewer inspected all ten native-size skirmish images and two legacy captures. Primary/panel/ore/edge placement supports scoped integration. Zero group omissions; all six edge targets logged0pixelerror. Dense individual unselected bars/tethers remain ambiguous;960panel rematch hint contrast remains weak overlightgeometry. Issue18 staysopen.",
+  "cleanup": "All result cleanup error arrays empty; layout verifiedExited true; no owned UE processes after batch.",
+  "priorFailures": "Retained first-batch, projection-attempt and rig-attempt ledgers remain failed; no automaticretry/deadlineincrease.",
+  "openIssues": [
+    18,
+    33
+  ],
+  "scope": "bounded readability improvement, not full issue18 acceptance"
+}

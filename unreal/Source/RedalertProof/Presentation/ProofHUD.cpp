@@ -1,10 +1,15 @@
 #include "Presentation/ProofHUD.h"
+#include "Presentation/ProofMarkerLayout.h"
 #include "Presentation/ProofRTSPawn.h"
 #include "Engine/Canvas.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
+#include "Misc/Paths.h"
 #include "Runtime/ProofGameState.h"
 #include "Runtime/ProofPlayerController.h"
+#include "UnrealClient.h"
 
 void AProofHUD::DrawHUD()
 {
@@ -24,6 +29,27 @@ void AProofHUD::DrawHUD()
     const float Top = 12.f * UiScale;
     const float PanelWidth = FMath::Min(720.f * UiScale, FMath::Max(0.f, Canvas->ClipX - Left * 2.f));
     const bool bSkirmish = GS && GS->Snapshot.bSkirmish;
+    // Observe only a requested UI screenshot in the explicit fixture mode.
+    // This is a layout record for this DrawHUD, not proof that PNG encoding succeeded.
+    const bool bCaptureLayout = bSkirmish
+        && FParse::Param(FCommandLine::Get(), TEXT("ProofHUDReadabilityCaptures"))
+        && FScreenshotRequest::IsScreenshotRequested() && FScreenshotRequest::ShouldShowUI()
+        && !LoggedHUDLayoutCaptures.Contains(FScreenshotRequest::GetFilename());
+    const FString CaptureFilename = bCaptureLayout ? FScreenshotRequest::GetFilename() : FString();
+    struct FLayoutCaptureStats
+    {
+        int32 LiveUnits = 0;
+        int32 VisibleUnitGlyphs = 0;
+        int32 OffscreenUnitGlyphs = 0;
+        int32 OccludedUnitGlyphs = 0;
+        int32 PlacedUnitGroups = 0;
+        int32 OmittedUnitGroups = 0;
+        int32 VisibleResourceGlyphs = 0;
+        int32 PlacedResourceGroups = 0;
+        int32 OmittedResourceGroups = 0;
+        bool bPrimaryGlyphVisible = false;
+        bool bPrimaryGroupPlaced = false;
+    } CaptureStats;
     const float PanelHeight = (bSkirmish ? 197.f : 183.f) * UiScale;
     const float Pad = 12.f * UiScale;
     const float FontScale = 1.05f * UiScale;
@@ -118,6 +144,10 @@ void AProofHUD::DrawHUD()
         DrawHudLine(PC->GetReceiptStatus(), FLinearColor(0.65f, 0.88f, 1.f), Top + Pad + Row * 5.f);
         DrawHudLine(TEXT("Build: R refinery 100   F factory 150   P combat unit 50   Ore markers show remaining resources"),
             FLinearColor(0.72f, 0.88f, 0.96f), Top + Pad + Row * 6.f);
+        // Keep primary health inspectable even when its world marker is occluded.
+        DrawHudLine(SelectedUnit ? FString::Printf(TEXT("Primary #%d  HP %.0f  Cargo %d"),
+            SelectedUnit->UnitId, SelectedUnit->HitPoints, SelectedUnit->Cargo) : TEXT("Primary: none"),
+            FLinearColor(0.8f, 1.f, 0.8f), Top + Pad + Row * 8.f);
     }
     else
     {
@@ -153,115 +183,268 @@ void AProofHUD::DrawHUD()
     }
     if (bSkirmish)
     {
+        FProofMarkerLayout Layout(FVector2D(Canvas->ClipX, Canvas->ClipY),
+            4.f * UiScale, 2.f * UiScale, 64.f * UiScale);
+        TArray<FBox2D> Occluders;
+        const auto Occlude = [&Layout, &Occluders](const FBox2D& Bounds)
+        {
+            Occluders.Add(Bounds);
+            Layout.Reserve(Bounds);
+        };
+        Occlude(FBox2D(FVector2D(Left, Top), FVector2D(Left + PanelWidth, Top + PanelHeight)));
+
+        // Reserve both the terminal banner and its measured rematch hint before
+        // considering world markers. The same geometry is used below to draw it.
+        if (GS->Snapshot.MatchPhase == EProofMatchPhase::Finished)
+        {
+            const FString Result = GS->Snapshot.WinnerTeam == INDEX_NONE
+                ? TEXT("DRAW") : (GS->Snapshot.WinnerTeam == LocalTeam ? TEXT("VICTORY") : TEXT("DEFEAT"));
+            float ResultWidth = 0.f, ResultHeight = 0.f;
+            GetTextSize(Result, ResultWidth, ResultHeight, Font, 2.f * UiScale);
+            const float BannerWidth = ResultWidth + 42.f * UiScale;
+            const float BannerHeight = ResultHeight + 24.f * UiScale;
+            const float BannerX = FMath::Max(0.f, (Canvas->ClipX - BannerWidth) * 0.5f);
+            const float BannerY = FMath::Max(PanelHeight + Top + 12.f * UiScale, Canvas->ClipY * 0.16f);
+            const FString Hint = PC->OwnerId == 1 ? TEXT("N: rematch   Esc: exit") : TEXT("Waiting for owner 1 to request rematch");
+            float HintWidth = 0.f, HintHeight = 0.f;
+            GetTextSize(Hint, HintWidth, HintHeight, Font, UiScale);
+            Occlude(FBox2D(FVector2D(BannerX, BannerY), FVector2D(BannerX + BannerWidth, BannerY + BannerHeight)));
+            Occlude(FBox2D(FVector2D(BannerX, BannerY + BannerHeight + 8.f * UiScale),
+                FVector2D(BannerX + HintWidth, BannerY + BannerHeight + 8.f * UiScale + HintHeight)));
+        }
+        // 0 visible, 1 outside viewport, 2 hidden by HUD/banner/hint.
+        const auto ClassifyFootprint = [&Layout, &Occluders](const FBox2D& Bounds)
+        {
+            if (!Layout.IsAnchorVisible(Bounds.Min) || !Layout.IsAnchorVisible(Bounds.Max)) return 1;
+            for (const FBox2D& Occluder : Occluders)
+                if (Bounds.Intersect(Occluder)) return 2;
+            return 0;
+        };
+        struct FUnitMarker
+        {
+            const FProofUnitRecord* Unit;
+            FVector2D Screen;
+            FLinearColor Color;
+            float Radius;
+            int32 Priority;
+        };
+        struct FResourceMarker
+        {
+            const FProofResourceRecord* Resource;
+            FVector2D Screen;
+        };
+        TArray<FUnitMarker> Units;
+        TArray<FResourceMarker> Resources;
+        for (const FProofUnitRecord& Unit : GS->Snapshot.Units)
+        {
+            if (Unit.HitPoints <= 0.f) continue;
+            if (bCaptureLayout) ++CaptureStats.LiveUnits;
+            FVector2D Screen;
+            if (!PC->ProjectWorldLocationToScreen(Unit.Position, Screen))
+            {
+                if (bCaptureLayout) ++CaptureStats.OffscreenUnitGlyphs;
+                continue;
+            }
+            const bool bOwn = Unit.OwnerId == PC->OwnerId;
+            const bool bSelected = bOwn && Pawn && Pawn->GetSelectedUnitIds().Contains(Unit.UnitId);
+            const bool bPrimary = bSelected && Unit.UnitId == Pawn->GetSelectedUnitId();
+            const FProofPlayerRecord* UnitOwnerRecord = GS->Snapshot.Players.FindByPredicate([&Unit](const FProofPlayerRecord& Player)
+            {
+                return Player.OwnerId == Unit.OwnerId;
+            });
+            const FLinearColor Color = bSelected ? FLinearColor::Yellow :
+                (UnitOwnerRecord && UnitOwnerRecord->TeamId == LocalTeam ? FLinearColor(0.18f, 0.95f, 0.55f) : FLinearColor(1.f, 0.32f, 0.25f));
+            const float Radius = bSelected ? 18.f : 10.f;
+            // Include line thickness; partially offscreen/occluded anchors are
+            // hidden instead of being clamped into an unrelated border pile.
+            const FBox2D Footprint(Screen - FVector2D(Radius + 1.f, Radius + 1.f),
+                Screen + FVector2D(Radius + 1.f, Radius + 1.f));
+            const int32 Visibility = ClassifyFootprint(Footprint);
+            if (Visibility != 0)
+            {
+                if (bCaptureLayout)
+                {
+                    if (Visibility == 1) ++CaptureStats.OffscreenUnitGlyphs;
+                    else ++CaptureStats.OccludedUnitGlyphs;
+                }
+                continue;
+            }
+            if (bCaptureLayout)
+            {
+                ++CaptureStats.VisibleUnitGlyphs;
+                CaptureStats.bPrimaryGlyphVisible |= bPrimary;
+            }
+            Units.Add({&Unit, Screen, Color, Radius, bPrimary ? 0 : (bSelected ? 1 : 2)});
+            Layout.Reserve(Footprint);
+        }
         for (const FProofResourceRecord& Resource : GS->Snapshot.Resources)
         {
             FVector2D Screen;
-            if (!PC->ProjectWorldLocationToScreen(Resource.Position, Screen))
+            if (!PC->ProjectWorldLocationToScreen(Resource.Position, Screen)) continue;
+            const FBox2D Footprint(Screen - FVector2D(8.f, 8.f), Screen + FVector2D(8.f, 8.f));
+            if (ClassifyFootprint(Footprint) != 0) continue;
+            if (bCaptureLayout) ++CaptureStats.VisibleResourceGlyphs;
+            Resources.Add({&Resource, Screen});
+            Layout.Reserve(Footprint);
+        }
+        Units.Sort([](const FUnitMarker& A, const FUnitMarker& B)
+        {
+            return A.Priority != B.Priority ? A.Priority < B.Priority : A.Unit->UnitId < B.Unit->UnitId;
+        });
+        Resources.Sort([](const FResourceMarker& A, const FResourceMarker& B)
+        {
+            return A.Resource->ResourceId < B.Resource->ResourceId;
+        });
+        const auto DrawTether = [this](const FVector2D& Anchor, const FVector2D& Preferred, const FBox2D& Bounds, const FLinearColor& Color)
+        {
+            if ((Bounds.Min - Preferred).SizeSquared() <= 1.f) return;
+            const FVector2D End(FMath::Clamp(Anchor.X, Bounds.Min.X, Bounds.Max.X),
+                FMath::Clamp(Anchor.Y, Bounds.Min.Y, Bounds.Max.Y));
+            DrawLine(Anchor.X, Anchor.Y, End.X, End.Y, Color, 1.f);
+        };
+        const auto DrawUnitGroup = [this, &Layout, &DrawTether, &CaptureStats, bCaptureLayout, Font, UiScale](const FUnitMarker& Marker)
+        {
+            const FProofUnitRecord& Unit = *Marker.Unit;
+            const float Scale = 0.88f * UiScale;
+            const float Padding = 3.f * UiScale;
+            const float BarWidth = 24.f * UiScale;
+            const float BarHeight = 3.f * UiScale;
+            FString Label;
+            float TextWidth = 0.f, TextHeight = 0.f;
+            if (Marker.Priority == 0)
+            {
+                const TCHAR* KindName = TEXT("C");
+                switch (Unit.Kind)
+                {
+                case EProofUnitKind::Harvester: KindName = TEXT("H"); break;
+                case EProofUnitKind::HQ: KindName = TEXT("HQ"); break;
+                case EProofUnitKind::Refinery: KindName = TEXT("R"); break;
+                case EProofUnitKind::Factory: KindName = TEXT("F"); break;
+                default: break;
+                }
+                Label = FString::Printf(TEXT("%s#%d"), KindName, Unit.UnitId);
+                GetTextSize(Label, TextWidth, TextHeight, Font, Scale);
+            }
+            const FVector2D Size(FMath::Max(TextWidth, BarWidth) + Padding * 2.f,
+                TextHeight + (Label.IsEmpty() ? 0.f : Padding) + BarHeight + Padding * 2.f);
+            const FVector2D Preferred(Marker.Screen.X - Size.X * 0.5f,
+                Marker.Priority == 0 ? Marker.Screen.Y - Marker.Radius - 4.f - Size.Y : Marker.Screen.Y + Marker.Radius + 4.f);
+            FBox2D Bounds;
+            if (!Layout.TryPlace(Preferred, Size, Bounds))
+            {
+                if (bCaptureLayout) ++CaptureStats.OmittedUnitGroups;
+                return;
+            }
+            if (bCaptureLayout)
+            {
+                ++CaptureStats.PlacedUnitGroups;
+                CaptureStats.bPrimaryGroupPlaced |= Marker.Priority == 0;
+            }
+            DrawTether(Marker.Screen, Preferred, Bounds, Marker.Color);
+            DrawRect(FLinearColor(0.015f, 0.025f, 0.035f, 0.9f), Bounds.Min.X, Bounds.Min.Y, Size.X, Size.Y);
+            if (!Label.IsEmpty())
+                DrawText(Label, Marker.Color, Bounds.Min.X + Padding, Bounds.Min.Y + Padding, Font, Scale, false);
+            const float BarX = Bounds.Min.X + (Size.X - BarWidth) * 0.5f;
+            const float BarY = Bounds.Max.Y - Padding - BarHeight;
+            const float MaxHP = Unit.Kind == EProofUnitKind::HQ ? 300.f :
+                (Unit.Kind == EProofUnitKind::Refinery || Unit.Kind == EProofUnitKind::Factory ? 200.f : 100.f);
+            DrawRect(FLinearColor(0.15f, 0.17f, 0.19f, 1.f), BarX, BarY, BarWidth, BarHeight);
+            DrawRect(Marker.Color, BarX, BarY, BarWidth * FMath::Clamp(Unit.HitPoints / MaxHP, 0.f, 1.f), BarHeight);
+        };
+        for (const FUnitMarker& Marker : Units)
+        {
+            const FVector2D& Screen = Marker.Screen;
+            const float Radius = Marker.Radius;
+            DrawLine(Screen.X - Radius, Screen.Y - Radius, Screen.X + Radius, Screen.Y - Radius, Marker.Color, 2.f);
+            DrawLine(Screen.X - Radius, Screen.Y - Radius, Screen.X - Radius, Screen.Y + Radius, Marker.Color, 2.f);
+            DrawLine(Screen.X + Radius, Screen.Y - Radius, Screen.X + Radius, Screen.Y + Radius, Marker.Color, 2.f);
+            DrawLine(Screen.X - Radius, Screen.Y + Radius, Screen.X + Radius, Screen.Y + Radius, Marker.Color, 2.f);
+            if (Marker.Priority < 2) DrawUnitGroup(Marker);
+        }
+        for (const FResourceMarker& Marker : Resources)
+        {
+            const FProofResourceRecord& Resource = *Marker.Resource;
+            const FLinearColor Color = Resource.Remaining > 0 ? FLinearColor(0.25f, 0.88f, 1.f) : FLinearColor(0.5f, 0.55f, 0.6f);
+            DrawLine(Marker.Screen.X - 7.f, Marker.Screen.Y, Marker.Screen.X + 7.f, Marker.Screen.Y, Color, 2.f);
+            DrawLine(Marker.Screen.X, Marker.Screen.Y - 7.f, Marker.Screen.X, Marker.Screen.Y + 7.f, Color, 2.f);
+            const FString Name = FString::Printf(TEXT("ORE #%d"), Resource.ResourceId);
+            const FString Amount = FString::FromInt(Resource.Remaining);
+            const float Scale = 0.86f * UiScale;
+            const float Padding = 3.f * UiScale;
+            float NameWidth = 0.f, NameHeight = 0.f, AmountWidth = 0.f, AmountHeight = 0.f;
+            GetTextSize(Name, NameWidth, NameHeight, Font, Scale);
+            GetTextSize(Amount, AmountWidth, AmountHeight, Font, Scale);
+            const FVector2D Size(FMath::Max(NameWidth, AmountWidth) + Padding * 2.f, NameHeight + AmountHeight + Padding * 3.f);
+            const FVector2D Preferred(Marker.Screen.X - Size.X * 0.5f, Marker.Screen.Y + 10.f);
+            FBox2D Bounds;
+            if (!Layout.TryPlace(Preferred, Size, Bounds))
+            {
+                if (bCaptureLayout) ++CaptureStats.OmittedResourceGroups;
+                continue;
+            }
+            if (bCaptureLayout) ++CaptureStats.PlacedResourceGroups;
+            DrawTether(Marker.Screen, Preferred, Bounds, Color);
+            DrawRect(FLinearColor(0.015f, 0.025f, 0.035f, 0.9f), Bounds.Min.X, Bounds.Min.Y, Size.X, Size.Y);
+            DrawText(Name, Color, Bounds.Min.X + Padding, Bounds.Min.Y + Padding, Font, Scale, false);
+            DrawText(Amount, Color, Bounds.Min.X + Padding, Bounds.Min.Y + Padding * 2.f + NameHeight, Font, Scale, false);
+        }
+        for (const FUnitMarker& Marker : Units)
+            if (Marker.Priority == 2) DrawUnitGroup(Marker);
+    }
+    // Retain legacy command-proof marker behavior.
+    if (!bSkirmish)
+    {
+        for (const FProofUnitRecord& Unit : GS->Snapshot.Units)
+        {
+            if (Unit.HitPoints <= 0.f)
             {
                 continue;
             }
-            const FLinearColor MarkerColor = Resource.Remaining > 0 ? FLinearColor(0.25f, 0.88f, 1.f) : FLinearColor(0.5f, 0.55f, 0.6f);
-            DrawLine(Screen.X - 7.f, Screen.Y, Screen.X + 7.f, Screen.Y, MarkerColor, 2.f);
-            DrawLine(Screen.X, Screen.Y - 7.f, Screen.X, Screen.Y + 7.f, MarkerColor, 2.f);
-            const float ResourceLabelScale = 0.86f * UiScale;
-            const float ResourceLabelY = FMath::Clamp(Screen.Y + 9.f, PanelHeight + Top + 2.f,
-                FMath::Max(PanelHeight + Top + 2.f, Canvas->ClipY - 34.f));
-            DrawText(FString::Printf(TEXT("ORE #%d"), Resource.ResourceId), MarkerColor,
-                FMath::Clamp(Screen.X, 0.f, Canvas->ClipX), ResourceLabelY, Font, ResourceLabelScale, false);
-            DrawText(FString::Printf(TEXT("%d"), Resource.Remaining), MarkerColor,
-                FMath::Clamp(Screen.X, 0.f, Canvas->ClipX), ResourceLabelY + 13.f * UiScale, Font, ResourceLabelScale, false);
-        }
-    }
-    for (const FProofUnitRecord& Unit : GS->Snapshot.Units)
-    {
-        if (Unit.HitPoints <= 0.f)
-        {
-            continue;
-        }
-        FVector2D Screen;
-        if (!PC->ProjectWorldLocationToScreen(Unit.Position, Screen))
-        {
-            continue;
-        }
-        const bool bOwn = Unit.OwnerId == PC->OwnerId;
-        const bool bSelected = bOwn && Pawn && Pawn->GetSelectedUnitIds().Contains(Unit.UnitId);
-        const FProofPlayerRecord* UnitOwner = bSkirmish ? GS->Snapshot.Players.FindByPredicate([&Unit](const FProofPlayerRecord& Player)
-        {
-            return Player.OwnerId == Unit.OwnerId;
-        }) : nullptr;
-        const bool bFriendlyTeam = bSkirmish && UnitOwner && UnitOwner->TeamId == LocalTeam;
-        const FLinearColor Color = bSelected ? FLinearColor::Yellow : (bSkirmish
-            ? (bFriendlyTeam ? FLinearColor(0.18f, 0.95f, 0.55f) : FLinearColor(1.f, 0.32f, 0.25f))
-            : (bOwn ? FLinearColor::Green : FLinearColor(1.f, 0.4f, 0.3f)));
-        const float Radius = bSelected ? 18.f : 10.f;
-        // Screen-space brackets make ownership legible without changing art.
-        DrawLine(Screen.X - Radius, Screen.Y - Radius, Screen.X + Radius, Screen.Y - Radius, Color, 2.f);
-        DrawLine(Screen.X - Radius, Screen.Y - Radius, Screen.X - Radius, Screen.Y + Radius, Color, 2.f);
-        DrawLine(Screen.X + Radius, Screen.Y - Radius, Screen.X + Radius, Screen.Y + Radius, Color, 2.f);
-        DrawLine(Screen.X - Radius, Screen.Y + Radius, Screen.X + Radius, Screen.Y + Radius, Color, 2.f);
-
-        FString Label;
-        if (bSkirmish)
-        {
-            const TCHAR* KindName = TEXT("C");
-            switch (Unit.Kind)
+            FVector2D Screen;
+            if (!PC->ProjectWorldLocationToScreen(Unit.Position, Screen))
             {
-            case EProofUnitKind::Harvester: KindName = TEXT("H"); break;
-            case EProofUnitKind::HQ: KindName = TEXT("HQ"); break;
-            case EProofUnitKind::Refinery: KindName = TEXT("R"); break;
-            case EProofUnitKind::Factory: KindName = TEXT("F"); break;
-            default: break;
+                continue;
             }
-            Label = FString::Printf(TEXT("%s#%d"), KindName, Unit.UnitId);
+            const bool bOwn = Unit.OwnerId == PC->OwnerId;
+            const bool bSelected = bOwn && Pawn && Pawn->GetSelectedUnitIds().Contains(Unit.UnitId);
+            const FLinearColor Color = bSelected ? FLinearColor::Yellow :
+                (bOwn ? FLinearColor::Green : FLinearColor(1.f, 0.4f, 0.3f));
+            const float Radius = bSelected ? 18.f : 10.f;
+            // Screen-space brackets make ownership legible without changing art.
+            DrawLine(Screen.X - Radius, Screen.Y - Radius, Screen.X + Radius, Screen.Y - Radius, Color, 2.f);
+            DrawLine(Screen.X - Radius, Screen.Y - Radius, Screen.X - Radius, Screen.Y + Radius, Color, 2.f);
+            DrawLine(Screen.X + Radius, Screen.Y - Radius, Screen.X + Radius, Screen.Y + Radius, Color, 2.f);
+            DrawLine(Screen.X - Radius, Screen.Y + Radius, Screen.X + Radius, Screen.Y + Radius, Color, 2.f);
 
-            const float LabelScale = 0.88f * UiScale;
-            const float LabelY = FMath::Clamp(Screen.Y - Radius - 13.f * UiScale,
-                PanelHeight + Top + 2.f, FMath::Max(PanelHeight + Top + 2.f, Canvas->ClipY - 28.f));
-            DrawText(Label, Color, FMath::Clamp(Screen.X, 0.f, Canvas->ClipX), LabelY, Font, LabelScale, false);
-
-            float MaxHP = 100.f;
-            if (Unit.Kind == EProofUnitKind::HQ) MaxHP = 300.f;
-            else if (Unit.Kind == EProofUnitKind::Refinery || Unit.Kind == EProofUnitKind::Factory) MaxHP = 200.f;
-            const float BarWidth = 24.f * UiScale;
-            const float BarHeight = 3.f * UiScale;
-            const float BarX = FMath::Clamp(Screen.X - BarWidth * 0.5f, 0.f, FMath::Max(0.f, Canvas->ClipX - BarWidth));
-            const float BarY = FMath::Clamp(Screen.Y + Radius + 2.f * UiScale,
-                PanelHeight + Top + 2.f, FMath::Max(PanelHeight + Top + 2.f, Canvas->ClipY - BarHeight));
-            DrawRect(FLinearColor(0.03f, 0.04f, 0.05f, 0.9f), BarX, BarY, BarWidth, BarHeight);
-            DrawRect(Color, BarX, BarY, BarWidth * FMath::Clamp(Unit.HitPoints / MaxHP, 0.f, 1.f), BarHeight);
-            continue;
-        }
-        else
-        {
-            Label = FString::Printf(TEXT("#%d  HP %.0f"), Unit.UnitId, Unit.HitPoints);
-        }
-        const float MaxLabelX = FMath::Max(0.f, Canvas->ClipX - 4.f);
-        const float LabelX = FMath::Clamp(Screen.X + Radius + 4.f, 0.f, MaxLabelX);
-        const float MaxLabelY = FMath::Max(0.f, Canvas->ClipY - 24.f);
-        const float MinLabelY = FMath::Min(PanelHeight + Top + 2.f, MaxLabelY);
-        const float LabelY = FMath::Clamp(Screen.Y - 10.f, MinLabelY, MaxLabelY);
-        float LabelWidth = 0.f;
-        float LabelHeight = 0.f;
-        GetTextSize(Label, LabelWidth, LabelHeight, Font, FontScale);
-        const float AvailableLabelWidth = FMath::Max(0.f, Canvas->ClipX - LabelX - 4.f);
-        if (LabelWidth > AvailableLabelWidth)
-        {
-            FString FittedLabel = Label;
-            while (!FittedLabel.IsEmpty())
+            const FString Label = FString::Printf(TEXT("#%d  HP %.0f"), Unit.UnitId, Unit.HitPoints);
+            const float MaxLabelX = FMath::Max(0.f, Canvas->ClipX - 4.f);
+            const float LabelX = FMath::Clamp(Screen.X + Radius + 4.f, 0.f, MaxLabelX);
+            const float MaxLabelY = FMath::Max(0.f, Canvas->ClipY - 24.f);
+            const float MinLabelY = FMath::Min(PanelHeight + Top + 2.f, MaxLabelY);
+            const float LabelY = FMath::Clamp(Screen.Y - 10.f, MinLabelY, MaxLabelY);
+            float LabelWidth = 0.f;
+            float LabelHeight = 0.f;
+            GetTextSize(Label, LabelWidth, LabelHeight, Font, FontScale);
+            const float AvailableLabelWidth = FMath::Max(0.f, Canvas->ClipX - LabelX - 4.f);
+            if (LabelWidth > AvailableLabelWidth)
             {
-                FittedLabel.LeftChopInline(1, EAllowShrinking::No);
-                const FString Candidate = FittedLabel + TEXT("…");
-                GetTextSize(Candidate, LabelWidth, LabelHeight, Font, FontScale);
-                if (LabelWidth <= AvailableLabelWidth)
+                FString FittedLabel = Label;
+                while (!FittedLabel.IsEmpty())
                 {
-                    DrawText(Candidate, Color, LabelX, LabelY, Font, FontScale, false);
-                    break;
+                    FittedLabel.LeftChopInline(1, EAllowShrinking::No);
+                    const FString Candidate = FittedLabel + TEXT("…");
+                    GetTextSize(Candidate, LabelWidth, LabelHeight, Font, FontScale);
+                    if (LabelWidth <= AvailableLabelWidth)
+                    {
+                        DrawText(Candidate, Color, LabelX, LabelY, Font, FontScale, false);
+                        break;
+                    }
                 }
             }
-        }
-        else
-        {
-            DrawText(Label, Color, LabelX, LabelY, Font, FontScale, false);
+            else
+            {
+                DrawText(Label, Color, LabelX, LabelY, Font, FontScale, false);
+            }
         }
     }
 
@@ -282,5 +465,17 @@ void AProofHUD::DrawHUD()
             BannerX + 21.f * UiScale, BannerY + 12.f * UiScale, Font, 2.f * UiScale, false);
         DrawText(PC->OwnerId == 1 ? TEXT("N: rematch   Esc: exit") : TEXT("Waiting for owner 1 to request rematch"),
             FLinearColor(0.85f, 0.9f, 1.f), BannerX, BannerY + BannerHeight + 8.f * UiScale, Font, UiScale, false);
+    }
+    if (bCaptureLayout && !CaptureFilename.IsEmpty())
+    {
+        LoggedHUDLayoutCaptures.Add(CaptureFilename);
+        UE_LOG(LogTemp, Display, TEXT("PROOF_HUD_LAYOUT_CAPTURE name=%s epoch=%d revision=%d liveunits=%d visibleeligibleglyphs=%d culledglyphs=%d offscreenglyphs=%d occludedglyphs=%d placedunitgroups=%d omittedunitgroups=%d primaryglyphvisible=%d primarygroupplaced=%d visibleresourceglyphs=%d placedresourcegroups=%d omittedresourcegroups=%d"),
+            *FPaths::GetCleanFilename(CaptureFilename), GS->Snapshot.MatchEpoch, GS->Snapshot.Revision,
+            CaptureStats.LiveUnits, CaptureStats.VisibleUnitGlyphs,
+            CaptureStats.OffscreenUnitGlyphs + CaptureStats.OccludedUnitGlyphs,
+            CaptureStats.OffscreenUnitGlyphs, CaptureStats.OccludedUnitGlyphs,
+            CaptureStats.PlacedUnitGroups, CaptureStats.OmittedUnitGroups,
+            CaptureStats.bPrimaryGlyphVisible ? 1 : 0, CaptureStats.bPrimaryGroupPlaced ? 1 : 0,
+            CaptureStats.VisibleResourceGlyphs, CaptureStats.PlacedResourceGroups, CaptureStats.OmittedResourceGroups);
     }
 }
