@@ -14,17 +14,40 @@ The launcher warns for five seconds, then opens one visible 1280x720 standalone 
 
 The practice map has stationary enemy targets; it is not a completed bot skirmish. Existing generic Rhino proxies and Tesla scenery remain unapproved. Process-local DisableAllScreenMessages removes engine overlay warnings while retaining the underlying log; this is presentation cleanup, not a lighting bake or shader correctness claim.
 
+For the optional arrow-pan checks, add `-CameraPan` to that launcher. Without it, mark those checks `not-enabled`. Shift-click toggles owned live units; Ctrl+1-9 saves selection into a local group and the corresponding unmodified digit recalls it. See [group controls](GROUP_CONTROLS.md) for eligibility and queue limits. The launcher's older console hint names only groups 1-3; source at the reviewed baseline binds all nine.
+
 ## Manual checklist
 
-1. Click the window and select your green unit; confirm its bracket and input counter change on the first click.
+Status: **not performed; physical input and real OS focus remain unverified**. This checklist was reconciled against source `49bd2e080b07476d17889f00687ffa4081ad5a60`; documentation changes do not establish a new build or session result.
+
+1. Click the window and select your green unit; confirm its bracket and input counter change on the first click. Record whether an extra activation click was needed.
 2. Click empty ground to clear, reselect, then right-click clear ground; confirm movement and a host receipt.
 3. Right-click an enemy; confirm accepted attack and decreasing target HP.
 4. Press P; confirm credits decrease and another unit appears. Move the original aside.
-5. Scroll both ways and check zoom and counters.
-6. Alt-Tab away and back; confirm the game does not force itself forward and controls work after returning.
-7. Press Escape to exit.
+5. Shift-click the second owned unit to add it, then Shift-click it again to remove it; confirm both selection highlights and the reported selection count. Restore a known selection.
+6. For each group 1-9, hold Ctrl, press and release the digit, release Ctrl, clear selection on empty ground, then press the digit alone. Confirm the saved IDs/count/primary selection return. Record each slot separately; use different selections for groups 4 and 9 and recall both again to check they stay distinct. Plain recall must not overwrite a saved group with the empty selection.
+7. Scroll both ways and check zoom and counters.
+8. Alt-Tab away and back; confirm the game does not force itself forward and controls work after returning. Observe the HUD's focus/foreground state and confirm no unintended orders or selection changes occur during the transition. A stale or missing observation is `unverified`, not a pass.
+9. If `-CameraPan` is enabled, hold and release each arrow while the viewport is focused and foreground: confirm camera movement and no drift after release. Hold an arrow while Alt-Tabbing away, release it outside the game, then return; confirm background pan is suppressed and no stuck-key drift appears. Source permits pan only after local input setup, with both real viewport focus and foreground true, outside proof/controls automation and scripted skirmish scenarios. Do not use synthetic focus overrides as evidence for this step.
+10. Press Escape to exit; confirm the session stops normally.
 
-Bound-input callback logs/counters and focus flags are observations, not proof of a particular human or OS device. Controls automation still invokes shared handlers directly and cannot satisfy native callback counters. Human verification stays pending until Jared performs and confirms the checklist. No synthetic OS input is used.
+### Record the physical session
+
+Keep the completed record, screenshots and relevant log excerpts together under an ignored D: evidence directory, for example `generated/manual-input-<UTC>/`. Do not overwrite historical reports. Record:
+
+- Tester and UTC start/end; exact launch command/mode and whether pan was enabled.
+- Full tested gameplay source SHA, clean/dirty source state and any diff; compiled module/build evidence and engine version/path. Record the checklist revision separately. If the binary's source identity is unknown, mark the session blocked rather than attributing it to the reviewed baseline.
+- Actual viewport dimensions, window/fullscreen mode, display scaling, keyboard/mouse device descriptions, and initial/returning focus and foreground observations. Record the environment as observed; no OS setting changes or input automation are required.
+
+Use one row per numbered step, with nine separate rows for step 6. Start every result as `unverified`; change it to `pass` only after the tester confirms the physical action and expected observation, `fail` for an observed mismatch, or `blocked` with the missing prerequisite. Use `not-enabled` only for optional pan without its flag.
+
+| Step / group slot | Result | Physical action and observed IDs, count, receipt, camera or focus state | Evidence path / UTC and limitation |
+| --- | --- | --- | --- |
+| Not yet recorded | unverified | No physical session performed by this documentation update | Pending Jared's session |
+
+Native callback/focus logs are supporting observations. They cannot identify a hardware device or prove who pressed a key. Input logs stop after 24 events and detailed focus logs after eight transitions; retain human observations and captures when those limits are reached. The HUD's native summary shows L/R/P/wheel counters; use selection highlights and request status for group outcomes rather than assuming a visible group counter.
+
+Bound-input callback logs/counters and focus flags are observations, not proof of a particular human or OS device. The existing controls outcome scenario invokes shared handlers directly and cannot satisfy native callback counters. The separately labeled [engine-input plan](INPUT_AUTOMATION_PLAN.md) and retained [injected-digit evidence](INTEGRATION_REVIEW.md) concern engine-injected dispatch; they do not establish physical input, actual activation, capture, Alt-Tab or positive focused pan. Human verification stays pending until Jared performs and confirms the checklist. No synthetic OS input is used by this documentation update.
 
 ## Limits and validation
 
