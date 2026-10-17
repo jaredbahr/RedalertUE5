@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Runtime/ProofAttackMoveRuntimeState.h"
+#include "Presentation/ProofCoopContextRuntimeState.h"
 #include "GameFramework/Pawn.h"
 #include "Presentation/ProofSelectionState.h"
 #include "Presentation/ProofGroupOrderQueue.h"
@@ -35,6 +36,13 @@ protected:
     virtual void BeginPlay() override;
 
 private:
+    FProofCoopContextRuntimeState CoopContext;
+    bool CoopContextCheck(bool bCondition, const TCHAR* Reason);
+    bool ProjectCoopContextTarget(int32 TargetId, FVector& Ground);
+    void LogCoopContextPhase(const TCHAR* Phase, int32 BeforeSequence, int32 Unit,
+        int32 Secondary, int32 Target, const FVector& Destination) const;
+    bool PrepareCoopContextFactoryClick();
+    bool TickCoopContextFixture();
     FProofAttackMoveRuntimeState AttackMoveRuntime;
     void TickAttackMoveRuntime(float DeltaSeconds);
     UPROPERTY(VisibleAnywhere) TObjectPtr<UCameraComponent> Camera;

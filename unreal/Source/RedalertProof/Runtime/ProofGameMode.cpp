@@ -271,6 +271,15 @@ FProofCommandResult AProofGameMode::SubmitForOwner(int32 TrustedOwnerId, const F
     TOptional<FProofSnapshot> AttackMoveBefore;
     if (AttackMoveEvidence.Enabled()) AttackMoveBefore.Emplace(Model.GetSnapshot());
     FProofCommandResult Result = Model.Submit(TrustedOwnerId, Command);
+    if (TrustedOwnerId == 1 && FParse::Param(FCommandLine::Get(), TEXT("ProofCoopContextEvidence")))
+    {
+        if (++CoopContextCommandRows > 256)
+        { UE_LOG(LogTemp, Error, TEXT("PROOF_COOP_CONTEXT_ERROR reason=command_row_limit")); FPlatformMisc::RequestExitWithStatus(false, 1); }
+        else UE_LOG(LogTemp, Display, TEXT("PROOF_COOP_CONTEXT_COMMAND {\"owner\":%d,\"epoch\":%d,\"sequence\":%d,\"type\":%d,\"unit\":%d,\"target\":%d,\"x\":%.17g,\"y\":%.17g,\"z\":%.17g,\"accepted\":%d,\"revision\":%d}"),
+            TrustedOwnerId, MatchEpoch, Command.Sequence, static_cast<int32>(Command.Type), Command.UnitId,
+            Command.TargetUnitId, Command.Destination.X, Command.Destination.Y, Command.Destination.Z,
+            Result.bAccepted ? 1 : 0, Model.GetSnapshot().Revision);
+    }
     if (AttackMoveBefore.IsSet()) AttackMoveEvidence.ObserveCommand(MatchEpoch, TrustedOwnerId, Command, Result, AttackMoveBefore.GetValue(), Model.GetSnapshot());
     if (AttackMoveRuntime.bEnabled && Result.bAccepted && TrustedOwnerId == 1)
     {

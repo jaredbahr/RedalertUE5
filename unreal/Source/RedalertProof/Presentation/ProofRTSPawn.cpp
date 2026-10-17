@@ -66,6 +66,7 @@ void AProofRTSPawn::BeginPlay()
         return;
     }
     bFactoryRallyEvidence = FParse::Param(FCommandLine::Get(), TEXT("ProofFactoryRallyEvidence"));
+    CoopContext.bEnabled = FParse::Param(FCommandLine::Get(), TEXT("ProofCoopContextEvidence"));
     FParse::Value(FCommandLine::Get(), TEXT("ProofSkirmishScenario="), SkirmishScenario);
     FParse::Value(FCommandLine::Get(), TEXT("ProofSkirmishOutput="), SkirmishOutput);
     bHUDReadabilityCaptures = FParse::Param(FCommandLine::Get(), TEXT("ProofHUDReadabilityCaptures"));
@@ -217,6 +218,9 @@ void AProofRTSPawn::Tick(float DeltaSeconds)
         FactoryRallySeenAt = FactoryRallySpawnSeenAt = FactoryRallyCaptureAt = -1.f;
         FactoryRallyBeforeIds.Reset();
         FactoryRallyProgressRevisions.Reset();
+        const bool bCoopContextEnabled = CoopContext.bEnabled;
+        CoopContext = FProofCoopContextRuntimeState();
+        CoopContext.bEnabled = bCoopContextEnabled;
         RequestStatus = TEXT("Match state refreshed. Select an owned live unit.");
         LastSeenMatchEpoch = GS->Snapshot.MatchEpoch;
     }
@@ -602,10 +606,8 @@ void AProofRTSPawn::OrderUnderCursor()
     {
         if (PC->IsProofAutomation()) { RequestStatus = TEXT("Manual orders disabled during automation."); return; }
         const int32 TargetId = FindUnitUnderCursor(false);
-        const FProofUnitRecord* Target = GS->Snapshot.Units.FindByPredicate(
-            [TargetId](const FProofUnitRecord& Unit) { return Unit.UnitId == TargetId; });
         TArray<FProofCommand> Commands;
-        if (Target && Target->OwnerId != PC->OwnerId)
+        if (FProofSelectionState::IsHostileTarget(GS->Snapshot, PC->OwnerId, TargetId))
             Commands = Selection.PlanAttack(GS->Snapshot, PC->OwnerId, TargetId);
         else
         {
@@ -626,9 +628,7 @@ void AProofRTSPawn::OrderUnderCursor()
     if (GS->Snapshot.bSkirmish && Selected && Selected->Kind == EProofUnitKind::Factory)
     {
         const int32 PointedId = FindUnitUnderCursor(false);
-        const FProofUnitRecord* Pointed = GS->Snapshot.Units.FindByPredicate(
-            [PointedId](const FProofUnitRecord& Unit) { return Unit.UnitId == PointedId; });
-        if (Pointed && Pointed->OwnerId != PC->OwnerId)
+        if (FProofSelectionState::IsHostileTarget(GS->Snapshot, PC->OwnerId, PointedId))
         {
             RequestStatus = TEXT("Factory rally requires ground; right-click away from enemy units.");
             return;
@@ -664,9 +664,7 @@ void AProofRTSPawn::OrderUnderCursor()
         }
     }
     const int32 TargetId = FindUnitUnderCursor(false);
-    const FProofUnitRecord* Target = GS->Snapshot.Units.FindByPredicate(
-        [TargetId](const FProofUnitRecord& Unit) { return Unit.UnitId == TargetId; });
-    if (Target && Target->OwnerId != PC->OwnerId)
+    if (FProofSelectionState::IsHostileTarget(GS->Snapshot, PC->OwnerId, TargetId))
     {
         Command.Type = EProofCommandType::Attack;
         Command.TargetUnitId = TargetId;
@@ -1354,6 +1352,8 @@ void AProofRTSPawn::TickSkirmishScenario(float DeltaSeconds)
     { FinishSkirmishScenario(false, TEXT("camera_edge_requires_victory_readability")); return; }
     if (bHUDReadabilityCaptures && SkirmishScenario != TEXT("Victory"))
     { FinishSkirmishScenario(false, TEXT("readability_requires_victory")); return; }
+    if (CoopContext.bEnabled && (!bFactoryRallyEvidence || SkirmishScenario != TEXT("Coop")))
+    { FinishSkirmishScenario(false, TEXT("context_requires_cooperative_rally")); return; }
     SkirmishElapsed += DeltaSeconds;
     if (SkirmishElapsed > 220.f) { FinishSkirmishScenario(false, TEXT("scenario_timeout")); return; }
     AProofPlayerController* PC = Cast<AProofPlayerController>(GetController());
@@ -1433,7 +1433,8 @@ void AProofRTSPawn::TickSkirmishScenario(float DeltaSeconds)
             const int32 ExpectedWinner = SkirmishScenario == TEXT("Defeat") ? 1 : 0;
             const bool bPass = Snapshot.WinnerTeam == ExpectedWinner && bSkirmishBuilt && bSkirmishGathered
                 && bSkirmishProduced && bSkirmishBotRefinery && bSkirmishBotFactory && bSkirmishBotProduced
-                && bSkirmishBotAttacked && bSkirmishBaseCaptured && (!bFactoryRallyEvidence || FactoryRallyStage == 4);
+                && bSkirmishBotAttacked && bSkirmishBaseCaptured && (!bFactoryRallyEvidence || FactoryRallyStage == 4)
+                && (!CoopContext.bEnabled || CoopContext.Stage == 8);
             if (bPass && bHUDReadabilityCaptures && !TickHUDReadabilityCaptures()) return;
             FinishSkirmishScenario(bPass, bPass ? TEXT("complete_loop") : TEXT("outcome_or_evidence"));
         }
@@ -1528,6 +1529,7 @@ void AProofRTSPawn::TickSkirmishScenario(float DeltaSeconds)
     }
     if (SkirmishStage < 3) return;
     if (bFactoryRallyEvidence && !TickFactoryRallyFixture()) return;
+    if (CoopContext.bEnabled && !TickCoopContextFixture()) return;
     if (bSkirmishBuilt && bSkirmishGathered && !bSkirmishBaseCaptureRequested)
     {
         IFileManager::Get().MakeDirectory(*SkirmishOutput, true);
@@ -1642,7 +1644,11 @@ bool AProofRTSPawn::TickFactoryRallyFixture()
         FactoryRallyNativeRight = ManualRightPresses;
         FactoryRallyDestination = Factory->Position + FVector(-600, -350, 0);
         // Synthetic shared-handler invocation, not native physical input.
-        if (!SetFactoryRally(FactoryRallyDestination)) { FinishSkirmishScenario(false, TEXT("factory_rally_not_sent")); return false; }
+        if (CoopContext.bEnabled)
+        {
+            if (!PrepareCoopContextFactoryClick()) return false;
+        }
+        else if (!SetFactoryRally(FactoryRallyDestination)) { FinishSkirmishScenario(false, TEXT("factory_rally_not_sent")); return false; }
         FactoryRallySetSequence = LastRequestedSequence;
         FactoryRallyStage = 1;
         return false;
