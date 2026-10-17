@@ -9,6 +9,9 @@
 #include "HAL/PlatformMisc.h"
 #include "HAL/FileManager.h"
 #include "Misc/Paths.h"
+#include "Dom/JsonObject.h"
+#include "Serialization/JsonSerializer.h"
+#include "Serialization/JsonWriter.h"
 
 AProofGameMode::AProofGameMode()
 {
@@ -19,6 +22,7 @@ AProofGameMode::AProofGameMode()
     HUDClass = AProofHUD::StaticClass();
     bAutomation = FParse::Param(FCommandLine::Get(), TEXT("ProofAutomation"));
     bControlsAutomation = FParse::Param(FCommandLine::Get(), TEXT("ProofControlsAutomation"));
+    bTypeSelectionControls = FParse::Param(FCommandLine::Get(), TEXT("ProofTypeSelectionControls"));
     bSkirmish = FParse::Param(FCommandLine::Get(), TEXT("ProofSkirmish"));
     bLifecycleFixtureHost = bSkirmish && FParse::Param(FCommandLine::Get(), TEXT("ProofLifecycleFixtureHost"));
     FParse::Value(FCommandLine::Get(), TEXT("ProofLifecycleControl="), LifecycleControl);
@@ -31,6 +35,12 @@ AProofGameMode::AProofGameMode()
 void AProofGameMode::BeginPlay()
 {
     Super::BeginPlay();
+    if (bTypeSelectionControls && (!bControlsAutomation || bSkirmish || FParse::Param(FCommandLine::Get(), TEXT("ProofStopControls"))))
+    {
+        UE_LOG(LogTemp, Error, TEXT("PROOF_TYPE_SELECTION_ERROR incompatible_fixture_flags"));
+        FPlatformMisc::RequestExitWithStatus(false, 1);
+        return;
+    }
     if (bSkirmish)
     {
         if (!Model.SeedSkirmishPlayer(ProofOwnerIds::Bot, 1, FVector(1400.f, 0.f, 0.f)))
@@ -232,6 +242,7 @@ void AProofGameMode::ResetSkirmishFixtureState()
 
 FProofCommandResult AProofGameMode::SubmitForOwner(int32 TrustedOwnerId, const FProofCommand& Command)
 {
+    if (bTypeSelectionControls && TrustedOwnerId == 1) ++TypeSelectionOwnerSubmissions;
     if (bSkirmish && Command.MatchEpoch != MatchEpoch)
     {
         FProofCommandResult Result;
@@ -400,6 +411,35 @@ void AProofGameMode::Publish()
         State->Publish(Snapshot);
         RefineryEvidence.LogSnapshot(Snapshot, TEXT("host"), 0);
         if (StopEvidence.Enabled()) { StopEvidence.LogSnapshot(Snapshot, TEXT("host"), 0); }
+        if (bTypeSelectionControls)
+        {
+            if (++TypeSelectionClockRows > 1024)
+            {
+                UE_LOG(LogTemp, Error, TEXT("PROOF_TYPE_SELECTION_ERROR clock_row_cap"));
+                FPlatformMisc::RequestExitWithStatus(false, 1);
+            }
+            else
+            {
+                TSharedRef<FJsonObject> Row = MakeShared<FJsonObject>();
+                Row->SetNumberField(TEXT("epoch"), Snapshot.MatchEpoch); Row->SetNumberField(TEXT("revision"), Snapshot.Revision);
+                Row->SetStringField(TEXT("digest"), Snapshot.ComputeDigest());
+                Row->SetNumberField(TEXT("simulatedSeconds"), TypeSelectionSimulationSeconds);
+                Row->SetNumberField(TEXT("owner1Submissions"), TypeSelectionOwnerSubmissions);
+                TArray<TSharedPtr<FJsonValue>> Units;
+                for (const FProofUnitRecord& Unit : Snapshot.Units)
+                {
+                    TSharedRef<FJsonObject> U = MakeShared<FJsonObject>();
+                    U->SetNumberField(TEXT("id"),Unit.UnitId); U->SetNumberField(TEXT("owner"),Unit.OwnerId);
+                    U->SetNumberField(TEXT("kind"),static_cast<int32>(Unit.Kind)); U->SetNumberField(TEXT("hp"),Unit.HitPoints); U->SetNumberField(TEXT("cargo"),Unit.Cargo);
+                    U->SetNumberField(TEXT("x"),Unit.Position.X); U->SetNumberField(TEXT("y"),Unit.Position.Y); U->SetNumberField(TEXT("z"),Unit.Position.Z);
+                    Units.Add(MakeShared<FJsonValueObject>(U));
+                }
+                Row->SetArrayField(TEXT("units"),Units);
+                FString Json; const TSharedRef<TJsonWriter<TCHAR,TCondensedJsonPrintPolicy<TCHAR>>> Writer=TJsonWriterFactory<TCHAR,TCondensedJsonPrintPolicy<TCHAR>>::Create(&Json);
+                FJsonSerializer::Serialize(Row,Writer);
+                UE_LOG(LogTemp,Display,TEXT("PROOF_TYPE_SELECTION_CLOCK %s"),*Json);
+            }
+        }
     }
 }
 
@@ -487,6 +527,7 @@ void AProofGameMode::Tick(float DeltaSeconds)
         const FProofSnapshot Before = bControlsAutomation ? Model.GetSnapshot() : FProofSnapshot();
         Model.Advance(0.1f);
         if (StopEvidence.Enabled()) { StopEvidence.ObserveAdvance(MatchEpoch, 0.1f); }
+        if (bTypeSelectionControls) TypeSelectionSimulationSeconds += static_cast<double>(0.1f);
         if (bControlsAutomation) ObserveControlsStep(Before, Model.GetSnapshot());
         Accumulator -= 0.1f;
         if (++StepsSincePublish >= 2) { Publish(); StepsSincePublish = 0; }

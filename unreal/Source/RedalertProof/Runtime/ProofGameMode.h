@@ -46,6 +46,10 @@ private:
     int32 BotAccepted = 0;
     bool bAutomation = false;
     bool bControlsAutomation = false;
+    bool bTypeSelectionControls = false;
+    double TypeSelectionSimulationSeconds = 0.0;
+    int32 TypeSelectionOwnerSubmissions = 0;
+    int32 TypeSelectionClockRows = 0;
     bool bSkirmish = false;
     bool bSkirmishFixtureHost = false;
     bool bLifecycleFixtureHost = false;

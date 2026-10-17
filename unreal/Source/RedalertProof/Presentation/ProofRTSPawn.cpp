@@ -43,6 +43,13 @@ AProofRTSPawn::AProofRTSPawn()
 void AProofRTSPawn::BeginPlay()
 {
     Super::BeginPlay();
+    bTypeSelectionControls = FParse::Param(FCommandLine::Get(), TEXT("ProofTypeSelectionControls"));
+    if (bTypeSelectionControls && (FParse::Param(FCommandLine::Get(), TEXT("ProofStopControls")) || FParse::Param(FCommandLine::Get(), TEXT("ProofSkirmish")) || !FParse::Param(FCommandLine::Get(), TEXT("ProofControlsAutomation"))))
+    {
+        UE_LOG(LogTemp, Error, TEXT("PROOF_TYPE_SELECTION_ERROR incompatible_fixture_flags"));
+        FPlatformMisc::RequestExitWithStatus(false, 1);
+        return;
+    }
     bGraphicsWarmup = FParse::Param(FCommandLine::Get(), TEXT("ProofGraphicsWarmup"));
     bStopControls = FParse::Param(FCommandLine::Get(), TEXT("ProofStopControls"));
     FParse::Value(FCommandLine::Get(), TEXT("ProofSkirmishScenario="), SkirmishScenario);
@@ -89,6 +96,7 @@ void AProofRTSPawn::SetupPlayerInputComponent(UInputComponent* Input)
     Input->BindKey(EKeys::R, IE_Pressed, this, &AProofRTSPawn::OnManualRefinery);
     Input->BindKey(EKeys::F, IE_Pressed, this, &AProofRTSPawn::OnManualFactory);
     Input->BindKey(EKeys::N, IE_Pressed, this, &AProofRTSPawn::OnManualRematch);
+    Input->BindKey(EKeys::T, IE_Pressed, this, &AProofRTSPawn::OnManualTypeSelect);
     Input->BindKey(EKeys::One, IE_Pressed, this, &AProofRTSPawn::OnManualGroupOne);
     Input->BindKey(EKeys::Two, IE_Pressed, this, &AProofRTSPawn::OnManualGroupTwo);
     Input->BindKey(EKeys::Three, IE_Pressed, this, &AProofRTSPawn::OnManualGroupThree);
@@ -328,6 +336,35 @@ void AProofRTSPawn::OnManualSelect()
         SelectedUnitId == INDEX_NONE ? TEXT("selection cleared") : FString::Printf(TEXT("selected unit %d"), SelectedUnitId));
 }
 
+void AProofRTSPawn::OnManualTypeSelect()
+{
+    SelectVisibleType();
+    // Only the bound callback records a native input edge. Shared actions and
+    // model tests cannot produce a physical-input verification claim.
+    RecordManualInput(TEXT("T"), ManualTypeSelectPresses, RequestStatus);
+}
+
+void AProofRTSPawn::SelectVisibleType()
+{
+    const AProofPlayerController* PC = Cast<AProofPlayerController>(GetController());
+    const AProofGameState* GS = GetWorld() ? GetWorld()->GetGameState<AProofGameState>() : nullptr;
+    if (!PC || !GS || !PC->IsLocalController()) return;
+    int32 Width = 0, Height = 0;
+    PC->GetViewportSize(Width, Height);
+    if (Width <= 0 || Height <= 0) { RequestStatus = TEXT("Type selection needs an active viewport."); return; }
+    TArray<int32> VisibleIds;
+    for (const FProofUnitRecord& Unit : GS->Snapshot.Units)
+    {
+        if (Unit.OwnerId != PC->OwnerId || !(Unit.HitPoints > 0.f)) continue;
+        FVector2D Screen;
+        if (PC->ProjectWorldLocationToScreen(Unit.Position, Screen)
+            && FProofSelectionState::IsViewportCenterVisible(Screen, FIntPoint(Width, Height))) VisibleIds.Add(Unit.UnitId);
+    }
+    const bool bSelected = Selection.SelectVisibleType(GS->Snapshot, PC->OwnerId, VisibleIds);
+    SelectedUnitId = Selection.GetPrimaryUnitId();
+    RequestStatus = bSelected ? FString::Printf(TEXT("%d visible owned units of the same generic kind selected."), Selection.GetSelectedUnitIds().Num())
+        : TEXT("Select an owned live unit before type selection.");
+}
 void AProofRTSPawn::OnManualGroupOne() { HandleManualGroup(1); }
 void AProofRTSPawn::OnManualGroupTwo() { HandleManualGroup(2); }
 void AProofRTSPawn::OnManualGroupThree() { HandleManualGroup(3); }
@@ -924,6 +961,7 @@ void AProofRTSPawn::TickControlsAutomation(float DeltaSeconds)
         ControlsStageTime = ControlsElapsed;
         ControlsStep = 6;
     }
+    else if (ControlsStep == 7 && bTypeSelectionControls) TickTypeSelectionControls();
     else if (ControlsStep == 6 && ControlsElapsed - ControlsStageTime > 1.f)
     {
         const bool bScreenshots = IFileManager::Get().FileSize(*FPaths::Combine(ControlsOutput, TEXT("01-selected.png"))) > 1024
@@ -932,8 +970,8 @@ void AProofRTSPawn::TickControlsAutomation(float DeltaSeconds)
         if (!bStopControls)
         {
             ControlsStep = 7;
-            // All required default evidence is complete. Keep the existing exit.
-            FinishControls(true, TEXT("select_clear_zoom_project_deproject_move_attack_produce_receipts_snapshots_capture"));
+            // Type selection owns step seven; the ordinary path keeps its exit.
+            if (!bTypeSelectionControls) FinishControls(true, TEXT("select_clear_zoom_project_deproject_move_attack_produce_receipts_snapshots_capture"));
             return;
         }
         ControlsStopNativeBaseline = ManualStopPresses;
