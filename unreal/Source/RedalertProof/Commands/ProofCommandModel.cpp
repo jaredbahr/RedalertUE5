@@ -56,6 +56,39 @@ bool FProofCommandModel::IsInWorld(const FVector& Position)
         && FMath::Abs(Position.Y) <= WorldExtent && FMath::Abs(Position.Z) <= WorldExtent;
 }
 
+bool FProofCommandModel::FindSkirmishSpawn(const FProofSnapshot& Snapshot, const FVector& Anchor, FVector& OutSpawn)
+{
+    const FVector Origin = Anchor;
+    OutSpawn = FVector::ZeroVector;
+    if (!IsInWorld(Origin)) { return false; }
+    // Preserve the existing production search and its preference order.
+    constexpr double SpawnStep = 300.0;
+    constexpr double MinimumCenterDistanceSquared = 260.0 * 260.0;
+    const FVector Directions[] = {
+        FVector(1, 0, 0), FVector(-1, 0, 0), FVector(0, 1, 0), FVector(0, -1, 0),
+        FVector(1, 1, 0), FVector(-1, 1, 0), FVector(1, -1, 0), FVector(-1, -1, 0)
+    };
+    for (int32 Ring = 1; Ring <= 3; ++Ring)
+    {
+        for (const FVector& Direction : Directions)
+        {
+            const FVector Candidate = Origin + Direction * (SpawnStep * Ring);
+            if (!IsInWorld(Candidate)) { continue; }
+            bool bClear = true;
+            for (const FProofUnitRecord& Other : Snapshot.Units)
+            {
+                if (Other.HitPoints > 0.f && FVector::DistSquared(Candidate, Other.Position) < MinimumCenterDistanceSquared)
+                {
+                    bClear = false;
+                    break;
+                }
+            }
+            if (bClear) { OutSpawn = Candidate; return true; }
+        }
+    }
+    return false;
+}
+
 void FProofCommandModel::BumpRevision()
 {
     if (State.Revision < MAX_int32) { ++State.Revision; }
@@ -279,41 +312,7 @@ FProofCommandResult FProofCommandModel::Submit(int32 TrustedOwnerId, const FProo
         FVector Spawn = Anchor ? Anchor->Position : FVector::ZeroVector;
         if (State.bSkirmish)
         {
-            // The cursor picks the first marker at a shared screen position.
-            // Search a fixed, bounded grid so each new combat unit has its own
-            // selectable center, including when several units are produced at
-            // one factory. Legacy proof production stays at its anchor.
-            constexpr double SpawnStep = 300.0;
-            constexpr double MinimumCenterDistanceSquared = 260.0 * 260.0;
-            const FVector Directions[] = {
-                FVector(1, 0, 0), FVector(-1, 0, 0), FVector(0, 1, 0), FVector(0, -1, 0),
-                FVector(1, 1, 0), FVector(-1, 1, 0), FVector(1, -1, 0), FVector(-1, -1, 0)
-            };
-            bool bFoundSpawn = false;
-            for (int32 Ring = 1; Ring <= 3 && !bFoundSpawn; ++Ring)
-            {
-                for (const FVector& Direction : Directions)
-                {
-                    const FVector Candidate = Anchor->Position + Direction * (SpawnStep * Ring);
-                    if (!IsInWorld(Candidate)) { continue; }
-                    bool bClear = true;
-                    for (const FProofUnitRecord& Other : State.Units)
-                    {
-                        if (Other.HitPoints > 0.f && FVector::DistSquared(Candidate, Other.Position) < MinimumCenterDistanceSquared)
-                        {
-                            bClear = false;
-                            break;
-                        }
-                    }
-                    if (bClear)
-                    {
-                        Spawn = Candidate;
-                        bFoundSpawn = true;
-                        break;
-                    }
-                }
-            }
-            if (!bFoundSpawn) { return Reject(TEXT("spawn")); }
+            if (!FindSkirmishSpawn(State, Anchor->Position, Spawn)) { return Reject(TEXT("spawn")); }
         }
         if (AddUnit(TrustedOwnerId, Spawn, EProofUnitKind::Combat, 100.f) == INDEX_NONE) { return Reject(TEXT("capacity")); }
         Player->Credits -= ProductionCost;
@@ -324,7 +323,8 @@ FProofCommandResult FProofCommandModel::Submit(int32 TrustedOwnerId, const FProo
         FProofPlayerRecord* Player = State.Players.FindByPredicate([TrustedOwnerId](const FProofPlayerRecord& P) { return P.OwnerId == TrustedOwnerId; });
         const int32 Cost = bBuildRefinery ? RefineryCost : FactoryCost;
         if (!Player || Player->Credits < Cost) { return Reject(TEXT("resources")); }
-        if (CountLiveOwnerUnits(TrustedOwnerId) >= SkirmishRecordCap) { return Reject(TEXT("capacity")); }
+        const int32 RequiredRecords = bBuildRefinery ? 2 : 1;
+        if (CountLiveOwnerUnits(TrustedOwnerId) > SkirmishRecordCap - RequiredRecords) { return Reject(TEXT("capacity")); }
         bool bNearHQ = false;
         for (const FProofUnitRecord& Unit : State.Units)
         {
@@ -341,10 +341,15 @@ FProofCommandResult FProofCommandModel::Submit(int32 TrustedOwnerId, const FProo
             }
         }
         if (!bNearHQ) { return Reject(TEXT("placement")); }
-        if (AddUnit(TrustedOwnerId, Command.Destination, bBuildRefinery ? EProofUnitKind::Refinery : EProofUnitKind::Factory, 200.f) == INDEX_NONE)
-        {
-            return Reject(TEXT("capacity"));
-        }
+        if (NextUnitId > MAX_int32 - RequiredRecords) { return Reject(TEXT("capacity")); }
+        FVector MinerSpawn = FVector::ZeroVector;
+        if (bBuildRefinery && !FindSkirmishSpawn(State, Command.Destination, MinerSpawn)) { return Reject(TEXT("spawn")); }
+        // All capacity, ID and spawn checks precede mutation. Every spawn is at
+        // least 300 cm from the new refinery's anchor, so it is also distinct
+        // from that not-yet-inserted structure. These allocations cannot fail
+        // after the synchronous preflight, and a rejection cannot consume IDs.
+        AddUnit(TrustedOwnerId, Command.Destination, bBuildRefinery ? EProofUnitKind::Refinery : EProofUnitKind::Factory, 200.f);
+        if (bBuildRefinery) { AddUnit(TrustedOwnerId, MinerSpawn, EProofUnitKind::Harvester, 100.f); }
         Player->Credits -= Cost;
     }
     else

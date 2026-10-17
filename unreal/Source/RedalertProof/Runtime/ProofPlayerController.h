@@ -4,6 +4,7 @@
 #include "GameFramework/PlayerController.h"
 #include "Commands/ProofCommandModel.h"
 #include "Commands/ProofIngressBudget.h"
+#include "Runtime/ProofRefineryMinerEvidence.h"
 #include "ProofPlayerController.generated.h"
 
 class AProofGameState;
@@ -31,6 +32,7 @@ public:
     virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 private:
     FProofIngressBudget IngressBudget;
+    FProofRefineryMinerEvidence RefineryEvidence;
     bool AdmitIngress();
     bool bIngressFixture = false;
     bool bLifecycleFixture = false;

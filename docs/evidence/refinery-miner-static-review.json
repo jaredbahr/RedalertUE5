@@ -1,0 +1,18 @@
+{
+  "status": "static-only",
+  "baseCommit": "b6e447c9a8b3fcfcd342a462f1beb2fea344bb19",
+  "independentReviews": [
+    "core atomicity, bot planning/rotation, tests and runner: no static blockers",
+    "other tests/runtime fixture compatibility: no definite unrelated count/ID break"
+  ],
+  "preparedNewSkirmishCases": 8,
+  "preparedTotalSkirmishCases": 22,
+  "sourceInventoryMatchesRunner": true,
+  "powerShellParseErrors": 0,
+  "sourceChecks": "whitespace clean; no engine source inherited from PR39/40 main reconciliation",
+  "knownRuntimeEvidenceGap": "Boolean built/gathered flags do not identify a granted miner; track explicit pair/miner IDs, cargo/deposit and Coop replicated state before acceptance.",
+  "cppCompiled": false,
+  "unrealTestsRun": false,
+  "engineJobsLaunched": 0,
+  "mergeReady": false
+}

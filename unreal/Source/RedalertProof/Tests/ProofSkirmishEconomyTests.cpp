@@ -116,13 +116,13 @@ bool FProofSkirmishHarvestTest::RunTest(const FString&)
     TestEqual(TEXT("Depleted resource rejected"), Model.Submit(1, Command(3, EProofCommandType::Gather, Harvester, Ore)).Reason, FString(TEXT("resource")));
     TestTrue(TEXT("Factory built"), Model.Submit(1, Command(4, EProofCommandType::BuildFactory, INDEX_NONE, INDEX_NONE, FVector(-300, 0, 0))).bAccepted);
     const int32 Factory = FirstKind(Model.GetSnapshot(), 1, EProofUnitKind::Factory);
-    for (int32 Index = 0; Index < 8; ++Index)
+    for (int32 Index = 0; Index < 7; ++Index)
     {
         TestTrue(TEXT("Produce up to live cap"), Model.Submit(1, Command(5 + Index, EProofCommandType::Produce, Factory)).bAccepted);
     }
-    TestEqual(TEXT("Ninth combat unit is over cap"), Model.Submit(1, Command(13, EProofCommandType::Produce, Factory)).Reason, FString(TEXT("capacity")));
+    TestEqual(TEXT("Eighth combat unit is over cap including the granted miner"), Model.Submit(1, Command(12, EProofCommandType::Produce, Factory)).Reason, FString(TEXT("capacity")));
     const FProofSnapshot Capped = Model.GetSnapshot();
-    TestEqual(TEXT("Failed production does not spend"), PlayerById(Capped, 1)->Credits, 200);
+    TestEqual(TEXT("Failed production does not spend"), PlayerById(Capped, 1)->Credits, 250);
     TestEqual(TEXT("Live record cap"), Capped.Units.Num(), FProofCommandModel::SkirmishRecordCap);
     for (int32 A = 0; A < Capped.Units.Num(); ++A)
     {

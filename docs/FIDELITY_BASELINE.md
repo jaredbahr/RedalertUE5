@@ -16,7 +16,7 @@ Authorized local lookup found a residual RA2 folder in an existing Steam library
 | Production takes time; funds shortages suspend it until money returns. | RA2 p17 | `Submit` immediately debits the full price and creates the record. No production job, progress, hold/resume or queue. |
 | Power shortages affect production and some defenses/radar. | RA2 p18 | No power model; a Tesla mesh is only a display proxy. |
 | Idle units engage approaching enemies; Guard adds return-to-position behavior. | RA2 pp21,23 | Previously required explicit Attack. This branch adds only the stationary, in-weapon-range idle-fire subset described below. |
-| Refineries include a miner; Barracks and War Factories produce different categories. | RA2 pp38,41 | One starter Harvester is seeded independently. A new Refinery grants no miner. One Factory produces only generic Combat. |
+| Refineries include a miner; Barracks and War Factories produce different categories. | RA2 pp38,41 | One starter Harvester is seeded independently. The [validated refinery-miner slice](REFINERY_MINER.md) adds one unarmed Harvester per accepted refinery; exact-source model, mining/deposit and co-op replication evidence is recorded. Prices, timing and art remain prototype values. One Factory still produces only generic Combat. |
 | Conscript, Rhino and armed War Miner have distinct roles. | RA2 pp33-35 | Generic Combat does not distinguish infantry/vehicles/armor; generic Harvester remains unarmed. Mesh names do not prove these roles. |
 | Slave Miner uses deployed workers/local processing; Industrial Plant modifies vehicle production. | Yuri manual: Slave Miner, Industrial Plant | Neither system exists. Do not treat the generic return-to-refinery Harvester as Yuri mining. |
 
@@ -45,11 +45,11 @@ The manual supports automatic engagement, but the stationary restriction, neares
 
 Automatic acquisition scans candidates for each eligible unit. Its cost is unmeasured; the earlier legacy-mode stress workload does not exercise this new skirmish path. Include acquisition in the eventual combined active-scale proof before increasing practical army limits.
 
-## Validation and retained failure
+## Historical idle-fire validation and retained failure
 
-Latest compiled/tested source is `3cc410c8125004207e9ea2e8164c8eed3b87e605`. The last build passed in four actions / 9.40 seconds total with installed UE5.7.4. Gameplay model source is unchanged from `1f91ea79f623bf5a9c7a8eee470427cacd071eb3`; the later commit changes only stale-target handling inside the scripted match fixture. All tests started with clean source. Model/scenario jobs used two logical CPUs; the existing graphics warmup used four. Jobs were serialized, with existing deadlines, D: cache/temp settings and owned-process cleanup. Polling policies are not hard confinement.
+The historical idle-fire batch compiled/tested source is `3cc410c8125004207e9ea2e8164c8eed3b87e605`. Its last build passed in four actions / 9.40 seconds total with installed UE5.7.4. Gameplay model source is unchanged from `1f91ea79f623bf5a9c7a8eee470427cacd071eb3`; the later commit changes only stale-target handling inside the scripted match fixture. All tests started with clean source. Model/scenario jobs used two logical CPUs; the existing graphics warmup used four. Jobs were serialized, with existing deadlines, D: cache/temp settings and owned-process cleanup. Polling policies are not hard confinement.
 
-Evidence below is under ignored `D:/UserTemp/RedalertUE5-fidelity-baseline/generated/`. Short revision labels identify the exact full hashes above; later commits update documentation only.
+Evidence below is under ignored `D:/UserTemp/RedalertUE5-fidelity-baseline/generated/`. Short revision labels identify the exact full hashes above. Current refinery-miner validation is recorded separately in [its validation ledger](REFINERY_MINER_VALIDATION.md).
 
 | Gate | Tested revision | Result | Directory |
 | --- | --- | --- | --- |

@@ -130,6 +130,10 @@ public:
     bool SeedSkirmishPlayer(int32 OwnerId, int32 TeamId, const FVector& HQPosition);
     // Vacate one skirmish seat without disturbing surviving players or the bot.
     bool RemoveSkirmishPlayer(int32 OwnerId);
+    // Pure shared placement for production and refinery grants. Checks all live
+    // centers in fixed order (300 cm steps, three rings, >=260 cm separation).
+    // Anchor/candidates must be finite and in-world; failure clears OutSpawn.
+    static bool FindSkirmishSpawn(const FProofSnapshot& Snapshot, const FVector& Anchor, FVector& OutSpawn);
     FProofCommandResult Submit(int32 TrustedOwnerId, const FProofCommand& Command);
     // Finite nonnegative advances reset the test command allowance; zero does
     // not simulate. Positive advances compute movement then simultaneous damage.
@@ -138,6 +142,10 @@ public:
     void Reset();
 
 private:
+#if WITH_DEV_AUTOMATION_TESTS
+    // Bounded exhaustion coverage without exposing a production ID setter.
+    friend class FProofRefineryMinerIdBoundaryTest;
+#endif
     struct FOrder
     {
         EProofCommandType Type = EProofCommandType::Move;

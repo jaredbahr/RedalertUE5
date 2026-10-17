@@ -1,0 +1,96 @@
+{
+  "diagnosis": "No-space fixture400cm grid leaves legal spawn centers at(+/-600,+/-600),282.843cm from nearest blockers, beyond260clearance. Prepared fix tightens fixture300grid and asserts all12site preconditions; final expected behavior assertion unchanged.",
+  "buildSeconds": 15.42,
+  "testedCommit": "e40c59be0fff9efc7b6b556a124003e0f63c211a",
+  "resultSha256": "a9e4c0d5512cab2fd48b371cdebc441a95250abe1cb3a4e865f74c5f2eb574ae",
+  "models": {
+    "head": "e40c59be0fff9efc7b6b556a124003e0f63c211a",
+    "dirtyWorkingTree": false,
+    "startedUtc": "2026-10-17T02:55:07.4636782Z",
+    "finishedUtc": "2026-10-17T02:55:20.2841188Z",
+    "elapsedSeconds": 12.893,
+    "passed": false,
+    "testCount": 22,
+    "succeeded": 21,
+    "failed": 1,
+    "runDirectory": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\skirmish-model-20261017-025507-383",
+    "error": "Expected all exact named skirmish tests successful and zero failures.",
+    "cpuPolicy": {
+      "affinityMask": 3,
+      "priority": "Normal",
+      "polls": 60,
+      "repairs": 7,
+      "events": [
+        {
+          "utc": "2026-10-17T02:55:07.5650269Z",
+          "beforePriority": "Normal",
+          "beforeMask": 255
+        },
+        {
+          "utc": "2026-10-17T02:55:07.9854102Z",
+          "beforePriority": "Normal",
+          "beforeMask": 255
+        },
+        {
+          "utc": "2026-10-17T02:55:08.2033526Z",
+          "beforePriority": "Normal",
+          "beforeMask": 255
+        },
+        {
+          "utc": "2026-10-17T02:55:08.424763Z",
+          "beforePriority": "Normal",
+          "beforeMask": 255
+        },
+        {
+          "utc": "2026-10-17T02:55:09.252153Z",
+          "beforePriority": "Normal",
+          "beforeMask": 255
+        },
+        {
+          "utc": "2026-10-17T02:55:12.8426532Z",
+          "beforePriority": "Normal",
+          "beforeMask": 255
+        },
+        {
+          "utc": "2026-10-17T02:55:13.0512518Z",
+          "beforePriority": "Normal",
+          "beforeMask": 255
+        }
+      ],
+      "peakObservedWorkingSetBytes": 2255122432,
+      "lastObservedCpuSeconds": 11.984375,
+      "pollingIsNotHardConfinement": true
+    }
+  },
+  "failedCases": [
+    {
+      "testDisplayName": "BotRefineryPlanning",
+      "fullTestPath": "RedalertProof.Skirmish.BotRefineryPlanning",
+      "tags": [],
+      "state": "Fail",
+      "deviceInstance": [
+        "CC22C7194BE7975FC0B8029453CBD47F"
+      ],
+      "duration": 0.04145339876413345,
+      "dateTime": "2026.10.17-02.55.19",
+      "entries": [
+        {
+          "event": {
+            "type": "Error",
+            "message": "Expected 'No miner spawn space suppresses refinery without blocking affordable factory' to be true.",
+            "context": "",
+            "artifact": "00000000000000000000000000000000"
+          },
+          "filename": "D:\\UserTemp\\RedalertUE5-integration-candidate\\unreal\\Source\\RedalertProof\\Tests\\ProofSkirmishBotTests.cpp",
+          "lineNumber": 290,
+          "timestamp": "2026.10.17-02.55.20"
+        }
+      ],
+      "warnings": 0,
+      "errors": 1,
+      "artifacts": []
+    }
+  ],
+  "reportSha256": "0384ef71d09a3836ca0a5729eed45e0c4202dd3dff9bfdc801388909cf693f74",
+  "remainingQueue": "Stopped after first model gate; native/group/fidelity/runtime not run at this source."
+}

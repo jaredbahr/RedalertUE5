@@ -5,6 +5,7 @@
 #include "Commands/ProofCommandModel.h"
 #include "Commands/ProofOwnerIds.h"
 #include "Skirmish/ProofSkirmishBot.h"
+#include "Runtime/ProofRefineryMinerEvidence.h"
 #include "ProofGameMode.generated.h"
 
 class AProofPlayerController;
@@ -26,6 +27,7 @@ public:
     bool IsCurrentController(const AProofPlayerController* Controller) const;
 private:
     FProofCommandModel Model;
+    FProofRefineryMinerEvidence RefineryEvidence;
     FProofSkirmishBot SkirmishBot;
     FProofHumanOwnerAllocator HumanOwnerIds;
     TWeakObjectPtr<AProofPlayerController> SkirmishOwner1;

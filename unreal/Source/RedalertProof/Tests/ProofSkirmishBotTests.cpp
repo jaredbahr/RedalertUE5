@@ -177,6 +177,11 @@ bool FProofSkirmishBotModelTest::RunTest(const FString&)
     TestTrue(TEXT("Bot skirmish seed"), Model.SeedSkirmishPlayer(100, 1, FVector::ZeroVector));
     FProofSkirmishBot Bot;
     int32 Builds = 0, Gathers = 0, Produces = 0, Attacks = 0;
+    int32 StarterMinerId = INDEX_NONE;
+    int32 GrantedMinerId = INDEX_NONE;
+    bool bGrantedMinerGathered = false;
+    for (const FProofUnitRecord& Record : Model.GetSnapshot().Units)
+        if (Record.OwnerId == 100 && Record.Kind == EProofUnitKind::Harvester) StarterMinerId = Record.UnitId;
     bool bOreExtracted = false;
     int32 InitialOre = 0;
     for (const FProofResourceRecord& Resource : Model.GetSnapshot().Resources) { InitialOre += Resource.Remaining; }
@@ -192,7 +197,14 @@ bool FProofSkirmishBotModelTest::RunTest(const FString&)
             if (Result.bAccepted)
             {
                 if (Command.Type == EProofCommandType::BuildRefinery || Command.Type == EProofCommandType::BuildFactory) { ++Builds; }
+                if (Command.Type == EProofCommandType::BuildRefinery)
+                {
+                    for (const FProofUnitRecord& Record : Model.GetSnapshot().Units)
+                        if (Record.OwnerId == 100 && Record.Kind == EProofUnitKind::Harvester && Record.UnitId != StarterMinerId)
+                            GrantedMinerId = Record.UnitId;
+                }
                 if (Command.Type == EProofCommandType::Gather) { ++Gathers; }
+                bGrantedMinerGathered |= Command.Type == EProofCommandType::Gather && Command.UnitId == GrantedMinerId;
                 if (Command.Type == EProofCommandType::Produce) { ++Produces; }
                 if (Command.Type == EProofCommandType::Attack) { ++Attacks; }
             }
@@ -205,6 +217,8 @@ bool FProofSkirmishBotModelTest::RunTest(const FString&)
     }
     TestEqual(TEXT("Both structures were built by accepted commands"), Builds, 2);
     TestTrue(TEXT("Harvester received an accepted gather command"), Gathers > 0);
+    TestTrue(TEXT("Refinery-granted miner was discovered and received accepted Gather"),
+        GrantedMinerId != INDEX_NONE && GrantedMinerId != StarterMinerId && bGrantedMinerGathered);
     TestTrue(TEXT("Ore was actually extracted"), bOreExtracted);
     const FProofSnapshot Final = Model.GetSnapshot();
     const FProofPlayerRecord* BotPlayer = Final.Players.FindByPredicate(
@@ -212,6 +226,146 @@ bool FProofSkirmishBotModelTest::RunTest(const FString&)
     TestTrue(TEXT("Harvested ore was deposited as earned credits"), BotPlayer && BotPlayer->TotalGathered > 0);
     TestTrue(TEXT("Factory spent earned credits beyond two starting-credit units"), Produces > 2);
     TestTrue(TEXT("Combat units attacked through the model"), Attacks > 0);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FProofSkirmishBotRefineryPlanningTest, "RedalertProof.Skirmish.BotRefineryPlanning",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FProofSkirmishBotRefineryPlanningTest::RunTest(const FString&)
+{
+    const auto WithLiveCount = [](int32 Count)
+    {
+        FProofSnapshot S = SmallSnapshot();
+        for (int32 Index = 2; Index < Count; ++Index)
+            S.Units.Add(Unit(100 + Index, 100, EProofUnitKind::Combat, FVector(5000, Index * 300, 0)));
+        return S;
+    };
+    FProofSkirmishBot TwoSlots;
+    const TArray<FProofCommand> AtTen = TwoSlots.Decide(WithLiveCount(10), 100, 0.0);
+    TestTrue(TEXT("Two free slots plan refinery+miner, leaving no slot for factory"), AtTen.Num() == 1
+        && AtTen[0].Type == EProofCommandType::BuildRefinery);
+    FProofSkirmishBot OneSlot;
+    const TArray<FProofCommand> AtEleven = OneSlot.Decide(WithLiveCount(11), 100, 0.0);
+    TestTrue(TEXT("One free slot cannot plan refinery+miner but still permits factory"), AtEleven.Num() == 1
+        && AtEleven[0].Type == EProofCommandType::BuildFactory);
+    FProofSkirmishBot ThreeSlots;
+    const TArray<FProofCommand> AtNine = ThreeSlots.Decide(WithLiveCount(9), 100, 0.0);
+    TestTrue(TEXT("Three free slots permit refinery+miner and factory together"), AtNine.Num() == 2
+        && AtNine[0].Type == EProofCommandType::BuildRefinery && AtNine[1].Type == EProofCommandType::BuildFactory);
+
+    // Force the first grant to (50,300), next to the ordinary third factory
+    // candidate (0,350). Only this newly planned miner changes factory planning.
+    FProofSnapshot Reserved = SmallSnapshot();
+    Reserved.Units.Add(Unit(20, 1, EProofUnitKind::HQ, FVector(-350, 0, 0)));
+    Reserved.Units.Add(Unit(21, 1, EProofUnitKind::Combat, FVector(650, 0, 0)));
+    Reserved.Units.Add(Unit(22, 1, EProofUnitKind::Combat, FVector(350, 300, 0)));
+    Reserved.Units.Add(Unit(23, 1, EProofUnitKind::Combat, FVector(350, -300, 0)));
+    Reserved.Units.Add(Unit(24, 1, EProofUnitKind::Combat, FVector(650, 300, 0)));
+    FProofSkirmishBot ReservationBot;
+    const TArray<FProofCommand> ReservedCommands = ReservationBot.Decide(Reserved, 100, 0.0);
+    TestEqual(TEXT("Reservation fixture still plans both structures"), ReservedCommands.Num(), 2);
+    if (ReservedCommands.Num() == 2)
+    {
+        FVector MinerPosition;
+        TestTrue(TEXT("Shared spawn preflight finds grant"),
+            FProofCommandModel::FindSkirmishSpawn(Reserved, ReservedCommands[0].Destination, MinerPosition));
+        TestTrue(TEXT("Fixture grant occupies the expected potential factory footprint"), MinerPosition.Equals(FVector(50, 300, 0)));
+        TestTrue(TEXT("Planned factory preserves granted miner's 260cm clearance"),
+            FVector::DistSquared(MinerPosition, ReservedCommands[1].Destination) >= 260.0 * 260.0);
+        TestTrue(TEXT("Factory skips occupied third site and uses fourth"), ReservedCommands[1].Destination.Equals(FVector(0, -350, 0)));
+    }
+
+    // Cover the bounded spawn search around all fixed near-HQ build sites.
+    // These are foreign mobile blockers, so factory's existing structure-only
+    // placement policy can still find a site; only the refinery grant lacks room.
+    FProofSnapshot Blocked = SmallSnapshot();
+    for (int32 Owner = 2; Owner <= 11; ++Owner) Blocked.Players.Add(Player(Owner, 0, 0));
+    int32 BlockerId = 10000;
+    int32 ForeignSlot = 2; // Existing owner 1 already has two records.
+    for (int32 X = -1500; X <= 1500; X += 300)
+        for (int32 Y = -1500; Y <= 1500; Y += 300)
+            Blocked.Units.Add(Unit(BlockerId++, 1 + ForeignSlot++ / 12, EProofUnitKind::Combat, FVector(X, Y, 0)));
+    // Check the fixture itself against the shared search. A sparse grid can
+    // leave diagonal holes even when cardinal spawn candidates are blocked.
+    const FVector BuildSites[] = {
+        FVector(350, 0, 0), FVector(-350, 0, 0), FVector(0, 350, 0), FVector(0, -350, 0),
+        FVector(350, 350, 0), FVector(-350, 350, 0), FVector(350, -350, 0), FVector(-350, -350, 0),
+        FVector(600, 0, 0), FVector(-600, 0, 0), FVector(0, 600, 0), FVector(0, -600, 0)
+    };
+    bool bAllSitesBlocked = true;
+    for (const FVector& Site : BuildSites)
+    {
+        FVector Spawn;
+        const bool bHasSpawn = FProofCommandModel::FindSkirmishSpawn(Blocked, Site, Spawn);
+        TestFalse(FString::Printf(TEXT("No-space fixture exhausts miner search at %s"), *Site.ToString()), bHasSpawn);
+        bAllSitesBlocked &= !bHasSpawn;
+    }
+    if (!bAllSitesBlocked) { return false; }
+    FProofSkirmishBot BlockedBot;
+    const TArray<FProofCommand> NoSpace = BlockedBot.Decide(Blocked, 100, 0.0);
+    TestTrue(TEXT("No miner spawn space suppresses refinery without blocking affordable factory"), NoSpace.Num() == 1
+        && NoSpace[0].Type == EProofCommandType::BuildFactory);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FProofSkirmishBotMinerRotationTest, "RedalertProof.Skirmish.BotMinerRotation",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FProofSkirmishBotMinerRotationTest::RunTest(const FString&)
+{
+    FProofSnapshot S = SmallSnapshot();
+    S.Players[0].Credits = 500;
+    S.Units.Add(Unit(5, 100, EProofUnitKind::Refinery, FVector(350, 0, 0)));
+    S.Units.Add(Unit(6, 100, EProofUnitKind::Factory, FVector(-350, 0, 0)));
+    for (int32 Id = 7; Id <= 9; ++Id)
+        S.Units.Add(Unit(Id, 100, EProofUnitKind::Harvester, FVector(Id * 30, 100, 0)));
+    S.Units.Add(Unit(10, 100, EProofUnitKind::Combat, FVector::ZeroVector));
+    S.Units.Add(Unit(11, 100, EProofUnitKind::Combat, FVector::ZeroVector));
+    S.Units.Add(Unit(12, 100, EProofUnitKind::Harvester, FVector::ZeroVector));
+    S.Units.Last().HitPoints = 0.f;
+    S.Units.Add(Unit(13, 1, EProofUnitKind::Harvester, FVector(4000, 0, 0)));
+    FProofResourceRecord EqualOre = S.Resources[0];
+    EqualOre.ResourceId = 2;
+    S.Resources.Add(EqualOre);
+    const FProofSnapshot Initial = S;
+    FProofSkirmishBot Bot, PermutedBot;
+    TSet<int32> OrderedMiners;
+    TArray<FProofCommand> First;
+    for (int32 Decision = 0; Decision < 6; ++Decision)
+    {
+        const double Now = Decision == 0 ? 0.0 : 19.0 + Decision;
+        S.Units[3].Position = FVector(Decision % 2 == 0 ? 900 : 2100, 0, 0);
+        FProofSnapshot Permuted = S;
+        Permuted.Units.Swap(0, Permuted.Units.Num() - 1);
+        Permuted.Units.Swap(1, Permuted.Units.Num() - 2);
+        Permuted.Resources.Swap(0, 1);
+        const TArray<FProofCommand> Commands = Bot.Decide(S, 100, Now);
+        TestTrue(TEXT("Miner scheduling and ore ties are independent of record order"),
+            SameCommands(Commands, PermutedBot.Decide(Permuted, 100, Now)));
+        TestTrue(TEXT("Multi-miner decisions retain four-command budget"), Commands.Num() <= 4);
+        int32 Gathers = 0, Produces = 0, Attacks = 0;
+        for (const FProofCommand& Command : Commands)
+        {
+            if (Command.Type == EProofCommandType::Gather)
+            {
+                ++Gathers;
+                OrderedMiners.Add(Command.UnitId);
+                TestTrue(TEXT("Only owned live miners receive Gather"), Command.UnitId == 2 || (Command.UnitId >= 7 && Command.UnitId <= 9));
+                TestEqual(TEXT("Equal-distance ore uses stable resource ID"), Command.TargetUnitId, 1);
+            }
+            Produces += Command.Type == EProofCommandType::Produce ? 1 : 0;
+            Attacks += Command.Type == EProofCommandType::Attack ? 1 : 0;
+        }
+        TestTrue(TEXT("At most one Gather leaves room for other command roles"), Gathers <= 1);
+        if (Decision == 5) TestEqual(TEXT("No miner retries before the existing five-second interval"), Gathers, 0);
+        TestEqual(TEXT("Affordable production progresses alongside miners"), Produces, 1);
+        if (Decision > 0) TestEqual(TEXT("Both combat units progress against changing targets despite miners"), Attacks, 2);
+        if (Decision == 0) First = Commands;
+        if (Decision == 3) TestEqual(TEXT("All four live own miners receive commands within four decisions"), OrderedMiners.Num(), 4);
+    }
+    Bot.Reset();
+    FProofSnapshot Restart = Initial;
+    Restart.Units[3].Position = FVector(900, 0, 0);
+    TestTrue(TEXT("Reset restores miner rotation and command sequences"), SameCommands(First, Bot.Decide(Restart, 100, 0.0)));
     return true;
 }
 #endif

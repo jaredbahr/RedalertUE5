@@ -1,0 +1,93 @@
+{
+  "status": "completed-see-accepted-batch",
+  "baseCommit": "d3510e5bfbc5ee022fd0e782e06f6f2210cb6c65",
+  "branch": "feat/refinery-miner",
+  "heavySlotOwner": "Red Alert",
+  "after": [
+    "Completed Imagination allocated work",
+    "Completed PR38 scoped integration at d3510e5"
+  ],
+  "requiresExplicitSlotHandoff": true,
+  "preRenderedRequirement": "Opt-in identity collection and strict later-common phase validation prepared; require successful real results, not built/gathered booleans.",
+  "automaticRetry": false,
+  "stopOnFailure": true,
+  "queuedCommands": [
+    {
+      "arguments": [],
+      "script": "unreal/Scripts/build-native-proof.ps1"
+    },
+    {
+      "arguments": [
+        "-TimeoutSeconds",
+        "90"
+      ],
+      "script": "unreal/Scripts/test-skirmish-model.ps1",
+      "expectedExactCases": 22
+    },
+    {
+      "arguments": [],
+      "script": "unreal/Scripts/test-native-model.ps1"
+    },
+    {
+      "arguments": [],
+      "script": "unreal/Scripts/test-group-controls.ps1"
+    },
+    {
+      "arguments": [],
+      "script": "unreal/Scripts/test-fidelity-model.ps1"
+    },
+    {
+      "arguments": [],
+      "script": "unreal/Scripts/test-native-proof.ps1"
+    },
+    {
+      "arguments": [
+        "-CleanPresentation"
+      ],
+      "script": "unreal/Scripts/test-controls-proof.ps1"
+    },
+    {
+      "arguments": [
+        "-Scenario",
+        "Victory",
+        "-CleanPresentation",
+        "-TimeoutSeconds",
+        "240",
+        "-RefineryMinerEvidence"
+      ],
+      "script": "unreal/Scripts/test-small-match.ps1"
+    },
+    {
+      "arguments": [
+        "-Scenario",
+        "Defeat",
+        "-CleanPresentation",
+        "-TimeoutSeconds",
+        "240",
+        "-RefineryMinerEvidence"
+      ],
+      "script": "unreal/Scripts/test-small-match.ps1"
+    },
+    {
+      "arguments": [
+        "-Scenario",
+        "Coop",
+        "-CleanPresentation",
+        "-TimeoutSeconds",
+        "240",
+        "-RefineryMinerEvidence"
+      ],
+      "script": "unreal/Scripts/test-small-match.ps1"
+    },
+    {
+      "arguments": [],
+      "script": "unreal/Scripts/test-session-lifecycle.ps1"
+    }
+  ],
+  "integrationReady": true,
+  "issueClosureFromThisDraft": false,
+  "testedCommit": "8ab9b55c00daf6dd46f807cd3eec5e17f03a4ad3",
+  "acceptedEvidence": "refinery-miner-accepted-batch.json",
+  "heavySlotReleased": true,
+  "executionOrderNote": "Four model suites, then Victory/Coop/Defeat identity evidence, then native/controls/lifecycle; sequential jobs and unchanged bounds."
+}
