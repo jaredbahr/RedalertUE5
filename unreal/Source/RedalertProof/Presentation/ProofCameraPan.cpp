@@ -28,6 +28,24 @@ FVector2D NormalizePanInput(const FVector2D& Input)
 }
 }
 
+FVector2D FProofCameraPan::EdgeInput(const FVector2D& Pointer, const FVector2D& ViewportSize,
+    const FBox2D& HUDPanel, bool bEnabled, bool bFocused, bool bForeground, bool bMouseButtonHeld)
+{
+    if (!bEnabled || !bFocused || !bForeground || bMouseButtonHeld
+        || !IsFiniteVector2D(Pointer) || !IsFiniteVector2D(ViewportSize)
+        || ViewportSize.X <= EdgeWidthPixels * 2.0 || ViewportSize.Y <= EdgeWidthPixels * 2.0
+        || Pointer.X < 0.0 || Pointer.Y < 0.0 || Pointer.X >= ViewportSize.X || Pointer.Y >= ViewportSize.Y
+        || !HUDPanel.bIsValid || !IsFiniteVector2D(HUDPanel.Min) || !IsFiniteVector2D(HUDPanel.Max)
+        || HUDPanel.Min.X > HUDPanel.Max.X || HUDPanel.Min.Y > HUDPanel.Max.Y
+        || (Pointer.X >= HUDPanel.Min.X && Pointer.X <= HUDPanel.Max.X
+            && Pointer.Y >= HUDPanel.Min.Y && Pointer.Y <= HUDPanel.Max.Y))
+    {
+        return FVector2D::ZeroVector;
+    }
+    return FVector2D(Pointer.X < EdgeWidthPixels ? -1.0 : Pointer.X >= ViewportSize.X - EdgeWidthPixels ? 1.0 : 0.0,
+        Pointer.Y < EdgeWidthPixels ? 1.0 : Pointer.Y >= ViewportSize.Y - EdgeWidthPixels ? -1.0 : 0.0);
+}
+
 FVector FProofCameraPan::Apply(const FVector& CurrentGroundCenter, const FVector2D& ArrowInput, double DeltaSeconds)
 {
     if (!IsFiniteVector(CurrentGroundCenter))
@@ -55,4 +73,3 @@ FVector FProofCameraPan::Apply(const FVector& CurrentGroundCenter, const FVector
     Result.Y = FMath::Clamp(Result.Y + Direction.Y * Step, -Limit, Limit);
     return Result;
 }
-
