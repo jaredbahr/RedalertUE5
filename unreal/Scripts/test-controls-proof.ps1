@@ -8,13 +8,16 @@ param(
     [switch]$UnoptimizedShaders,
     [switch]$CleanPresentation,
     [switch]$StopControls,
+    [switch]$StopInputBinding,
     [switch]$TypeSelection
 )
 $ErrorActionPreference = 'Stop'
 # These append mutually exclusive client step-seven state machines. Reject the
 # combination before paths, ports, files, graphics warmup or UE processes exist.
 if ($StopControls -and $TypeSelection) { throw 'StopControls and TypeSelection cannot run together.' }
+if ($StopInputBinding -and (-not $StopControls -or $TypeSelection)) { throw 'StopInputBinding requires StopControls and excludes TypeSelection.' }
 . (Join-Path $PSScriptRoot 'StopControlsEvidence.ps1')
+. (Join-Path $PSScriptRoot 'StopInputBindingEvidence.ps1')
 . (Join-Path $PSScriptRoot 'TypeSelectionControlsEvidence.ps1')
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $repoRoot = (Resolve-Path (Join-Path $projectRoot '..')).Path
@@ -26,7 +29,7 @@ if (-not (Test-Path -LiteralPath (Join-Path $projectRoot 'Content\CommandProofGe
 $probe = [Net.Sockets.UdpClient]::new()
 try { $probe.Client.ExclusiveAddressUse=$true; $probe.Client.Bind([Net.IPEndPoint]::new([Net.IPAddress]::Loopback,$Port)) }
 finally { $probe.Dispose() }
-$runPrefix=if ($TypeSelection) {'generated\controls-type-selection-'} else {'generated\controls-'}
+$runPrefix=if ($StopInputBinding) {'generated\controls-native-stop-'} elseif ($TypeSelection) {'generated\controls-type-selection-'} else {'generated\controls-'}
 $run = Join-Path $repoRoot ($runPrefix + [DateTime]::UtcNow.ToString('yyyyMMdd-HHmmss-fff'))
 $images = Join-Path $run 'screenshots'
 $cache = Join-Path $repoRoot 'generated\controls-cache'
@@ -66,6 +69,8 @@ $result.cleanup=[ordered]@{errors=@();ignoredExitRaces=0;parentsFirst=$true}
 $result.commandRequests=@()
 $result.stopControlsEvidenceEnabled=[bool]$StopControls
 $result.stopControlsEvidence=$null
+$result.stopInputBindingEnabled=[bool]$StopInputBinding
+$result.stopInputBindingEvidence=$null
 $result.cacheDiagnostics=[ordered]@{verboseEnabled=$true;diagnosticOnly=$true;classification='Engine/DerivedDataCache/*.ddp path; global only GlobalShaderMap/ keys; material-related request/key text may include textures';byProcess=@{};readErrors=@()}
 $workerExe=Join-Path $EngineRoot 'Engine\Binaries\Win64\ShaderCompileWorker.exe'
 $names=@('UE-LocalDataCachePath','UE-SharedDataCachePath','TEMP','TMP')
@@ -196,6 +201,7 @@ try {
             $launchArguments+=('-cvarsini="'+$literalClientCVars+'"')
         }
         if($StopControls -and $Role -ne 'warmup') { $launchArguments+='-ProofStopControls' }
+        if($StopInputBinding -and $Role -eq 'rendered') { $launchArguments+='-ProofStopInputBinding' }
         if($CleanPresentation -and $Role -in @('warmup','rendered')) { $launchArguments+='-ExecCmds="DisableAllScreenMessages"' }
         # One Engine override string prevents duplicate -ini:Engine switches
         # from shadowing warmup worker settings or shader optimization mode.
@@ -336,7 +342,11 @@ try {
     if($common.Count -lt 3) { throw 'Need at least three shared host/rendered/observer revisions.' }
     foreach($revision in $common) { if($maps[0][$revision] -ne $maps[1][$revision] -or $maps[0][$revision] -ne $maps[2][$revision]) { throw "Replicated digest mismatch at $revision." } }
     $result.commonRevisions=$common
-    if($StopControls){$result.stopControlsEvidence=Get-StopControlsEvidence -Logs $stopLogs}
+    if($StopControls){
+        $expectedNativeDelta=if($StopInputBinding){1}else{0}
+        $result.stopControlsEvidence=Get-StopControlsEvidence -Logs $stopLogs -ExpectedNativeStopDelta $expectedNativeDelta
+        if($StopInputBinding){$result.stopInputBindingEvidence=Get-StopInputBindingEvidence -Log $stopLogs.rendered -StopEvidence $result.stopControlsEvidence}
+    }
     $captureNames=@('01-selected.png','02-moved-combat-produced.png')
     if($StopControls){$captureNames+=@('03-stop.png','04-stop-resumed.png')}
     if ($TypeSelection) {

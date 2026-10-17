@@ -31,10 +31,22 @@ public:
     UFUNCTION(Client, Reliable) void ClientCommandResult(FProofCommandResult Result);
     UFUNCTION(Client, Reliable) void ClientLifecycleRejected();
     virtual void Tick(float DeltaSeconds) override;
+    virtual void BuildInputStack(TArray<UInputComponent*>& InputStack) override;
+    virtual void ProcessPlayerInput(float DeltaTime, bool bGamePaused) override;
+    uint64 GetStopInputProcessedFrame(const UInputComponent* Component) const
+    {
+        return StopInputProcessedComponent.Get() == Component ? StopInputProcessedFrame : 0;
+    }
     virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 private:
     FProofAttackMoveRuntimeState AttackMoveRuntime;
     void TickAttackMoveRuntime(float DeltaSeconds);
+    // Opt-in fixture observation only; normal input always runs through Super.
+    bool bStopInputBindingTrace = false;
+    TWeakObjectPtr<UInputComponent> StopInputBuiltComponent;
+    TWeakObjectPtr<UInputComponent> StopInputProcessedComponent;
+    uint64 StopInputBuiltFrame = 0;
+    uint64 StopInputProcessedFrame = 0;
     FProofIngressBudget IngressBudget;
     FProofRefineryMinerEvidence RefineryEvidence;
     FProofStopEvidence StopEvidence;

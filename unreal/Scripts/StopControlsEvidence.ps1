@@ -1,6 +1,6 @@
 # Pure opt-in Stop evidence policy. No files, processes or clocks are changed.
 function Get-StopControlsEvidence {
-    param([Parameter(Mandatory)][hashtable]$Logs)
+    param([Parameter(Mandatory)][hashtable]$Logs,[ValidateSet(0,1)][int]$ExpectedNativeStopDelta=0)
     function Require($Condition,[string]$Reason){if(-not $Condition){throw "Stop evidence: $Reason"}}
     function Number($V){return $null -ne $V -and $V -isnot [string] -and $V -isnot [bool] -and $V -isnot [array] -and [double]::IsFinite([double]$V)}
     function Integer($V,[long]$Min=0,[long]$Max=2147483647){return (Number $V) -and [double]$V -ge $Min -and [double]$V -le $Max -and [double]$V -eq [math]::Truncate([double]$V)}
@@ -101,7 +101,7 @@ function Get-StopControlsEvidence {
             Require ($role -eq 'rendered') 'fixture phase outside rendered client'
             Require ($fixtures.Count -lt 8) 'fixture event cap'
             $e=Json $m.Groups[1].Value.Trim()
-            Require ($e.phase -cin @('moving','stopped','resumed') -and (Integer $e.owner) -and $e.owner -eq 1 -and (Integer $e.unit 1) -and (Integer $e.epoch) -and $e.epoch -eq 0 -and (Integer $e.revision) -and (Integer $e.sequence 1) -and (Number $e.elapsed) -and (Integer $e.nativeStopCount) -and $e.nativeStopCount -eq 0) 'invalid fixture phase'
+            Require ($e.phase -cin @('moving','stopped','resumed') -and (Integer $e.owner) -and $e.owner -eq 1 -and (Integer $e.unit 1) -and (Integer $e.epoch) -and $e.epoch -eq 0 -and (Integer $e.revision) -and (Integer $e.sequence 1) -and (Number $e.elapsed) -and (Integer $e.nativeStopCount) -and $e.nativeStopCount -eq $(if($e.phase -ceq 'moving'){0}else{$ExpectedNativeStopDelta})) 'invalid fixture phase'
             foreach($k in @('x','y','z','destinationX','destinationY','destinationZ')){Require (Number $e.$k) 'invalid fixture position'}
             $fixtures+=$e
         }
@@ -145,5 +145,5 @@ function Get-StopControlsEvidence {
     Require ($resumed.revision -ge $events[2].afterRevision -and (Distance $resumeUnit $stopUnit) -gt 50) 'no real movement after resume'
     $resumeCommon=@($common|Where-Object {$_ -ge $events[2].afterRevision -and (Unit $maps.host[$_] $moving.unit).Count -eq 1 -and (Unit $maps.host[$_] $moving.unit)[0].owner -eq 1 -and (Unit $maps.host[$_] $moving.unit)[0].kind -eq $anchor.kind -and (Unit $maps.host[$_] $moving.unit)[0].hp -gt 0 -and (Distance (Unit $maps.host[$_] $moving.unit)[0] $anchor) -gt 50})
     Require ($resumeCommon.Count -gt 0) 'no common replicated movement after resume'
-    return [ordered]@{passed=$true;owner=1;unit=$moving.unit;epoch=0;sequences=@(5,6,7);roles=@('host','rendered','observer');rowsByRole=$counts;commonRevisionCount=$common.Count;movingRevision=$moving.revision;stoppedRevision=$stopped.revision;resumedRevision=$resumed.revision;stationaryCommonRevisions=$stationary;stationarySimulationSeconds=($last.simulatedSeconds-$first.simulatedSeconds);physicalInputVerified=$false;internetTest=$false;performanceTest=$false}
+    return [ordered]@{passed=$true;expectedNativeStopDelta=$ExpectedNativeStopDelta;nativeStopCounts=@($fixtures.nativeStopCount);owner=1;unit=$moving.unit;epoch=0;sequences=@(5,6,7);roles=@('host','rendered','observer');rowsByRole=$counts;commonRevisionCount=$common.Count;movingRevision=$moving.revision;stoppedRevision=$stopped.revision;resumedRevision=$resumed.revision;stationaryCommonRevisions=$stationary;stationarySimulationSeconds=($last.simulatedSeconds-$first.simulatedSeconds);physicalInputVerified=$false;internetTest=$false;performanceTest=$false}
 }
