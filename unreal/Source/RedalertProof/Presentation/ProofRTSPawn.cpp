@@ -984,13 +984,37 @@ bool AProofRTSPawn::TickHUDReadabilityCaptures()
         const FVector Delta = AnchorOrigin - TargetOrigin;
         if (Delta.ContainsNaN())
         { FinishSkirmishScenario(false, TEXT("readability_camera_delta")); return false; }
-        Camera->SetWorldLocation(Camera->GetComponentLocation() + Delta);
+        // UE's automatic ortho planes derive their view target from the owning
+        // pawn. Translate that camera rig together, retaining every attached
+        // unit view's world transform so this remains a camera-only fixture.
+        TMap<int32, FTransform> ViewTransforms;
+        for (const auto& Entry : UnitViews)
+            if (Entry.Value) ViewTransforms.Add(Entry.Key, Entry.Value->GetComponentTransform());
+        const FVector CameraBefore = Camera->GetComponentLocation();
+        const FVector PawnBefore = GetActorLocation();
+        if (!SetActorLocation(PawnBefore + Delta))
+        { FinishSkirmishScenario(false, TEXT("readability_camera_rig_move")); return false; }
+        for (const auto& Entry : ViewTransforms)
+            if (UnitViews.Contains(Entry.Key) && UnitViews[Entry.Key]) UnitViews[Entry.Key]->SetWorldTransform(Entry.Value);
+        UE_LOG(LogTemp, Display, TEXT("PROOF_HUD_CAMERA_MOVE name=%s cameraBefore=%s pawnBefore=%s projectionOrigin=%s delta=%s cameraAfter=%s pawnAfter=%s autoPlanes=%d updatePlanes=%d"),
+            Names[HUDEdgeIndex], *CameraBefore.ToString(), *PawnBefore.ToString(), *Projection.ViewOrigin.ToString(),
+            *Delta.ToString(), *Camera->GetComponentLocation().ToString(), *GetActorLocation().ToString(),
+            Camera->bAutoCalculateOrthoPlanes ? 1 : 0, Camera->bUpdateOrthoPlanes ? 1 : 0);
         // Exactly one camera adjustment per view; cached projection is checked on a later frame.
         HUDEdgePhase = 1;
         HUDEdgeStageStarted = SkirmishElapsed;
         return false;
     }
     if (SkirmishElapsed - HUDEdgeStageStarted < 0.25f) return false;
+    // Check the actual rendered mesh centers after the rig move and later tick.
+    for (const FProofUnitRecord& Unit : Snapshot.Units)
+    {
+        if (Unit.HitPoints <= 0.f) continue;
+        const TObjectPtr<UStaticMeshComponent>* View = UnitViews.Find(Unit.UnitId);
+        const FVector Expected = Unit.Position + (bUsingBlockoutMesh ? FVector::ZeroVector : FVector(0.f, 0.f, 30.f));
+        if (!View || !*View || !(*View)->GetComponentLocation().Equals(Expected, 0.01))
+        { FinishSkirmishScenario(false, TEXT("readability_unit_view_moved")); return false; }
+    }
     if (FVector2D::Distance(Projected, HUDEdgeTarget) > 2.0)
     {
         UE_LOG(LogTemp, Error, TEXT("PROOF_HUD_EDGE_PROJECTION_FAILURE name=%s projectedX=%.3f projectedY=%.3f targetX=%.3f targetY=%.3f width=%d height=%d"),

@@ -21,3 +21,9 @@ The prepared correction unprojects the old anchor screen position and desired ta
 The shared heavy slot was released at02:16:09.4215798 UTC after confirming zero owned build/test processes. Imagination has queued work. Resume the [unchanged full gate list](HUD_READABILITY.md) only after a new allocation. No automatic retries or deadline increases occurred: the single rebuild followed a specific compile fix, and no rendered retry has run.
 
 Integration is additionally on hold because the parent reported automatic approval review rejected conditional PR38 integration and is seeking fresh explicit approval. No merge, issue closure, hosted Actions, binary upload or OS/settings change occurred. Startup33 remains unexplained; the long build does not establish its cause.
+
+## Second allocated projection attempt
+
+At clean596bb3d the fresh build passed25.72s, and5/5 helper cases passed13.564s with verified exit. The first1280 Victory again reached winner0/all gameplay flags but failed the first left-edge check after67.473 scenario seconds/67.697total; cleanupErrors=[]. Actual anchor631.153,392.115 missed24,468. No960 or legacy run followed this failure. The [attempt ledger](evidence/hud-readability-projection-attempt.json) preserves raw identities and hashes.
+
+Installed CameraComponent derives CameraToViewTarget from the owning pawn; SceneView adds it to the projection origin. Moving only the camera relative to its fixed owner can cancel lateral translation. The next prepared correction translates the camera rig once while immediately restoring every attached unit view's world transform, then checks actual mesh centers, unchanged snapshot and the same later two-pixel limit. Rig/projection logs will expose the active movement path. No ortho defaults or acceptance limits are disabled. This correction still needs its own clean-source build and runtime evidence.
