@@ -21,7 +21,7 @@ The following mapping uses the full retained evidence, not the latest lifecycle 
 |---|---|
 | #21 small base-to-victory milestone | Economy/terminal models; retained actual Victory/Defeat/Coop two-client command/snapshot checks; preserved native/controls/ingress; current exact-candidate build/lifecycle/two viewport regressions |
 | #22 authoritative finite economy | Ownership/prerequisite/cost/capacity/finite-nonnegative-resource/digest/simultaneous-combat tests; real harvest travel/cargo/deposit and factory progression in retained and current matches |
-| #23 command-driven bounded bot | Deterministic cadence/monotonic sequence/legal placement/target/terminal/progression tests; actual bot refinery/factory/gather/produce/attack flags through the shared route |
+| #23 command-driven bounded bot | Deterministic cadence/monotonic sequence/legal placement/target/terminal/progression tests; actual bot refinery/factory, production and attack flags through the shared route; bot gathering is supported by the model/progression tests, not a separate runtime gather flag |
 | #24 terminal rules and basic match HUD | HQ survival/draw/stable-terminal tests and retained Victory/Defeat/Coop; inspected objective, controls/costs, role/cargo/credits/ore and clear terminal/rematch text; broader dense readability stays #18 |
 
 Independent acceptance review supports closing #21-24 only after the verified source reaches main and the exact main/tree guard succeeds. No physical-input/Alt-Tab, final-art/scale, Internet, persistent-session or active-army performance gate is included in those closures.
