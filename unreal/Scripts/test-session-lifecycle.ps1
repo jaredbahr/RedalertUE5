@@ -6,6 +6,71 @@ param(
     [ValidateRange(0,65536)][int]$MaxTempMiB = 1024
 )
 $ErrorActionPreference = 'Stop'
+# Read-only observations of the original process handle.
+function Initialize-LifecycleProcessProbe {
+    if('SessionLifecycleHandleProbe' -as [type]){return}
+    Add-Type @'
+using System;
+using System.ComponentModel;
+using System.Runtime.InteropServices;
+public sealed class SessionLifecycleHandleProbe {
+    public string observedUtc,error,exitTimeUtc;
+    public uint processId,waitResult,exitCode;
+    public long creationFileTime,exitFileTime;
+    [DllImport("kernel32.dll",SetLastError=true)] static extern uint GetProcessId(IntPtr h);
+    [DllImport("kernel32.dll",SetLastError=true)] static extern uint WaitForSingleObject(IntPtr h,uint ms);
+    [DllImport("kernel32.dll",SetLastError=true)] static extern bool GetExitCodeProcess(IntPtr h,out uint code);
+    [DllImport("kernel32.dll",SetLastError=true)] static extern bool GetProcessTimes(IntPtr h,out long created,out long exited,out long kernel,out long user);
+    public static SessionLifecycleHandleProbe Read(SafeHandle safe,int expectedPid,long expectedCreation,int milliseconds) {
+        var r=new SessionLifecycleHandleProbe();bool leased=false;
+        try {
+            if(milliseconds<0 || (milliseconds>200 && milliseconds!=5000)) throw new ArgumentOutOfRangeException("milliseconds");
+            if(safe==null || safe.IsClosed || safe.IsInvalid) throw new InvalidOperationException("Original pinned handle unavailable.");
+            safe.DangerousAddRef(ref leased);IntPtr h=safe.DangerousGetHandle();
+            r.processId=GetProcessId(h);if(r.processId==0) throw new Win32Exception(Marshal.GetLastWin32Error());
+            long kernel,user;
+            if(!GetProcessTimes(h,out r.creationFileTime,out r.exitFileTime,out kernel,out user)) throw new Win32Exception(Marshal.GetLastWin32Error());
+            if(r.processId!=expectedPid || r.creationFileTime!=expectedCreation) throw new InvalidOperationException("Pinned PID/creation identity mismatch.");
+            r.waitResult=WaitForSingleObject(h,(uint)milliseconds);
+            if(r.waitResult==0xFFFFFFFF) throw new Win32Exception(Marshal.GetLastWin32Error());
+            if(r.waitResult!=0 && r.waitResult!=258) throw new InvalidOperationException("Unexpected native process wait result.");
+            if(!GetExitCodeProcess(h,out r.exitCode)) throw new Win32Exception(Marshal.GetLastWin32Error());
+            if(!GetProcessTimes(h,out r.creationFileTime,out r.exitFileTime,out kernel,out user)) throw new Win32Exception(Marshal.GetLastWin32Error());
+            if(r.waitResult==0 && r.exitFileTime>0) r.exitTimeUtc=DateTime.FromFileTimeUtc(r.exitFileTime).ToString("o");
+        }catch(Exception e){r.error=e.Message;}
+        finally {
+            if(leased){try{safe.DangerousRelease();}catch(Exception e){r.error=(r.error??"")+"; lease release: "+e.Message;}}
+            r.observedUtc=DateTime.UtcNow.ToString("o");
+        }
+        return r;
+    }
+}
+'@
+}
+function New-LifecycleWaitEvidence {
+    return [ordered]@{calls=0;observations=@();last=$null;droppedObservations=0;scenarioTimeoutDecided=$false;cleanupTimeoutDecided=$false;kernelExitConfirmed=$false}
+}
+function Get-LifecycleNativeProbe($Entry,[int]$Milliseconds) {
+    return [SessionLifecycleHandleProbe]::Read($Entry.PinnedHandle,$Entry.Process.Id,$Entry.Started.ToUniversalTime().ToFileTimeUtc(),$Milliseconds)
+}
+function Test-LifecycleNativeIdentity($Entry,$Probe) {
+    return ($null -ne $Probe -and -not $Probe.error -and $Probe.processId -eq $Entry.Process.Id -and $Probe.creationFileTime -eq $Entry.Started.ToUniversalTime().ToFileTimeUtc())
+}
+function Test-LifecycleNativeSignal($Entry,$Probe) {
+    return ((Test-LifecycleNativeIdentity $Entry $Probe) -and $Probe.waitResult -eq 0)
+}
+function Observe-LifecycleWait($Entry,[int]$Milliseconds,[string]$Phase) {
+    $before=Get-LifecycleNativeProbe $Entry 0
+    $managed=$null;$managedStatus=$null;$managedError=$null
+    try{$managed=$Entry.Process.WaitForExit(0);$managedStatus=$Entry.Process.HasExited}catch{$managedError=$_.Exception.Message}
+    $after=Get-LifecycleNativeProbe $Entry $Milliseconds
+    $observation=@{phase=$Phase;waitMilliseconds=$Milliseconds;nativeBefore=$before;managedWait0=$managed;managedHasExited=$managedStatus;managedError=$managedError;nativeAfter=$after}
+    $evidence=$Entry.ExitWaitEvidence;$evidence.calls++;$evidence.last=$observation
+    if($evidence.observations.Count -lt 8){$evidence.observations+=@($observation)}else{$evidence.droppedObservations++}
+    if(-not (Test-LifecycleNativeIdentity $Entry $before) -or -not (Test-LifecycleNativeIdentity $Entry $after)){throw ('Owned native process observation failed: '+$before.error+'; '+$after.error)}
+    return $after
+}
+
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $repoRoot = (Resolve-Path (Join-Path $projectRoot '..')).Path
 $project = Join-Path $projectRoot 'RedalertProof.uproject'
@@ -54,6 +119,7 @@ $result = [ordered]@{
     elapsedSeconds=0; scenarioElapsedSeconds=0; scenarioTimeoutSeconds=$TimeoutSeconds; scenarioCoreLimit=2
     runDirectory=$run; map='/Game/CommandProofGenerated/Maps/CommandProof'; port=$Port; topology='dedicated NullRHI host and four sequential loopback NullRHI client processes'
     transport='UE native UDP loopback'; physicalInputVerified=$false; internetTest=$false; performanceTest=$false
+    exitWaitPolicy=@{ordinaryScenarioCompletion='Existing managed HasExited and exit-code-zero checks; native confirmation occurs separately in final cleanup.';plannedDisconnect='Original pinned native signal under remaining scenario budget, polls at most 200ms.';finalCleanup='One native 5000ms wait per owned process; a decided timeout cannot be cleared by later evidence.'}
     lifecycle=[ordered]@{initialOwner1Healthy=$false;owner2Disconnected=$false;owner2RejoinedSlot2=$false;rejoinDeferredUntilRematch=$true;rejoinNormalEpochs=@();thirdRejectedWhenFull=$false;terminalEpochs=@();rematchEpochs=@();staleEpochRejected=$false;freshReceiptSequences=@();commonRevisionDigests=@();terminalSnapshotAgreements=@();finishSignaledUtc=$null}
     storageGuard=[ordered]@{softPollingGuard=$true;intervalSeconds=10;maxCacheMiB=$MaxCacheMiB;maxTempMiB=$MaxTempMiB;checks=0;latestCacheBytes=0;latestTempBytes=0;peakCacheBytes=0;peakTempBytes=0}
     cpuPolicy=[ordered]@{availableAffinityMask=('0x{0:X}' -f $availableAffinity);fixtureAffinityMask=('0x{0:X}' -f $fixtureAffinity);logicalProcessors=$fixtureLogicalProcessors;priority='Normal';pollIntervalSeconds=1;polls=0;repairs=0;processes=@()}
@@ -143,9 +209,9 @@ function Maintain-OwnedCpuPolicy([switch]$Force) {
                 if (-not $command -or $command.Replace('/','\').IndexOf($project,[StringComparison]::OrdinalIgnoreCase) -lt 0) { throw 'Cannot verify owned ShaderCompileWorker project command line.' }
                 $known=@($ownedWorkers | Where-Object {$_.Process.Id -eq $child.Id -and $_.Started -eq $child.StartTime})
                 if (-not $known.Count) {
-                    $worker=[pscustomobject]@{Process=$child;PinnedHandle=$child.SafeHandle;Started=$child.StartTime;Role='shader-worker';Path=$workerExe;ParentId=$parentId;ParentStarted=$parent.Started;CommandLine=$command}
+                    $worker=[pscustomobject]@{Process=$child;PinnedHandle=$child.SafeHandle;ExitWaitEvidence=(New-LifecycleWaitEvidence);Started=$child.StartTime;Role='shader-worker';Path=$workerExe;ParentId=$parentId;ParentStarted=$parent.Started;CommandLine=$command}
                     $ownedWorkers.Add($worker)
-                    $result.cpuPolicy.processes+=@{role='shader-worker';pid=$child.Id;parentPid=$parentId;startUtc=$child.StartTime.ToUniversalTime().ToString('o');path=$workerExe;affinityMask=('0x{0:X}' -f [uint64]$child.ProcessorAffinity.ToInt64());priority=$child.PriorityClass.ToString();projectCommandVerified=$true}
+                    $result.cpuPolicy.processes+=@{role='shader-worker';pid=$child.Id;parentPid=$parentId;startUtc=$child.StartTime.ToUniversalTime().ToString('o');path=$workerExe;affinityMask=('0x{0:X}' -f [uint64]$child.ProcessorAffinity.ToInt64());priority=$child.PriorityClass.ToString();projectCommandVerified=$true;exitWaitEvidence=$worker.ExitWaitEvidence}
                 }
             } catch { if ($child.HasExited) { continue }; throw }
         }
@@ -173,10 +239,12 @@ function Assert-OwnedRolesHealthy {
         }
     }
 }
-function Stop-OwnedEntry($Entry,[switch]$Worker,[switch]$IntentionalStop) {
+function Request-OwnedStop($Entry,[switch]$Worker,[switch]$IntentionalStop) {
     if ($IntentionalStop -and $Entry.Role -cne 'owner2') { throw 'Only owner2 may be intentionally disconnected.' }
     $original=$Entry.Process
     if (-not $Entry.PinnedHandle -or $Entry.PinnedHandle.IsClosed -or $Entry.PinnedHandle.IsInvalid) { throw 'Original owned process handle is unavailable.' }
+    $probe=Observe-LifecycleWait $Entry 0 'before-stop-request'
+    if((Test-LifecycleNativeSignal $Entry $probe) -or $probe.exitCode -ne 259){return}
     # Never signal a freshly reopened PID. The Process retains its original handle.
     try {
         $original.Refresh()
@@ -200,11 +268,34 @@ function Stop-OwnedEntry($Entry,[switch]$Worker,[switch]$IntentionalStop) {
         $original.Refresh()
         if (-not $original.HasExited) { throw }
     }
-    # HasExited may observe exit status before the kernel signals. This finite
-    # wait must return true, even when no live PID lookup remains available.
-    if (-not $original.WaitForExit(5000)) { throw 'Owned process did not signal exit within the 5000ms cleanup bound.' }
-    $original.Refresh()
-    if (-not $original.HasExited) { throw 'Owned process remained live after exit confirmation.' }
+}
+function Stop-OwnedEntry($Entry,[switch]$Worker) {
+    if($Entry.ExitWaitEvidence.cleanupTimeoutDecided){throw 'Owned cleanup timeout was already decided; later signal cannot clear it.'}
+    Request-OwnedStop $Entry -Worker:$Worker
+    # One native wait decides final cleanup. Managed status is diagnostic only.
+    $probe=Observe-LifecycleWait $Entry 5000 'final-cleanup'
+    if(-not (Test-LifecycleNativeSignal $Entry $probe)){
+        $Entry.ExitWaitEvidence.cleanupTimeoutDecided=$true
+        throw 'Owned process did not signal exit within the 5000ms cleanup bound.'
+    }
+    if($Entry.ExitWaitEvidence.cleanupTimeoutDecided){throw 'Owned cleanup timeout was already decided; later signal cannot clear it.'}
+    $Entry.ExitWaitEvidence.kernelExitConfirmed=$true
+}
+function Wait-PlannedDisconnect($Entry) {
+    Record-TimingEvent 'wait-planned-disconnect' $Entry.Role 'native original handle; remaining existing scenario budget'
+    while($true){
+        if($Entry.ExitWaitEvidence.scenarioTimeoutDecided){throw 'Planned disconnect timeout was already decided; later signal cannot clear it.'}
+        Assert-OwnedRolesHealthy
+        $remaining=[double]$TimeoutSeconds-$scenarioWatch.Elapsed.TotalSeconds
+        $milliseconds=[int][math]::Min(200,[math]::Floor($remaining*1000))
+        if($milliseconds -le 0){$Entry.ExitWaitEvidence.scenarioTimeoutDecided=$true;throw 'Lifecycle scenario exceeded its strict timeout waiting for planned disconnect.'}
+        $probe=Observe-LifecycleWait $Entry $milliseconds 'planned-disconnect'
+        Assert-OwnedRolesHealthy
+        if($scenarioWatch.Elapsed.TotalSeconds -ge $TimeoutSeconds){$Entry.ExitWaitEvidence.scenarioTimeoutDecided=$true;throw 'Lifecycle scenario exceeded its strict timeout waiting for planned disconnect.'}
+        if($Entry.ExitWaitEvidence.scenarioTimeoutDecided){throw 'Planned disconnect timeout was already decided; later signal cannot clear it.'}
+        if(Test-LifecycleNativeSignal $Entry $probe){$Entry.ExitWaitEvidence.kernelExitConfirmed=$true;return}
+        Check-StorageBudget;Maintain-OwnedCpuPolicy
+    }
 }
 function Start-Role([string]$Role,[string]$Destination,[string[]]$Mode) {
     $log=Join-Path $run ($Role+'.log')
@@ -213,11 +304,11 @@ function Start-Role([string]$Role,[string]$Destination,[string[]]$Mode) {
     Record-TimingEvent 'role-start-request' $Role $Destination
     $p=Start-Process -FilePath $editor -ArgumentList $launchArguments -WorkingDirectory $projectRoot -WindowStyle Hidden -PassThru
     Record-TimingEvent 'role-process-started' $Role ($p.StartTime.ToUniversalTime().ToString('o'))
-    $entry=[pscustomobject]@{Process=$p;PinnedHandle=$p.SafeHandle;Started=$p.StartTime;Role=$Role;Log=$log;Path=$editor;IntentionalStop=$false}
+    $entry=[pscustomobject]@{Process=$p;PinnedHandle=$p.SafeHandle;ExitWaitEvidence=(New-LifecycleWaitEvidence);Started=$p.StartTime;Role=$Role;Log=$log;Path=$editor;IntentionalStop=$false}
     $entries.Add($entry)
     $p.ProcessorAffinity=[IntPtr]([int64]$fixtureAffinity); $p.PriorityClass=[Diagnostics.ProcessPriorityClass]::Normal; $p.Refresh()
     if ([uint64]$p.ProcessorAffinity.ToInt64() -ne $fixtureAffinity -or $p.PriorityClass -ne [Diagnostics.ProcessPriorityClass]::Normal) { throw "Could not apply/verify owned $Role CPU policy." }
-    $result.processes+=@{role=$Role;pid=$p.Id;startUtc=$entry.Started.ToUniversalTime().ToString('o');path=$editor;affinityMask=('0x{0:X}' -f [uint64]$p.ProcessorAffinity.ToInt64());priority=$p.PriorityClass.ToString();log=$log}
+    $result.processes+=@{role=$Role;pid=$p.Id;startUtc=$entry.Started.ToUniversalTime().ToString('o');path=$editor;affinityMask=('0x{0:X}' -f [uint64]$p.ProcessorAffinity.ToInt64());priority=$p.PriorityClass.ToString();log=$log;exitWaitEvidence=$entry.ExitWaitEvidence}
     $result.cpuPolicy.processes+=@{role=$Role;pid=$p.Id;startUtc=$entry.Started.ToUniversalTime().ToString('o');path=$editor;affinityMask=('0x{0:X}' -f [uint64]$p.ProcessorAffinity.ToInt64());priority=$p.PriorityClass.ToString()}
     return $entry
 }
@@ -340,6 +431,7 @@ try {
     [Environment]::SetEnvironmentVariable('UE-LocalDataCachePath',$cache,'Process')
     [Environment]::SetEnvironmentVariable('UE-SharedDataCachePath','None','Process')
     [Environment]::SetEnvironmentVariable('TEMP',$temp,'Process'); [Environment]::SetEnvironmentVariable('TMP',$temp,'Process')
+    Initialize-LifecycleProcessProbe
     $scenarioWatch=[Diagnostics.Stopwatch]::StartNew()
     $result.timing.scenarioStartedUtc=[DateTime]::UtcNow.ToString('o')
     Record-TimingEvent 'scenario-start' 'runner' ('fixed total budget seconds='+$TimeoutSeconds)
@@ -356,7 +448,9 @@ try {
     $owner2Live=Get-OwnedLiveProcess $owner2
     if (-not $owner2Live) { throw 'Owner 2 exited before the planned disconnect.' }
     Assert-OwnedRolesHealthy
-    Stop-OwnedEntry $owner2 -IntentionalStop
+    Record-TimingEvent 'planned-disconnect-request' $owner2.Role 'original pinned process; no separate phase deadline'
+    Request-OwnedStop $owner2 -IntentionalStop
+    Wait-PlannedDisconnect $owner2
     $owner2ProcessRecord=@($result.processes | Where-Object {$_.role -eq 'owner2'})[0]
     $owner2ProcessRecord.intentionalDisconnect=$true; $owner2ProcessRecord.exitCode=$owner2.Process.ExitCode
     Wait-Marker $serverEntry 'PROOF_LIFECYCLE_LOGOUT owner=2 epoch=1'
