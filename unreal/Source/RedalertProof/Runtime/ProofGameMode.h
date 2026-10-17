@@ -45,6 +45,12 @@ private:
     bool bSkirmishFixtureHost = false;
     bool bLifecycleFixtureHost = false;
     FString LifecycleControl;
+    bool bInputBindingServer = false;
+    FString InputBindingControl;
+    FString InputBindingLastControl;
+    int32 InputBindingBotSequence = 0;
+    bool bInputBindingDuelStarted = false;
+    void TickInputBindingFixture();
     bool bSkirmishFixtureStarted = false;
     bool bSkirmishTerminalPublished = false;
     FProofSnapshot SkirmishTerminalSnapshot;

@@ -29,7 +29,16 @@ public:
     UFUNCTION(Client, Reliable) void ClientLifecycleRejected();
     virtual void Tick(float DeltaSeconds) override;
     virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+    virtual void BuildInputStack(TArray<UInputComponent*>& InputStack) override;
+    virtual void ProcessPlayerInput(float DeltaTime, bool bGamePaused) override;
+    uint64 GetFixtureProcessedInputFrame(const UInputComponent* Component) const
+    { return Component && FixtureProcessedInput.Get() == Component ? FixtureProcessedInputFrame : 0; }
 private:
+    bool bInputBindingTrace = false;
+    TWeakObjectPtr<UInputComponent> FixtureBuiltInput;
+    TWeakObjectPtr<UInputComponent> FixtureProcessedInput;
+    uint64 FixtureBuiltInputFrame = 0;
+    uint64 FixtureProcessedInputFrame = 0;
     FProofIngressBudget IngressBudget;
     bool AdmitIngress();
     bool bIngressFixture = false;
