@@ -1,0 +1,17 @@
+# Native S-key Stop acceptance preparation
+
+This local `test/native-stop-input-binding` branch starts at main `f1a106ad8be722ce31bc4cc568c043b4b398d857` (merged PR43). The independently tested pointer-bounds branch remains separate and unchanged.
+
+Issue #17 still lacks bound keyboard evidence. Existing Stop controls call `StopSelected()` directly and prove zero native S callbacks. This opt-in fixture sends exactly one S press and release through installed UE's `UGameViewportClient::InputKey`, using the local player's mapped device and event timestamp. It waits for the registered pawn input component to finish a normal input-stack pass before injecting, then observes the actual bound `OnManualStop` counter. It never calls that callback/shared Stop handler as an injection fallback and does not move the OS pointer or force focus.
+
+Run the prepared mode with `./unreal/Scripts/test-controls-proof.ps1 -CleanPresentation -StopControls -StopInputBinding`. Keep the ordinary `-StopControls` run separate. The new flag reaches only the rendered role; invalid combinations fail before paths, ports or processes are created. Existing 55-second client active limit, 90-second scenario limit, 300-second warmup limit, storage guards and owned-process cleanup remain unchanged.
+
+Required new observations: four exact press/callback/release/released JSON rows; same owner/unit/epoch/device/user; normal-frame processing before and after injection; one native callback; released S state; selected unit preserved; accepted Stop sequence6; unchanged three-role stationary state/host-clock evidence; accepted sequence7 Move/resumption. A viewport InputKey return value is diagnostic and cannot substitute for a callback or host receipt.
+
+Lightweight preparation checks passed: 60 existing Stop evidence cases, 62 new injection-policy cases, 14 fixture/source/preflight guards, and eight existing controls ownership/cleanup policy checks. These are synthetic/source checks, not engine execution evidence.
+
+Next engine allocation: commit and verify clean source, reuse only hash-verified local assets, build the module with the existing bounded build script, then run default controls, ordinary Stop, and injected Stop serially with unchanged limits. Bind the fresh DLL/source/config/project hashes to every run and independently review raw events, receipts, common snapshots, cleanup and ten engine captures. Stop on failure; retain failures and do not automatically retry or increase deadlines.
+
+Until that allocation passes, compilation and runtime dispatch are unverified. Even a passing injected run will report `inputSource=engineInjection`, `pointerSource=projectedSynthetic`, `physicalInputVerified=false`, and `osWindowFocusVerified=false`. Physical S, modifiers, other bindings, Alt-Tab and desktop focus remain open. The old broad input-fixture and higher-digit branches are selective source references, not transferred acceptance. No model-suite, art, Internet or performance acceptance is claimed.
+
+This candidate is local and unpublished. Jared's specific approval covered PR43; it does not authorize publication or merge of this branch or the pointer-bounds follow-up.

@@ -1,4 +1,6 @@
 #include "Runtime/ProofPlayerController.h"
+#include "Components/InputComponent.h"
+#include "GameFramework/Pawn.h"
 #include "Runtime/ProofGameMode.h"
 #include "Runtime/ProofGameState.h"
 #include "Engine/World.h"
@@ -20,6 +22,8 @@ AProofPlayerController::AProofPlayerController()
     bAutomation = !bSkirmishMode && FParse::Param(FCommandLine::Get(), TEXT("ProofAutomation"));
     bControlsAutomation = !bSkirmishMode && FParse::Param(FCommandLine::Get(), TEXT("ProofControlsAutomation"));
     bControlsObserver = FParse::Param(FCommandLine::Get(), TEXT("ProofControlsObserver"));
+    bStopInputBindingTrace = bControlsAutomation && !bControlsObserver
+        && FParse::Param(FCommandLine::Get(), TEXT("ProofStopInputBinding"));
     bSkirmishObserver = bSkirmishMode && FParse::Param(FCommandLine::Get(), TEXT("ProofSkirmishObserver"));
     bIngressFixture = FParse::Param(FCommandLine::Get(), TEXT("ProofIngressFixture"));
     bIngressFlood = FParse::Param(FCommandLine::Get(), TEXT("ProofIngressFlood"));
@@ -28,6 +32,26 @@ AProofPlayerController::AProofPlayerController()
     FParse::Value(FCommandLine::Get(), TEXT("ProofLifecycleRole="), LifecycleRole);
     FParse::Value(FCommandLine::Get(), TEXT("ProofLifecycleControl="), LifecycleControl);
     bLifecycleFixture = bSkirmishMode && !LifecycleRole.IsEmpty();
+}
+
+void AProofPlayerController::BuildInputStack(TArray<UInputComponent*>& InputStack)
+{
+    Super::BuildInputStack(InputStack);
+    if (!bStopInputBindingTrace) return;
+    const APawn* Controlled = GetPawnOrSpectator();
+    UInputComponent* Component = Controlled ? Controlled->InputComponent.Get() : nullptr;
+    StopInputBuiltComponent = Component && InputStack.Contains(Component) ? Component : nullptr;
+    StopInputBuiltFrame = GFrameCounter;
+}
+
+void AProofPlayerController::ProcessPlayerInput(float DeltaTime, bool bGamePaused)
+{
+    Super::ProcessPlayerInput(DeltaTime, bGamePaused);
+    if (bStopInputBindingTrace && StopInputBuiltFrame == GFrameCounter)
+    {
+        StopInputProcessedComponent = StopInputBuiltComponent;
+        StopInputProcessedFrame = GFrameCounter;
+    }
 }
 
 void AProofPlayerController::SynchronizeMatchEpoch()
