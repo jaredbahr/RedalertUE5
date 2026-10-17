@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Runtime/ProofAttackMoveRuntimeState.h"
 #include "GameFramework/Pawn.h"
 #include "Presentation/ProofSelectionState.h"
 #include "Presentation/ProofGroupOrderQueue.h"
@@ -34,6 +35,8 @@ protected:
     virtual void BeginPlay() override;
 
 private:
+    FProofAttackMoveRuntimeState AttackMoveRuntime;
+    void TickAttackMoveRuntime(float DeltaSeconds);
     UPROPERTY(VisibleAnywhere) TObjectPtr<UCameraComponent> Camera;
     UPROPERTY(Transient) TObjectPtr<UStaticMesh> ProxyMesh;
     UPROPERTY(Transient) TObjectPtr<UStaticMesh> StructureMesh;

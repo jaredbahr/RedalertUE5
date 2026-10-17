@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Runtime/ProofAttackMoveRuntimeState.h"
 #include "GameFramework/PlayerController.h"
 #include "Commands/ProofCommandModel.h"
 #include "Commands/ProofIngressBudget.h"
@@ -32,6 +33,8 @@ public:
     virtual void Tick(float DeltaSeconds) override;
     virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 private:
+    FProofAttackMoveRuntimeState AttackMoveRuntime;
+    void TickAttackMoveRuntime(float DeltaSeconds);
     FProofIngressBudget IngressBudget;
     FProofRefineryMinerEvidence RefineryEvidence;
     FProofStopEvidence StopEvidence;

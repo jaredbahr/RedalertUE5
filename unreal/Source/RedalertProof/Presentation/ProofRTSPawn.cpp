@@ -41,6 +41,7 @@ AProofRTSPawn::AProofRTSPawn()
 void AProofRTSPawn::BeginPlay()
 {
     Super::BeginPlay();
+    AttackMoveRuntime.bEnabled = FParse::Param(FCommandLine::Get(), TEXT("ProofAttackMoveFixture"));
     bGraphicsWarmup = FParse::Param(FCommandLine::Get(), TEXT("ProofGraphicsWarmup"));
     bStopControls = FParse::Param(FCommandLine::Get(), TEXT("ProofStopControls"));
     bFactoryRallyEvidence = FParse::Param(FCommandLine::Get(), TEXT("ProofFactoryRallyEvidence"));
@@ -240,7 +241,8 @@ void AProofRTSPawn::Tick(float DeltaSeconds)
     {
         Request(Command);
     }
-    if (GS->Snapshot.bSkirmish && !SkirmishScenario.IsEmpty()) TickSkirmishScenario(DeltaSeconds);
+    if (AttackMoveRuntime.bEnabled && PC->OwnerId == 1) TickAttackMoveRuntime(DeltaSeconds);
+    else if (GS->Snapshot.bSkirmish && !SkirmishScenario.IsEmpty()) TickSkirmishScenario(DeltaSeconds);
     else if (PC->IsControlsAutomation()) TickControlsAutomation(DeltaSeconds);
 }
 

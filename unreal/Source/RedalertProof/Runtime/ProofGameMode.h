@@ -8,6 +8,8 @@
 #include "Runtime/ProofRefineryMinerEvidence.h"
 #include "Runtime/ProofStopEvidence.h"
 #include "Runtime/ProofFactoryRallyEvidence.h"
+#include "Runtime/ProofAttackMoveEvidence.h"
+#include "Runtime/ProofAttackMoveRuntimeState.h"
 #include "ProofGameMode.generated.h"
 
 class AProofPlayerController;
@@ -29,6 +31,9 @@ public:
     bool IsCurrentController(const AProofPlayerController* Controller) const;
 private:
     FProofCommandModel Model;
+    FProofAttackMoveRuntimeState AttackMoveRuntime;
+    FProofAttackMoveEvidence AttackMoveEvidence;
+    void TickAttackMoveRuntime(float DeltaSeconds);
     FProofRefineryMinerEvidence RefineryEvidence;
     FProofStopEvidence StopEvidence;
     FProofFactoryRallyEvidence FactoryRallyEvidence;
