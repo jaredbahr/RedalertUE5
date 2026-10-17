@@ -1,0 +1,1343 @@
+{
+  "status": "accepted-bounded-stop-slice",
+  "testedCommit": "b10e1ffb41ec4826e4e7755da292ac36c6c1af59",
+  "baseCommit": "8984bbc36e8eb23732a422e006df2634674cab23",
+  "build": {
+    "compiledModuleSha256": "77714383B98F1AF44B60BC57766EFACD8C1F7B10C925FF9A443EF9D3EAC0D724",
+    "passed": true,
+    "path": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\stop-build-b10e1ff.log",
+    "sha256": "53432285D763AB7CB1C9C629297BD814ED6CE71CDC18926DD3A7758441D48F0A",
+    "elapsedSeconds": 17.44
+  },
+  "modelCasesPassed": 62,
+  "runs": [
+    {
+      "name": "controls-20261017-042435-463",
+      "resultPath": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\controls-20261017-042435-463\\result.json",
+      "resultSha256": "B375A3EB6A163CFAB9B5B01A2323F7FA1EBE21D16ED931FFF0EDBF172BD4B0E2",
+      "passed": true,
+      "head": "b10e1ffb41ec4826e4e7755da292ac36c6c1af59",
+      "dirtyWorkingTree": false,
+      "startedUtc": "2026-10-17T04:24:35.55139Z",
+      "finishedUtc": "2026-10-17T04:25:31.2434781Z",
+      "elapsedSeconds": 55.768,
+      "scenarioElapsedSeconds": 44.453,
+      "cleanup": {
+        "errors": [],
+        "ignoredExitRaces": 0,
+        "parentsFirst": true
+      },
+      "screenshots": [
+        {
+          "sha256": "CC0ECC33932652015F97AF3FB60932E4040079DC4C81DE2E47FEE7DF447F2FD2",
+          "bytes": 793855,
+          "width": 1280,
+          "height": 720,
+          "path": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\controls-20261017-042435-463\\screenshots\\01-selected.png"
+        },
+        {
+          "sha256": "5312B03A26A7E25304C7930924913840DB696A4C3A42DE79F85C5FB3B2D97AC4",
+          "bytes": 799440,
+          "width": 1280,
+          "height": 720,
+          "path": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\controls-20261017-042435-463\\screenshots\\02-moved-combat-produced.png"
+        },
+        {
+          "sha256": "D0ADD9569EF59FB652CC0D415713520188752A99C69688CECF0C1F2DF68C3A6B",
+          "bytes": 801208,
+          "width": 1280,
+          "height": 720,
+          "path": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\controls-20261017-042435-463\\screenshots\\03-stop.png"
+        },
+        {
+          "sha256": "0BCBD0061BEE6F9A0C2A5CF7F28EB6EDE1CE49D42851F8A2FDBAC14CAD628BBF",
+          "bytes": 795638,
+          "width": 1280,
+          "height": 720,
+          "path": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\controls-20261017-042435-463\\screenshots\\04-stop-resumed.png"
+        }
+      ],
+      "stopControlsEvidenceEnabled": true,
+      "stopControlsEvidence": {
+        "passed": true,
+        "owner": 1,
+        "unit": 4,
+        "epoch": 0,
+        "sequences": [
+          5,
+          6,
+          7
+        ],
+        "roles": [
+          "host",
+          "rendered",
+          "observer"
+        ],
+        "rowsByRole": {
+          "observer": 116,
+          "host": 185,
+          "rendered": 97
+        },
+        "commonRevisionCount": 67,
+        "movingRevision": 264,
+        "stoppedRevision": 281,
+        "resumedRevision": 288,
+        "stationaryCommonRevisions": [
+          267,
+          269,
+          271,
+          273,
+          275,
+          277,
+          279,
+          281
+        ],
+        "stationarySimulationSeconds": 1.4000000200000002,
+        "physicalInputVerified": false,
+        "internetTest": false,
+        "performanceTest": false
+      },
+      "commonRevisionCount": 67,
+      "rawFiles": [
+        {
+          "name": "host.log",
+          "bytes": 301815,
+          "sha256": "DBD71266F3352FA5637E02ED80E64E2D0DC66E85F739E7863C2BA655A81FB611"
+        },
+        {
+          "name": "observer.log",
+          "bytes": 234952,
+          "sha256": "8FEEB81E4AD202C19C6F9E3236C01597DC25AC81A523BAB16E393FD0556CE07F"
+        },
+        {
+          "name": "rendered.log",
+          "bytes": 422009,
+          "sha256": "FA79E2A75BD166238F209F2192F102F8E1672DB52F797DA85A952A4C97B4ECA0"
+        },
+        {
+          "name": "result.json",
+          "bytes": 22955,
+          "sha256": "B375A3EB6A163CFAB9B5B01A2323F7FA1EBE21D16ED931FFF0EDBF172BD4B0E2"
+        },
+        {
+          "name": "warmup.log",
+          "bytes": 309498,
+          "sha256": "2C702DA11313BB876132C9A50F4D009DDEB9D914B4DEAE4B8DF8A2DAC6CBEFE6"
+        }
+      ]
+    },
+    {
+      "name": "controls-20261017-042543-409",
+      "resultPath": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\controls-20261017-042543-409\\result.json",
+      "resultSha256": "BA130BCEEA3FD73AE358E7007563D32730E42751483427B22E87FEB4A35D27A9",
+      "passed": true,
+      "head": "b10e1ffb41ec4826e4e7755da292ac36c6c1af59",
+      "dirtyWorkingTree": false,
+      "startedUtc": "2026-10-17T04:25:43.4886958Z",
+      "finishedUtc": "2026-10-17T04:26:36.6643226Z",
+      "elapsedSeconds": 53.246,
+      "scenarioElapsedSeconds": 42.876,
+      "cleanup": {
+        "errors": [],
+        "ignoredExitRaces": 0,
+        "parentsFirst": true
+      },
+      "screenshots": [
+        {
+          "width": 1280,
+          "path": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\controls-20261017-042543-409\\screenshots\\01-selected.png",
+          "height": 720,
+          "sha256": "501209311622DACDF3FEF63F2C7EB6BE5C5DD38C6E1A7ABA6912B3716431F102",
+          "bytes": 794077
+        },
+        {
+          "width": 1280,
+          "path": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\controls-20261017-042543-409\\screenshots\\02-moved-combat-produced.png",
+          "height": 720,
+          "sha256": "3A134635F97036DB138B8FEC619D702C45AA69DA32FE943E0DF21B6201406AF5",
+          "bytes": 797424
+        }
+      ],
+      "stopControlsEvidenceEnabled": false,
+      "stopControlsEvidence": null,
+      "commonRevisionCount": 55,
+      "rawFiles": [
+        {
+          "name": "host.log",
+          "bytes": 151116,
+          "sha256": "28032A1F1FD2455CD811280A4F7E20B9B316ADE7386E2A7FEC1DEF7A70FDA7F0"
+        },
+        {
+          "name": "observer.log",
+          "bytes": 139532,
+          "sha256": "EB9EF81AC4ABFB6AD0B7FC38CE774ABFDA48D1396F5D981B1509B6F957822C1B"
+        },
+        {
+          "name": "rendered.log",
+          "bytes": 346027,
+          "sha256": "87E0763AE479EEB33021AC0DB987AC47EF512DB1CCBC84F7448E63DE1715DB00"
+        },
+        {
+          "name": "result.json",
+          "bytes": 20875,
+          "sha256": "BA130BCEEA3FD73AE358E7007563D32730E42751483427B22E87FEB4A35D27A9"
+        },
+        {
+          "name": "warmup.log",
+          "bytes": 314830,
+          "sha256": "952E277B92E265DC7B00917D98900EB103B75194C5580494D9D171BAE3967B81"
+        }
+      ]
+    },
+    {
+      "name": "fidelity-model-20261017-042356-321",
+      "resultPath": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\fidelity-model-20261017-042356-321\\result.json",
+      "resultSha256": "11929818044A0FA169827A0BDBA8FF966B759761FF2F4B1EE35F4A01E504F79B",
+      "passed": true,
+      "head": "b10e1ffb41ec4826e4e7755da292ac36c6c1af59",
+      "dirtyWorkingTree": false,
+      "startedUtc": "2026-10-17T04:23:56.3766134Z",
+      "finishedUtc": "2026-10-17T04:24:09.2556764Z",
+      "elapsedSeconds": 12.934,
+      "testCount": 4,
+      "succeeded": 4,
+      "failed": 0,
+      "rawFiles": [
+        {
+          "name": "automation.log",
+          "bytes": 104629,
+          "sha256": "769FB93B57F5CE4F2CB9DF903854D17FF532CADE9214820CE345EE333ECECAA4"
+        },
+        {
+          "name": "result.json",
+          "bytes": 1610,
+          "sha256": "11929818044A0FA169827A0BDBA8FF966B759761FF2F4B1EE35F4A01E504F79B"
+        }
+      ],
+      "reportIndexSha256": "AA804715A9E213DA4DCAACAB23A21FFEF4D8BA686009AFAE29CA7D4DD8EA1790"
+    },
+    {
+      "name": "group-controls-model-20261017-042343-490",
+      "resultPath": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\group-controls-model-20261017-042343-490\\result.json",
+      "resultSha256": "EF78E87F13365CDF7242CA09D6F59A473487FAF94BB37C9E2238F8CE7656AC77",
+      "passed": true,
+      "head": "b10e1ffb41ec4826e4e7755da292ac36c6c1af59",
+      "dirtyWorkingTree": false,
+      "startedUtc": "2026-10-17T04:23:43.5531355Z",
+      "finishedUtc": "2026-10-17T04:23:56.2317384Z",
+      "elapsedSeconds": 12.74,
+      "testCount": 11,
+      "succeeded": 11,
+      "failed": 0,
+      "rawFiles": [
+        {
+          "name": "automation.log",
+          "bytes": 111431,
+          "sha256": "0BC48A1B45001FCFE31CB672ED1828947B25856899C8CFFFB6EB2D93B13790C0"
+        },
+        {
+          "name": "result.json",
+          "bytes": 1486,
+          "sha256": "EF78E87F13365CDF7242CA09D6F59A473487FAF94BB37C9E2238F8CE7656AC77"
+        }
+      ],
+      "reportIndexSha256": "4E73B4C82556910AF1907E48A22F6596762A9DE69FEA8BA94B578F4550691D3D"
+    },
+    {
+      "name": "hud-layout-model-20261017-042409-354",
+      "resultPath": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\hud-layout-model-20261017-042409-354\\result.json",
+      "resultSha256": "545F3AF451AA67D7C6EDDC24A1589A4746778ECF8B66896260333738706C09F5",
+      "passed": true,
+      "head": "b10e1ffb41ec4826e4e7755da292ac36c6c1af59",
+      "dirtyWorkingTree": false,
+      "startedUtc": "2026-10-17T04:24:09.4146003Z",
+      "finishedUtc": "2026-10-17T04:24:21.9892632Z",
+      "elapsedSeconds": 12.632,
+      "testCount": 5,
+      "succeeded": 5,
+      "failed": 0,
+      "cleanup": {
+        "launched": true,
+        "pid": 36428,
+        "verifiedExited": true,
+        "terminationRequested": false,
+        "error": null
+      },
+      "rawFiles": [
+        {
+          "name": "automation.log",
+          "bytes": 105651,
+          "sha256": "D4D94CD68F909A4960CFD76CF1B0EE6A3B985D950F6675F5DDD5E8AB1715DA01"
+        },
+        {
+          "name": "result.json",
+          "bytes": 1628,
+          "sha256": "545F3AF451AA67D7C6EDDC24A1589A4746778ECF8B66896260333738706C09F5"
+        }
+      ],
+      "reportIndexSha256": "C7862D9A1E844402C6A08CEFB752E3CAA4517079D51825D1B202DD3E2619B991"
+    },
+    {
+      "name": "native-model-20261017-042328-428",
+      "resultPath": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\native-model-20261017-042328-428\\result.json",
+      "resultSha256": "AEDB08F0F59BCB85A1AF0E97D44FD920723D62E6C17CE2FA619F7CFE2DDEAA44",
+      "passed": true,
+      "head": "b10e1ffb41ec4826e4e7755da292ac36c6c1af59",
+      "dirtyWorkingTree": false,
+      "startedUtc": "2026-10-17T04:23:28.5364884Z",
+      "finishedUtc": "2026-10-17T04:23:43.382684Z",
+      "elapsedSeconds": 14.95,
+      "testCount": 7,
+      "succeeded": 7,
+      "failed": 0,
+      "rawFiles": [
+        {
+          "name": "automation.log",
+          "bytes": 107008,
+          "sha256": "3640BEEBB56D189F7BD1F43D91C244E8797F6DE1BF5D099D9F45382E4DC41517"
+        },
+        {
+          "name": "result.json",
+          "bytes": 1342,
+          "sha256": "AEDB08F0F59BCB85A1AF0E97D44FD920723D62E6C17CE2FA619F7CFE2DDEAA44"
+        }
+      ],
+      "reportIndexSha256": "7982F78A95D9FC59221B0E3ED1FCCAF8A06E270A5A3989B3376D5332B043AA0B"
+    },
+    {
+      "name": "session-lifecycle-20261017-043230-467",
+      "resultPath": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\session-lifecycle-20261017-043230-467\\result.json",
+      "resultSha256": "40F0060B0F34FA295F41A3DACE087929D0CC271F2DEFE244414FD0391AB00889",
+      "passed": true,
+      "head": "b10e1ffb41ec4826e4e7755da292ac36c6c1af59",
+      "dirtyWorkingTree": false,
+      "startedUtc": "2026-10-17T04:32:30.5548048Z",
+      "finishedUtc": "2026-10-17T04:34:37.4756747Z",
+      "elapsedSeconds": 126.998,
+      "scenarioElapsedSeconds": 126.871,
+      "cleanupErrors": [],
+      "commonRevisionCount": 442,
+      "commonEpochGroups": [
+        {
+          "revisions": [
+            10
+          ],
+          "epoch": 1
+        },
+        {
+          "revisions": [
+            11,
+            24,
+            28,
+            31,
+            33,
+            35,
+            40,
+            42,
+            44,
+            46,
+            48,
+            53,
+            55,
+            57,
+            59,
+            61,
+            63,
+            65,
+            67,
+            69,
+            71,
+            73,
+            75,
+            77,
+            79,
+            81,
+            83,
+            87,
+            89,
+            91,
+            93,
+            95,
+            100,
+            102,
+            104,
+            106,
+            108,
+            110,
+            115,
+            117,
+            119,
+            121,
+            123,
+            127,
+            129,
+            131,
+            133,
+            135,
+            137,
+            139,
+            141,
+            143,
+            145,
+            147,
+            151,
+            153,
+            155,
+            157,
+            159,
+            161,
+            164,
+            166,
+            168,
+            170,
+            172,
+            175,
+            177,
+            179,
+            181,
+            183,
+            185,
+            187,
+            189,
+            191,
+            193,
+            195,
+            197,
+            199,
+            201,
+            203,
+            205,
+            207,
+            210,
+            212,
+            214,
+            216,
+            218,
+            221,
+            223,
+            225,
+            227,
+            229,
+            231,
+            233,
+            235,
+            237,
+            239,
+            241,
+            243,
+            245,
+            247,
+            249,
+            255,
+            257,
+            259,
+            261,
+            263,
+            269,
+            271,
+            273,
+            275,
+            277,
+            280,
+            282,
+            284,
+            286,
+            288,
+            290,
+            292,
+            294,
+            296,
+            298,
+            300,
+            302,
+            304,
+            306,
+            308,
+            314,
+            316,
+            318,
+            320,
+            322,
+            328,
+            330,
+            332,
+            334,
+            336,
+            339,
+            341,
+            343,
+            345,
+            347,
+            349,
+            351,
+            353,
+            355,
+            357,
+            359,
+            361,
+            363,
+            365,
+            367,
+            373,
+            375,
+            377,
+            379,
+            381,
+            387,
+            389,
+            391,
+            393,
+            395,
+            400,
+            402,
+            404,
+            406,
+            408,
+            410,
+            412,
+            414,
+            416,
+            418,
+            420,
+            422,
+            424,
+            426,
+            428,
+            434,
+            436,
+            438,
+            440,
+            442,
+            447,
+            449,
+            451,
+            453,
+            455,
+            461,
+            463,
+            465,
+            467,
+            469,
+            474,
+            476,
+            478,
+            480,
+            482,
+            484,
+            486,
+            488,
+            490,
+            492,
+            494,
+            496,
+            498,
+            500,
+            502,
+            504,
+            506,
+            508,
+            509
+          ],
+          "epoch": 1
+        },
+        {
+          "revisions": [
+            10,
+            29,
+            35,
+            39,
+            41,
+            43,
+            48,
+            50,
+            52,
+            54,
+            56,
+            61,
+            63,
+            65,
+            67,
+            69,
+            71,
+            73,
+            75,
+            77,
+            79,
+            81,
+            83,
+            85,
+            87,
+            89,
+            91,
+            95,
+            97,
+            99,
+            101,
+            103,
+            108,
+            110,
+            112,
+            114,
+            116,
+            118,
+            123,
+            125,
+            127,
+            129,
+            131,
+            135,
+            137,
+            139,
+            141,
+            143,
+            145,
+            147,
+            149,
+            151,
+            153,
+            155,
+            159,
+            161,
+            163,
+            165,
+            167,
+            169,
+            172,
+            174,
+            176,
+            178,
+            180,
+            183,
+            185,
+            187,
+            189,
+            191,
+            193,
+            195,
+            197,
+            199,
+            201,
+            203,
+            205,
+            207,
+            209,
+            211,
+            213,
+            215,
+            218,
+            220,
+            222,
+            224,
+            226,
+            229,
+            231,
+            233,
+            235,
+            237,
+            239,
+            241,
+            243,
+            245,
+            247,
+            249,
+            251,
+            253,
+            255,
+            257,
+            263,
+            265,
+            267,
+            269,
+            271,
+            277,
+            279,
+            281,
+            283,
+            285,
+            288,
+            290,
+            292,
+            294,
+            296,
+            298,
+            300,
+            302,
+            304,
+            306,
+            308,
+            310,
+            312,
+            314,
+            316,
+            322,
+            324,
+            326,
+            328,
+            330,
+            336,
+            338,
+            340,
+            342,
+            344,
+            347,
+            349,
+            351,
+            353,
+            355,
+            357,
+            359,
+            361,
+            363,
+            365,
+            367,
+            369,
+            371,
+            373,
+            375,
+            381,
+            383,
+            385,
+            387,
+            389,
+            395,
+            397,
+            399,
+            401,
+            403,
+            409,
+            411,
+            413,
+            415,
+            417,
+            419,
+            421,
+            423,
+            425,
+            427,
+            429,
+            431,
+            433,
+            435,
+            437,
+            443,
+            445,
+            447,
+            449,
+            451,
+            456,
+            458,
+            460,
+            462,
+            464,
+            470,
+            472,
+            474,
+            476,
+            478,
+            480,
+            482,
+            484,
+            486,
+            488,
+            493,
+            495,
+            497,
+            499,
+            501,
+            503,
+            505,
+            507,
+            509,
+            511,
+            513,
+            515,
+            517,
+            519,
+            521,
+            527,
+            529,
+            531,
+            533,
+            535,
+            541,
+            543,
+            545,
+            547,
+            549,
+            554,
+            556,
+            558,
+            560,
+            562,
+            564,
+            565
+          ],
+          "epoch": 2
+        },
+        {
+          "revisions": [
+            10
+          ],
+          "epoch": 3
+        }
+      ],
+      "rawFiles": [
+        {
+          "name": "host.log",
+          "bytes": 217001,
+          "sha256": "0A3D072AF306C2C2B5A25E25BB79F9517142D04DB23A2CD00043B4090838F9B6"
+        },
+        {
+          "name": "lead.log",
+          "bytes": 193184,
+          "sha256": "E69B739185B8FCEC545C139C6407E48E62BE1E756D8D4BE0E537B8B15F9C3CF1"
+        },
+        {
+          "name": "owner2.log",
+          "bytes": 120058,
+          "sha256": "0882089CCC39091DB71A8D80AC3F3C7B9C731AEF2754E1BF16E437ED84F81FC4"
+        },
+        {
+          "name": "rejoin.log",
+          "bytes": 190752,
+          "sha256": "D1FC0196B2B18E82EDC07A6CB33E19AA45A11AC8EC5BD8CF32B025CD27C66B89"
+        },
+        {
+          "name": "result.json",
+          "bytes": 90953,
+          "sha256": "40F0060B0F34FA295F41A3DACE087929D0CC271F2DEFE244414FD0391AB00889"
+        },
+        {
+          "name": "third.log",
+          "bytes": 120937,
+          "sha256": "F4135B95E657E048817758BBF93EA14A3C3D117C60CAF5D666D245ECAF539D7D"
+        }
+      ]
+    },
+    {
+      "name": "skirmish-model-20261017-042315-098",
+      "resultPath": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\skirmish-model-20261017-042315-098\\result.json",
+      "resultSha256": "BCFD0E6911412C4E6A49F43CEC56521D1D108CAE57B2C058BC37AE953C8337E5",
+      "passed": true,
+      "head": "b10e1ffb41ec4826e4e7755da292ac36c6c1af59",
+      "dirtyWorkingTree": false,
+      "startedUtc": "2026-10-17T04:23:15.1583453Z",
+      "finishedUtc": "2026-10-17T04:23:28.3136831Z",
+      "elapsedSeconds": 13.213,
+      "testCount": 22,
+      "succeeded": 22,
+      "failed": 0,
+      "rawFiles": [
+        {
+          "name": "automation.log",
+          "bytes": 122188,
+          "sha256": "C2B1A1FDF11C896C67E90F0AC3FB400149C6D2749491ED5CE7DBE8C36D3EA784"
+        },
+        {
+          "name": "result.json",
+          "bytes": 1349,
+          "sha256": "BCFD0E6911412C4E6A49F43CEC56521D1D108CAE57B2C058BC37AE953C8337E5"
+        }
+      ],
+      "reportIndexSha256": "D6F822D55DF201727B8C5A158A73750EA6DE7729F3F9C1203368A93AF51CE878"
+    },
+    {
+      "name": "skirmish-ownership-retry-20261017-042212-172",
+      "resultPath": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\skirmish-ownership-retry-20261017-042212-172\\result.json",
+      "resultSha256": "5D0AD861A89A238DA40C7C2FADEB4F4688AD4D3586051285261665B4FCAD4C06",
+      "passed": true,
+      "head": "b10e1ffb41ec4826e4e7755da292ac36c6c1af59",
+      "dirtyWorkingTree": false,
+      "startedUtc": "2026-10-17T04:22:12.2575037Z",
+      "finishedUtc": "2026-10-17T04:22:25.2083766Z",
+      "elapsedSeconds": 13.029,
+      "testCount": 2,
+      "succeeded": 2,
+      "failed": 0,
+      "cleanup": {
+        "launched": true,
+        "pid": 35588,
+        "verifiedExited": true,
+        "terminationRequested": false,
+        "error": null
+      },
+      "exactTests": [
+        "RedalertProof.Fixtures.OwnershipRace.DeadAttackerRecovery",
+        "RedalertProof.Fixtures.OwnershipRace.GuardsRemainFailOrWait"
+      ],
+      "evidenceScope": "UE automation executes actual authoritative Model plus shared Pawn receipt policy; no actor/world/network transport",
+      "replicationTest": false,
+      "rawFiles": [
+        {
+          "name": "automation.log",
+          "bytes": 103173,
+          "sha256": "75C36CF128CAE880A979CB52FC8CE3AB5AA188A7566C562A4F508AFA1E170AD0"
+        },
+        {
+          "name": "result.json",
+          "bytes": 2139,
+          "sha256": "5D0AD861A89A238DA40C7C2FADEB4F4688AD4D3586051285261665B4FCAD4C06"
+        }
+      ],
+      "reportIndexSha256": "6214D357D956A150FE1CF88042D0BE5177F60B6CB127E75D86C8F3DF9833EF81"
+    },
+    {
+      "name": "small-match-coop-20261017-043015-222",
+      "resultPath": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\small-match-coop-20261017-043015-222\\result.json",
+      "resultSha256": "EB94804771B8B50EBF9F264D334815209D700E497D7A406A950CDC02E521B976",
+      "passed": true,
+      "head": "b10e1ffb41ec4826e4e7755da292ac36c6c1af59",
+      "dirtyWorkingTree": false,
+      "startedUtc": "2026-10-17T04:30:15.3144855Z",
+      "finishedUtc": "2026-10-17T04:32:02.0471297Z",
+      "elapsedSeconds": 106.816,
+      "scenarioElapsedSeconds": 106.589,
+      "scenario": "Coop",
+      "expectedWinner": 0,
+      "cleanupErrors": [],
+      "screenshots": [
+        {
+          "width": 1280,
+          "bytes": 814504,
+          "sha256": "A1BB7003289E28BBE04A090390EC4833AAB23F86D979629453AF27A1F74BEB4D",
+          "height": 720,
+          "path": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\small-match-coop-20261017-043015-222\\screenshots\\01-base.png",
+          "name": "01-base.png"
+        },
+        {
+          "width": 1280,
+          "bytes": 807601,
+          "sha256": "ECEF58E49B217A00BB88727C36DBDF31C4A90D4C0C9F70C0A36F43A0F51BFA9F",
+          "height": 720,
+          "path": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\small-match-coop-20261017-043015-222\\screenshots\\02-result.png",
+          "name": "02-result.png"
+        }
+      ],
+      "ownershipRetryEvidence": [],
+      "commonRevisionCount": 321,
+      "refineryMinerEvidence": {
+        "passed": true,
+        "requiredRoles": [
+          "host",
+          "rendered",
+          "observer"
+        ],
+        "requiredOwners": [
+          1,
+          2,
+          100
+        ],
+        "commonEpochRevisionCount": 321,
+        "grants": [
+          {
+            "contributors": [
+              {
+                "miner": 6,
+                "before": 50,
+                "after": 0,
+                "depot": 5
+              }
+            ],
+            "depositSum": 50,
+            "miner": 6,
+            "owner": 1,
+            "refinery": 5,
+            "sequence": 1,
+            "gatherSequence": 3,
+            "resource": 2,
+            "epoch": 1,
+            "checkpoints": {
+              "identity": "1:13",
+              "loaded": "1:41",
+              "deposited": "1:61"
+            },
+            "digests": {
+              "identity": "845a5fb29e403ea017116778a897dfc6",
+              "loaded": "e0ed90cadb7f85ee839525e06dbc8ed5",
+              "deposited": "09927c007ada46df4e9ac2a0b76aa722"
+            }
+          },
+          {
+            "contributors": [
+              {
+                "miner": 11,
+                "before": 50,
+                "after": 0,
+                "depot": 10
+              }
+            ],
+            "depositSum": 50,
+            "miner": 11,
+            "owner": 2,
+            "refinery": 10,
+            "sequence": 1,
+            "gatherSequence": 3,
+            "resource": 3,
+            "epoch": 1,
+            "checkpoints": {
+              "identity": "1:25",
+              "loaded": "1:46",
+              "deposited": "1:78"
+            },
+            "digests": {
+              "identity": "842cb54be7ca615e0536941cbafe32cd",
+              "loaded": "3825008dce1d9a3726986f8a7bed757b",
+              "deposited": "297eab7b076e32b160c1d1cd9d25866d"
+            }
+          },
+          {
+            "contributors": [
+              {
+                "miner": 13,
+                "before": 50,
+                "after": 0,
+                "depot": 12
+              }
+            ],
+            "depositSum": 50,
+            "miner": 13,
+            "owner": 100,
+            "refinery": 12,
+            "sequence": 1,
+            "gatherSequence": 5,
+            "resource": 1,
+            "epoch": 1,
+            "checkpoints": {
+              "identity": "1:25",
+              "loaded": "1:78",
+              "deposited": "1:85"
+            },
+            "digests": {
+              "identity": "842cb54be7ca615e0536941cbafe32cd",
+              "loaded": "297eab7b076e32b160c1d1cd9d25866d",
+              "deposited": "8affdc60819c2812fdf126ad87108d9e"
+            }
+          }
+        ]
+      },
+      "rawFiles": [
+        {
+          "name": "host.log",
+          "bytes": 1427854,
+          "sha256": "073917170EC52650400607F976248E827433B4B7D41D444CD0F60F0523F84844"
+        },
+        {
+          "name": "observer.log",
+          "bytes": 1395249,
+          "sha256": "EFB96AF5DF154FEFD8FEC05938A854EF2BBB0A6432C379C0B43A3097FA88EB7D"
+        },
+        {
+          "name": "rendered.log",
+          "bytes": 1605914,
+          "sha256": "B60B7349B3C70A132BFAB1B043CA70A8F5FAAD8DBF491358B64ACD3E5BEAAD32"
+        },
+        {
+          "name": "result.json",
+          "bytes": 16285,
+          "sha256": "EB94804771B8B50EBF9F264D334815209D700E497D7A406A950CDC02E521B976"
+        }
+      ]
+    },
+    {
+      "name": "small-match-defeat-20261017-042849-937",
+      "resultPath": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\small-match-defeat-20261017-042849-937\\result.json",
+      "resultSha256": "8D50440C13FDBB1347BCBEECAB8D80BD93F267CE0B1731D008487CA4A0F03F47",
+      "passed": true,
+      "head": "b10e1ffb41ec4826e4e7755da292ac36c6c1af59",
+      "dirtyWorkingTree": false,
+      "startedUtc": "2026-10-17T04:28:50.1215504Z",
+      "finishedUtc": "2026-10-17T04:29:50.5024614Z",
+      "elapsedSeconds": 60.555,
+      "scenarioElapsedSeconds": 60.175,
+      "scenario": "Defeat",
+      "expectedWinner": 1,
+      "cleanupErrors": [],
+      "screenshots": [
+        {
+          "sha256": "2DB30D91883B82DA7601ED0D327BC8774449F73DC70061EBD5732C710B7C7D9F",
+          "width": 1280,
+          "path": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\small-match-defeat-20261017-042849-937\\screenshots\\01-base.png",
+          "name": "01-base.png",
+          "bytes": 813080,
+          "height": 720
+        },
+        {
+          "sha256": "0DFE1242AF9CDC0293A37C7F05E32367CB81BA45F8B77A59F1175FFFF648629A",
+          "width": 1280,
+          "path": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\small-match-defeat-20261017-042849-937\\screenshots\\02-result.png",
+          "name": "02-result.png",
+          "bytes": 805280,
+          "height": 720
+        }
+      ],
+      "ownershipRetryEvidence": [],
+      "commonRevisionCount": 0,
+      "refineryMinerEvidence": {
+        "passed": true,
+        "requiredRoles": [
+          "host",
+          "rendered"
+        ],
+        "requiredOwners": [
+          1,
+          100
+        ],
+        "commonEpochRevisionCount": 206,
+        "grants": [
+          {
+            "checkpoints": {
+              "deposited": "1:68",
+              "identity": "1:14",
+              "loaded": "1:54"
+            },
+            "epoch": 1,
+            "refinery": 5,
+            "digests": {
+              "deposited": "47a65a4e480089325f7ef7b458ee641e",
+              "identity": "ece47cdfd4b0ba3b9d5cc200429700bf",
+              "loaded": "c45ada535e732a058986989efa11d2ae"
+            },
+            "sequence": 1,
+            "resource": 2,
+            "gatherSequence": 5,
+            "depositSum": 50,
+            "contributors": [
+              {
+                "miner": 6,
+                "before": 50,
+                "after": 0,
+                "depot": 5
+              }
+            ],
+            "owner": 100,
+            "miner": 6
+          },
+          {
+            "checkpoints": {
+              "deposited": "1:68",
+              "identity": "1:36",
+              "loaded": "1:54"
+            },
+            "epoch": 1,
+            "refinery": 9,
+            "digests": {
+              "deposited": "47a65a4e480089325f7ef7b458ee641e",
+              "identity": "d5022652f6b40e5aa4317dbe3590fa24",
+              "loaded": "c45ada535e732a058986989efa11d2ae"
+            },
+            "sequence": 1,
+            "resource": 1,
+            "gatherSequence": 3,
+            "depositSum": 50,
+            "contributors": [
+              {
+                "miner": 10,
+                "before": 50,
+                "after": 0,
+                "depot": 9
+              }
+            ],
+            "owner": 1,
+            "miner": 10
+          }
+        ]
+      },
+      "rawFiles": [
+        {
+          "name": "rendered.log",
+          "bytes": 1256196,
+          "sha256": "A149CE95A4FBD5E131DF351091FC5A96DE8F130DF383832BC4306AB5D1519A9F"
+        },
+        {
+          "name": "result.json",
+          "bytes": 8682,
+          "sha256": "8D50440C13FDBB1347BCBEECAB8D80BD93F267CE0B1731D008487CA4A0F03F47"
+        }
+      ]
+    },
+    {
+      "name": "small-match-victory-20261017-042648-821",
+      "resultPath": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\small-match-victory-20261017-042648-821\\result.json",
+      "resultSha256": "26126029EF5624522AF52866480838EC6F2E805D8918E7B9BD0EF414A0834BAE",
+      "passed": true,
+      "head": "b10e1ffb41ec4826e4e7755da292ac36c6c1af59",
+      "dirtyWorkingTree": false,
+      "startedUtc": "2026-10-17T04:26:48.8969904Z",
+      "finishedUtc": "2026-10-17T04:28:13.0671298Z",
+      "elapsedSeconds": 84.235,
+      "scenarioElapsedSeconds": 84.023,
+      "scenario": "Victory",
+      "expectedWinner": 0,
+      "cleanupErrors": [],
+      "screenshots": [
+        {
+          "sha256": "3DC9A071C639011149614C6F1C3B4D6D7D6A1B90C22BDC15A08D0E4D035B4DAB",
+          "name": "01-base.png",
+          "bytes": 816121,
+          "width": 1280,
+          "path": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\small-match-victory-20261017-042648-821\\screenshots\\01-base.png",
+          "height": 720
+        },
+        {
+          "sha256": "26569040AFBFFDAB68C1FA63D9AADA889F9413DC7D85EF5EAED8FA89D66590DD",
+          "name": "02-result.png",
+          "bytes": 811081,
+          "width": 1280,
+          "path": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\small-match-victory-20261017-042648-821\\screenshots\\02-result.png",
+          "height": 720
+        }
+      ],
+      "ownershipRetryEvidence": [],
+      "commonRevisionCount": 0,
+      "refineryMinerEvidence": {
+        "passed": true,
+        "requiredRoles": [
+          "host",
+          "rendered"
+        ],
+        "requiredOwners": [
+          1,
+          100
+        ],
+        "commonEpochRevisionCount": 297,
+        "grants": [
+          {
+            "contributors": [
+              {
+                "miner": 6,
+                "before": 50,
+                "after": 0,
+                "depot": 5
+              }
+            ],
+            "digests": {
+              "loaded": "3981fe96f1bdce7b2171115cce4a90fc",
+              "deposited": "ccaa7d6f3f623839b12382ec45c3effa",
+              "identity": "ece47cdfd4b0ba3b9d5cc200429700bf"
+            },
+            "miner": 6,
+            "epoch": 1,
+            "checkpoints": {
+              "loaded": "1:56",
+              "deposited": "1:75",
+              "identity": "1:14"
+            },
+            "sequence": 1,
+            "resource": 2,
+            "owner": 100,
+            "refinery": 5,
+            "gatherSequence": 5,
+            "depositSum": 50
+          },
+          {
+            "contributors": [
+              {
+                "miner": 9,
+                "before": 50,
+                "after": 0,
+                "depot": 8
+              }
+            ],
+            "digests": {
+              "loaded": "29ecff53c404eaaf91abf052fccd4a1f",
+              "deposited": "3981fe96f1bdce7b2171115cce4a90fc",
+              "identity": "7702d487ca1d261cf4db69480ac08ec5"
+            },
+            "miner": 9,
+            "epoch": 1,
+            "checkpoints": {
+              "loaded": "1:39",
+              "deposited": "1:56",
+              "identity": "1:19"
+            },
+            "sequence": 1,
+            "resource": 1,
+            "owner": 1,
+            "refinery": 8,
+            "gatherSequence": 3,
+            "depositSum": 50
+          }
+        ]
+      },
+      "rawFiles": [
+        {
+          "name": "rendered.log",
+          "bytes": 2259652,
+          "sha256": "A2E1274DC9790F3EA7CED9D5B33F780DDB250C3EF25A743C9A5DFB72D8330FD9"
+        },
+        {
+          "name": "result.json",
+          "bytes": 10145,
+          "sha256": "26126029EF5624522AF52866480838EC6F2E805D8918E7B9BD0EF414A0834BAE"
+        }
+      ]
+    },
+    {
+      "name": "stop-model-20261017-042301-741",
+      "resultPath": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\stop-model-20261017-042301-741\\result.json",
+      "resultSha256": "A04A3045ED7B14C46EF3CC06C5DC591D5822C903C96408AF0F014F3E8DA2DB85",
+      "passed": true,
+      "head": "b10e1ffb41ec4826e4e7755da292ac36c6c1af59",
+      "dirtyWorkingTree": false,
+      "startedUtc": "2026-10-17T04:23:01.8209567Z",
+      "finishedUtc": "2026-10-17T04:23:14.9541395Z",
+      "elapsedSeconds": 13.206,
+      "testCount": 11,
+      "succeeded": 11,
+      "failed": 0,
+      "cleanup": {
+        "launched": true,
+        "pid": 6612,
+        "verifiedExited": true,
+        "terminationRequested": false,
+        "error": null
+      },
+      "rawFiles": [
+        {
+          "name": "automation.log",
+          "bytes": 110801,
+          "sha256": "6F228E1EA9E50A97B03D7CB12AD407435534A273E68995E8979A7FFD6ED288EC"
+        },
+        {
+          "name": "result.json",
+          "bytes": 1493,
+          "sha256": "A04A3045ED7B14C46EF3CC06C5DC591D5822C903C96408AF0F014F3E8DA2DB85"
+        }
+      ],
+      "reportIndexSha256": "1709B36AA5FF9B2341E4EADACE5E3D56EB5D0D509A844FBDCB3A16623378903B"
+    }
+  ],
+  "lightweight": {
+    "ownershipRetryPolicySyntheticCases": 22,
+    "independentCoreUiRuntimeReview": "clear",
+    "independentParserAdversarialReview": "clear after six concrete gaps corrected before compilation",
+    "existingControlsPolicyCases": 8,
+    "newModelRunnerVerifiedExitCleanup": true,
+    "stopParserSyntheticCases": 39
+  },
+  "failuresInThisEngineBatch": [],
+  "priorFailureLedger": "stop-first-batch.json",
+  "priorPartialLedger": "stop-pre-recovery-coverage.json",
+  "scope": "Stop on selected mobile units through the authoritative shared path, pending-intent replacement within existing queue budgets, cancellation/cargo/idle-fire model coverage, actual one-unit Stop and resume observed across host and both clients.",
+  "runtimeLimits": "Opt-in uses shared Stop handler, not native S callback. All configured modelcases, original controls assertions,55sclient/20-24shost/23sobserver/90srunner limits, skirmish winners/miner identity phases and lifecycle bounds remain.",
+  "diagnosticLimits": {
+    "rowBytes": 32768,
+    "ownershipRejectionRows": 64,
+    "snapshotRowsPerRole": 1024,
+    "hostCommandEvents": 32,
+    "combinedPayloadBytes": 4194304,
+    "defaultCollectionOff": true
+  },
+  "captureLimits": "Four opt-in controls captures, two default controls captures and six skirmish base/result captures are match/selection context. The stationary time window and exact cargo/deposit attribution come from logs/common semantic snapshots; still images alone do not prove duration.",
+  "processExit": {
+    "checkedUtc": "2026-10-17T04:34:53.5633026Z",
+    "remainingEngineBuildShaderProcesses": 0
+  },
+  "limitations": [
+    "Native/physical S, mouse focus and human usability remain unverified until Jared performs the checklist.",
+    "No new art, calibrated RA2 balance, Internet acceptance or performance claim.",
+    "Issues #2, #17, #18 and #33 remain open; dense HUD overlap and startup-cause investigation remain separate.",
+    "No hosted Actions, installs, purchases or binary uploads. Existing D: polling cache/temp/CPU policies are not zero-C:-writes or hard confinement guarantees.",
+    "All three live matches in this accepted batch had zero ownership rejection/retry; two deterministic UE cases execute the actual Model and shared Pawn policy, not network timing."
+  ]
+}

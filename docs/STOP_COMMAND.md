@@ -1,6 +1,6 @@
 # Stop selected units
 
-Status: PR42 remains draft. Clean e672886 passed build, 60 model cases and Stop/default controls, but Victory failed before terminal completion. A narrow fixture correction is prepared and unbuilt; Defeat, Coop and lifecycle did not run. See [retained validation and next gates](STOP_VALIDATION.md).
+Status: the bounded slice passed build, all 62 model cases, Stop/default controls, Victory/Defeat/Co-op and lifecycle at clean b10e1ff. See [exact-source validation and retained failure](STOP_VALIDATION.md). Native and physical S input remain unverified.
 
 The original RA2 manual's Basic Keyboard Functions table and the Yuri manual's matching table document Stop on S. References: [RA2 manual scan](https://www.scribd.com/document/760314562/Red-Alert-2-English-3-Manual), [Yuri manual OCR](https://archive.org/stream/Command_Conquer_RED_ALERT_2_YURI_S_REVENGE/Command__Conquer_RED_ALERT_2_YURI_S_REVENGE_djvu.txt). These are third-party hosts of publisher-authored material; no manual or game asset is uploaded here.
 

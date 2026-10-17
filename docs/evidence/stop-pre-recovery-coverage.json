@@ -1,0 +1,105 @@
+{
+  "status": "partial-pass-coverage-gap",
+  "testedCommit": "57a5453bc0631c7abc61e5a0ee3807b3e33f0846",
+  "buildSeconds": 20.69,
+  "buildSha256": "1F5278F6A03414CE1DB6FFC9B2B2F946440DB8FE7124B4368C34F9B39328E400",
+  "runs": [
+    {
+      "name": "fidelity-model-20261017-041219-640",
+      "passed": true,
+      "head": "57a5453bc0631c7abc61e5a0ee3807b3e33f0846",
+      "dirty": false,
+      "elapsedSeconds": 13.068,
+      "scenarioElapsedSeconds": null,
+      "testCount": 4,
+      "ownershipRetryCount": null,
+      "resultSha256": "0DBFFA28B31D64AA7D4CBC6EC6D566F080F5E109B92959DC9CC5DB1D45DF1D16",
+      "path": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\fidelity-model-20261017-041219-640\\result.json"
+    },
+    {
+      "name": "group-controls-model-20261017-041206-400",
+      "passed": true,
+      "head": "57a5453bc0631c7abc61e5a0ee3807b3e33f0846",
+      "dirty": false,
+      "elapsedSeconds": 13.123,
+      "scenarioElapsedSeconds": null,
+      "testCount": 11,
+      "ownershipRetryCount": null,
+      "resultSha256": "85AF92FDB3CD2FA38EEDB62A0075B65D871EDF2CCE54C00C9BEDB5CEB9FB9E99",
+      "path": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\group-controls-model-20261017-041206-400\\result.json"
+    },
+    {
+      "name": "hud-layout-model-20261017-041232-828",
+      "passed": true,
+      "head": "57a5453bc0631c7abc61e5a0ee3807b3e33f0846",
+      "dirty": false,
+      "elapsedSeconds": 12.614,
+      "scenarioElapsedSeconds": null,
+      "testCount": 5,
+      "ownershipRetryCount": null,
+      "resultSha256": "38FB6DA754763EE488940539E8992944729A03F57262FDD7FFF69DF94C4AA245",
+      "path": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\hud-layout-model-20261017-041232-828\\result.json"
+    },
+    {
+      "name": "native-model-20261017-041153-358",
+      "passed": true,
+      "head": "57a5453bc0631c7abc61e5a0ee3807b3e33f0846",
+      "dirty": false,
+      "elapsedSeconds": 12.921,
+      "scenarioElapsedSeconds": null,
+      "testCount": 7,
+      "ownershipRetryCount": null,
+      "resultSha256": "984CE279E35588207AF555DAB749BA9C8CB3D977B25DF1814F39363C16451F7A",
+      "path": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\native-model-20261017-041153-358\\result.json"
+    },
+    {
+      "name": "skirmish-model-20261017-041139-986",
+      "passed": true,
+      "head": "57a5453bc0631c7abc61e5a0ee3807b3e33f0846",
+      "dirty": false,
+      "elapsedSeconds": 13.239,
+      "scenarioElapsedSeconds": null,
+      "testCount": 22,
+      "ownershipRetryCount": null,
+      "resultSha256": "4E158B5EC2FE029D1ABE5A6CACBF3D7D617637B2B8BA79928719F08CF36482AA",
+      "path": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\skirmish-model-20261017-041139-986\\result.json"
+    },
+    {
+      "name": "small-match-coop-20261017-041459-133",
+      "passed": true,
+      "head": "57a5453bc0631c7abc61e5a0ee3807b3e33f0846",
+      "dirty": false,
+      "elapsedSeconds": 174.77,
+      "scenarioElapsedSeconds": 174.036,
+      "testCount": null,
+      "ownershipRetryCount": 0,
+      "resultSha256": "CC6BF8CECC530E9FECA2A8D6C6E50DFDC6E7080BF6DDCE0204305EDCEC3B2F2D",
+      "path": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\small-match-coop-20261017-041459-133\\result.json"
+    },
+    {
+      "name": "small-match-victory-20261017-041254-815",
+      "passed": true,
+      "head": "57a5453bc0631c7abc61e5a0ee3807b3e33f0846",
+      "dirty": false,
+      "elapsedSeconds": 82.84,
+      "scenarioElapsedSeconds": 82.609,
+      "testCount": null,
+      "ownershipRetryCount": 0,
+      "resultSha256": "95A3633FE58047403BD46C5E630D804C5968E9A84A18DC52A5BB6509DF7E8076",
+      "path": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\small-match-victory-20261017-041254-815\\result.json"
+    },
+    {
+      "name": "stop-model-20261017-041126-717",
+      "passed": true,
+      "head": "57a5453bc0631c7abc61e5a0ee3807b3e33f0846",
+      "dirty": false,
+      "elapsedSeconds": 13.09,
+      "scenarioElapsedSeconds": null,
+      "testCount": 11,
+      "ownershipRetryCount": null,
+      "resultSha256": "6DD2BFF1070A176A5F9EB6D433886C734DCBF15C3969E2CD7A5C7C1ABDFAEB1E",
+      "path": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\stop-model-20261017-041126-717\\result.json"
+    }
+  ],
+  "remaining": "Actual ownership recovery unexercised; shared helper + actual-model deterministic tests prepared next. No integration. Controls/Defeat/lifecycle not run at this head."
+}

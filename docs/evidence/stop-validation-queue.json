@@ -1,5 +1,5 @@
 {
-  "status": "blocked-retained-victory-failure-correction-prepared-unbuilt",
+  "status": "accepted-exact-source",
   "baseCommit": "8984bbc36e8eb23732a422e006df2634674cab23",
   "branch": "feat/stop-command",
   "scope": "Player S/shared Stop, bounded selection queue replacement, opt-in actual command and replicated stationary/resume evidence",
@@ -12,13 +12,18 @@
     "independentParserReview": "clear after six adversarial gaps corrected",
     "modelRunnerVerifiedExitCleanup": "copied from accepted HUD runner; independent review clear"
   },
-  "heavySlotOwner": "released; awaiting next parent allocation",
-  "integrationReady": false,
+  "heavySlotOwner": "released after clean exact-source acceptance and zero-process check",
+  "integrationReady": true,
   "automaticRetry": false,
   "stopOnFailure": true,
   "commands": [
     {
       "script": "build-native-proof.ps1",
+      "arguments": []
+    },
+    {
+      "exactCases": 2,
+      "script": "test-skirmish-ownership-retry.ps1",
       "arguments": []
     },
     {
@@ -119,7 +124,9 @@
   "firstTestedCommit": "e6728863a2c1f24e92c09eceff560444eec357fd",
   "retainedBatch": "stop-first-batch.json",
   "heavySlotReleased": true,
-  "correctionBuilt": false,
+  "correctionBuilt": true,
   "ownershipRetryPolicySyntheticCases": 22,
-  "correctionIndependentReview": "fixture/host diagnostics and strict retry parser clear; 22 synthetic retry cases pass; correction unbuilt"
+  "correctionIndependentReview": "build, 62 models including two actual-model shared-policy cases, Stop/default controls, Victory/Defeat/Co-op and lifecycle passed; live ownership timing was not reproduced",
+  "testedCommit": "b10e1ffb41ec4826e4e7755da292ac36c6c1af59",
+  "acceptedLedger": "stop-accepted-batch.json"
 }
