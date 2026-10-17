@@ -5,9 +5,13 @@ param(
     [ValidateRange(30,240)][int]$TimeoutSeconds = 240,
     [ValidateRange(0,65536)][int]$MaxCacheMiB = 2048,
     [ValidateRange(0,65536)][int]$MaxTempMiB = 1024,
-    [switch]$CleanPresentation
+    [switch]$CleanPresentation,
+    [ValidateSet('1280x720','960x540')][string]$Viewport = '1280x720'
 )
 $ErrorActionPreference = 'Stop'
+$Viewport = $Viewport.ToLowerInvariant()
+$viewportParts = $Viewport.Split('x')
+$viewportWidth = [int]$viewportParts[0]; $viewportHeight = [int]$viewportParts[1]
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $repoRoot = (Resolve-Path (Join-Path $projectRoot '..')).Path
 $project = Join-Path $projectRoot 'RedalertProof.uproject'
@@ -48,7 +52,7 @@ $result = [ordered]@{
     storageGuard=[ordered]@{softPollingGuard=$true;intervalSeconds=10;maxCacheMiB=$MaxCacheMiB;maxTempMiB=$MaxTempMiB;checks=0;latestCacheBytes=0;latestTempBytes=0;peakCacheBytes=0;peakTempBytes=0}
     cpuPolicy=[ordered]@{availableAffinityMask=('0x{0:X}' -f $availableAffinity);fixtureAffinityMask=('0x{0:X}' -f $fixtureAffinity);logicalProcessors=$fixtureLogicalProcessors;priority='Normal';pollIntervalSeconds=1;polls=0;repairs=0;processes=@()}
     literalClientSetup=[ordered]@{startupFile=$literalClientCVars;expectedResolverDisabled=1;startupConfirmedByRole=@{};hostnameOrInternetTest=$false;osDnsChanged=$false}
-    renderConfiguration=[ordered]@{realViewport=$true;offscreen=$true;width=1280;height=720;optimizedShaders=1;targetFPS=30}
+    renderConfiguration=[ordered]@{realViewport=$true;offscreen=$true;width=$viewportWidth;height=$viewportHeight;optimizedShaders=1;targetFPS=30}
     processes=@(); screenshots=@(); commonRevisions=@(); expectedWinner=$(if($Scenario -eq 'Defeat'){1}else{0}); error=$null; cleanupErrors=@()
 }
 $entries = [Collections.Generic.List[object]]::new()
@@ -199,8 +203,8 @@ try {
     if ($Scenario -eq 'Coop') {
         $serverEntry=Start-Role 'host' '/Game/CommandProofGenerated/Maps/CommandProof' @('-server','-nullrhi','-MULTIHOME=127.0.0.1','-ProofSkirmish','-ProofSkirmishFixtureHost')
         Wait-Marker $serverEntry 'PROOF_SKIRMISH_READY fixture=1'
-        $client=Start-Role 'rendered' ('127.0.0.1:'+$Port) @('-game','-RenderOffscreen','-windowed','-ResX=1280','-ResY=720','-ProofSkirmish','-ProofInteractive','-ProofSkirmishScenario=Coop',('-ProofSkirmishOutput="'+$images+'"'))
-        Wait-Marker $client 'PROOF_SKIRMISH_READY owner=1 width=1280 height=720 maxFPS=30\.000'
+        $client=Start-Role 'rendered' ('127.0.0.1:'+$Port) @('-game','-RenderOffscreen','-windowed',('-ResX='+$viewportWidth),('-ResY='+$viewportHeight),('-ProofSkirmishViewport='+$Viewport),'-ProofSkirmish','-ProofInteractive','-ProofSkirmishScenario=Coop',('-ProofSkirmishOutput="'+$images+'"'))
+        Wait-Marker $client ('PROOF_SKIRMISH_READY owner=1 width='+$viewportWidth+' height='+$viewportHeight+' maxFPS=30\.000')
         $observer=Start-Role 'observer' ('127.0.0.1:'+$Port) @('-game','-nullrhi','-ProofSkirmish','-ProofSkirmishObserver')
         $expected=@($serverEntry,$client,$observer)
         Wait-Marker $serverEntry 'PROOF_SKIRMISH_FIXTURE_START owners=1,2 simulationSeconds=0'
@@ -208,9 +212,9 @@ try {
         Wait-Marker $observer 'PROOF_SKIRMISH_COMPLETE role=observer owner=2 status=pass scenario=Coop winnerTeam=0'
         Wait-Marker $client 'PROOF_SKIRMISH_COMPLETE role=client owner=1 status=pass scenario=Coop winnerTeam=0 built=1 gathered=1 produced=1 botBuilt=1 botProduced=1 botAttacked=1'
     } else {
-        $client=Start-Role 'rendered' '/Game/CommandProofGenerated/Maps/CommandProof' @('-game','-RenderOffscreen','-windowed','-ResX=1280','-ResY=720','-ProofSkirmish','-ProofInteractive',('-ProofSkirmishScenario='+$Scenario),('-ProofSkirmishOutput="'+$images+'"'))
+        $client=Start-Role 'rendered' '/Game/CommandProofGenerated/Maps/CommandProof' @('-game','-RenderOffscreen','-windowed',('-ResX='+$viewportWidth),('-ResY='+$viewportHeight),('-ProofSkirmishViewport='+$Viewport),'-ProofSkirmish','-ProofInteractive',('-ProofSkirmishScenario='+$Scenario),('-ProofSkirmishOutput="'+$images+'"'))
         $expected=@($client)
-        Wait-Marker $client 'PROOF_SKIRMISH_READY owner=1 width=1280 height=720 maxFPS=30\.000'
+        Wait-Marker $client ('PROOF_SKIRMISH_READY owner=1 width='+$viewportWidth+' height='+$viewportHeight+' maxFPS=30\.000')
         $winner=if($Scenario -eq 'Victory'){0}else{1}
         Wait-Marker $client ('PROOF_SKIRMISH_COMPLETE role=client owner=1 status=pass scenario='+$Scenario+' winnerTeam='+$winner+' built=1 gathered=1 produced=1 botBuilt=1 botProduced=1 botAttacked=1')
     }
@@ -249,7 +253,7 @@ try {
         $bytes=[IO.File]::ReadAllBytes($path)
         if ([BitConverter]::ToString($bytes[0..7]) -ne '89-50-4E-47-0D-0A-1A-0A') { throw "Invalid PNG $name." }
         $width=($bytes[16]*16777216)+($bytes[17]*65536)+($bytes[18]*256)+$bytes[19]; $height=($bytes[20]*16777216)+($bytes[21]*65536)+($bytes[22]*256)+$bytes[23]
-        if ($width -ne 1280 -or $height -ne 720) { throw "Unexpected screenshot size ${width}x${height}." }
+        if ($width -ne $viewportWidth -or $height -ne $viewportHeight) { throw "Unexpected screenshot size ${width}x${height}." }
         $result.screenshots+=@{name=$name;path=$path;bytes=$file.Length;width=$width;height=$height;sha256=(Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash}
     }
     $result.passed=$true

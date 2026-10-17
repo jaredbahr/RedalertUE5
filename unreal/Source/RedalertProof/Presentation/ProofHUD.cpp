@@ -167,9 +167,9 @@ void AProofHUD::DrawHUD()
             const float ResourceLabelY = FMath::Clamp(Screen.Y + 9.f, PanelHeight + Top + 2.f,
                 FMath::Max(PanelHeight + Top + 2.f, Canvas->ClipY - 34.f));
             DrawText(FString::Printf(TEXT("ORE #%d"), Resource.ResourceId), MarkerColor,
-                FMath::Clamp(Screen.X, 0.f, Canvas->ClipX), ResourceLabelY, Font, ResourceLabelScale, true);
+                FMath::Clamp(Screen.X, 0.f, Canvas->ClipX), ResourceLabelY, Font, ResourceLabelScale, false);
             DrawText(FString::Printf(TEXT("%d"), Resource.Remaining), MarkerColor,
-                FMath::Clamp(Screen.X, 0.f, Canvas->ClipX), ResourceLabelY + 13.f * UiScale, Font, ResourceLabelScale, true);
+                FMath::Clamp(Screen.X, 0.f, Canvas->ClipX), ResourceLabelY + 13.f * UiScale, Font, ResourceLabelScale, false);
         }
     }
     for (const FProofUnitRecord& Unit : GS->Snapshot.Units)
@@ -217,7 +217,7 @@ void AProofHUD::DrawHUD()
             const float LabelScale = 0.88f * UiScale;
             const float LabelY = FMath::Clamp(Screen.Y - Radius - 13.f * UiScale,
                 PanelHeight + Top + 2.f, FMath::Max(PanelHeight + Top + 2.f, Canvas->ClipY - 28.f));
-            DrawText(Label, Color, FMath::Clamp(Screen.X, 0.f, Canvas->ClipX), LabelY, Font, LabelScale, true);
+            DrawText(Label, Color, FMath::Clamp(Screen.X, 0.f, Canvas->ClipX), LabelY, Font, LabelScale, false);
 
             float MaxHP = 100.f;
             if (Unit.Kind == EProofUnitKind::HQ) MaxHP = 300.f;

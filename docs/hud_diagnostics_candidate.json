@@ -1,0 +1,44 @@
+{
+  "status": "all four prepared commands passed once; independent scoped integration review clear",
+  "baseMain": "0c7b07c21b6c794b83973f3735e8eb75dea49d9c",
+  "sourceIntegrationCommit": "ca228cdfb6a30cc5494a6af62db548d4b2750819",
+  "selected": [
+    {
+      "scope": "bounded lifecycle diagnostics and retained failed-run evidence",
+      "head": "b093a82b1a7c9d04cdbf99d3c886f467fe56bc44",
+      "pr": 35
+    },
+    {
+      "scope": "three HUD anchors; explicit viewport fixtures passed both presets; dense readability unresolved",
+      "head": "749c7e3f7e06779620b051766ec491cbf73fe3b6",
+      "pr": 34
+    }
+  ],
+  "sourceTree": "fd8353a754ff4cd447d074509018794b93f6f580",
+  "lifecycleRunnerBlob": "c19757c9532b8f2be2b9d653661c9e343392560f",
+  "renderRunnerBlob": "2ea958eb2afaccba11d8de70eef7d066706ab1ec",
+  "testedHead": "2470a5821d6dabcb9d27cd79720a6bc21f466630",
+  "heavyRunsDuringPreparation": 0,
+  "slotOwner": "released; owned processes exited",
+  "automaticRetries": false,
+  "timeoutIncreases": false,
+  "commands": [
+    ".\\unreal\\Scripts\\build-native-proof.ps1",
+    ".\\unreal\\Scripts\\test-session-lifecycle.ps1 -TimeoutSeconds 240",
+    ".\\unreal\\Scripts\\test-small-match.ps1 -Scenario Victory -Viewport 1280x720 -TimeoutSeconds 240 -CleanPresentation",
+    ".\\unreal\\Scripts\\test-small-match.ps1 -Scenario Victory -Viewport 960x540 -TimeoutSeconds 240 -CleanPresentation"
+  ],
+  "limits": [
+    "Stop on build/runner failure or incomplete cleanup; retain evidence",
+    "Four native-size captures inspected; narrow anchors passed; dense overlap remains unresolved",
+    "Dense overlap is known and not fixed; issue18 remains open",
+    "Startup cause unproven; issue33 remains open",
+    "Do not close21-24 based solely on latest lifecycle pass",
+    "No PR/main promotion or runtime acceptance implied by preparation"
+  ],
+  "excluded": "All changes outside the two exact selected heads; no input fixtures, new art/roster, collision/declutter algorithm, instruction files or cost/security changes",
+  "reviewedSourceIntegrationCommit": "a2af8fe88f654e5599af224e0d3a456e8877a719",
+  "postReviewChange": "Documentation only: clarify MaxParallelActions=1; source/runner blobs unchanged",
+  "validation": "docs/HUD_DIAGNOSTICS_VALIDATION.md",
+  "commandStatus": "Executed once at2470a582; no rerun pending or automatically authorized"
+}

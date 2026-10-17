@@ -89,6 +89,9 @@ private:
 
     FString SkirmishScenario;
     FString SkirmishOutput;
+    int32 SkirmishViewportWidth = 1280;
+    int32 SkirmishViewportHeight = 720;
+    bool bSkirmishViewportValid = true;
     float SkirmishElapsed = 0.f;
     float SkirmishNextDecision = 0.f;
     float SkirmishTerminalSeen = -1.f;
