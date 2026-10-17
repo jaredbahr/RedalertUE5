@@ -29,7 +29,8 @@ function Get-CoopContextEvidence {
         foreach($m in [regex]::Matches($Logs[$role],'PROOF_COOP_CONTEXT_COMMAND([^\r\n]*)')){
             Require ($role -ceq 'host' -and $commands.Count -lt 256) 'command role/cap'
             $e=Row $m.Groups[1].Value.Trim() $commandFields
-            foreach($k in @('owner','epoch','sequence','type','unit','revision','accepted')){Require (Int $e.$k) "invalid command $k"}
+            foreach($k in @('owner','epoch','sequence','type','revision','accepted')){Require (Int $e.$k) "invalid command $k"}
+            Require (((Int $e.unit 1) -or ($e.type -in @(3,4) -and (Int $e.unit -1 -1)))) 'invalid command actor'
             Require ($e.owner -eq 1 -and $e.epoch -gt 0 -and $e.sequence -gt 0 -and $e.type -le 8 -and (Int $e.target -1) -and $e.accepted -le 1 -and $e.revision -ge $lastCommandRevision) 'command identity/type/order'
             foreach($k in @('x','y','z')){Require ((Num $e.$k) -and [math]::Abs($e.$k) -le 10000) 'invalid command destination'}
             $lastCommandRevision=$e.revision
@@ -98,7 +99,9 @@ function Get-CoopContextEvidence {
         Require ($group[$j].type -eq 0 -and $group[$j].unit -eq $actors[$j].id -and $group[$j].target -eq -1 -and (Dist $group[$j] $dest) -le 0.00001) 'allied group did not preserve formation Move'
         Require ($group[$j].revision -le $phases[5].revision) 'group Move receipt after moved phase'
     }
-    foreach($index in @(6,7)){$attack=Action $phases[$index] 1;Require ($attack[0].type -eq 1 -and $attack[0].unit -eq $phases[$index].unit -and $attack[0].target -eq $phases[$index].target -and $attack[0].x -eq 0 -and $attack[0].y -eq 0 -and $attack[0].z -eq 0 -and $attack[0].revision -le $phases[$index+1].revision) 'hostile command was not canonical Combat Attack before next action'}
+    # A replicated receipt can precede the snapshot containing its revision.
+    # Action still requires a newer host revision bounded by final observed completion.
+    foreach($index in @(6,7)){$attack=Action $phases[$index] 1;Require ($attack[0].type -eq 1 -and $attack[0].unit -eq $phases[$index].unit -and $attack[0].target -eq $phases[$index].target -and $attack[0].x -eq 0 -and $attack[0].y -eq 0 -and $attack[0].z -eq 0) 'hostile command was not canonical Combat Attack'}
     $gather=Action $phases[8] 1;Require ($gather[0].type -eq 5 -and $gather[0].unit -eq $phases[8].unit -and $gather[0].target -eq $phases[8].target -and $gather[0].x -eq 0 -and $gather[0].y -eq 0 -and $gather[0].z -eq 0 -and $gather[0].revision -le $phases[9].revision -and $phases[9].elapsed-$phases[8].elapsed -ge .5) 'resource Gather/completion missing'
     function Movement($Issued,$Moved,$Next,$Events){
         Require ($Moved.elapsed-$Issued.elapsed -ge 1) 'movement window too short'

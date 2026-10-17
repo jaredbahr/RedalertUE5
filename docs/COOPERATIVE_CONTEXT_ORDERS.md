@@ -30,12 +30,12 @@ The unchanged limits are two logical CPUs/Normal priority, one parallel build ac
 
 - Production relationship predicate: 28 compiled MSVC cases passed for root and independent reviewer with `/W4 /WX`.
 - Gameplay fix and initial fixture source review: no blocking findings.
-- Native case `RedalertProof.Controls.CooperativeContextTargets` is included in the runner's exact 12-test controls set.
-- New evidence-policy synthetic tests: 59 passed for root and independent reviewer; final source/policy review passed with no blockers.
-- Fresh Unreal build and runtime acceptance of this fixture: pending. Earlier branches' engine results do not validate these inputs.
+- Fresh build at `8d11e03` passed in 49.8 seconds. All 12 native controls tests, including `CooperativeContextTargets`, passed. Default controls passed in 41.51 scenario seconds (58.897 total), with two fresh captures.
+- New evidence-policy synthetic tests: 63 passed for root and independent reviewer; final source/policy review passed with no blockers.
+- First cooperative run at `8d11e03` completed the game loop and ten context phases, but strict acceptance failed (`invalid command unit`). Its original failed receipt and raw logs are retained. Normal BuildRefinery/BuildFactory submissions use `unit=-1`; additionally, Attack receipts can precede the next published snapshot. The parser corrections require new focused tests, review, and a new bounded cooperative run. No earlier failure is relabeled as accepted.
 
 ## Allocated engine plan
 
 After review and a fresh capacity check, bind the clean candidate commit, Source/Config/uproject trees, fresh DLL hash, build logs, and reused generated-asset manifest. Run the existing build helper, exact 12-test `test-group-controls.ps1`, default `test-controls-proof.ps1 -CleanPresentation`, then the opt-in cooperative command above. Require strict parser success, fresh PNGs, and independent raw-log and visual review before recording acceptance.
 
-This branch starts at main `f1a106ad8be722ce31bc4cc568c043b4b398d857`. Pointer-bounds and native Stop publication holds remain in force. No publication or merge is authorized here.
+This branch starts at main `f1a106ad8be722ce31bc4cc568c043b4b398d857`. Jared subsequently authorized routine publication of validated follow-ups. An isolated integration candidate must reconcile pointer-bounds, native Stop, and this change, pass its own applicable checks and independent review, and use a draft PR before readiness and merge.

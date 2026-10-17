@@ -16,11 +16,14 @@ function New-CoopCase {
     $phases[1].revision=1;$phases[1].elapsed=1
     # Issued phases precede their asynchronous accepted host command revision.
     $phases[6].revision=10;$phases[7].revision=11
-    return @{phases=$phases;commands=$commands;context=@{maps=$maps;common=$common};rally=@{passed=$true;epoch=1;factory=12;unit=10;setSequence=4;produceSequence=5;phaseRows=@(@{rallyX=1000;rallyY=0;rallyZ=0})};logs=@{host='';rendered='';observer=''}}
+    $startup=@()
+    foreach($spec in @(@(1,3,-1,-1),@(2,4,-1,-1),@(3,5,11,40))){$startup+=[ordered]@{owner=1;epoch=1;sequence=$spec[0];type=$spec[1];unit=$spec[2];target=$spec[3];x=0;y=0;z=0;accepted=1;revision=1}}
+
+    return @{phases=$phases;commands=$commands;startup=$startup;context=@{maps=$maps;common=$common};rally=@{passed=$true;epoch=1;factory=12;unit=10;setSequence=4;produceSequence=5;phaseRows=@(@{rallyX=1000;rallyY=0;rallyZ=0})};logs=@{host='';rendered='';observer=''}}
 }
 function Evaluate-Coop($Case){
     $logs=@{host=$Case.logs.host;rendered=$Case.logs.rendered;observer=$Case.logs.observer}
-    foreach($row in $Case.commands){$logs.host+="`nPROOF_COOP_CONTEXT_COMMAND "+($row|ConvertTo-Json -Compress)}
+    foreach($row in @($Case.startup)+@($Case.commands)){$logs.host+="`nPROOF_COOP_CONTEXT_COMMAND "+($row|ConvertTo-Json -Compress)}
     foreach($row in $Case.phases){$logs.rendered+="`nPROOF_COOP_CONTEXT_PHASE "+($row|ConvertTo-Json -Compress)}
     return Get-CoopContextEvidence -Logs $logs -ValidatedStateContext $Case.context -RallyEvidence $Case.rally
 }
@@ -71,8 +74,11 @@ Reject-Coop 'missing Gather receipt' {param($c)$c.commands=@($c.commands|Where-O
 Reject-Coop 'late Gather receipt' {param($c)$c.commands[7].revision=15}
 Reject-Coop 'late single Move receipt' {param($c)$c.commands[2].revision=7}
 Reject-Coop 'late group Move receipt' {param($c)$c.commands[4].revision=11}
-Reject-Coop 'late single Attack receipt' {param($c)$c.commands[5].revision=12}
-Reject-Coop 'late group Attack receipt' {param($c)$c.commands[6].revision=14}
+Reject-Coop 'nonbuild negative actor' {param($c)$c.commands[2].unit=-1}
+Reject-Coop 'build actor below sentinel' {param($c)$c.startup[0].unit=-2}
+Reject-Coop 'build actor zero' {param($c)$c.startup[0].unit=0}
+Reject-Coop 'build actor string' {param($c)$c.startup[0].unit='-1'}
+Reject-Coop 'Attack beyond completion' {param($c)$c.commands[6].revision=15;$c.commands[7].revision=15}
 Reject-Coop 'no common movement' {param($c)$c.context.common=@('1:1','1:2','1:3')}
 Reject-Coop 'no actual group movement' {param($c)foreach($r in 8..10){$c.context.maps.host["1:$r"].units[1].x=0}}
 Reject-Coop 'movement away from destination' {param($c)foreach($r in 4..6){$c.context.maps.host["1:$r"].units[0].x=-500}}
@@ -83,5 +89,10 @@ Reject-Coop 'duplicate JSON key' {param($c)$c.logs.host='PROOF_COOP_CONTEXT_COMM
 Reject-Coop 'runtime error' {param($c)$c.logs.observer='PROOF_COOP_CONTEXT_ERROR test'}
 Reject-Coop 'wrong-role command' {param($c)$c.logs.observer='PROOF_COOP_CONTEXT_COMMAND {}'}
 Reject-Coop 'command cap' {param($c)$c.commands=@($c.commands[0])*257}
+# Accepted receipts may be newer than the rendered snapshot at the next action.
+$stalePublication=New-CoopCase
+$stalePublication.commands[5].revision=12
+$stalePublication.commands[6].revision=13
+if(-not (Evaluate-Coop $stalePublication).passed){throw 'Valid receipt-before-snapshot publication order rejected'};$script:coopChecks++
 Reject-Coop 'post-rally sequence gap' {param($c)$c.rally.produceSequence=4}
 Write-Output "PASS synthetic-only Coop context evidence checks=$script:coopChecks; no engine/runtime/physical evidence"
