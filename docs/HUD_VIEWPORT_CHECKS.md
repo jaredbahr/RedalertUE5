@@ -6,7 +6,7 @@ The runner accepts `-Viewport 1280x720` (unchanged default) or `-Viewport 960x54
 
 ## One pending bounded batch
 
-Imagination owns the heavy-test slot during preparation. Run nothing until the slot is handed back. On a clean reviewed candidate with existing ignored assets, perform one single-action build, then exactly one existing Victory run per preset, serialized:
+Imagination owns the heavy-test slot during preparation. Run nothing until the slot is handed back. On a clean reviewed candidate with existing ignored assets, perform one build with MaxParallelActions=1, then exactly one existing Victory run per preset, serialized:
 
     .\unreal\Scripts\build-native-proof.ps1
     .\unreal\Scripts\test-small-match.ps1 -Scenario Victory -Viewport 1280x720 -TimeoutSeconds 240 -CleanPresentation
