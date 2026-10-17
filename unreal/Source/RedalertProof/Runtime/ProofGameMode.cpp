@@ -241,7 +241,11 @@ FProofCommandResult AProofGameMode::SubmitForOwner(int32 TrustedOwnerId, const F
         if (bLifecycleFixtureHost) UE_LOG(LogTemp, Display, TEXT("PROOF_LIFECYCLE_STALE_REJECT epoch=%d current=%d owner=%d sequence=%d"), Command.MatchEpoch, MatchEpoch, TrustedOwnerId, Command.Sequence);
         return Result;
     }
+    const bool bRefineryEvidence = RefineryEvidence.Enabled() && bSkirmish
+        && (Command.Type == EProofCommandType::BuildRefinery || Command.Type == EProofCommandType::Gather);
+    const FProofSnapshot EvidenceBefore = bRefineryEvidence ? Model.GetSnapshot() : FProofSnapshot();
     FProofCommandResult Result = Model.Submit(TrustedOwnerId, Command);
+    if (bRefineryEvidence) RefineryEvidence.ObserveCommand(MatchEpoch, TrustedOwnerId, Command, Result, EvidenceBefore, Model.GetSnapshot());
     Result.MatchEpoch = Command.MatchEpoch;
     if (bSkirmish && Result.bAccepted && TrustedOwnerId == ProofOwnerIds::Bot && Command.Type == EProofCommandType::Attack)
         bSkirmishBotAttackAccepted = true;
@@ -353,6 +357,7 @@ void AProofGameMode::Publish()
         FProofSnapshot Snapshot = Model.GetSnapshot();
         Snapshot.MatchEpoch = MatchEpoch;
         State->Publish(Snapshot);
+        RefineryEvidence.LogSnapshot(Snapshot, TEXT("host"), 0);
     }
 }
 
@@ -416,9 +421,11 @@ void AProofGameMode::Tick(float DeltaSeconds)
                     Command.MatchEpoch = MatchEpoch;
                     SubmitForOwner(ProofOwnerIds::Bot, Command);
                 }
+                const FProofSnapshot EvidenceBeforeAdvance = RefineryEvidence.Enabled() ? Model.GetSnapshot() : FProofSnapshot();
                 Model.Advance(0.1f);
                 SkirmishSeconds += 0.1;
                 const FProofSnapshot After = Model.GetSnapshot();
+                if (RefineryEvidence.Enabled()) RefineryEvidence.ObserveAdvance(MatchEpoch, EvidenceBeforeAdvance, After);
                 ObserveSkirmish(After);
                 if (After.MatchPhase == EProofMatchPhase::Finished && !bSkirmishTerminalPublished)
                 {
