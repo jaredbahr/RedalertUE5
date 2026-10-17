@@ -43,6 +43,7 @@ void AProofRTSPawn::BeginPlay()
     bGraphicsWarmup = FParse::Param(FCommandLine::Get(), TEXT("ProofGraphicsWarmup"));
     FParse::Value(FCommandLine::Get(), TEXT("ProofSkirmishScenario="), SkirmishScenario);
     FParse::Value(FCommandLine::Get(), TEXT("ProofSkirmishOutput="), SkirmishOutput);
+    bHUDReadabilityCaptures = FParse::Param(FCommandLine::Get(), TEXT("ProofHUDReadabilityCaptures"));
     // Fixture-only viewport contract; defaults preserve the existing trace.
     FString FixtureViewport = TEXT("1280x720");
     FParse::Value(FCommandLine::Get(), TEXT("ProofSkirmishViewport="), FixtureViewport);
@@ -900,10 +901,96 @@ void AProofRTSPawn::FinishSkirmishScenario(bool bPass, const TCHAR* Reason)
     FPlatformMisc::RequestExitWithStatus(false, bPass ? 0 : 1);
 }
 
+bool AProofRTSPawn::TickHUDReadabilityCaptures()
+{
+    // Camera/local-selection fixture only. The finished authoritative scene stays unchanged.
+    AProofPlayerController* PC = Cast<AProofPlayerController>(GetController());
+    const AProofGameState* GS = GetWorld()->GetGameState<AProofGameState>();
+    if (!PC || !GS || GS->Snapshot.MatchPhase != EProofMatchPhase::Finished)
+    { FinishSkirmishScenario(false, TEXT("readability_terminal_state")); return false; }
+    int32 Width = 0, Height = 0;
+    PC->GetViewportSize(Width, Height);
+    if (Width != SkirmishViewportWidth || Height != SkirmishViewportHeight || Width <= 0 || Height <= 0
+        || Camera->ProjectionMode != ECameraProjectionMode::Orthographic || Camera->bConstrainAspectRatio
+        || !FMath::IsNearlyEqual(Camera->OrthoWidth, 5000.f))
+    { FinishSkirmishScenario(false, TEXT("readability_viewport_or_camera")); return false; }
+    const FProofSnapshot& Snapshot = GS->Snapshot;
+    if (HUDEdgeStageStarted < 0.f)
+    {
+        const FProofUnitRecord* Anchor = Snapshot.Units.FindByPredicate([this, PC](const FProofUnitRecord& Unit)
+        { return Unit.UnitId == SelectedUnitId && Unit.OwnerId == PC->OwnerId && Unit.HitPoints > 0.f; });
+        if (!Anchor)
+        {
+            for (const FProofUnitRecord& Unit : Snapshot.Units)
+                if (Unit.OwnerId == PC->OwnerId && Unit.HitPoints > 0.f && (!Anchor || Unit.UnitId < Anchor->UnitId)) Anchor = &Unit;
+            if (!Anchor || !SetControlsCursorFromWorld(Anchor->Position))
+            { FinishSkirmishScenario(false, TEXT("readability_missing_anchor")); return false; }
+            SelectUnderCursor();
+        }
+        if (!Anchor || SelectedUnitId != Anchor->UnitId || !Selection.GetSelectedUnitIds().Contains(Anchor->UnitId))
+        { FinishSkirmishScenario(false, TEXT("readability_anchor_selection")); return false; }
+        HUDEdgeAnchorUnit = Anchor->UnitId;
+        HUDEdgeSnapshotDigest = Snapshot.ComputeDigest();
+        HUDEdgeStageStarted = SkirmishElapsed;
+    }
+    if (Snapshot.ComputeDigest() != HUDEdgeSnapshotDigest)
+    { FinishSkirmishScenario(false, TEXT("readability_scene_changed")); return false; }
+    const FProofUnitRecord* Anchor = Snapshot.Units.FindByPredicate([this, PC](const FProofUnitRecord& Unit)
+    { return Unit.UnitId == HUDEdgeAnchorUnit && Unit.OwnerId == PC->OwnerId && Unit.HitPoints > 0.f; });
+    if (!Anchor || SelectedUnitId != HUDEdgeAnchorUnit)
+    { FinishSkirmishScenario(false, TEXT("readability_anchor_lost")); return false; }
+    if (HUDEdgeIndex >= 3) return true;
+    const TCHAR* Names[] = { TEXT("03-left-edge.png"), TEXT("04-right-edge.png"), TEXT("05-panel-edge.png") };
+    const FString Path = FPaths::Combine(SkirmishOutput, Names[HUDEdgeIndex]);
+    FVector2D Projected;
+    if (!PC->ProjectWorldLocationToScreen(Anchor->Position, Projected)
+        || !FMath::IsFinite(Projected.X) || !FMath::IsFinite(Projected.Y))
+    { FinishSkirmishScenario(false, TEXT("readability_projection_unavailable")); return false; }
+    if (HUDEdgePhase == 0)
+    {
+        const float UiScale = FMath::Clamp(static_cast<float>(Width) / 1280.f, 0.72f, 1.f);
+        // Same 12px top and 197px skirmish panel as ProofHUD; 24px keeps the bracket visible.
+        HUDEdgeTarget = HUDEdgeIndex == 0 ? FVector2D(24.f, 0.65f * Height)
+            : HUDEdgeIndex == 1 ? FVector2D(Width - 24.f, 0.65f * Height)
+            : FVector2D(0.30f * Width, (12.f + 197.f) * UiScale + 24.f);
+        if (IFileManager::Get().FileExists(*Path))
+        { FinishSkirmishScenario(false, TEXT("readability_capture_not_fresh")); return false; }
+        const double UnitsPerPixel = Camera->OrthoWidth / static_cast<double>(Width);
+        const FVector Delta = Camera->GetRightVector() * ((Projected.X - HUDEdgeTarget.X) * UnitsPerPixel)
+            + Camera->GetUpVector() * ((HUDEdgeTarget.Y - Projected.Y) * UnitsPerPixel);
+        Camera->SetWorldLocation(Camera->GetComponentLocation() + Delta);
+        // Exactly one camera adjustment per view; cached projection is checked on a later frame.
+        HUDEdgePhase = 1;
+        HUDEdgeStageStarted = SkirmishElapsed;
+        return false;
+    }
+    if (SkirmishElapsed - HUDEdgeStageStarted < 0.25f) return false;
+    if (FVector2D::Distance(Projected, HUDEdgeTarget) > 2.0)
+    { FinishSkirmishScenario(false, TEXT("readability_projection_target")); return false; }
+    if (HUDEdgePhase == 1)
+    {
+        HUDEdgeCaptureRequestedAt = FDateTime::UtcNow();
+        FScreenshotRequest::RequestScreenshot(Path, true, false);
+        HUDEdgePhase = 2;
+        HUDEdgeStageStarted = SkirmishElapsed;
+        return false;
+    }
+    if (IFileManager::Get().FileSize(*Path) <= 1024) return false;
+    if (IFileManager::Get().GetTimeStamp(*Path) < HUDEdgeCaptureRequestedAt)
+    { FinishSkirmishScenario(false, TEXT("readability_capture_timestamp")); return false; }
+    UE_LOG(LogTemp, Display, TEXT("PROOF_HUD_EDGE_CAPTURE name=%s unit=%d projectedX=%.3f projectedY=%.3f targetX=%.3f targetY=%.3f width=%d height=%d written=1 physicalInput=unverified"),
+        Names[HUDEdgeIndex], HUDEdgeAnchorUnit, Projected.X, Projected.Y, HUDEdgeTarget.X, HUDEdgeTarget.Y, Width, Height);
+    ++HUDEdgeIndex;
+    HUDEdgePhase = 0;
+    HUDEdgeStageStarted = SkirmishElapsed;
+    return HUDEdgeIndex == 3;
+}
 void AProofRTSPawn::TickSkirmishScenario(float DeltaSeconds)
 {
     if (!bSkirmishViewportValid) { FinishSkirmishScenario(false, TEXT("fixture_viewport")); return; }
     if (bSkirmishFinished) return;
+    if (bHUDReadabilityCaptures && SkirmishScenario != TEXT("Victory"))
+    { FinishSkirmishScenario(false, TEXT("readability_requires_victory")); return; }
     SkirmishElapsed += DeltaSeconds;
     if (SkirmishElapsed > 220.f) { FinishSkirmishScenario(false, TEXT("scenario_timeout")); return; }
     AProofPlayerController* PC = Cast<AProofPlayerController>(GetController());
@@ -978,11 +1065,13 @@ void AProofRTSPawn::TickSkirmishScenario(float DeltaSeconds)
         const FString ResultPath = FPaths::Combine(SkirmishOutput, TEXT("02-result.png"));
         if (bSkirmishResultRequested && IFileManager::Get().FileSize(*ResultPath) > 1024 && SkirmishElapsed - SkirmishTerminalSeen >= 2.f)
         {
-            UE_LOG(LogTemp, Display, TEXT("PROOF_SKIRMISH_CAPTURE name=02-result.png winnerTeam=%d phase=Finished written=1"), Snapshot.WinnerTeam);
+            if (!bHUDReadabilityCaptures || HUDEdgeStageStarted < 0.f)
+                UE_LOG(LogTemp, Display, TEXT("PROOF_SKIRMISH_CAPTURE name=02-result.png winnerTeam=%d phase=Finished written=1"), Snapshot.WinnerTeam);
             const int32 ExpectedWinner = SkirmishScenario == TEXT("Defeat") ? 1 : 0;
             const bool bPass = Snapshot.WinnerTeam == ExpectedWinner && bSkirmishBuilt && bSkirmishGathered
                 && bSkirmishProduced && bSkirmishBotRefinery && bSkirmishBotFactory && bSkirmishBotProduced
                 && bSkirmishBotAttacked && bSkirmishBaseCaptured;
+            if (bPass && bHUDReadabilityCaptures && !TickHUDReadabilityCaptures()) return;
             FinishSkirmishScenario(bPass, bPass ? TEXT("complete_loop") : TEXT("outcome_or_evidence"));
         }
         return;

@@ -1,0 +1,66 @@
+{
+  "status": "queued-source-only-awaiting-shared-slot",
+  "baseCommit": "49bd2e080b07476d17889f00687ffa4081ad5a60",
+  "branch": "feat/hud-readability",
+  "sourceCompiled": false,
+  "runtimeValidated": false,
+  "heavySlotOwner": "Imagination",
+  "requiresExplicitSlotHandoff": true,
+  "stopOnFailure": true,
+  "automaticRetry": false,
+  "commands": [
+    {
+      "arguments": [],
+      "script": "unreal/Scripts/build-native-proof.ps1"
+    },
+    {
+      "arguments": [
+        "-TimeoutSeconds",
+        "90"
+      ],
+      "script": "unreal/Scripts/test-hud-layout-model.ps1"
+    },
+    {
+      "arguments": [
+        "-Scenario",
+        "Victory",
+        "-Viewport",
+        "1280x720",
+        "-CleanPresentation",
+        "-ReadabilityCaptures",
+        "-TimeoutSeconds",
+        "240"
+      ],
+      "script": "unreal/Scripts/test-small-match.ps1"
+    },
+    {
+      "arguments": [
+        "-Scenario",
+        "Victory",
+        "-Viewport",
+        "960x540",
+        "-CleanPresentation",
+        "-ReadabilityCaptures",
+        "-TimeoutSeconds",
+        "240"
+      ],
+      "script": "unreal/Scripts/test-small-match.ps1"
+    },
+    {
+      "arguments": [
+        "-CleanPresentation",
+        "-TimeoutSeconds",
+        "90",
+        "-WarmupTimeoutSeconds",
+        "300"
+      ],
+      "script": "unreal/Scripts/test-controls-proof.ps1"
+    }
+  ],
+  "visualGate": "Inspect all ten native-size images with independent review and explicit omission/association assessment.",
+  "openIssues": [
+    18,
+    33
+  ],
+  "noIssueClosureFromSourceReview": true
+}

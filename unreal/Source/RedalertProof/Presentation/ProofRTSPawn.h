@@ -87,6 +87,15 @@ private:
     FString ControlsOutput;
     FString RequestStatus = TEXT("Select one of your live units.");
 
+    bool bHUDReadabilityCaptures = false;
+    int32 HUDEdgeAnchorUnit = INDEX_NONE;
+    int32 HUDEdgeIndex = 0;
+    int32 HUDEdgePhase = 0;
+    float HUDEdgeStageStarted = -1.f;
+    FVector2D HUDEdgeTarget = FVector2D::ZeroVector;
+    FString HUDEdgeSnapshotDigest;
+    FDateTime HUDEdgeCaptureRequestedAt;
+    bool TickHUDReadabilityCaptures();
     FString SkirmishScenario;
     FString SkirmishOutput;
     int32 SkirmishViewportWidth = 1280;
