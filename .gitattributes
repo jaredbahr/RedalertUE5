@@ -1,0 +1,6 @@
+* text=auto eol=lf
+*.blend binary
+*.fbx binary
+*.png binary
+*.uasset binary
+*.umap binary
