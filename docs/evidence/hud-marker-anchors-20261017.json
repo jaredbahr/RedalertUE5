@@ -1,0 +1,80 @@
+{
+  "testedHead": "8dc1f9ffca54fb64bf75eefc525b66bdd7c23b5a",
+  "dirtyWorkingTree": false,
+  "runDirectory": "generated/small-match-victory-20261017-010406-277",
+  "rawResultSha256": "E0215C83C8FA91F38B3E448BF2360BCBC1CBE7A22C7485121E412986B8CF3AB0",
+  "build": {
+    "passed": true,
+    "actionCount": 4,
+    "elapsedSeconds": 10.12,
+    "executorSeconds": 8.93,
+    "maxParallelActions": 1,
+    "log": "generated/hud-marker-build.log",
+    "logSha256": "36521BF45FA60A17C4194C1F77CD198A8B71FB4F820035B4CC0B8DE4E20D502A"
+  },
+  "render": {
+    "passed": true,
+    "scenario": "Victory",
+    "expectedWinner": 0,
+    "actualWinner": 0,
+    "loopFlags": {
+      "built": 1,
+      "gathered": 1,
+      "produced": 1,
+      "botBuilt": 1,
+      "botProduced": 1,
+      "botAttacked": 1
+    },
+    "elapsedSeconds": 68.451,
+    "scenarioElapsedSeconds": 68.156,
+    "timeoutSeconds": 240,
+    "configuration": {
+      "realViewport": true,
+      "offscreen": true,
+      "width": 1280,
+      "height": 720,
+      "optimizedShaders": 1,
+      "targetFPS": 30
+    },
+    "cleanPresentation": true,
+    "screenshots": [
+      {
+        "name": "01-base.png",
+        "width": 1280,
+        "height": 720,
+        "bytes": 813197,
+        "sha256": "EE0A04983041B68EA93E76948492FF4C56D032836B9946621938A64A139851A5"
+      },
+      {
+        "name": "02-result.png",
+        "width": 1280,
+        "height": 720,
+        "bytes": 806252,
+        "sha256": "7E4868CF01D64205F184481E28272AA612D56931C52059C947000EAB2FD84224"
+      }
+    ],
+    "error": null,
+    "cleanupErrors": []
+  },
+  "inspection": {
+    "rootInspected": [
+      "01-base.png",
+      "02-result.png"
+    ],
+    "finding": "Projected unit text stays above unit markers; ore text stays beneath ore crosses; narrow anchor defect corrected at1280x720",
+    "remaining": [
+      "Dense label overlap",
+      "Edge clipping and other viewports",
+      "Physical input/focus",
+      "Final art and scale approval"
+    ],
+    "smallerViewportVerified": false,
+    "issue18RemainsOpen": true
+  },
+  "limits": [
+    "One build and one existing Victory run; no retries or deadline change",
+    "No acceptance of broader HUD readability or other viewport sizes",
+    "CleanPresentation uses existing diagnostic-overlay suppression; engine diagnostics remain in logs",
+    "No raw captures or generated binaries uploaded"
+  ]
+}
