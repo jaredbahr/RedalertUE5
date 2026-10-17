@@ -14,7 +14,7 @@ The launcher warns for five seconds, then opens one visible 1280x720 standalone 
 
 The practice map has stationary enemy targets; it is not a completed bot skirmish. Existing generic Rhino proxies and Tesla scenery remain unapproved. Process-local DisableAllScreenMessages removes engine overlay warnings while retaining the underlying log; this is presentation cleanup, not a lighting bake or shader correctness claim.
 
-For the optional arrow-pan checks, add `-CameraPan` to that launcher. Without it, mark those checks `not-enabled`. Shift-click toggles owned live units; Ctrl+1-9 saves selection into a local group and the corresponding unmodified digit recalls it. See [group controls](GROUP_CONTROLS.md) for eligibility and queue limits. The launcher's older console hint names only groups 1-3; source at the reviewed baseline binds all nine.
+For the optional arrow-pan checks, add `-CameraPan` to that launcher. Without it, mark those checks `not-enabled`. Shift-click toggles owned live units; Ctrl+1-9 saves selection into a local group and the corresponding unmodified digit recalls it. See [group controls](GROUP_CONTROLS.md) for eligibility and queue limits. The launcher's console hint lists all nine groups and, when enabled, identifies `-CameraPan` and its focused/foreground requirement.
 
 ## Manual checklist
 
