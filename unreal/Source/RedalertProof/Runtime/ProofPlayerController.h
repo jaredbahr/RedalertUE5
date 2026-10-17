@@ -5,6 +5,7 @@
 #include "Commands/ProofCommandModel.h"
 #include "Commands/ProofIngressBudget.h"
 #include "Runtime/ProofRefineryMinerEvidence.h"
+#include "Runtime/ProofStopEvidence.h"
 #include "ProofPlayerController.generated.h"
 
 class AProofGameState;
@@ -33,6 +34,7 @@ public:
 private:
     FProofIngressBudget IngressBudget;
     FProofRefineryMinerEvidence RefineryEvidence;
+    FProofStopEvidence StopEvidence;
     bool AdmitIngress();
     bool bIngressFixture = false;
     bool bLifecycleFixture = false;

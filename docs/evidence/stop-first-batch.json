@@ -1,0 +1,483 @@
+{
+  "status": "incomplete-retained-victory-failure",
+  "testedCommit": "e6728863a2c1f24e92c09eceff560444eec357fd",
+  "sourceClean": true,
+  "build": {
+    "path": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\stop-build-e672886.log",
+    "passed": true,
+    "sha256": "661337B01500F06C318BCBE223A692EFDD860A0B380E49265414AAAFF8CB307F",
+    "elapsedSeconds": 137.64
+  },
+  "modelCasesPassed": 60,
+  "runs": [
+    {
+      "name": "controls-20261017-033644-768",
+      "head": "e6728863a2c1f24e92c09eceff560444eec357fd",
+      "dirtyWorkingTree": false,
+      "passed": true,
+      "resultPath": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\controls-20261017-033644-768\\result.json",
+      "resultSha256": "3E9ACC92E495B02459F5FCC73E3E140A0EE79E727C438E9A715E3EF420FD9F2F",
+      "elapsedSeconds": 56.851,
+      "scenarioElapsedSeconds": 45.438,
+      "error": null,
+      "cleanup": {
+        "errors": [],
+        "ignoredExitRaces": 0,
+        "parentsFirst": true
+      },
+      "stopControlsEvidenceEnabled": true,
+      "stopControlsEvidence": {
+        "passed": true,
+        "owner": 1,
+        "unit": 4,
+        "epoch": 0,
+        "sequences": [
+          5,
+          6,
+          7
+        ],
+        "roles": [
+          "host",
+          "rendered",
+          "observer"
+        ],
+        "rowsByRole": {
+          "observer": 116,
+          "rendered": 98,
+          "host": 188
+        },
+        "commonRevisionCount": 68,
+        "movingRevision": 268,
+        "stoppedRevision": 285,
+        "resumedRevision": 292,
+        "stationaryCommonRevisions": [
+          271,
+          273,
+          275,
+          277,
+          279,
+          281,
+          283,
+          285,
+          287
+        ],
+        "stationarySimulationSeconds": 1.6000000239999999,
+        "physicalInputVerified": false,
+        "internetTest": false,
+        "performanceTest": false
+      },
+      "screenshots": [
+        {
+          "bytes": 793848,
+          "height": 720,
+          "path": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\controls-20261017-033644-768\\screenshots\\01-selected.png",
+          "sha256": "A6814F1054E263239B4BCC210D55686DA610ED67F74C5A07A7AA884E426BBA90",
+          "width": 1280
+        },
+        {
+          "bytes": 799193,
+          "height": 720,
+          "path": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\controls-20261017-033644-768\\screenshots\\02-moved-combat-produced.png",
+          "sha256": "D30BA5119A26D98910DE7B3673CFD3291D3F3D3E7D13695224BF482CD24D57C4",
+          "width": 1280
+        },
+        {
+          "bytes": 801366,
+          "height": 720,
+          "path": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\controls-20261017-033644-768\\screenshots\\03-stop.png",
+          "sha256": "1F51E78FBB1F219B4BF9F82701EF5BB75B44E749A32145FE7E0AB28A20843780",
+          "width": 1280
+        },
+        {
+          "bytes": 795959,
+          "height": 720,
+          "path": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\controls-20261017-033644-768\\screenshots\\04-stop-resumed.png",
+          "sha256": "9A2C15108CCD7B31946C8D1C1B8B95294247AB083253CA7B8AC62850988EA3CF",
+          "width": 1280
+        }
+      ],
+      "rawFiles": [
+        {
+          "name": "host.log",
+          "bytes": 304284,
+          "sha256": "CF78271BEA6AFF963345E9469D0E96146E69AA4CE5AA19217E81220B84F3BDF8"
+        },
+        {
+          "name": "observer.log",
+          "bytes": 234761,
+          "sha256": "12CD5435D74DC7FDDACC891EED350CCEA1B45EB5EA32E852380FB1A309DE3EC4"
+        },
+        {
+          "name": "rendered.log",
+          "bytes": 423479,
+          "sha256": "2CA40DC17EF256714A5BA032EDC1FE5274628FC2D251D5DD3D59BF8318D28489"
+        },
+        {
+          "name": "result.json",
+          "bytes": 23407,
+          "sha256": "3E9ACC92E495B02459F5FCC73E3E140A0EE79E727C438E9A715E3EF420FD9F2F"
+        },
+        {
+          "name": "warmup.log",
+          "bytes": 302972,
+          "sha256": "AAB75F91B4F277FC5FBEA9EA1B1CE0E4875A2C515A9A10B6A0993CD2BD26CF26"
+        }
+      ],
+      "observedImageFiles": [
+        {
+          "name": "01-selected.png",
+          "bytes": 793848,
+          "lastWriteUtc": "2026-10-17T03:37:17.6058631Z",
+          "sha256": "A6814F1054E263239B4BCC210D55686DA610ED67F74C5A07A7AA884E426BBA90"
+        },
+        {
+          "name": "02-moved-combat-produced.png",
+          "bytes": 799193,
+          "lastWriteUtc": "2026-10-17T03:37:26.1736725Z",
+          "sha256": "D30BA5119A26D98910DE7B3673CFD3291D3F3D3E7D13695224BF482CD24D57C4"
+        },
+        {
+          "name": "03-stop.png",
+          "bytes": 801366,
+          "lastWriteUtc": "2026-10-17T03:37:29.2926548Z",
+          "sha256": "1F51E78FBB1F219B4BF9F82701EF5BB75B44E749A32145FE7E0AB28A20843780"
+        },
+        {
+          "name": "04-stop-resumed.png",
+          "bytes": 795959,
+          "lastWriteUtc": "2026-10-17T03:37:29.7735455Z",
+          "sha256": "9A2C15108CCD7B31946C8D1C1B8B95294247AB083253CA7B8AC62850988EA3CF"
+        }
+      ]
+    },
+    {
+      "name": "controls-20261017-033756-817",
+      "head": "e6728863a2c1f24e92c09eceff560444eec357fd",
+      "dirtyWorkingTree": false,
+      "passed": true,
+      "resultPath": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\controls-20261017-033756-817\\result.json",
+      "resultSha256": "3C81651836948A7F967BB15C28FF10824C24095B3E6952CFBAF307EAB736AE0C",
+      "elapsedSeconds": 52.971,
+      "scenarioElapsedSeconds": 42.268,
+      "error": null,
+      "cleanup": {
+        "errors": [],
+        "ignoredExitRaces": 0,
+        "parentsFirst": true
+      },
+      "stopControlsEvidenceEnabled": false,
+      "stopControlsEvidence": null,
+      "screenshots": [
+        {
+          "bytes": 794037,
+          "width": 1280,
+          "height": 720,
+          "sha256": "CA035E74CB2B88CD2C7E4805FA136A24567199B210C5A14A02A71BFF95328E14",
+          "path": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\controls-20261017-033756-817\\screenshots\\01-selected.png"
+        },
+        {
+          "bytes": 799480,
+          "width": 1280,
+          "height": 720,
+          "sha256": "E67E6748989035FE70E34C8BFFC668FFAA4F839E7AA5AC75078416B0840E7011",
+          "path": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\controls-20261017-033756-817\\screenshots\\02-moved-combat-produced.png"
+        }
+      ],
+      "rawFiles": [
+        {
+          "name": "host.log",
+          "bytes": 150780,
+          "sha256": "9D304DF8FB716133CF0B239C547B2C33B41BFF9094D660F1F046E46FA58890C1"
+        },
+        {
+          "name": "observer.log",
+          "bytes": 139594,
+          "sha256": "E09F9416ED8D9699ABA285D880F4F7AACFB30E679085F8B2BDDE2836D0969C83"
+        },
+        {
+          "name": "rendered.log",
+          "bytes": 346092,
+          "sha256": "B0A57991896E2F634885BA1F4A5705D4E8C9008CBAC5810AA1859AC805B4587C"
+        },
+        {
+          "name": "result.json",
+          "bytes": 21298,
+          "sha256": "3C81651836948A7F967BB15C28FF10824C24095B3E6952CFBAF307EAB736AE0C"
+        },
+        {
+          "name": "warmup.log",
+          "bytes": 308907,
+          "sha256": "581EA8ABDD31AAA4F169E74FE6B021D59D53BF8A0E28AB60A3F42BA915D90409"
+        }
+      ],
+      "observedImageFiles": [
+        {
+          "name": "01-selected.png",
+          "bytes": 794037,
+          "lastWriteUtc": "2026-10-17T03:38:27.2019987Z",
+          "sha256": "CA035E74CB2B88CD2C7E4805FA136A24567199B210C5A14A02A71BFF95328E14"
+        },
+        {
+          "name": "02-moved-combat-produced.png",
+          "bytes": 799480,
+          "lastWriteUtc": "2026-10-17T03:38:35.7640929Z",
+          "sha256": "E67E6748989035FE70E34C8BFFC668FFAA4F839E7AA5AC75078416B0840E7011"
+        }
+      ]
+    },
+    {
+      "name": "fidelity-model-20261017-033604-480",
+      "head": "e6728863a2c1f24e92c09eceff560444eec357fd",
+      "dirtyWorkingTree": false,
+      "passed": true,
+      "resultPath": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\fidelity-model-20261017-033604-480\\result.json",
+      "resultSha256": "77525C5F9B43950DDF6547D399034A3516352FE1556535B624139C5E5B5F6641",
+      "elapsedSeconds": 13.406,
+      "testCount": 4,
+      "succeeded": 4,
+      "failed": 0,
+      "error": null,
+      "rawFiles": [
+        {
+          "name": "automation.log",
+          "bytes": 104731,
+          "sha256": "2B9D06A0C1ED57B26033D462082CAB68433F4F1B3347E906CDD15E6842349EC9"
+        },
+        {
+          "name": "result.json",
+          "bytes": 1346,
+          "sha256": "77525C5F9B43950DDF6547D399034A3516352FE1556535B624139C5E5B5F6641"
+        }
+      ],
+      "reportIndexSha256": "B6027EF844E5F6823C377F60CF3FBD0468F5B6DAECAFE3BB34089816F4BB9390"
+    },
+    {
+      "name": "group-controls-model-20261017-033549-689",
+      "head": "e6728863a2c1f24e92c09eceff560444eec357fd",
+      "dirtyWorkingTree": false,
+      "passed": true,
+      "resultPath": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\group-controls-model-20261017-033549-689\\result.json",
+      "resultSha256": "B42D742F66A36803B85F531EBC781E022A2D162C281A9F5E7DC2FE6568C8A17A",
+      "elapsedSeconds": 14.686,
+      "testCount": 11,
+      "succeeded": 11,
+      "failed": 0,
+      "error": null,
+      "rawFiles": [
+        {
+          "name": "automation.log",
+          "bytes": 111329,
+          "sha256": "E85BBC5376E7FCC72E85A3982C5F379BCF30E8B248003C27DEFA7A97BE59F269"
+        },
+        {
+          "name": "result.json",
+          "bytes": 1485,
+          "sha256": "B42D742F66A36803B85F531EBC781E022A2D162C281A9F5E7DC2FE6568C8A17A"
+        }
+      ],
+      "reportIndexSha256": "A39D470D13F42FB62E9081558C26C3FB6082F3C023C8F0A091AF79EC0A4BB001"
+    },
+    {
+      "name": "hud-layout-model-20261017-033618-017",
+      "head": "e6728863a2c1f24e92c09eceff560444eec357fd",
+      "dirtyWorkingTree": false,
+      "passed": true,
+      "resultPath": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\hud-layout-model-20261017-033618-017\\result.json",
+      "resultSha256": "759AC00C4C3868A798ED81C60A086F0D72F967A012CD159AB1910DCB9399E1CB",
+      "elapsedSeconds": 13.302,
+      "testCount": 5,
+      "succeeded": 5,
+      "failed": 0,
+      "error": null,
+      "cleanup": {
+        "launched": true,
+        "pid": 24496,
+        "verifiedExited": true,
+        "terminationRequested": false,
+        "error": null
+      },
+      "rawFiles": [
+        {
+          "name": "automation.log",
+          "bytes": 105465,
+          "sha256": "61EF27A7805DE677132685E6ECE8F33775A6703D17DE5419290AF61CAA06DEAE"
+        },
+        {
+          "name": "result.json",
+          "bytes": 1498,
+          "sha256": "759AC00C4C3868A798ED81C60A086F0D72F967A012CD159AB1910DCB9399E1CB"
+        }
+      ],
+      "reportIndexSha256": "62777D6C495A3191BC7C21A9279D1815B086D1CC6EC4C616AAECCF4AA4E437F8"
+    },
+    {
+      "name": "native-model-20261017-033534-884",
+      "head": "e6728863a2c1f24e92c09eceff560444eec357fd",
+      "dirtyWorkingTree": false,
+      "passed": true,
+      "resultPath": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\native-model-20261017-033534-884\\result.json",
+      "resultSha256": "5A412CDE640B197FBAA15853DF198B9B836CDAB5FCB293FC3D8C8DC58EB0AF2B",
+      "elapsedSeconds": 14.689,
+      "testCount": 7,
+      "succeeded": 7,
+      "failed": 0,
+      "error": null,
+      "rawFiles": [
+        {
+          "name": "automation.log",
+          "bytes": 107151,
+          "sha256": "2A039FBA31D47F17AA2AF839188B02D2E10B28322BED45F0F9A8E6AFDFD27834"
+        },
+        {
+          "name": "result.json",
+          "bytes": 1476,
+          "sha256": "5A412CDE640B197FBAA15853DF198B9B836CDAB5FCB293FC3D8C8DC58EB0AF2B"
+        }
+      ],
+      "reportIndexSha256": "0A0EC823745383C8CEE8AE741BCB1F4AC6A30F8A9D5C3261DC3BFD9EEBFF3CBD"
+    },
+    {
+      "name": "skirmish-model-20261017-033518-841",
+      "head": "e6728863a2c1f24e92c09eceff560444eec357fd",
+      "dirtyWorkingTree": false,
+      "passed": true,
+      "resultPath": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\skirmish-model-20261017-033518-841\\result.json",
+      "resultSha256": "2D82BDEDF0296DBD56CD31D984C7FAE4C5EBDE8A497181DC780E6FEA7A3B20CD",
+      "elapsedSeconds": 15.838,
+      "testCount": 22,
+      "succeeded": 22,
+      "failed": 0,
+      "error": null,
+      "rawFiles": [
+        {
+          "name": "automation.log",
+          "bytes": 122204,
+          "sha256": "2FC8F402D015D00C5766E2932E7C02ABE601E8D3BE4AA8EB2521E042D49312C6"
+        },
+        {
+          "name": "result.json",
+          "bytes": 1480,
+          "sha256": "2D82BDEDF0296DBD56CD31D984C7FAE4C5EBDE8A497181DC780E6FEA7A3B20CD"
+        }
+      ],
+      "reportIndexSha256": "B393FB587D3704E384A48D44C516C1852A992672F08373597532076451378C45"
+    },
+    {
+      "name": "small-match-victory-20261017-033912-350",
+      "head": "e6728863a2c1f24e92c09eceff560444eec357fd",
+      "dirtyWorkingTree": false,
+      "passed": false,
+      "resultPath": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\small-match-victory-20261017-033912-350\\result.json",
+      "resultSha256": "2AAA65061F1999D34DE420F410DB18F932EC791E93AEE4D790A16C440A24ADBC",
+      "elapsedSeconds": 51.144,
+      "scenarioElapsedSeconds": 50.912,
+      "error": "rendered exited before expected marker: PROOF_SKIRMISH_COMPLETE role=client owner=1 status=pass scenario=Victory winnerTeam=0 built=1 gathered=1 produced=1 botBuilt=1 botProduced=1 botAttacked=1",
+      "cleanupErrors": [],
+      "screenshots": [],
+      "expectedWinner": 0,
+      "rawFiles": [
+        {
+          "name": "rendered.log",
+          "bytes": 1605061,
+          "sha256": "12C2B0CF30D02CB60B2762280585205A507E35539DD840751DEADAB24DF393B6"
+        },
+        {
+          "name": "result.json",
+          "bytes": 2870,
+          "sha256": "2AAA65061F1999D34DE420F410DB18F932EC791E93AEE4D790A16C440A24ADBC"
+        }
+      ],
+      "observedImageFiles": [
+        {
+          "name": "01-base.png",
+          "bytes": 812142,
+          "lastWriteUtc": "2026-10-17T03:39:23.1624263Z",
+          "sha256": "F90F13AA9C22A9004CD44983B93C6EC80B12DE3B9E23E2CD84C2BFD552F122B9"
+        }
+      ]
+    },
+    {
+      "name": "stop-model-20261017-033503-436",
+      "head": "e6728863a2c1f24e92c09eceff560444eec357fd",
+      "dirtyWorkingTree": false,
+      "passed": true,
+      "resultPath": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\stop-model-20261017-033503-436\\result.json",
+      "resultSha256": "C462E94DDF848C7D0EE006DDCFAC48F92F0B567E61D8EDCFCF7C5762D83BCB2B",
+      "elapsedSeconds": 15.26,
+      "testCount": 11,
+      "succeeded": 11,
+      "failed": 0,
+      "error": null,
+      "cleanup": {
+        "launched": true,
+        "pid": 27208,
+        "verifiedExited": true,
+        "terminationRequested": false,
+        "error": null
+      },
+      "rawFiles": [
+        {
+          "name": "automation.log",
+          "bytes": 111302,
+          "sha256": "83007DF7124D09297C6C7DD0AC45FF0B255DED0CF140D98D4944922D87C63FF5"
+        },
+        {
+          "name": "result.json",
+          "bytes": 1491,
+          "sha256": "C462E94DDF848C7D0EE006DDCFAC48F92F0B567E61D8EDCFCF7C5762D83BCB2B"
+        }
+      ],
+      "reportIndexSha256": "B18BD7456C9FA730B58F7F81D5AAF1D8B8059BC03BEDEE6B51EA2EB27CA165EC"
+    }
+  ],
+  "criticalStopRuntime": {
+    "hostSimulationSeconds": 1.600000024,
+    "unit": 4,
+    "sequences": [
+      5,
+      6,
+      7
+    ],
+    "nativeStopCount": 0,
+    "commonStationaryRevisions": 9,
+    "physicalInputVerified": false,
+    "passed": true
+  },
+  "failure": {
+    "validationTimeHP": "not logged",
+    "scenario": "Victory",
+    "sequence": 96,
+    "lastPublishedUnitOwner": 1,
+    "rejectedUtc": "2026-10-17T03:40:02.663Z",
+    "phaseFlagsAllSet": true,
+    "unit": 20,
+    "interpretation": "Consistent with owned attacker dying between published snapshot and validation; source-supported inference, not direct validation-time death evidence. Stop unused in this scenario; no causal link to Stop established.",
+    "type": "Attack",
+    "lastPublishedUnitHP": 2.5,
+    "lastPublishedUtc": "2026-10-17T03:40:02.563Z",
+    "target": 30,
+    "teardown": "Later missing-unit/terminal snapshot follows failure teardown and cannot establish pre-validation death.",
+    "reason": "ownership",
+    "lastPublishedRevision": 623,
+    "winner": -1
+  },
+  "notRunAtThisSource": [
+    "Defeat",
+    "Coop",
+    "lifecycle"
+  ],
+  "correctionStatus": "Narrow fixture-only source and host rejection diagnostics prepared separately; unbuilt, no runtime retry or merge clearance.",
+  "acceptancePreserved": "No winner/phase flags, model validation, damage, economy, sequences, resource policy, clocks or timeout relaxed.",
+  "processExit": {
+    "remainingOwnedIntegrationEngineBuildProcesses": 0,
+    "noFurtherEngineJobsLaunched": true,
+    "checkedUtc": "2026-10-17T03:46:55.7252984Z",
+    "heavySlotReleased": true
+  },
+  "limitations": [
+    "60models and two controls passes belong only to exact e672886; prepared later fixture correction needs its own build and actual acceptance.",
+    "Stop shared-handler runtime does not prove native/physical S input.",
+    "Generic art, dense HUD, Internet, performance and startup-cause gates remain separate.",
+    "No installs, purchases, hosted Actions or binary uploads."
+  ]
+}

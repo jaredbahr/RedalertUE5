@@ -1,5 +1,6 @@
 #include "Presentation/ProofRTSPawn.h"
 #include "Presentation/ProofCameraPan.h"
+#include "Presentation/ProofSkirmishOwnershipRecovery.h"
 #include "Camera/CameraComponent.h"
 #include "Components/InputComponent.h"
 #include "Components/SceneComponent.h"
@@ -41,6 +42,7 @@ void AProofRTSPawn::BeginPlay()
 {
     Super::BeginPlay();
     bGraphicsWarmup = FParse::Param(FCommandLine::Get(), TEXT("ProofGraphicsWarmup"));
+    bStopControls = FParse::Param(FCommandLine::Get(), TEXT("ProofStopControls"));
     FParse::Value(FCommandLine::Get(), TEXT("ProofSkirmishScenario="), SkirmishScenario);
     FParse::Value(FCommandLine::Get(), TEXT("ProofSkirmishOutput="), SkirmishOutput);
     bHUDReadabilityCaptures = FParse::Param(FCommandLine::Get(), TEXT("ProofHUDReadabilityCaptures"));
@@ -80,6 +82,7 @@ void AProofRTSPawn::SetupPlayerInputComponent(UInputComponent* Input)
     Input->BindKey(EKeys::LeftMouseButton, IE_Pressed, this, &AProofRTSPawn::OnManualSelect);
     Input->BindKey(EKeys::RightMouseButton, IE_Pressed, this, &AProofRTSPawn::OnManualOrder);
     Input->BindKey(EKeys::P, IE_Pressed, this, &AProofRTSPawn::OnManualProduce);
+    Input->BindKey(EKeys::S, IE_Pressed, this, &AProofRTSPawn::OnManualStop);
     Input->BindKey(EKeys::R, IE_Pressed, this, &AProofRTSPawn::OnManualRefinery);
     Input->BindKey(EKeys::F, IE_Pressed, this, &AProofRTSPawn::OnManualFactory);
     Input->BindKey(EKeys::N, IE_Pressed, this, &AProofRTSPawn::OnManualRematch);
@@ -157,6 +160,8 @@ void AProofRTSPawn::Tick(float DeltaSeconds)
         UnitViews.Reset();
         SelectedUnitId = INDEX_NONE;
         LastRequestedSequence = 0;
+        LastRequestedUnitId = INDEX_NONE;
+        bLastRequestedSourceWasOwnedLive = false;
         LastRequestedTarget = INDEX_NONE;
         LastRequestedType.Reset();
         RequestStatus = TEXT("Match state refreshed. Select an owned live unit.");
@@ -237,8 +242,8 @@ FString AProofRTSPawn::GetManualInputStatus() const
     const TCHAR* Focus = !bFocusObserved ? TEXT("pending")
         : !bViewportForeground ? TEXT("background")
         : bViewportFocused ? TEXT("focused") : TEXT("unfocused");
-    return FString::Printf(TEXT("Native L%d R%d P%d W+%d/-%d | focus %s | last %s | human unverified"),
-        ManualLeftPresses, ManualRightPresses, ManualProducePresses,
+    return FString::Printf(TEXT("Native L%d R%d S%d P%d W+%d/-%d | focus %s | last %s | human unverified"),
+        ManualLeftPresses, ManualRightPresses, ManualStopPresses, ManualProducePresses,
         ManualWheelUpPresses, ManualWheelDownPresses, Focus, *LastManualAction);
 }
 
@@ -340,6 +345,12 @@ void AProofRTSPawn::OnManualProduce()
         LastRequestedSequence != BeforeSequence
             ? FString::Printf(TEXT("Produce request #%d"), LastRequestedSequence)
             : RequestStatus);
+}
+
+void AProofRTSPawn::OnManualStop()
+{
+    StopSelected();
+    RecordManualInput(TEXT("S"), ManualStopPresses, RequestStatus);
 }
 
 void AProofRTSPawn::OnManualZoomIn()
@@ -560,6 +571,32 @@ void AProofRTSPawn::OrderUnderCursor()
     Request(Command);
 }
 
+void AProofRTSPawn::StopSelected()
+{
+    const AProofPlayerController* PC = Cast<AProofPlayerController>(GetController());
+    const AProofGameState* GS = GetWorld() ? GetWorld()->GetGameState<AProofGameState>() : nullptr;
+    if (!PC || !PC->IsLocalController() || PC->OwnerId == INDEX_NONE || !GS
+        || !GS->Snapshot.Players.ContainsByPredicate([PC](const FProofPlayerRecord& Player) { return Player.OwnerId == PC->OwnerId; }))
+    {
+        RequestStatus = TEXT("Waiting for the host's current player and match state.");
+        return;
+    }
+    if (PC->IsProofAutomation())
+    {
+        RequestStatus = TEXT("Manual orders are disabled during the scripted automation fixture.");
+        return;
+    }
+    const TArray<FProofCommand> Commands = Selection.PlanStop(GS->Snapshot, PC->OwnerId);
+    if (Commands.IsEmpty())
+    {
+        RequestStatus = TEXT("No eligible owned mobile units selected for Stop.");
+        return;
+    }
+    RequestStatus = GroupOrders.Enqueue(GS->Snapshot, PC->OwnerId, Commands)
+        ? FString::Printf(TEXT("Queued Stop for %d units; waiting for host snapshots."), Commands.Num())
+        : TEXT("Stop queue full; previous pending orders retained. Retry after orders send.");
+}
+
 void AProofRTSPawn::Produce()
 {
     FProofCommand Command;
@@ -613,15 +650,23 @@ void AProofRTSPawn::Request(FProofCommand Command)
         return;
     }
     if (Command.Type == EProofCommandType::Move || Command.Type == EProofCommandType::Attack
-        || Command.Type == EProofCommandType::Gather) GroupOrders.CancelUnit(Command.UnitId);
+        || Command.Type == EProofCommandType::Gather || Command.Type == EProofCommandType::Stop) GroupOrders.CancelUnit(Command.UnitId);
+    // Capture the exact replicated source before submission; a local authority
+    // may publish a newer snapshot synchronously while handling the request.
+    const FProofUnitRecord* Source = GS->Snapshot.Units.FindByPredicate(
+        [&Command](const FProofUnitRecord& Unit) { return Unit.UnitId == Command.UnitId; });
+    const bool bSourceWasOwnedLive = Source && Source->OwnerId == PC->OwnerId && Source->HitPoints > 0.f;
     PC->ServerSubmitCommand(Command);
     LastRequestedSequence = Command.Sequence;
+    LastRequestedUnitId = Command.UnitId;
+    bLastRequestedSourceWasOwnedLive = bSourceWasOwnedLive;
     LastRequestedTarget = Command.TargetUnitId;
     LastRequestedType = Command.Type == EProofCommandType::Move ? TEXT("Move")
         : Command.Type == EProofCommandType::Attack ? TEXT("Attack")
         : Command.Type == EProofCommandType::BuildRefinery ? TEXT("BuildRefinery")
         : Command.Type == EProofCommandType::BuildFactory ? TEXT("BuildFactory")
-        : Command.Type == EProofCommandType::Gather ? TEXT("Gather") : TEXT("Produce");
+        : Command.Type == EProofCommandType::Gather ? TEXT("Gather")
+        : Command.Type == EProofCommandType::Stop ? TEXT("Stop") : TEXT("Produce");
     if (GS && GS->Snapshot.bSkirmish)
         UE_LOG(LogTemp, Display, TEXT("PROOF_SKIRMISH_REQUEST owner=%d sequence=%d type=%s unit=%d target=%d"),
             PC->OwnerId, Command.Sequence, *LastRequestedType, Command.UnitId, Command.TargetUnitId);
@@ -859,11 +904,100 @@ void AProofRTSPawn::TickControlsAutomation(float DeltaSeconds)
         const bool bScreenshots = IFileManager::Get().FileSize(*FPaths::Combine(ControlsOutput, TEXT("01-selected.png"))) > 1024
             && IFileManager::Get().FileSize(*FPaths::Combine(ControlsOutput, TEXT("02-moved-combat-produced.png"))) > 1024;
         if (!ControlsCheck(bScreenshots, TEXT("engine_rendered_screenshots_written"))) return;
+        if (!bStopControls)
+        {
+            ControlsStep = 7;
+            // All required default evidence is complete. Keep the existing exit.
+            FinishControls(true, TEXT("select_clear_zoom_project_deproject_move_attack_produce_receipts_snapshots_capture"));
+            return;
+        }
+        ControlsStopNativeBaseline = ManualStopPresses;
+        ControlsStopMoveStart = Own->Position;
+        if (!ControlsCheck(SetControlsCursorFromWorld(FVector(-1400.f, -700.f, 0.f)), TEXT("stop_move_destination_projected"))) return;
+        OrderUnderCursor();
+        if (!ControlsCheck(LastRequestedSequence == 5 && LastRequestedType == TEXT("Move"), TEXT("stop_move_request_sequence5"))) return;
         ControlsStep = 7;
-        // All required client evidence is complete. Waiting extra simulation
-        // time here can outlive the host when a screenshot stalls a frame.
-        FinishControls(true, TEXT("select_clear_zoom_project_deproject_move_attack_produce_receipts_snapshots_capture"));
     }
+    else if (bStopControls && ControlsStep == 7 && bHasReceipt)
+    {
+        if (!ControlsCheck(Receipt.bAccepted, TEXT("stop_move_host_receipt_accepted"))) return;
+        if (FVector::Dist(Own->Position, ControlsStopMoveStart) <= 50.f) return;
+        if (!ControlsCheck(FVector::Dist(Own->Position, FVector(-1400.f, -700.f, 0.f)) > 100.f,
+            TEXT("stop_move_observed_before_destination"))) return;
+        LogStopFixture(TEXT("moving"), Snapshot, *Own, FVector(-1400.f, -700.f, 0.f));
+        StopSelected();
+        if (!ControlsCheck(GroupOrders.NumPending() == 1, TEXT("stop_shared_handler_queued_one_intent"))) return;
+        ControlsStep = 8;
+    }
+    else if (bStopControls && ControlsStep == 8)
+    {
+        if (LastRequestedSequence < 6) return;
+        if (!ControlsCheck(LastRequestedSequence == 6 && LastRequestedType == TEXT("Stop"), TEXT("stop_queue_dispatch_sequence6"))) return;
+        if (!bHasReceipt) return;
+        if (!ControlsCheck(Receipt.bAccepted, TEXT("stop_host_receipt_accepted"))) return;
+        ControlsStopReceiptRevision = Snapshot.Revision;
+        ControlsStep = 9;
+    }
+    else if (bStopControls && ControlsStep == 9)
+    {
+        // Start with a later replicated state, not the possibly older state
+        // present when the controller receipt arrived on its separate channel.
+        if (Snapshot.Revision <= ControlsStopReceiptRevision) return;
+        if (ControlsStopStationaryAt < 0.f)
+        {
+            ControlsStopPosition = Own->Position;
+            ControlsStopStationaryAt = ControlsElapsed;
+        }
+        if (!ControlsCheck(FVector::Dist(Own->Position, ControlsStopPosition) <= 2.f,
+            TEXT("stop_replicated_position_stationary"))) return;
+        if (!ControlsCheck(FVector::Dist(Own->Position, FVector(-1400.f, -700.f, 0.f)) > 100.f,
+            TEXT("stop_stationary_before_move_destination"))) return;
+        if (!ControlsCheck(SelectedUnitId == ControlsOwnUnit && Selection.GetSelectedUnitIds().Num() == 1
+            && Selection.GetSelectedUnitIds().Contains(ControlsOwnUnit), TEXT("stop_preserves_selection"))) return;
+        if (!ControlsCheck(ManualStopPresses == ControlsStopNativeBaseline, TEXT("stop_shared_handler_native_count_unchanged"))) return;
+        ControlsStopObservedRevisions.Add(Snapshot.Revision);
+        if (ControlsStopObservedRevisions.Num() < 3 || ControlsElapsed - ControlsStopStationaryAt < 1.5f) return;
+        if (!ControlsCheck(true, TEXT("stop_three_later_revisions_and_1_5s_local_window"))) return;
+        LogStopFixture(TEXT("stopped"), Snapshot, *Own, FVector(-1400.f, -700.f, 0.f));
+        CaptureControls(TEXT("03-stop"));
+        ControlsStep = 10;
+    }
+    else if (bStopControls && ControlsStep == 10)
+    {
+        if (IFileManager::Get().FileSize(*FPaths::Combine(ControlsOutput, TEXT("03-stop.png"))) <= 1024) return;
+        ControlsStopResumeStart = Own->Position;
+        if (!ControlsCheck(SetControlsCursorFromWorld(FVector(-700.f, -450.f, 0.f)), TEXT("stop_resume_destination_projected"))) return;
+        OrderUnderCursor();
+        if (!ControlsCheck(LastRequestedSequence == 7 && LastRequestedType == TEXT("Move"), TEXT("stop_resume_request_sequence7"))) return;
+        ControlsStep = 11;
+    }
+    else if (bStopControls && ControlsStep == 11 && bHasReceipt)
+    {
+        if (!ControlsCheck(Receipt.bAccepted, TEXT("stop_resume_host_receipt_accepted"))) return;
+        if (FVector::Dist(Own->Position, ControlsStopResumeStart) <= 50.f) return;
+        if (!ControlsCheck(SelectedUnitId == ControlsOwnUnit && Selection.GetSelectedUnitIds().Num() == 1
+            && ManualStopPresses == ControlsStopNativeBaseline, TEXT("stop_resume_selection_and_native_count_unchanged"))) return;
+        LogStopFixture(TEXT("resumed"), Snapshot, *Own, FVector(-700.f, -450.f, 0.f));
+        CaptureControls(TEXT("04-stop-resumed"));
+        ControlsStep = 12;
+    }
+    else if (bStopControls && ControlsStep == 12)
+    {
+        for (const TCHAR* Name : { TEXT("01-selected.png"), TEXT("02-moved-combat-produced.png"), TEXT("03-stop.png"), TEXT("04-stop-resumed.png") })
+            if (IFileManager::Get().FileSize(*FPaths::Combine(ControlsOutput, Name)) <= 1024) return;
+        if (!ControlsCheck(true, TEXT("stop_all_four_engine_captures_written"))) return;
+        FinishControls(true, TEXT("existing_controls_plus_shared_stop_stationary_resume_receipts_snapshots_capture"));
+    }
+}
+
+void AProofRTSPawn::LogStopFixture(const TCHAR* Phase, const FProofSnapshot& Snapshot,
+    const FProofUnitRecord& Unit, const FVector& Destination)
+{
+    // Three milestones at most. This path calls shared handlers, never native S.
+    UE_LOG(LogTemp, Display, TEXT("PROOF_STOP_FIXTURE {\"phase\":\"%s\",\"owner\":%d,\"unit\":%d,\"epoch\":%d,\"revision\":%d,\"sequence\":%d,\"x\":%.6f,\"y\":%.6f,\"z\":%.6f,\"elapsed\":%.6f,\"destinationX\":%.6f,\"destinationY\":%.6f,\"destinationZ\":%.6f,\"nativeStopCount\":%d}"),
+        Phase, Unit.OwnerId, Unit.UnitId, Snapshot.MatchEpoch, Snapshot.Revision, LastRequestedSequence,
+        Unit.Position.X, Unit.Position.Y, Unit.Position.Z, ControlsElapsed,
+        Destination.X, Destination.Y, Destination.Z, ManualStopPresses);
 }
 
 void AProofRTSPawn::BuildUnderCursor(EProofCommandType Type)
@@ -1142,6 +1276,17 @@ void AProofRTSPawn::TickSkirmishScenario(float DeltaSeconds)
         if (!PC->FindReceipt(LastRequestedSequence, Receipt)) return;
         if (!Receipt.bAccepted)
         {
+            const int32 RejectedSequence = LastRequestedSequence;
+            const EProofSkirmishOwnershipRecovery OwnershipRecovery = FProofSkirmishOwnershipRecovery::Apply(
+                Snapshot, PC->OwnerId, LastRequestedType, Receipt, LastRequestedUnitId,
+                bLastRequestedSourceWasOwnedLive, SkirmishIssuedTargets, LastRequestedSequence);
+            if (OwnershipRecovery == EProofSkirmishOwnershipRecovery::Wait) return;
+            if (OwnershipRecovery == EProofSkirmishOwnershipRecovery::Recovered)
+            {
+                UE_LOG(LogTemp, Display, TEXT("PROOF_SKIRMISH_RETRY reason=ownership unit=%d sequence=%d snapshotRevision=%d replicatedUnit=owned-dead"),
+                    LastRequestedUnitId, RejectedSequence, Snapshot.Revision);
+                return;
+            }
             if (LastRequestedType == TEXT("Attack") && Receipt.Reason == TEXT("target"))
             {
                 // Another real attacker can kill the chosen target between

@@ -24,6 +24,7 @@ public:
     // match epoch immediately before sending it through the existing route.
     TArray<FProofCommand> PlanMove(const FProofSnapshot& Snapshot, int32 OwnerId, const FVector& Destination) const;
     TArray<FProofCommand> PlanAttack(const FProofSnapshot& Snapshot, int32 OwnerId, int32 TargetUnitId) const;
+    TArray<FProofCommand> PlanStop(const FProofSnapshot& Snapshot, int32 OwnerId) const;
 
 private:
     struct FGroup

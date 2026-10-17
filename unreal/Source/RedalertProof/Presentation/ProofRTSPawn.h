@@ -58,6 +58,7 @@ private:
     int32 ManualLeftPresses = 0;
     int32 ManualRightPresses = 0;
     int32 ManualProducePresses = 0;
+    int32 ManualStopPresses = 0;
     int32 ManualWheelUpPresses = 0;
     int32 ManualWheelDownPresses = 0;
     int32 ManualInputLogs = 0;
@@ -69,6 +70,8 @@ private:
     bool bControlsCursor = false;
     FVector2D ControlsCursor = FVector2D::ZeroVector;
     int32 LastRequestedSequence = 0;
+    int32 LastRequestedUnitId = INDEX_NONE;
+    bool bLastRequestedSourceWasOwnedLive = false;
     FString LastRequestedType;
     int32 LastRequestedTarget = INDEX_NONE;
     TSet<FString> ControlsPassedEvidence;
@@ -82,6 +85,14 @@ private:
     float ControlsScenarioReady = -1.f;
     float ControlsStageTime = 0.f;
     bool bControlsFinished = false;
+    bool bStopControls = false;
+    int32 ControlsStopNativeBaseline = 0;
+    int32 ControlsStopReceiptRevision = INDEX_NONE;
+    TSet<int32> ControlsStopObservedRevisions;
+    float ControlsStopStationaryAt = -1.f;
+    FVector ControlsStopMoveStart = FVector::ZeroVector;
+    FVector ControlsStopPosition = FVector::ZeroVector;
+    FVector ControlsStopResumeStart = FVector::ZeroVector;
     FVector ControlsDestination = FVector(-300.f, -300.f, 0.f);
     FVector ControlsInitialPosition = FVector::ZeroVector;
     FString ControlsOutput;
@@ -129,6 +140,7 @@ private:
     void FinishSkirmishScenario(bool bPass, const TCHAR* Reason);
     void SelectUnderCursor();
     void OrderUnderCursor();
+    void StopSelected();
     void Produce();
     void ZoomIn();
     void ZoomOut();
@@ -145,6 +157,7 @@ private:
     void HandleManualGroup(int32 Slot);
     void OnManualOrder();
     void OnManualProduce();
+    void OnManualStop();
     void OnManualZoomIn();
     void OnManualZoomOut();
     void OnInteractiveEscape();
@@ -161,5 +174,6 @@ private:
     bool ControlsCheck(bool bCondition, const TCHAR* Evidence);
     void FinishControls(bool bPass, const TCHAR* Reason);
     void CaptureControls(const TCHAR* Name);
+    void LogStopFixture(const TCHAR* Phase, const FProofSnapshot& Snapshot, const FProofUnitRecord& Unit, const FVector& Destination);
     void TickGraphicsWarmup();
 };

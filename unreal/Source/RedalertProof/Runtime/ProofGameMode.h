@@ -6,6 +6,7 @@
 #include "Commands/ProofOwnerIds.h"
 #include "Skirmish/ProofSkirmishBot.h"
 #include "Runtime/ProofRefineryMinerEvidence.h"
+#include "Runtime/ProofStopEvidence.h"
 #include "ProofGameMode.generated.h"
 
 class AProofPlayerController;
@@ -28,6 +29,7 @@ public:
 private:
     FProofCommandModel Model;
     FProofRefineryMinerEvidence RefineryEvidence;
+    FProofStopEvidence StopEvidence;
     FProofSkirmishBot SkirmishBot;
     FProofHumanOwnerAllocator HumanOwnerIds;
     TWeakObjectPtr<AProofPlayerController> SkirmishOwner1;
@@ -40,6 +42,7 @@ private:
     int32 BotTarget = INDEX_NONE;
     int32 HumanAccepted = 0;
     int32 RejectedOwnership = 0;
+    int32 SkirmishOwnershipDiagnosticRows = 0;
     int32 BotAccepted = 0;
     bool bAutomation = false;
     bool bControlsAutomation = false;
