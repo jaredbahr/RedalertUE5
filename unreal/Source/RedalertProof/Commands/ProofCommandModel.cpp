@@ -275,10 +275,11 @@ FProofCommandResult FProofCommandModel::Submit(int32 TrustedOwnerId, const FProo
     const bool bBuildRefinery = Command.Type == EProofCommandType::BuildRefinery;
     const bool bBuildFactory = Command.Type == EProofCommandType::BuildFactory;
     const bool bGather = Command.Type == EProofCommandType::Gather;
-    if ((!bMove && !bAttack && !bProduce && !bBuildRefinery && !bBuildFactory && !bGather)
+    const bool bStop = Command.Type == EProofCommandType::Stop;
+    if ((!bMove && !bAttack && !bProduce && !bBuildRefinery && !bBuildFactory && !bGather && !bStop)
         || ((!State.bSkirmish) && (bBuildRefinery || bBuildFactory || bGather)) || Command.Sequence <= 0
         || !IsFinitePosition(Command.Destination)
-        || ((bMove || bAttack || bGather || (State.bSkirmish && bProduce)) && Command.UnitId <= 0)
+        || ((bMove || bAttack || bGather || bStop || (State.bSkirmish && bProduce)) && Command.UnitId <= 0)
         || ((bAttack || bGather) && Command.TargetUnitId <= 0))
     {
         return Reject(TEXT("malformed"));
@@ -357,35 +358,45 @@ FProofCommandResult FProofCommandModel::Submit(int32 TrustedOwnerId, const FProo
         const FProofUnitRecord* Unit = State.Units.FindByPredicate([&Command](const FProofUnitRecord& U) { return U.UnitId == Command.UnitId; });
         if (!Unit || Unit->OwnerId != TrustedOwnerId || Unit->HitPoints <= 0.f) { return Reject(TEXT("ownership")); }
         if (State.bSkirmish && ((bMove && (Unit->Kind == EProofUnitKind::HQ || Unit->Kind == EProofUnitKind::Refinery || Unit->Kind == EProofUnitKind::Factory))
+            || (bStop && Unit->Kind != EProofUnitKind::Combat && Unit->Kind != EProofUnitKind::Harvester)
             || (bAttack && Unit->Kind != EProofUnitKind::Combat) || (bGather && Unit->Kind != EProofUnitKind::Harvester)))
         {
             return Reject(TEXT("role"));
         }
-        FOrder Order;
-        Order.Type = Command.Type;
-        if (bMove)
+        if (bStop)
         {
-            if (!IsInWorld(Command.Destination)) { return Reject(TEXT("position")); }
-            Order.Destination = Command.Destination;
-        }
-        else if (bAttack)
-        {
-            const FProofUnitRecord* Target = State.Units.FindByPredicate([&Command](const FProofUnitRecord& U) { return U.UnitId == Command.TargetUnitId; });
-            if (!Target || Target->HitPoints <= 0.f || Target->OwnerId == TrustedOwnerId) { return Reject(TEXT("target")); }
-            if (State.bSkirmish && TeamForOwner(Target->OwnerId) == TeamForOwner(TrustedOwnerId)) { return Reject(TEXT("team")); }
-            Order.TargetUnitId = Command.TargetUnitId;
+            // Stop cancels locomotion/chase/Gather only. Removing the order
+            // leaves stationary skirmish Combat eligible for ordinary idle fire.
+            Orders.Remove(Command.UnitId);
         }
         else
         {
-            const FProofResourceRecord* Resource = State.Resources.FindByPredicate([&Command](const FProofResourceRecord& R) { return R.ResourceId == Command.TargetUnitId; });
-            // A loaded harvester may resume its return after a Move interrupts
-            // Gather, including after its final extraction depleted the patch.
-            if (!Resource || (Resource->Remaining <= 0 && Unit->Cargo <= 0)) { return Reject(TEXT("resource")); }
-            if (!FindLiveRefinery(TrustedOwnerId, Unit->Position)) { return Reject(TEXT("refinery")); }
-            Order.TargetUnitId = Command.TargetUnitId;
-            Order.bReturning = Unit->Cargo > 0;
+            FOrder Order;
+            Order.Type = Command.Type;
+            if (bMove)
+            {
+                if (!IsInWorld(Command.Destination)) { return Reject(TEXT("position")); }
+                Order.Destination = Command.Destination;
+            }
+            else if (bAttack)
+            {
+                const FProofUnitRecord* Target = State.Units.FindByPredicate([&Command](const FProofUnitRecord& U) { return U.UnitId == Command.TargetUnitId; });
+                if (!Target || Target->HitPoints <= 0.f || Target->OwnerId == TrustedOwnerId) { return Reject(TEXT("target")); }
+                if (State.bSkirmish && TeamForOwner(Target->OwnerId) == TeamForOwner(TrustedOwnerId)) { return Reject(TEXT("team")); }
+                Order.TargetUnitId = Command.TargetUnitId;
+            }
+            else
+            {
+                const FProofResourceRecord* Resource = State.Resources.FindByPredicate([&Command](const FProofResourceRecord& R) { return R.ResourceId == Command.TargetUnitId; });
+                // A loaded harvester may resume its return after a Move interrupts
+                // Gather, including after its final extraction depleted the patch.
+                if (!Resource || (Resource->Remaining <= 0 && Unit->Cargo <= 0)) { return Reject(TEXT("resource")); }
+                if (!FindLiveRefinery(TrustedOwnerId, Unit->Position)) { return Reject(TEXT("refinery")); }
+                Order.TargetUnitId = Command.TargetUnitId;
+                Order.bReturning = Unit->Cargo > 0;
+            }
+            Orders.Add(Command.UnitId, Order);
         }
-        Orders.Add(Command.UnitId, Order);
     }
     BumpRevision();
     Result.bAccepted = true;

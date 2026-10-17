@@ -238,13 +238,21 @@ FProofCommandResult AProofGameMode::SubmitForOwner(int32 TrustedOwnerId, const F
         Result.Sequence = Command.Sequence;
         Result.MatchEpoch = Command.MatchEpoch;
         Result.Reason = TEXT("stale-epoch");
+        if (StopEvidence.WantsCommand(Command.Type))
+        {
+            const FProofSnapshot RejectedSnapshot = Model.GetSnapshot();
+            StopEvidence.ObserveCommand(MatchEpoch, TrustedOwnerId, Command, Result, RejectedSnapshot, RejectedSnapshot);
+        }
         if (bLifecycleFixtureHost) UE_LOG(LogTemp, Display, TEXT("PROOF_LIFECYCLE_STALE_REJECT epoch=%d current=%d owner=%d sequence=%d"), Command.MatchEpoch, MatchEpoch, TrustedOwnerId, Command.Sequence);
         return Result;
     }
     const bool bRefineryEvidence = RefineryEvidence.Enabled() && bSkirmish
         && (Command.Type == EProofCommandType::BuildRefinery || Command.Type == EProofCommandType::Gather);
     const FProofSnapshot EvidenceBefore = bRefineryEvidence ? Model.GetSnapshot() : FProofSnapshot();
+    TOptional<FProofSnapshot> StopBefore;
+    if (StopEvidence.WantsCommand(Command.Type)) { StopBefore.Emplace(Model.GetSnapshot()); }
     FProofCommandResult Result = Model.Submit(TrustedOwnerId, Command);
+    if (StopBefore.IsSet()) { StopEvidence.ObserveCommand(MatchEpoch, TrustedOwnerId, Command, Result, StopBefore.GetValue(), Model.GetSnapshot()); }
     if (bRefineryEvidence) RefineryEvidence.ObserveCommand(MatchEpoch, TrustedOwnerId, Command, Result, EvidenceBefore, Model.GetSnapshot());
     Result.MatchEpoch = Command.MatchEpoch;
     if (bSkirmish && Result.bAccepted && TrustedOwnerId == ProofOwnerIds::Bot && Command.Type == EProofCommandType::Attack)
@@ -358,6 +366,7 @@ void AProofGameMode::Publish()
         Snapshot.MatchEpoch = MatchEpoch;
         State->Publish(Snapshot);
         RefineryEvidence.LogSnapshot(Snapshot, TEXT("host"), 0);
+        if (StopEvidence.Enabled()) { StopEvidence.LogSnapshot(Snapshot, TEXT("host"), 0); }
     }
 }
 
@@ -423,6 +432,7 @@ void AProofGameMode::Tick(float DeltaSeconds)
                 }
                 const FProofSnapshot EvidenceBeforeAdvance = RefineryEvidence.Enabled() ? Model.GetSnapshot() : FProofSnapshot();
                 Model.Advance(0.1f);
+                if (StopEvidence.Enabled()) { StopEvidence.ObserveAdvance(MatchEpoch, 0.1f); }
                 SkirmishSeconds += 0.1;
                 const FProofSnapshot After = Model.GetSnapshot();
                 if (RefineryEvidence.Enabled()) RefineryEvidence.ObserveAdvance(MatchEpoch, EvidenceBeforeAdvance, After);
@@ -443,6 +453,7 @@ void AProofGameMode::Tick(float DeltaSeconds)
         }
         const FProofSnapshot Before = bControlsAutomation ? Model.GetSnapshot() : FProofSnapshot();
         Model.Advance(0.1f);
+        if (StopEvidence.Enabled()) { StopEvidence.ObserveAdvance(MatchEpoch, 0.1f); }
         if (bControlsAutomation) ObserveControlsStep(Before, Model.GetSnapshot());
         Accumulator -= 0.1f;
         if (++StepsSincePublish >= 2) { Publish(); StepsSincePublish = 0; }

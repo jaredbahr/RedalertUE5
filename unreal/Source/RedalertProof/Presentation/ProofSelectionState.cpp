@@ -206,3 +206,21 @@ TArray<FProofCommand> FProofSelectionState::PlanAttack(const FProofSnapshot& Sna
     }
     return Commands;
 }
+
+TArray<FProofCommand> FProofSelectionState::PlanStop(const FProofSnapshot& Snapshot, int32 OwnerId) const
+{
+    TArray<FProofCommand> Commands;
+    if (!IsCurrentContext(Snapshot, OwnerId) || !FindPlayer(Snapshot, OwnerId)
+        || (Snapshot.bSkirmish && Snapshot.MatchPhase != EProofMatchPhase::Playing)) { return Commands; }
+    for (int32 UnitId : SelectedUnitIds)
+    {
+        const FProofUnitRecord* Unit = FindUnit(Snapshot, UnitId);
+        if (!Unit || !IsOwnedLiveUnit(Snapshot, OwnerId, UnitId) || !CanMove(*Unit)) { continue; }
+        FProofCommand Command;
+        Command.Type = EProofCommandType::Stop;
+        Command.UnitId = UnitId;
+        Commands.Add(Command);
+        if (Commands.Num() == MaxSelectedUnits) { break; }
+    }
+    return Commands;
+}

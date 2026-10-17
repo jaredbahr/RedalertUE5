@@ -1,0 +1,120 @@
+{
+  "status": "reviewed-source-pending-build",
+  "baseCommit": "8984bbc36e8eb23732a422e006df2634674cab23",
+  "branch": "feat/stop-command",
+  "scope": "Player S/shared Stop, bounded selection queue replacement, opt-in actual command and replicated stationary/resume evidence",
+  "lightweight": {
+    "stopParserSyntheticChecks": 39,
+    "existingControlsPolicyCases": 8,
+    "powerShellParseErrors": 0,
+    "exactStopCaseInventory": 11,
+    "independentCoreUiRuntimeReview": "clear",
+    "independentParserReview": "clear after six adversarial gaps corrected",
+    "modelRunnerVerifiedExitCleanup": "copied from accepted HUD runner; independent review clear"
+  },
+  "heavySlotOwner": "Red Alert",
+  "engineJobsLaunched": 0,
+  "integrationReady": false,
+  "automaticRetry": false,
+  "stopOnFailure": true,
+  "commands": [
+    {
+      "script": "build-native-proof.ps1",
+      "arguments": []
+    },
+    {
+      "exactCases": 11,
+      "script": "test-stop-model.ps1",
+      "arguments": []
+    },
+    {
+      "exactCases": 22,
+      "script": "test-skirmish-model.ps1",
+      "arguments": []
+    },
+    {
+      "exactCases": 7,
+      "script": "test-native-model.ps1",
+      "arguments": []
+    },
+    {
+      "exactCases": 11,
+      "script": "test-group-controls.ps1",
+      "arguments": []
+    },
+    {
+      "exactCases": 4,
+      "script": "test-fidelity-model.ps1",
+      "arguments": []
+    },
+    {
+      "exactCases": 5,
+      "script": "test-hud-layout-model.ps1",
+      "arguments": []
+    },
+    {
+      "script": "test-controls-proof.ps1",
+      "arguments": [
+        "-CleanPresentation",
+        "-StopControls",
+        "-TimeoutSeconds",
+        "90",
+        "-WarmupTimeoutSeconds",
+        "300"
+      ]
+    },
+    {
+      "script": "test-controls-proof.ps1",
+      "arguments": [
+        "-CleanPresentation",
+        "-TimeoutSeconds",
+        "90",
+        "-WarmupTimeoutSeconds",
+        "300"
+      ]
+    },
+    {
+      "script": "test-small-match.ps1",
+      "arguments": [
+        "-Scenario",
+        "Victory",
+        "-CleanPresentation",
+        "-RefineryMinerEvidence",
+        "-TimeoutSeconds",
+        "240"
+      ]
+    },
+    {
+      "script": "test-small-match.ps1",
+      "arguments": [
+        "-Scenario",
+        "Defeat",
+        "-CleanPresentation",
+        "-RefineryMinerEvidence",
+        "-TimeoutSeconds",
+        "240"
+      ]
+    },
+    {
+      "script": "test-small-match.ps1",
+      "arguments": [
+        "-Scenario",
+        "Coop",
+        "-CleanPresentation",
+        "-RefineryMinerEvidence",
+        "-TimeoutSeconds",
+        "240"
+      ]
+    },
+    {
+      "script": "test-session-lifecycle.ps1",
+      "arguments": []
+    }
+  ],
+  "limits": [
+    "No claim of native S injection or physical input; opt-in fixture calls shared Stop handler.",
+    "No installs, new art, purchases, hosted Actions or binary uploads.",
+    "Existing deadlines, expected winners, dispatch limits, resource and CPU policies unchanged.",
+    "All engine jobs serialized; retain failure and diagnose before any justified retry."
+  ]
+}

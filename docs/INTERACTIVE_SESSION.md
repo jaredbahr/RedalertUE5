@@ -10,7 +10,7 @@ After the local module is built and generated CommandProof content is present, r
 ./unreal/Scripts/start-local-interactive.ps1
 ```
 
-The launcher warns for five seconds, then opens one visible 1280x720 standalone practice window. Escape exits. The default session limit is 15 minutes; it is not a persistent server. Left-click selects your green unit or clears selection on empty ground; right-click empty ground moves, right-click an enemy attacks, P produces and the wheel zooms. A produced unit starts at the original unit's position; move the selected original away to see both.
+The launcher warns for five seconds, then opens one visible 1280x720 standalone practice window. Escape exits. The default session limit is 15 minutes; it is not a persistent server. Left-click selects your green unit or clears selection on empty ground; right-click empty ground moves, right-click an enemy attacks, P produces, S stops selected mobile units and the wheel zooms. A produced unit starts at the original unit's position; move the selected original away to see both.
 
 The practice map has stationary enemy targets; it is not a completed bot skirmish. Existing generic Rhino proxies and Tesla scenery remain unapproved. Process-local DisableAllScreenMessages removes engine overlay warnings while retaining the underlying log; this is presentation cleanup, not a lighting bake or shader correctness claim.
 
@@ -29,7 +29,8 @@ Status: **not performed; physical input and real OS focus remain unverified**. T
 7. Scroll both ways and check zoom and counters.
 8. Alt-Tab away and back; confirm the game does not force itself forward and controls work after returning. Observe the HUD's focus/foreground state and confirm no unintended orders or selection changes occur during the transition. A stale or missing observation is `unverified`, not a pass.
 9. If `-CameraPan` is enabled, hold and release each arrow while the viewport is focused and foreground: confirm camera movement and no drift after release. Hold an arrow while Alt-Tabbing away, release it outside the game, then return; confirm background pan is suppressed and no stuck-key drift appears. Source permits pan only after local input setup, with both real viewport focus and foreground true, outside proof/controls automation and scripted skirmish scenarios. Do not use synthetic focus overrides as evidence for this step.
-10. Press Escape to exit; confirm the session stops normally.
+10. With an owned mobile unit moving, press S; confirm its accepted Stop receipt, unchanged selection and stopped position. Repeat for a selected group and a loaded Harvester in small-match mode; check cargo is retained and right-click Gather resumes it. Confirm the native S counter/log changes only for the physical keypress. Record this new step against the actual Stop build; older sessions cannot pass it.
+11. Press Escape to exit; confirm the session stops normally.
 
 ### Record the physical session
 

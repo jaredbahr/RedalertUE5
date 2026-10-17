@@ -6,9 +6,11 @@ param(
     [ValidateRange(0,65536)][int]$MaxCacheMiB = 2048,
     [ValidateRange(0,65536)][int]$MaxTempMiB = 1024,
     [switch]$UnoptimizedShaders,
-    [switch]$CleanPresentation
+    [switch]$CleanPresentation,
+    [switch]$StopControls
 )
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'StopControlsEvidence.ps1')
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $repoRoot = (Resolve-Path (Join-Path $projectRoot '..')).Path
 $project = Join-Path $projectRoot 'RedalertProof.uproject'
@@ -56,6 +58,8 @@ $result.cpuPolicy.eventsTruncated=$false
 $result.cpuPolicy.discoveryError=$null
 $result.cleanup=[ordered]@{errors=@();ignoredExitRaces=0;parentsFirst=$true}
 $result.commandRequests=@()
+$result.stopControlsEvidenceEnabled=[bool]$StopControls
+$result.stopControlsEvidence=$null
 $result.cacheDiagnostics=[ordered]@{verboseEnabled=$true;diagnosticOnly=$true;classification='Engine/DerivedDataCache/*.ddp path; global only GlobalShaderMap/ keys; material-related request/key text may include textures';byProcess=@{};readErrors=@()}
 $workerExe=Join-Path $EngineRoot 'Engine\Binaries\Win64\ShaderCompileWorker.exe'
 $names=@('UE-LocalDataCachePath','UE-SharedDataCachePath','TEMP','TMP')
@@ -184,6 +188,7 @@ try {
             if($Destination -notmatch '^127\.0\.0\.1:\d+$') { throw 'Literal-client startup override is restricted to this fixture loopback destination.' }
             $launchArguments+=('-cvarsini="'+$literalClientCVars+'"')
         }
+        if($StopControls -and $Role -ne 'warmup') { $launchArguments+='-ProofStopControls' }
         if($CleanPresentation -and $Role -in @('warmup','rendered')) { $launchArguments+='-ExecCmds="DisableAllScreenMessages"' }
         # One Engine override string prevents duplicate -ini:Engine switches
         # from shadowing warmup worker settings or shader optimization mode.
@@ -259,11 +264,12 @@ try {
     }
     Mark-Stage 'processesExited'
     Check-StorageBudget -Force
-    $maps=@()
+    $maps=@(); $stopLogs=@{}
     foreach ($entry in $processes) {
         if ($entry.Role -eq 'warmup') { continue }
         if ($entry.Process.ExitCode -ne 0) { throw "$($entry.Role) exited $($entry.Process.ExitCode)." }
         $log=Get-Content -LiteralPath $entry.Log -Raw
+        if($StopControls){$stopLogs[$entry.Role]=$log}
         if ($log -match 'PROOF_CONTROLS_(CHECK|COMPLETE)[^\r\n]*status=fail') { throw "$($entry.Role) reported controls failure." }
         $role=if($entry.Role -eq 'host'){'host'}elseif($entry.Role -eq 'rendered'){'client'}else{'observer'}
         if($entry.Role -in @('rendered','observer')) {
@@ -303,7 +309,8 @@ try {
                 if($log -notmatch ('PROOF_CONTROLS_CHECK[^\r\n]*status=pass evidence='+$check+'\b')) { throw "Missing command-path assertion: $check" }
             }
             $expectedTypes=@('Move','Attack','Produce','Move')
-            foreach($seq in 1..4) {
+            if($StopControls){$expectedTypes+=@('Move','Stop','Move')}
+            foreach($seq in 1..$expectedTypes.Count) {
                 if($log -notmatch "PROOF_RESULT owner=1 sequence=$seq accepted=1") { throw "Missing accepted host receipt $seq." }
                 $request=[regex]::Match($log,("PROOF_CONTROLS_REQUEST owner=1 sequence=$seq type=(\w+)\b[^\r\n]*"))
                 if(-not $request.Success -or $request.Groups[1].Value -ne $expectedTypes[$seq-1]) { throw "Request $seq did not use expected $($expectedTypes[$seq-1]) command path." }
@@ -322,7 +329,10 @@ try {
     if($common.Count -lt 3) { throw 'Need at least three shared host/rendered/observer revisions.' }
     foreach($revision in $common) { if($maps[0][$revision] -ne $maps[1][$revision] -or $maps[0][$revision] -ne $maps[2][$revision]) { throw "Replicated digest mismatch at $revision." } }
     $result.commonRevisions=$common
-    foreach($name in @('01-selected.png','02-moved-combat-produced.png')) {
+    if($StopControls){$result.stopControlsEvidence=Get-StopControlsEvidence -Logs $stopLogs}
+    $captureNames=@('01-selected.png','02-moved-combat-produced.png')
+    if($StopControls){$captureNames+=@('03-stop.png','04-stop-resumed.png')}
+    foreach($name in $captureNames) {
         $path=Join-Path $images $name
         if(-not(Test-Path -LiteralPath $path)) { throw "Missing fresh engine screenshot $name." }
         $file=Get-Item -LiteralPath $path

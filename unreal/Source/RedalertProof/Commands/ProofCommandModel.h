@@ -11,7 +11,8 @@ enum class EProofCommandType : uint8
     Produce,
     BuildRefinery,
     BuildFactory,
-    Gather
+    Gather,
+    Stop
 };
 
 UENUM()

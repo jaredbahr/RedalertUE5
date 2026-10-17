@@ -12,6 +12,7 @@ Authorized local lookup found a residual RA2 folder in an existing Steam library
 
 | Documented original behavior | Evidence | Current UE proof / gap |
 | --- | --- | --- |
+| S stops selected units. | Original manuals: Basic Keyboard Functions, Stop | [Stop candidate](STOP_COMMAND.md) cancels orders through the shared validator and bounded group queue; compilation/runtime acceptance pending. Existing stationary idle fire remains. |
 | Full miners unload at a friendly refinery and resume harvesting. | RA2 pp16-17 | Travel, finite extraction, deposit and repeat on the selected patch already exist; extraction/unloading happen instantly on arrival. |
 | Production takes time; funds shortages suspend it until money returns. | RA2 p17 | `Submit` immediately debits the full price and creates the record. No production job, progress, hold/resume or queue. |
 | Power shortages affect production and some defenses/radar. | RA2 p18 | No power model; a Tesla mesh is only a display proxy. |
