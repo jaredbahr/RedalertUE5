@@ -43,6 +43,15 @@ void AProofRTSPawn::BeginPlay()
     bGraphicsWarmup = FParse::Param(FCommandLine::Get(), TEXT("ProofGraphicsWarmup"));
     FParse::Value(FCommandLine::Get(), TEXT("ProofSkirmishScenario="), SkirmishScenario);
     FParse::Value(FCommandLine::Get(), TEXT("ProofSkirmishOutput="), SkirmishOutput);
+    // Fixture-only viewport contract; defaults preserve the existing trace.
+    FString FixtureViewport = TEXT("1280x720");
+    FParse::Value(FCommandLine::Get(), TEXT("ProofSkirmishViewport="), FixtureViewport);
+    if (FixtureViewport == TEXT("960x540"))
+    {
+        SkirmishViewportWidth = 960;
+        SkirmishViewportHeight = 540;
+    }
+    else if (FixtureViewport != TEXT("1280x720")) bSkirmishViewportValid = false;
     // Optional generated content stays outside tracked source. Every record is
     // deliberately a generic proxy; there is no unit-kind field in this proof.
     if (GetNetMode() != NM_DedicatedServer)
@@ -893,6 +902,7 @@ void AProofRTSPawn::FinishSkirmishScenario(bool bPass, const TCHAR* Reason)
 
 void AProofRTSPawn::TickSkirmishScenario(float DeltaSeconds)
 {
+    if (!bSkirmishViewportValid) { FinishSkirmishScenario(false, TEXT("fixture_viewport")); return; }
     if (bSkirmishFinished) return;
     SkirmishElapsed += DeltaSeconds;
     if (SkirmishElapsed > 220.f) { FinishSkirmishScenario(false, TEXT("scenario_timeout")); return; }
@@ -945,7 +955,7 @@ void AProofRTSPawn::TickSkirmishScenario(float DeltaSeconds)
     {
         int32 Width = 0, Height = 0;
         PC->GetViewportSize(Width, Height);
-        if (!HQ || !Harvester || !EnemyHQ || !bConfiguredLocalInput || Width != 1280 || Height != 720
+        if (!HQ || !Harvester || !EnemyHQ || !bConfiguredLocalInput || Width != SkirmishViewportWidth || Height != SkirmishViewportHeight
             || FAssetCompilingManager::Get().GetNumRemainingAssets() != 0) return;
         const IConsoleVariable* FPS = IConsoleManager::Get().FindConsoleVariable(TEXT("t.MaxFPS"));
         const IConsoleVariable* Optimize = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Shaders.Optimize"));
