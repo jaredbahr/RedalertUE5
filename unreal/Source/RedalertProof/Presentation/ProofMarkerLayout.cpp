@@ -109,7 +109,7 @@ bool FProofMarkerLayout::AcceptCandidate(const FVector2D& TopLeft, const FVector
     const FBox2D Candidate(TopLeft, BottomRight);
     for (const FLeader& Leader : Leaders)
         if (SegmentHitsBox(Leader.Start, Leader.End, Candidate, Separation)) return false;
-    FVector2D Start, End;
+    FVector2D Start = FVector2D::ZeroVector, End = FVector2D::ZeroVector;
     if (SourceReservation != INDEX_NONE)
     {
         const FBox2D& Source = Occupied[SourceReservation];
