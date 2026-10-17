@@ -3,7 +3,7 @@ $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'StopControlsEvidence.ps1')
 $script:checks=0
 function New-State([int]$Revision,[double]$X,[double]$Seconds,[string]$Role='host',[int]$Viewer=0){
-    return [ordered]@{role=$Role;viewer=$Viewer;epoch=0;revision=$Revision;digest=('{0:x32}' -f $Revision);simulatedSeconds=$Seconds;skirmish=0;phase=0;winner=-1;units=@([ordered]@{id=1;owner=1;kind=0;x=$X;y=0;z=0;hp=100;cargo=0});players=@([ordered]@{id=1;team=0;credits=200;gathered=0});resources=@()}
+    return [ordered]@{role=$Role;viewer=$Viewer;epoch=0;revision=$Revision;digest=('{0:x32}' -f $Revision);simulatedSeconds=$Seconds;skirmish=0;phase=0;winner=-1;units=@([ordered]@{id=1;owner=1;kind=0;x=$X;y=0;z=0;hp=100;cargo=0;rally=0;rallyX=0;rallyY=0;rallyZ=0});players=@([ordered]@{id=1;team=0;credits=200;gathered=0});resources=@()}
 }
 function New-Command($Before,$After,[int]$Sequence,[string]$Type){
     return [ordered]@{role='host';owner=1;unit=1;sequence=$Sequence;type=$Type;destinationX=1000;destinationY=0;destinationZ=0;accepted=1;epoch=0;beforeRevision=$Before.revision;afterRevision=$After.revision;beforeDigest=$Before.digest;afterDigest=$After.digest;immutable=1;before=$Before;after=$After}
@@ -76,4 +76,39 @@ Reject 'duplicate sequence alien unit' {param($x)$line=($x.host -split '\r?\n'|W
 Reject 'embedded published state contradiction' {param($x)$x.host=($x.host -split '\r?\n'|ForEach-Object {if($_ -match '^PROOF_STOP_COMMAND.*"sequence":5,'){ $_.Replace('"x":0.0','"x":-999.0') }else{$_}}) -join [Environment]::NewLine}
 $logs=New-Logs;$logs.host=$logs.host.Replace('"destinationX":1000','"destinationX":1000.0003')
 if(-not (Get-StopControlsEvidence -Logs $logs).passed){throw 'Configured phase target may differ within existing 2cm viewport projection contract'};$script:checks++
+# Current semantic schema requires rally fields even when no rally is configured.
+function Edit-StopStates($Logs,[scriptblock]$Edit){
+    foreach($role in @('host','rendered','observer')){
+        $Logs[$role]=($Logs[$role] -split '\r?\n'|ForEach-Object{
+            if($_ -match '^(PROOF_STOP_STATE|PROOF_STOP_COMMAND) (.*)$'){
+                $prefix=$Matches[1];$row=$Matches[2]|ConvertFrom-Json -Depth 20
+                if($prefix -eq 'PROOF_STOP_STATE'){& $Edit $row}else{& $Edit $row.before;& $Edit $row.after}
+                $prefix+' '+($row|ConvertTo-Json -Depth 20 -Compress)
+            }else{$_}
+        }) -join [Environment]::NewLine
+    }
+}
+function Add-RallyFactory($Logs){Edit-StopStates $Logs {param($s)$s.units+= [pscustomobject]@{id=2;owner=1;kind=4;x=500;y=500;z=0;hp=200;cargo=0;rally=1;rallyX=123.0000001;rallyY=-456.25;rallyZ=0}}}
+$logs=New-Logs;Add-RallyFactory $logs
+if(-not (Get-StopControlsEvidence -Logs $logs).passed){throw 'Valid nonzero factory rally semantic state rejected'};$script:checks++
+foreach($field in @('rally','rallyX','rallyY','rallyZ')){
+    $missingField=$field
+    Reject "missing required unit $field" {param($x)Edit-StopStates $x {param($s)$s.units[0].PSObject.Properties.Remove($missingField)}}
+}
+Reject 'bool rally flag' {param($x)Edit-StopStates $x {param($s)$s.units[0].rally=$false}}
+Reject 'string rally flag' {param($x)Edit-StopStates $x {param($s)$s.units[0].rally='0'}}
+Reject 'array rally flag' {param($x)Edit-StopStates $x {param($s)$s.units[0].rally=@(0)}}
+Reject 'fractional rally flag' {param($x)Edit-StopStates $x {param($s)$s.units[0].rally=.5}}
+Reject 'out of range rally flag' {param($x)Edit-StopStates $x {param($s)$s.units[0].rally=2}}
+Reject 'string rally coordinate' {param($x)Edit-StopStates $x {param($s)$s.units[0].rallyX='0'}}
+Reject 'bool rally coordinate' {param($x)Edit-StopStates $x {param($s)$s.units[0].rallyY=$false}}
+Reject 'array rally coordinate' {param($x)Edit-StopStates $x {param($s)$s.units[0].rallyZ=@(0)}}
+Reject 'nonfinite rally coordinate' {param($x)Edit-StopStates $x {param($s)$s.units[0].rallyX='NaN'}}
+Reject 'out of world rally coordinate' {param($x)Edit-StopStates $x {param($s)$s.units[0].rallyX=10001}}
+Reject 'disabled nonzero rally tuple' {param($x)Edit-StopStates $x {param($s)$s.units[0].rallyX=1}}
+Reject 'rally must be ground point' {param($x)Add-RallyFactory $x;Edit-StopStates $x {param($s)$s.units[1].rallyZ=1}}
+Reject 'nonfactory cannot carry rally' {param($x)Edit-StopStates $x {param($s)$s.units[0].rally=1}}
+Reject 'dead factory cannot carry rally' {param($x)Add-RallyFactory $x;Edit-StopStates $x {param($s)$s.units[1].hp=0}}
+Reject 'same digest different rally across roles' {param($x)Add-RallyFactory $x;$x.observer=$x.observer.Replace('123.0000001','123.0000002')}
+Reject 'Stop mutates unrelated factory rally' {param($x)Add-RallyFactory $x;$x.host=($x.host -split '\r?\n'|ForEach-Object{if($_ -match '^PROOF_STOP_COMMAND .*"type":"Stop"'){$row=$_.Substring(19)|ConvertFrom-Json -Depth 20;$row.after.units[1].rallyX=124;'PROOF_STOP_COMMAND '+($row|ConvertTo-Json -Depth 20 -Compress)}else{$_}}) -join [Environment]::NewLine}
 Write-Output "PASS synthetic-only Stop evidence checks=$script:checks; no engine/runtime/physical evidence"

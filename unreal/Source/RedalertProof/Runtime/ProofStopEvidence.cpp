@@ -29,12 +29,16 @@ bool StopSnapshotJson(const FProofSnapshot& Snapshot, int32 Epoch, FString& Json
     bool bFirst = true;
     for (const FProofUnitRecord& Unit : Snapshot.Units)
     {
-        if (!StopFinite(Unit.Position) || !FMath::IsFinite(Unit.HitPoints) || Unit.Cargo < 0) { return false; }
+        if (!StopFinite(Unit.Position) || !FMath::IsFinite(Unit.HitPoints) || Unit.Cargo < 0
+            || !StopFinite(Unit.RallyPoint) || FMath::Abs(Unit.RallyPoint.X) > FProofCommandModel::WorldExtent
+            || FMath::Abs(Unit.RallyPoint.Y) > FProofCommandModel::WorldExtent || Unit.RallyPoint.Z != 0.0
+            || (!Unit.bHasRallyPoint && Unit.RallyPoint != FVector::ZeroVector)
+            || (Unit.bHasRallyPoint && (Unit.Kind != EProofUnitKind::Factory || Unit.HitPoints <= 0.f))) { return false; }
         if (!bFirst) { Json += TEXT(","); }
         bFirst = false;
-        Json += FString::Printf(TEXT("{\"id\":%d,\"owner\":%d,\"kind\":%d,\"x\":%.17g,\"y\":%.17g,\"z\":%.17g,\"hp\":%.9g,\"cargo\":%d}"),
+        Json += FString::Printf(TEXT("{\"id\":%d,\"owner\":%d,\"kind\":%d,\"x\":%.17g,\"y\":%.17g,\"z\":%.17g,\"hp\":%.9g,\"cargo\":%d,\"rally\":%d,\"rallyX\":%.17g,\"rallyY\":%.17g,\"rallyZ\":%.17g}"),
             Unit.UnitId, Unit.OwnerId, static_cast<int32>(Unit.Kind), Unit.Position.X, Unit.Position.Y, Unit.Position.Z,
-            static_cast<double>(Unit.HitPoints), Unit.Cargo);
+            static_cast<double>(Unit.HitPoints), Unit.Cargo, Unit.bHasRallyPoint ? 1 : 0, Unit.RallyPoint.X, Unit.RallyPoint.Y, Unit.RallyPoint.Z);
     }
     Json += TEXT("],\"players\":[");
     bFirst = true;

@@ -251,7 +251,10 @@ FProofCommandResult AProofGameMode::SubmitForOwner(int32 TrustedOwnerId, const F
     const FProofSnapshot EvidenceBefore = bRefineryEvidence ? Model.GetSnapshot() : FProofSnapshot();
     TOptional<FProofSnapshot> StopBefore;
     if (StopEvidence.WantsCommand(Command.Type)) { StopBefore.Emplace(Model.GetSnapshot()); }
+    TOptional<FProofSnapshot> RallyBefore;
+    if (FactoryRallyEvidence.WantsCommand(TrustedOwnerId, Command.Type)) { RallyBefore.Emplace(Model.GetSnapshot()); }
     FProofCommandResult Result = Model.Submit(TrustedOwnerId, Command);
+    if (RallyBefore.IsSet()) FactoryRallyEvidence.ObserveCommand(MatchEpoch, TrustedOwnerId, Command, Result, RallyBefore.GetValue(), Model.GetSnapshot());
     if (bSkirmish && !bLifecycleFixtureHost && Command.Type == EProofCommandType::Attack
         && !Result.bAccepted && Result.Reason == TEXT("ownership"))
     {

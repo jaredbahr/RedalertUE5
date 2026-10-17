@@ -19,6 +19,7 @@ function New-SyntheticRefineryLogs([int[]]$Owners=@(1,2,100)) {
             $s.resources+=@{id=$o;owner=$o;x=600;y=0;z=0;remaining=$(if($rev -ge 5){450}else{500})}
         };$states+=,$s
     }
+    foreach($state in $states){foreach($unit in $state.units){$unit.rally=0;$unit.rallyX=0;$unit.rallyY=0;$unit.rallyZ=0}}
     $logs=@{}
     foreach($role in @('host','rendered','observer')){
         $view=if($role -eq 'host'){'host'}else{'client'};$v=if($role -eq 'host'){0}elseif($role -eq 'observer'){2}else{1};$lines=@()
@@ -75,4 +76,48 @@ Reject 'missing before ID set' {param($x) Edit-Event $x grant {param($e) $e.befo
 Reject 'bool spawn coordinate' {param($x) Edit-Event $x grant {param($e) $e.x=$true} }
 Reject 'contributors object instead of array' {param($x) Edit-Event $x deposit {param($e) $e.contributors=$e.contributors[0]} }
 Reject 'empty malformed event suffix' {param($x)$x.host+="`nPROOF_REFINERY_EVENT"}
+function Edit-RefineryStates($Logs,[scriptblock]$Edit){
+    foreach($role in @('host','rendered','observer')){
+        $Logs[$role]=($Logs[$role] -split '\r?\n'|ForEach-Object{
+            if($_ -like 'PROOF_REFINERY_STATE *'){$row=$_.Substring(21)|ConvertFrom-Json -Depth 20;& $Edit $row;'PROOF_REFINERY_STATE '+($row|ConvertTo-Json -Depth 20 -Compress)}else{$_}
+        }) -join [Environment]::NewLine
+    }
+}
+function Add-RallyFactory($Logs){Edit-RefineryStates $Logs {param($s)$s.units+=[pscustomobject]@{id=2000;owner=1;kind=4;x=500;y=500;z=0;hp=200;cargo=0;rally=1;rallyX=123.0000001;rallyY=-456.25;rallyZ=0}}}
+$logs=New-SyntheticRefineryLogs;Add-RallyFactory $logs
+if(-not (Get-RefineryMinerEvidence $logs Coop).passed){throw 'Valid nonzero factory rally semantic state rejected'};$checks++
+foreach($field in @('rally','rallyX','rallyY','rallyZ')){
+    $missingField=$field
+    Reject "missing required unit $field" {param($x)Edit-RefineryStates $x {param($s)$s.units[0].PSObject.Properties.Remove($missingField)}}
+}
+Reject 'bool rally flag' {param($x)Edit-RefineryStates $x {param($s)$s.units[0].rally=$false}}
+Reject 'string rally flag' {param($x)Edit-RefineryStates $x {param($s)$s.units[0].rally='0'}}
+Reject 'array rally flag' {param($x)Edit-RefineryStates $x {param($s)$s.units[0].rally=@(0)}}
+Reject 'fractional rally flag' {param($x)Edit-RefineryStates $x {param($s)$s.units[0].rally=.5}}
+Reject 'out of range rally flag' {param($x)Edit-RefineryStates $x {param($s)$s.units[0].rally=2}}
+Reject 'string rally coordinate' {param($x)Edit-RefineryStates $x {param($s)$s.units[0].rallyX='0'}}
+Reject 'bool rally coordinate' {param($x)Edit-RefineryStates $x {param($s)$s.units[0].rallyY=$false}}
+Reject 'array rally coordinate' {param($x)Edit-RefineryStates $x {param($s)$s.units[0].rallyZ=@(0)}}
+Reject 'nonfinite rally coordinate' {param($x)Edit-RefineryStates $x {param($s)$s.units[0].rallyX='NaN'}}
+Reject 'out of world rally coordinate' {param($x)Edit-RefineryStates $x {param($s)$s.units[0].rallyX=10001}}
+Reject 'disabled nonzero rally tuple' {param($x)Edit-RefineryStates $x {param($s)$s.units[0].rallyX=1}}
+Reject 'rally must be ground point' {param($x)Add-RallyFactory $x;Edit-RefineryStates $x {param($s)$s.units[-1].rallyZ=1}}
+Reject 'nonfactory cannot carry rally' {param($x)Edit-RefineryStates $x {param($s)$s.units[0].rally=1}}
+Reject 'dead factory cannot carry rally' {param($x)Add-RallyFactory $x;Edit-RefineryStates $x {param($s)$s.units[-1].hp=0}}
+Reject 'same digest different rally across roles' {param($x)Add-RallyFactory $x;$x.observer=$x.observer.Replace('123.0000001','123.0000002')}
+# Canonical comparison uses explicit fields and stable IDs, not JSON key/insertion order.
+$logs=New-SyntheticRefineryLogs;Add-RallyFactory $logs
+$logs.observer=($logs.observer -split '\r?\n'|ForEach-Object{
+    if($_ -like 'PROOF_REFINERY_STATE *'){$row=$_.Substring(21)|ConvertFrom-Json -Depth 20;$row.units=@($row.units|Sort-Object id -Descending);'PROOF_REFINERY_STATE '+($row|ConvertTo-Json -Depth 20 -Compress)}else{$_}
+}) -join [Environment]::NewLine
+if(-not (Get-RefineryMinerEvidence $logs Coop).passed){throw 'Canonical same-state reordered records rejected'};$checks++
+$logs=New-SyntheticRefineryLogs;$context=@{}
+$normal=Get-RefineryMinerEvidence -Logs $logs -Scenario Coop
+$withContext=Get-RefineryMinerEvidence -Logs $logs -Scenario Coop -ValidatedStateContext $context
+if(($normal|ConvertTo-Json -Depth 20 -Compress) -cne ($withContext|ConvertTo-Json -Depth 20 -Compress) -or $context.maps.Count -ne 3 -or $context.common.Count -ne 3 -or $context.roles.Count -ne 3 -or $context.maps.host['1:5'].units[0].rally -ne 0){throw 'Validated context handoff changed result or omitted strict state'};$checks++
+$invalid=New-SyntheticRefineryLogs;$invalid.host+="`nPROOF_REFINERY_ERROR reason=synthetic";$context=@{sentinel=1};$rejected=$false
+try{Get-RefineryMinerEvidence -Logs $invalid -Scenario Coop -ValidatedStateContext $context|Out-Null}catch{$rejected=$true}
+if(-not $rejected -or $context.Count -ne 1 -or $context.sentinel -ne 1){throw 'Failed validation exposed a partial context'};$checks++
+Reject 'singleton-array snapshot root' {param($x)$x.host=($x.host -split '\r?\n'|ForEach-Object{if($_ -like 'PROOF_REFINERY_STATE *'){'PROOF_REFINERY_STATE ['+$_.Substring(21)+']'}else{$_}}) -join [Environment]::NewLine}
+Reject 'singleton-array event root' {param($x)$x.host=($x.host -split '\r?\n'|ForEach-Object{if($_ -like 'PROOF_REFINERY_EVENT *'){'PROOF_REFINERY_EVENT ['+$_.Substring(21)+']'}else{$_}}) -join [Environment]::NewLine}
 Write-Output "PASS synthetic-only refinery/miner parser checks=$checks; no engine/runtime/physical evidence"
