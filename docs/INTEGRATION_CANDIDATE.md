@@ -1,6 +1,6 @@
 # Pinned skirmish and nine-group integration candidate
 
-Draft preparation only. Main promotion requires Jared's later explicit approval after candidate verification. No issues are closed. Imagination holds the heavy-test slot; no engine build/runtime checks have run on this candidate.
+Draft preparation only. Main promotion requires Jared's later explicit approval after candidate verification. No issues are closed. The allocated combined queue passed once at clean 4fdc7e27f55bf38ea43314dbea58a40fc2f1afe2; all owned processes exited and the heavy-test slot is released. See [validation evidence](INTEGRATION_VALIDATION.md).
 
 ## Provenance and reconciliation
 
@@ -8,7 +8,7 @@ Branch `integrate/skirmish-nine-groups` starts at PR #30 `ab6bda4099cc85ca6d87d7
 
 The selected order is **#3 -> #9 -> #14 -> #19 -> #25 -> #26 -> #27 -> #28 -> #30**. Full pinned heads and the validation queue are in [candidate_provenance.json](candidate_provenance.json). Later candidate commits add only these documents and reconcile the historical allocator evidence; the final publication SHA is recorded in the draft PR and ignored local queue before execution. Every future result must record the actual clean tested HEAD.
 
-Source tree `unreal/Source/RedalertProof` remains `9905f4c2f4cba7248ec48ab08029095ad24c442a`; the controls-runner blob remains `0a874698c7ed15033588861a882372ed76156163`. No new project instructions, workflows or binaries were imported. The separate #16 contributor-instruction proposal is not applied. Existing ignore/storage rules remain intact.
+Source tree `unreal/Source/RedalertProof` remains `9905f4c2f4cba7248ec48ab08029095ad24c442a`; the group-model runner (`unreal/Scripts/test-group-controls.ps1`) blob remains `0a874698c7ed15033588861a882372ed76156163`. No new project instructions, workflows or binaries were imported. The separate #16 contributor-instruction proposal is not applied. Existing ignore/storage rules remain intact.
 
 PR #29 (`77073c5`) and #31 (`c3e5a16`) are excluded by ancestry and implementation: no input-binding fixture, higher-group fixture, bootstrap tracing or their runners are included. References to their separate historical results remain clearly labeled. Their unresolved failures are not silently accepted. Corrections from #8/#10/#15/#20 are already carried through the selected chain; do not merge those obsolete side histories wholesale. #13's unique asset probes and #16's instructions remain separate, open review work.
 
@@ -18,9 +18,9 @@ Existing #30 clean `9bc6a4a` passed 36 model cases and rendered handler compatib
 
 Independent review verified the selected ancestry, exact tree/source identities, excluded fixtures and retained owner/ingress ports. The history-only reconciliation has no file delta. Six inherited blank lines at EOF appear in main-to-candidate whitespace checking; no source cleanup was introduced just to remove them. New documentation changes are checked separately. Review does not replace compilation or runtime verification.
 
-## Verification after slot allocation
+## Recorded verification plan
 
-Before execution, pin the published candidate SHA, require a clean worktree and the source/runner hashes above, reuse the fourteen validated ignored assets with path/SHA256 checks, and retain a fresh result directory for every gate. Run the queued commands serially using existing deadlines and D: cache/temp policies:
+The following plan was executed once at clean 4fdc7e2 with the pinned source/runner hashes, fourteen SHA256-verified reused assets and fresh per-gate result directories. The unchanged bounded runners were serialized; these retained reproduction instructions do not request another run:
 
 1. Build once; then controls 11/11, native 7/7, skirmish 14/14 and fidelity 4/4.
 2. Rendered controls with fresh inspected captures; native host/two-client consistency and ingress isolation.
@@ -28,4 +28,4 @@ Before execution, pin the published candidate SHA, require a clean worktree and 
 
 Stop on the first failed gate, preserve its exact phase/source/evidence and diagnose before proceeding. No automatic retry, timeout relaxation, startup retry matrix or overlapping heavy work. Verify owned-process exit and release the slot afterward. No art generation, installation, hosted workflow, binary upload, security change or zero-C:-writes promise is part of this queue.
 
-After the candidate passes, request approval for its exact tested content before main promotion. Physical input/real focus, final art/scale, internet behavior and combined army-performance budgets remain separate acceptance gates. Issues #11/#12/#17/#18/#21–24 stay open; no release or milestone completion is implied.
+The scoped candidate has passed this queue; request approval for its exact tested content before main promotion. Physical input/real focus, final art/scale, internet behavior and combined army-performance budgets remain separate acceptance gates. Issues #11/#12/#17/#18/#21–24 stay open; no release or milestone completion is implied.

@@ -55,8 +55,8 @@
     }
   ],
   "validation": {
-    "status": "queued; not executed on candidate",
-    "heavySlotOwner": "Imagination",
+    "status": "all prepared candidate gates passed once at testedHead; publication follow-up is documentation only",
+    "heavySlotOwner": "released",
     "commands": [
       "./unreal/Scripts/build-native-proof.ps1",
       "./unreal/Scripts/test-group-controls.ps1",
@@ -74,7 +74,10 @@
     "expectedModelCases": 36,
     "stopOnFirstFailure": true,
     "automaticRetries": 0,
-    "existingLimitsUnchanged": true
+    "existingLimitsUnchanged": true,
+    "testedHead": "4fdc7e27f55bf38ea43314dbea58a40fc2f1afe2",
+    "evidenceDocument": "docs/INTEGRATION_VALIDATION.md"
   },
-  "promotion": "requires later explicit Jared approval after exact candidate verification"
+  "promotion": "requires later explicit Jared approval after exact candidate verification",
+  "controlsRunnerPath": "unreal/Scripts/test-group-controls.ps1"
 }
