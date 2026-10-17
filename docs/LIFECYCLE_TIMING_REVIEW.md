@@ -1,6 +1,6 @@
 # Lifecycle timing diagnosis and next check
 
-Main `0c7b07c21b6c794b83973f3735e8eb75dea49d9c` has an unresolved fresh lifecycle failure. Its game source and full merged tree match approved candidate `5b90e8c`; game source also matches tested candidate `4fdc7e2`. The earlier pass does not clear the new failure. Issues #21-24 remain open pending verification.
+Main `0c7b07c21b6c794b83973f3735e8eb75dea49d9c` has the same full tree as approved candidate `5b90e8c`; its game source also matches tested candidate `4fdc7e2` and diagnostic revision `8f9dca3`. The fresh main timeout is retained below. A later explicitly allocated diagnostic run passed at `8f9dca3`; see the completed allocation section. That result does not erase or explain the earlier failure. This validation batch leaves issues #21-24 open.
 
 ## Retained evidence
 
@@ -28,12 +28,31 @@ The first battle progresses at effectively the same wall time in both runs. Slow
 
 Completed offline checks: PowerShell syntax; fractional monotonic elapsed/remaining budget; engine timestamp correlation; active wait context; existing timeout at 241 seconds; bounded history/overflow with current phase retained; completed gate writes; JSON serialization. A PowerShell integer-overload rounding defect in the new diagnostic field was caught and corrected before commit. These helper checks used mock logs/processes and launched no engine. They do not verify Unreal lifecycle behavior.
 
-## One queued next run
+## Prepared single-run protocol (now executed once)
 
-Imagination currently owns the heavy-test slot. Do not start this check until the slot is explicitly handed back. Preserve both original runs; do not automatically retry or extend the deadline.
+This protocol waited until Imagination explicitly handed back the heavy-test slot. Any further run needs a new slot allocation. Preserve both original runs; do not automatically retry or extend the deadline.
 
 When allocated, prepare a new local verification branch from this diagnostic commit in the existing integration checkout, preserving its current branch and ignored map/assets/binaries/cache. Confirm a clean tree and unchanged `unreal/Source` against main. Run exactly once with the existing defaults:
 
     .\unreal\Scripts\test-session-lifecycle.ps1 -TimeoutSeconds 240
 
 Record exact HEAD, clean state, phase events and existing acceptance results. Compare startup requests/process starts/engine initialization/joins, gate-to-terminal durations and time remaining at each play gate. All existing two-terminal, rematch-to-epoch-3, stale-epoch, fresh-sequence, owner/slot, matching-snapshot, full-session rejection and cleanup checks must pass within the unchanged total budget. A startup-only or model-only result cannot pass this gate. Another failure remains a failure and should identify the next source/log investigation; do not increase the timeout to fit it.
+
+## Completed explicit allocation
+
+One run, `session-lifecycle-20261017-010059-344`, passed on clean `8f9dca33caeb809e138976a3a52c380a05a6309d`: 117.191 scenario seconds, 117.309 total, unchanged 240-second deadline, 75 timing events, zero dropped events and no cleanup errors. The game source is byte-identical to main. Both terminal winners were team 1; rematches reached epochs 2 and 3; both human owners received accepted fresh sequence 1 in both epochs; 420 common epoch/revision digests and both terminal snapshots agreed. Slot-2 disconnect/rejoin/deferred reseed, full-session rejection and stale-epoch rejection passed. All owned lifecycle processes exited before the separate HUD build began.
+
+| Monotonic observation | Elapsed seconds | Remaining budget seconds |
+|---|---:|---:|
+| Host ready observed | 5.097 | 234.903 |
+| Initial owner 2 joined observed | 16.981 | 223.019 |
+| Replacement owner 2 joined observed | 23.814 | 216.186 |
+| Play epoch 1 written | 31.143 | 208.857 |
+| Terminal 1 observed | 70.077 | 169.923 |
+| Play epoch 2 written | 70.597 | 169.403 |
+| Terminal 2 observed | 115.143 | 124.857 |
+| Finish gate written | 116.015 | 123.985 |
+
+The setup delay did not recur: process request-to-start observations took about 0.01-0.05 seconds, and serial engine startup/join barriers consumed most of the 31.143-second pre-play interval. Epoch 1 and epoch 2 continued to require approximately 39 and 44.5 wall seconds. This verifies lifecycle acceptance on the unchanged engine source with the diagnostic runner. It does not establish why the earlier engine startup took 28-48 seconds per role, erase that failure, or justify increasing the deadline. No gameplay fix was inferred.
+
+[Curated result and complete bounded phase ledger](evidence/lifecycle-phase-20261017.json) records the actual tested revision and raw-result hash. This publication commit is documentation/evidence after that tested revision. No PR or main promotion is implied; #21-24 have not been closed by this validation batch.
