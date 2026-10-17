@@ -1,0 +1,1145 @@
+{
+  "status": "accepted-bounded-refinery-miner-slice",
+  "testedCommit": "8ab9b55c00daf6dd46f807cd3eec5e17f03a4ad3",
+  "integratedBase": "d3510e5bfbc5ee022fd0e782e06f6f2210cb6c65",
+  "build": {
+    "elapsedSeconds": 10.97,
+    "passed": true,
+    "sha256": "BEE6FA9037C502902C243FEBB09CEB2B85C972D43D0349FC074ABC59D26EC2C4",
+    "path": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\refinery-miner-build-fixturefix.log"
+  },
+  "retainedFailure": "refinery-miner-first-model-attempt.json",
+  "failureCorrection": "400cm no-space fixture left legal centers; only the test blocker grid and explicit preconditions changed to 300cm coverage. The final assertion and gameplay code were preserved.",
+  "runs": [
+    {
+      "name": "skirmish-model-20261017-025809-970",
+      "resultPath": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\skirmish-model-20261017-025809-970\\result.json",
+      "resultSha256": "32943F7365AD50F851C0D64C627AF17BA6EC305A0C9EF2F4643B109577F8E21E",
+      "passed": true,
+      "head": "8ab9b55c00daf6dd46f807cd3eec5e17f03a4ad3",
+      "dirtyWorkingTree": false,
+      "startedUtc": "2026-10-17T02:58:10.0470964Z",
+      "finishedUtc": "2026-10-17T02:58:22.8356115Z",
+      "elapsedSeconds": 12.861,
+      "testCount": 22,
+      "succeeded": 22,
+      "failed": 0,
+      "rawFiles": [
+        {
+          "name": "automation.log",
+          "bytes": 122188,
+          "sha256": "5B79EA744DC8A23280B7CAB0F7365B99963198F35CB153BB2D709761237ED40D"
+        },
+        {
+          "name": "result.json",
+          "bytes": 1481,
+          "sha256": "32943F7365AD50F851C0D64C627AF17BA6EC305A0C9EF2F4643B109577F8E21E"
+        }
+      ]
+    },
+    {
+      "name": "native-model-20261017-025822-981",
+      "resultPath": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\native-model-20261017-025822-981\\result.json",
+      "resultSha256": "187B9D859657A8F4C271D71872B5F8A7CC8C6917834E2A0E2B486418B0018F81",
+      "passed": true,
+      "head": "8ab9b55c00daf6dd46f807cd3eec5e17f03a4ad3",
+      "dirtyWorkingTree": false,
+      "startedUtc": "2026-10-17T02:58:23.0327358Z",
+      "finishedUtc": "2026-10-17T02:58:34.888446Z",
+      "elapsedSeconds": 11.905,
+      "testCount": 7,
+      "succeeded": 7,
+      "failed": 0,
+      "rawFiles": [
+        {
+          "name": "automation.log",
+          "bytes": 106908,
+          "sha256": "D0632BD2A637AE1A4F397B1E149AB3AFFC27A04A04CEF89FC827AFB9B73A72CF"
+        },
+        {
+          "name": "result.json",
+          "bytes": 1477,
+          "sha256": "187B9D859657A8F4C271D71872B5F8A7CC8C6917834E2A0E2B486418B0018F81"
+        }
+      ]
+    },
+    {
+      "name": "group-controls-model-20261017-025834-984",
+      "resultPath": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\group-controls-model-20261017-025834-984\\result.json",
+      "resultSha256": "9BA1DF88E0692708E7B2F49BE24677D75FCE4135DFD827B6FDD5DF2F076F03C8",
+      "passed": true,
+      "head": "8ab9b55c00daf6dd46f807cd3eec5e17f03a4ad3",
+      "dirtyWorkingTree": false,
+      "startedUtc": "2026-10-17T02:58:35.0375978Z",
+      "finishedUtc": "2026-10-17T02:58:47.3947985Z",
+      "elapsedSeconds": 12.409,
+      "testCount": 11,
+      "succeeded": 11,
+      "failed": 0,
+      "rawFiles": [
+        {
+          "name": "automation.log",
+          "bytes": 111328,
+          "sha256": "CF1B91CAA59087C3A235E8BD1F3523A79A49571C73C178619E56E6A58A0E6221"
+        },
+        {
+          "name": "result.json",
+          "bytes": 1483,
+          "sha256": "9BA1DF88E0692708E7B2F49BE24677D75FCE4135DFD827B6FDD5DF2F076F03C8"
+        }
+      ]
+    },
+    {
+      "name": "fidelity-model-20261017-025847-495",
+      "resultPath": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\fidelity-model-20261017-025847-495\\result.json",
+      "resultSha256": "B579E48ABB9EEF5B8AC19FB051D6A8CCCFAFC2F239F91EBA3BC83AE56A07B6F7",
+      "passed": true,
+      "head": "8ab9b55c00daf6dd46f807cd3eec5e17f03a4ad3",
+      "dirtyWorkingTree": false,
+      "startedUtc": "2026-10-17T02:58:47.5559389Z",
+      "finishedUtc": "2026-10-17T02:58:59.7555579Z",
+      "elapsedSeconds": 12.258,
+      "testCount": 4,
+      "succeeded": 4,
+      "failed": 0,
+      "rawFiles": [
+        {
+          "name": "automation.log",
+          "bytes": 104513,
+          "sha256": "BD5BD983855BF2CFCBF626727FBBDD996BA24F35DFC74D3DFBE506C860A0FEFD"
+        },
+        {
+          "name": "result.json",
+          "bytes": 1477,
+          "sha256": "B579E48ABB9EEF5B8AC19FB051D6A8CCCFAFC2F239F91EBA3BC83AE56A07B6F7"
+        }
+      ]
+    },
+    {
+      "name": "small-match-victory-20261017-025916-166",
+      "resultPath": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\small-match-victory-20261017-025916-166\\result.json",
+      "resultSha256": "9125C63F5600CBCC41A3222818FBF488934456A8B2BAF3C0165C3C32611CDDE3",
+      "passed": true,
+      "head": "8ab9b55c00daf6dd46f807cd3eec5e17f03a4ad3",
+      "dirtyWorkingTree": false,
+      "startedUtc": "2026-10-17T02:59:16.2420641Z",
+      "finishedUtc": "2026-10-17T03:00:39.6011196Z",
+      "elapsedSeconds": 83.427,
+      "scenarioElapsedSeconds": 83.221,
+      "scenario": "Victory",
+      "expectedWinner": 0,
+      "cleanupErrors": [],
+      "commonRevisionCount": 0,
+      "screenshots": [
+        {
+          "name": "01-base.png",
+          "path": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\small-match-victory-20261017-025916-166\\screenshots\\01-base.png",
+          "height": 720,
+          "bytes": 808639,
+          "width": 1280,
+          "sha256": "F1B416D67AF7F52C6ED3FDA0768530AD772873D639F5ACDBCC418DBDA1BA6611"
+        },
+        {
+          "name": "02-result.png",
+          "path": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\small-match-victory-20261017-025916-166\\screenshots\\02-result.png",
+          "height": 720,
+          "bytes": 808513,
+          "width": 1280,
+          "sha256": "DFA237ECC2D3C5E40F79FEA53B8B7E8F034BB7316EF2C591A5494F1B583EA0D8"
+        }
+      ],
+      "refineryMinerEvidence": {
+        "passed": true,
+        "requiredRoles": [
+          "host",
+          "rendered"
+        ],
+        "requiredOwners": [
+          1,
+          100
+        ],
+        "rowsByRole": {
+          "rendered": 302,
+          "host": 305
+        },
+        "commonEpochRevisionCount": 302,
+        "grants": [
+          {
+            "contributors": [
+              {
+                "miner": 6,
+                "before": 50,
+                "after": 0,
+                "depot": 5
+              }
+            ],
+            "owner": 100,
+            "miner": 6,
+            "refinery": 5,
+            "depositSum": 50,
+            "digests": {
+              "identity": "ece47cdfd4b0ba3b9d5cc200429700bf",
+              "loaded": "362c98bff0f4e0647f125be57aadd0f8",
+              "deposited": "b6be6f7748baddaa88832a9c5716d3f5"
+            },
+            "checkpoints": {
+              "identity": "1:14",
+              "loaded": "1:56",
+              "deposited": "1:75"
+            },
+            "resource": 2,
+            "epoch": 1,
+            "sequence": 1,
+            "gatherSequence": 5
+          },
+          {
+            "contributors": [
+              {
+                "miner": 9,
+                "before": 50,
+                "after": 0,
+                "depot": 8
+              }
+            ],
+            "owner": 1,
+            "miner": 9,
+            "refinery": 8,
+            "depositSum": 50,
+            "digests": {
+              "identity": "9a711ae44f35c5b4b3808f66b28717d9",
+              "loaded": "ad9320f717ddf07d882a8e282e05d469",
+              "deposited": "79ed32e87c74ae225dd256a90aa77501"
+            },
+            "checkpoints": {
+              "identity": "1:23",
+              "loaded": "1:43",
+              "deposited": "1:60"
+            },
+            "resource": 1,
+            "epoch": 1,
+            "sequence": 1,
+            "gatherSequence": 3
+          }
+        ],
+        "phasePolicy": "common published identity, loaded cargo, and persistent post-deposit empty cargo/delivery total; immediate credit/ore attribution comes from authoritative bounded events"
+      },
+      "rawFiles": [
+        {
+          "name": "rendered.log",
+          "bytes": 2296465,
+          "sha256": "4F76050394AD3C4EF152DF7EAF2CD3DE38E34610D90FA71CF4E79DFC9D948BC5"
+        },
+        {
+          "name": "result.json",
+          "bytes": 10193,
+          "sha256": "9125C63F5600CBCC41A3222818FBF488934456A8B2BAF3C0165C3C32611CDDE3"
+        }
+      ]
+    },
+    {
+      "name": "small-match-coop-20261017-030212-758",
+      "resultPath": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\small-match-coop-20261017-030212-758\\result.json",
+      "resultSha256": "8E865619957D0F60268E55D91DE08BCF33D1C3C19920D189FC89CB5C2255E5F4",
+      "passed": true,
+      "head": "8ab9b55c00daf6dd46f807cd3eec5e17f03a4ad3",
+      "dirtyWorkingTree": false,
+      "startedUtc": "2026-10-17T03:02:12.8552672Z",
+      "finishedUtc": "2026-10-17T03:03:56.2123964Z",
+      "elapsedSeconds": 103.439,
+      "scenarioElapsedSeconds": 103.159,
+      "scenario": "Coop",
+      "expectedWinner": 0,
+      "cleanupErrors": [],
+      "commonRevisionCount": 320,
+      "screenshots": [
+        {
+          "bytes": 816742,
+          "sha256": "81432A40F350E512138EC4A251CEF5147EEA7683FA956DFEF75EA545BC14A071",
+          "path": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\small-match-coop-20261017-030212-758\\screenshots\\01-base.png",
+          "width": 1280,
+          "name": "01-base.png",
+          "height": 720
+        },
+        {
+          "bytes": 806651,
+          "sha256": "67452A8895C4021CEC582D05C15B92C373F059A7A5ADE317FFD2BF51151C6F5D",
+          "path": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\small-match-coop-20261017-030212-758\\screenshots\\02-result.png",
+          "width": 1280,
+          "name": "02-result.png",
+          "height": 720
+        }
+      ],
+      "refineryMinerEvidence": {
+        "passed": true,
+        "requiredRoles": [
+          "host",
+          "rendered",
+          "observer"
+        ],
+        "requiredOwners": [
+          1,
+          2,
+          100
+        ],
+        "rowsByRole": {
+          "host": 329,
+          "rendered": 322,
+          "observer": 325
+        },
+        "commonEpochRevisionCount": 320,
+        "grants": [
+          {
+            "gatherSequence": 3,
+            "refinery": 5,
+            "checkpoints": {
+              "identity": "1:13",
+              "loaded": "1:41",
+              "deposited": "1:61"
+            },
+            "owner": 1,
+            "depositSum": 50,
+            "miner": 6,
+            "sequence": 1,
+            "epoch": 1,
+            "digests": {
+              "identity": "845a5fb29e403ea017116778a897dfc6",
+              "loaded": "d7b42ecf205108734b619400ab0e2f31",
+              "deposited": "1a30ed2b1b69382e95e44b6293004805"
+            },
+            "resource": 2,
+            "contributors": [
+              {
+                "miner": 6,
+                "before": 50,
+                "after": 0,
+                "depot": 5
+              }
+            ]
+          },
+          {
+            "gatherSequence": 3,
+            "refinery": 9,
+            "checkpoints": {
+              "identity": "1:25",
+              "loaded": "1:46",
+              "deposited": "1:76"
+            },
+            "owner": 2,
+            "depositSum": 50,
+            "miner": 10,
+            "sequence": 1,
+            "epoch": 1,
+            "digests": {
+              "identity": "6d2cfa092acad686e1448ee87ac0515d",
+              "loaded": "4cbb80e3bf7faafda15caf8bd7989197",
+              "deposited": "d2bab78ded7deca0fc8966a5e830f93a"
+            },
+            "resource": 3,
+            "contributors": [
+              {
+                "miner": 10,
+                "before": 50,
+                "after": 0,
+                "depot": 9
+              }
+            ]
+          },
+          {
+            "gatherSequence": 5,
+            "refinery": 12,
+            "checkpoints": {
+              "identity": "1:25",
+              "loaded": "1:76",
+              "deposited": "1:86"
+            },
+            "owner": 100,
+            "depositSum": 50,
+            "miner": 13,
+            "sequence": 1,
+            "epoch": 1,
+            "digests": {
+              "identity": "6d2cfa092acad686e1448ee87ac0515d",
+              "loaded": "d2bab78ded7deca0fc8966a5e830f93a",
+              "deposited": "0f21a6d63e0e6263d921b3afccedec51"
+            },
+            "resource": 1,
+            "contributors": [
+              {
+                "miner": 13,
+                "before": 50,
+                "after": 0,
+                "depot": 12
+              }
+            ]
+          }
+        ],
+        "phasePolicy": "common published identity, loaded cargo, and persistent post-deposit empty cargo/delivery total; immediate credit/ore attribution comes from authoritative bounded events"
+      },
+      "rawFiles": [
+        {
+          "name": "host.log",
+          "bytes": 1419085,
+          "sha256": "41B826CB8F152D2141F7F4018EA26DFC30429DE666745867116D7796D0712C33"
+        },
+        {
+          "name": "observer.log",
+          "bytes": 1386855,
+          "sha256": "F7A2B08F247CB86BFADBC1EDD95482BE7B160B9CAA8DC0E518692F7034FE841A"
+        },
+        {
+          "name": "rendered.log",
+          "bytes": 1604587,
+          "sha256": "8EEBD1EAD46D12CBE8567501B0D57DF4D50D59DB602376439E4B132607EE503D"
+        },
+        {
+          "name": "result.json",
+          "bytes": 16219,
+          "sha256": "8E865619957D0F60268E55D91DE08BCF33D1C3C19920D189FC89CB5C2255E5F4"
+        }
+      ]
+    },
+    {
+      "name": "small-match-defeat-20261017-030414-450",
+      "resultPath": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\small-match-defeat-20261017-030414-450\\result.json",
+      "resultSha256": "A579ED7D53210DBA36B138F7CE815D03B681D5992C7B68199E4DAD35E61BCB36",
+      "passed": true,
+      "head": "8ab9b55c00daf6dd46f807cd3eec5e17f03a4ad3",
+      "dirtyWorkingTree": false,
+      "startedUtc": "2026-10-17T03:04:14.5325913Z",
+      "finishedUtc": "2026-10-17T03:05:11.9260306Z",
+      "elapsedSeconds": 57.465,
+      "scenarioElapsedSeconds": 57.241,
+      "scenario": "Defeat",
+      "expectedWinner": 1,
+      "cleanupErrors": [],
+      "commonRevisionCount": 0,
+      "screenshots": [
+        {
+          "path": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\small-match-defeat-20261017-030414-450\\screenshots\\01-base.png",
+          "bytes": 809660,
+          "sha256": "F3E8F3607E177FF1B733B469A9259D71818015FCB72C1C55431159285211CA30",
+          "name": "01-base.png",
+          "width": 1280,
+          "height": 720
+        },
+        {
+          "path": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\small-match-defeat-20261017-030414-450\\screenshots\\02-result.png",
+          "bytes": 800749,
+          "sha256": "B46935E4B49E83820E7D036A615A75A18D34828F3F969B73EF9D029E34463902",
+          "name": "02-result.png",
+          "width": 1280,
+          "height": 720
+        }
+      ],
+      "refineryMinerEvidence": {
+        "passed": true,
+        "requiredRoles": [
+          "host",
+          "rendered"
+        ],
+        "requiredOwners": [
+          1,
+          100
+        ],
+        "rowsByRole": {
+          "host": 209,
+          "rendered": 206
+        },
+        "commonEpochRevisionCount": 206,
+        "grants": [
+          {
+            "resource": 2,
+            "checkpoints": {
+              "loaded": "1:54",
+              "identity": "1:14",
+              "deposited": "1:68"
+            },
+            "digests": {
+              "loaded": "42371a20ffb65309ad424340558355cb",
+              "identity": "ece47cdfd4b0ba3b9d5cc200429700bf",
+              "deposited": "af3c5fcc6a60d81e0fe2e375b5fca425"
+            },
+            "refinery": 5,
+            "depositSum": 50,
+            "epoch": 1,
+            "owner": 100,
+            "gatherSequence": 5,
+            "contributors": [
+              {
+                "miner": 6,
+                "before": 50,
+                "after": 0,
+                "depot": 5
+              }
+            ],
+            "sequence": 1,
+            "miner": 6
+          },
+          {
+            "resource": 1,
+            "checkpoints": {
+              "loaded": "1:41",
+              "identity": "1:23",
+              "deposited": "1:58"
+            },
+            "digests": {
+              "loaded": "b87731cb482e9ffbd490b2170fcb3239",
+              "identity": "9a711ae44f35c5b4b3808f66b28717d9",
+              "deposited": "0da50495a7580da0b3da168b83bf48d2"
+            },
+            "refinery": 8,
+            "depositSum": 50,
+            "epoch": 1,
+            "owner": 1,
+            "gatherSequence": 3,
+            "contributors": [
+              {
+                "miner": 9,
+                "before": 50,
+                "after": 0,
+                "depot": 8
+              }
+            ],
+            "sequence": 1,
+            "miner": 9
+          }
+        ],
+        "phasePolicy": "common published identity, loaded cargo, and persistent post-deposit empty cargo/delivery total; immediate credit/ore attribution comes from authoritative bounded events"
+      },
+      "rawFiles": [
+        {
+          "name": "rendered.log",
+          "bytes": 1265347,
+          "sha256": "467EE59BCE4744C805F5ED12C10C96B4B04B7F9B260F28D0C7648E9709128D5C"
+        },
+        {
+          "name": "result.json",
+          "bytes": 8649,
+          "sha256": "A579ED7D53210DBA36B138F7CE815D03B681D5992C7B68199E4DAD35E61BCB36"
+        }
+      ]
+    },
+    {
+      "name": "native-network-20261017-030537-383",
+      "resultPath": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\native-network-20261017-030537-383\\result.json",
+      "resultSha256": "C2F0D89D592AF93C37E726F258897CE449186B43193D1EB50F4A0E26F2B6111F",
+      "passed": true,
+      "head": "8ab9b55c00daf6dd46f807cd3eec5e17f03a4ad3",
+      "dirtyWorkingTree": false,
+      "commonRevisionCount": 59,
+      "rawFiles": [
+        {
+          "name": "client1.log",
+          "bytes": 98772,
+          "sha256": "39D7412DCB8501C17EE596E20BBC26D2D5DCC199A4648F9FA8068D7AF23FD43D"
+        },
+        {
+          "name": "client2.log",
+          "bytes": 97462,
+          "sha256": "93182AF5A91878B8D1BA452A81162D968D5DA43126179CB90739FD6440C82FE4"
+        },
+        {
+          "name": "host.log",
+          "bytes": 120722,
+          "sha256": "35D9B582760610CE086C75018F71A0D5B26D226E3A469C4F7C801DE5C88B285A"
+        },
+        {
+          "name": "result.json",
+          "bytes": 1241,
+          "sha256": "C2F0D89D592AF93C37E726F258897CE449186B43193D1EB50F4A0E26F2B6111F"
+        }
+      ]
+    },
+    {
+      "name": "controls-20261017-030626-805",
+      "resultPath": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\controls-20261017-030626-805\\result.json",
+      "resultSha256": "726F5FECAD3C2AF23B587C765D3156050570798A8DF57C4C24BE6D382EE09F58",
+      "passed": true,
+      "head": "8ab9b55c00daf6dd46f807cd3eec5e17f03a4ad3",
+      "dirtyWorkingTree": false,
+      "startedUtc": "2026-10-17T03:06:26.8832891Z",
+      "finishedUtc": "2026-10-17T03:07:22.8116733Z",
+      "elapsedSeconds": 55.996,
+      "scenarioElapsedSeconds": 44.973,
+      "cleanup": {
+        "errors": [],
+        "ignoredExitRaces": 0,
+        "parentsFirst": true
+      },
+      "commonRevisionCount": 56,
+      "screenshots": [
+        {
+          "bytes": 794799,
+          "path": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\controls-20261017-030626-805\\screenshots\\01-selected.png",
+          "height": 720,
+          "width": 1280,
+          "sha256": "5CE0CB27C67E655C4DDC949129BC8FC00CF62FA084781E1BC1612E49BF75407D"
+        },
+        {
+          "bytes": 797597,
+          "path": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\controls-20261017-030626-805\\screenshots\\02-moved-combat-produced.png",
+          "height": 720,
+          "width": 1280,
+          "sha256": "2A22488C6961C06496F2C532EB23BA67FC4B8F629D8D5AB3A2AB041D81B2D1D2"
+        }
+      ],
+      "rawFiles": [
+        {
+          "name": "host.log",
+          "bytes": 151973,
+          "sha256": "979397A93E397BD53B76721C5EE07B8B1E76AF6B6625796FC21CB98654143039"
+        },
+        {
+          "name": "observer.log",
+          "bytes": 139725,
+          "sha256": "1CF71E13D30C1C69791E3CB8900D20CCE3C53AE1E1FDB9C59A4E52E534611DA4"
+        },
+        {
+          "name": "rendered.log",
+          "bytes": 339562,
+          "sha256": "C29E781363A35887097B762659755E2558F5605669DABC02F31220E59462D189"
+        },
+        {
+          "name": "result.json",
+          "bytes": 21655,
+          "sha256": "726F5FECAD3C2AF23B587C765D3156050570798A8DF57C4C24BE6D382EE09F58"
+        },
+        {
+          "name": "warmup.log",
+          "bytes": 304785,
+          "sha256": "A031FBADEF7C355AC88F383F995E8F439353A2939448736E736B3C7DF95966AB"
+        }
+      ]
+    },
+    {
+      "name": "session-lifecycle-20261017-030736-860",
+      "resultPath": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\session-lifecycle-20261017-030736-860\\result.json",
+      "resultSha256": "8DC2D4C08F8AC694814CE30C1CAF58550BC4EF04D657678C6EA942320C8C2089",
+      "passed": true,
+      "head": "8ab9b55c00daf6dd46f807cd3eec5e17f03a4ad3",
+      "dirtyWorkingTree": false,
+      "startedUtc": "2026-10-17T03:07:36.943286Z",
+      "finishedUtc": "2026-10-17T03:09:41.5540163Z",
+      "elapsedSeconds": 124.684,
+      "scenarioElapsedSeconds": 124.567,
+      "cleanupErrors": [],
+      "commonRevisionCount": 443,
+      "rawFiles": [
+        {
+          "name": "host.log",
+          "bytes": 216718,
+          "sha256": "C1A661E9585BC67C67360B3D7585DD041B55D7B044ED7B66E5E269310DC44A2E"
+        },
+        {
+          "name": "lead.log",
+          "bytes": 193437,
+          "sha256": "5CEBBCB5D5AA541114B2511D3D2EC37E9397BFE840C0134FD1AD5BEBD1CC27F0"
+        },
+        {
+          "name": "owner2.log",
+          "bytes": 120058,
+          "sha256": "ADC4313AB73C122E34C33C9C22EF8A59F1E9B59F122791623B843F4E394B4A26"
+        },
+        {
+          "name": "rejoin.log",
+          "bytes": 190752,
+          "sha256": "BC879F47604363C7E5CC695E9798A8A2EBA8CE81E09A98D71AC376F76C69959F"
+        },
+        {
+          "name": "result.json",
+          "bytes": 91092,
+          "sha256": "8DC2D4C08F8AC694814CE30C1CAF58550BC4EF04D657678C6EA942320C8C2089"
+        },
+        {
+          "name": "third.log",
+          "bytes": 120645,
+          "sha256": "689554A1AAAE6226575125346F467961C7BE7237A35EA5F3A4DB091C267F1ED7"
+        }
+      ],
+      "commonEpochGroups": [
+        {
+          "revisions": [
+            10
+          ],
+          "epoch": 1
+        },
+        {
+          "revisions": [
+            11,
+            24,
+            28,
+            31,
+            33,
+            35,
+            40,
+            42,
+            44,
+            46,
+            48,
+            53,
+            55,
+            57,
+            59,
+            61,
+            63,
+            65,
+            67,
+            69,
+            71,
+            73,
+            75,
+            77,
+            79,
+            81,
+            83,
+            87,
+            89,
+            91,
+            93,
+            95,
+            100,
+            102,
+            104,
+            106,
+            108,
+            110,
+            115,
+            117,
+            119,
+            121,
+            123,
+            127,
+            129,
+            131,
+            133,
+            135,
+            137,
+            139,
+            141,
+            143,
+            145,
+            147,
+            151,
+            153,
+            155,
+            157,
+            159,
+            161,
+            164,
+            166,
+            168,
+            170,
+            172,
+            175,
+            177,
+            179,
+            181,
+            183,
+            185,
+            187,
+            189,
+            191,
+            193,
+            195,
+            197,
+            199,
+            201,
+            203,
+            205,
+            207,
+            210,
+            212,
+            214,
+            216,
+            218,
+            221,
+            223,
+            225,
+            227,
+            229,
+            231,
+            233,
+            235,
+            237,
+            239,
+            241,
+            243,
+            245,
+            247,
+            249,
+            255,
+            257,
+            259,
+            261,
+            263,
+            269,
+            271,
+            273,
+            275,
+            277,
+            280,
+            282,
+            284,
+            286,
+            288,
+            290,
+            292,
+            294,
+            296,
+            298,
+            300,
+            302,
+            304,
+            306,
+            308,
+            314,
+            316,
+            318,
+            320,
+            322,
+            328,
+            330,
+            332,
+            334,
+            336,
+            339,
+            341,
+            343,
+            345,
+            347,
+            349,
+            351,
+            353,
+            355,
+            357,
+            359,
+            361,
+            363,
+            365,
+            367,
+            373,
+            375,
+            377,
+            379,
+            381,
+            387,
+            389,
+            391,
+            393,
+            395,
+            400,
+            402,
+            404,
+            406,
+            408,
+            410,
+            412,
+            414,
+            416,
+            418,
+            420,
+            422,
+            424,
+            426,
+            428,
+            434,
+            436,
+            438,
+            440,
+            442,
+            447,
+            449,
+            451,
+            453,
+            455,
+            461,
+            463,
+            465,
+            467,
+            469,
+            474,
+            476,
+            478,
+            480,
+            482,
+            484,
+            486,
+            488,
+            490,
+            492,
+            494,
+            496,
+            498,
+            500,
+            502,
+            504,
+            506,
+            508,
+            509
+          ],
+          "epoch": 1
+        },
+        {
+          "revisions": [
+            10,
+            29,
+            35,
+            39,
+            41,
+            43,
+            48,
+            50,
+            52,
+            54,
+            56,
+            61,
+            63,
+            65,
+            67,
+            69,
+            71,
+            73,
+            75,
+            77,
+            79,
+            81,
+            83,
+            85,
+            87,
+            89,
+            91,
+            95,
+            97,
+            99,
+            101,
+            103,
+            108,
+            110,
+            112,
+            114,
+            116,
+            118,
+            123,
+            125,
+            127,
+            129,
+            131,
+            135,
+            137,
+            139,
+            141,
+            143,
+            145,
+            147,
+            149,
+            151,
+            153,
+            155,
+            159,
+            161,
+            163,
+            165,
+            167,
+            169,
+            172,
+            174,
+            176,
+            178,
+            180,
+            183,
+            185,
+            187,
+            189,
+            191,
+            193,
+            195,
+            197,
+            199,
+            201,
+            203,
+            205,
+            207,
+            209,
+            211,
+            213,
+            215,
+            218,
+            220,
+            222,
+            224,
+            226,
+            229,
+            231,
+            233,
+            235,
+            237,
+            239,
+            241,
+            243,
+            245,
+            247,
+            249,
+            251,
+            253,
+            255,
+            257,
+            263,
+            265,
+            267,
+            269,
+            271,
+            277,
+            279,
+            281,
+            283,
+            285,
+            288,
+            290,
+            292,
+            294,
+            296,
+            298,
+            300,
+            302,
+            304,
+            306,
+            308,
+            310,
+            312,
+            314,
+            316,
+            322,
+            324,
+            326,
+            328,
+            330,
+            336,
+            338,
+            340,
+            342,
+            344,
+            347,
+            349,
+            351,
+            353,
+            355,
+            357,
+            359,
+            361,
+            363,
+            365,
+            367,
+            369,
+            371,
+            373,
+            375,
+            381,
+            383,
+            385,
+            387,
+            389,
+            395,
+            397,
+            399,
+            401,
+            403,
+            409,
+            411,
+            413,
+            415,
+            417,
+            419,
+            421,
+            423,
+            425,
+            427,
+            429,
+            431,
+            433,
+            435,
+            437,
+            443,
+            445,
+            447,
+            449,
+            451,
+            456,
+            458,
+            460,
+            462,
+            464,
+            470,
+            472,
+            474,
+            476,
+            478,
+            480,
+            482,
+            484,
+            486,
+            488,
+            493,
+            495,
+            497,
+            499,
+            501,
+            503,
+            505,
+            507,
+            509,
+            511,
+            513,
+            515,
+            517,
+            519,
+            521,
+            527,
+            529,
+            531,
+            533,
+            535,
+            541,
+            543,
+            545,
+            547,
+            549,
+            554,
+            556,
+            558,
+            560,
+            562,
+            564,
+            565
+          ],
+          "epoch": 2
+        },
+        {
+          "revisions": [
+            10,
+            29
+          ],
+          "epoch": 3
+        }
+      ]
+    }
+  ],
+  "policyChecks": {
+    "notRuntimeEvidence": true,
+    "syntheticPassed": 35,
+    "independentSourceAndParserReviews": "clear; malformed-input probes included"
+  },
+  "independentRuntimeReview": "input_automation_review: exact grant identity/cost/state preservation, accepted Gather, load/deposit contribution and common semantic checkpoints; all six skirmish and two controls PNGs inspected with matching fresh hashes",
+  "phaseImageLimit": "Base/result captures are match context. Defeat base selects granted Harvester9 with HP100/Cargo0 after delivery. Loaded-cargo50 and exact deposit attribution are log/snapshot evidence, not phase screenshots.",
+  "sequenceNote": "After four model suites, Victory and Coop identity gates were prioritized before Defeat and existing native/controls/lifecycle regressions. Jobs were sequential and stopped on the earlier retained model failure.",
+  "processExit": {
+    "remainingEngineBuildProcesses": 0,
+    "checkedUtc": "2026-10-17T03:10:10.5482893Z"
+  },
+  "limitations": [
+    "Generic unarmed Harvester proxy and existing instant-construction prototype prices/caps remain.",
+    "No human physical-input verification, Internet test, performance claim, new art approval or calibrated RA2 balance.",
+    "Issues #2, #17, #18 and #33 retain unsatisfied scope.",
+    "D: cache/temp policies are polling guards; no zero-C:-writes or hard CPU confinement claim."
+  ],
+  "independentLifecycleReview": "clear: 75 events, zero drops, 443 digest rows; epoch1/2 terminal agreements winner1, rematches2/3, rejoin without duplicate seed, reseed350, full/stale rejection, four fresh seq1 receipts. Epoch3 terminal occurs during intentional final teardown."
+}
