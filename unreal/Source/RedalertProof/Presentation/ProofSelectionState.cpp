@@ -165,6 +165,19 @@ void FProofSelectionState::RecallGroup(int32 Slot, const FProofSnapshot& Snapsho
 TArray<FProofCommand> FProofSelectionState::PlanMove(const FProofSnapshot& Snapshot, int32 OwnerId,
     const FVector& Destination) const
 {
+    return PlanTravel(Snapshot, OwnerId, Destination, EProofCommandType::Move);
+}
+
+TArray<FProofCommand> FProofSelectionState::PlanAttackMove(const FProofSnapshot& Snapshot, int32 OwnerId,
+    const FVector& Destination) const
+{
+    if (!Snapshot.bSkirmish || !FindPlayer(Snapshot, OwnerId)) { return {}; }
+    return PlanTravel(Snapshot, OwnerId, Destination, EProofCommandType::AttackMove);
+}
+
+TArray<FProofCommand> FProofSelectionState::PlanTravel(const FProofSnapshot& Snapshot, int32 OwnerId,
+    const FVector& Destination, EProofCommandType Type) const
+{
     TArray<FProofCommand> Commands;
     if (!IsCurrentContext(Snapshot, OwnerId) || (Snapshot.bSkirmish && Snapshot.MatchPhase != EProofMatchPhase::Playing)
         || !FMath::IsFinite(Destination.X) || !FMath::IsFinite(Destination.Y) || !FMath::IsFinite(Destination.Z))
@@ -178,6 +191,7 @@ TArray<FProofCommand> FProofSelectionState::PlanMove(const FProofSnapshot& Snaps
     {
         const FProofUnitRecord* Unit = FindUnit(Snapshot, UnitId);
         if (!Unit || !IsOwnedLiveUnit(Snapshot, OwnerId, UnitId) || !CanMove(*Unit)
+            || (Type == EProofCommandType::AttackMove && Unit->Kind != EProofUnitKind::Combat)
             || !IsFiniteWorldPosition(Unit->Position)) { continue; }
         Movers.Add(Unit);
         Center += Unit->Position;
@@ -205,7 +219,7 @@ TArray<FProofCommand> FProofSelectionState::PlanMove(const FProofSnapshot& Snaps
     for (const FProofUnitRecord* Unit : Movers)
     {
         FProofCommand Command;
-        Command.Type = EProofCommandType::Move;
+        Command.Type = Type;
         Command.UnitId = Unit->UnitId;
         Command.Destination = BoundedCenter + (Unit->Position - Center);
         const double Extent = FProofCommandModel::WorldExtent;

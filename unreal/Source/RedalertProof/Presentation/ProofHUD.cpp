@@ -147,8 +147,11 @@ void AProofHUD::DrawHUD()
         DrawHudLine(TEXT("Build: R refinery 100   F factory 150   P combat unit 50   Ore markers show remaining resources"),
             FLinearColor(0.72f, 0.88f, 0.96f), Top + Pad + Row * 6.f);
         // Keep primary health inspectable even when its world marker is occluded.
-        DrawHudLine(SelectedUnit ? FString::Printf(TEXT("Primary #%d  HP %.0f  Cargo %d"),
-            SelectedUnit->UnitId, SelectedUnit->HitPoints, SelectedUnit->Cargo) : TEXT("Primary: none"),
+        const FString RallyDetail = SelectedUnit && SelectedUnit->Kind == EProofUnitKind::Factory
+            ? (SelectedUnit->bHasRallyPoint ? FString::Printf(TEXT("  Rally %.0f,%.0f"), SelectedUnit->RallyPoint.X, SelectedUnit->RallyPoint.Y)
+                : TEXT("  Rally none: right-click ground")) : FString();
+        DrawHudLine(SelectedUnit ? FString::Printf(TEXT("Primary #%d  HP %.0f  Cargo %d%s"),
+            SelectedUnit->UnitId, SelectedUnit->HitPoints, SelectedUnit->Cargo, *RallyDetail) : TEXT("Primary: none"),
             FLinearColor(0.8f, 1.f, 0.8f), Top + Pad + Row * 8.f);
     }
     else

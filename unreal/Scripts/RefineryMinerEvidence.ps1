@@ -1,11 +1,11 @@
 # Pure, opt-in log policy. Does not launch processes or read/write files.
 function Get-RefineryMinerEvidence {
-    param([Parameter(Mandatory)][hashtable]$Logs,[ValidateSet('Victory','Defeat','Coop')][string]$Scenario)
+    param([Parameter(Mandatory)][hashtable]$Logs,[ValidateSet('Victory','Defeat','Coop')][string]$Scenario,[hashtable]$ValidatedStateContext)
     function Require($Condition,[string]$Reason) { if (-not $Condition) { throw "Refinery/miner evidence: $Reason" } }
     function Integer($Value,[long]$Minimum=0,[long]$Maximum=2147483647) {
-        return $null -ne $Value -and $Value -isnot [string] -and $Value -isnot [bool] -and [double]$Value -ge $Minimum -and [double]$Value -le $Maximum -and [double]$Value -eq [math]::Truncate([double]$Value)
+        return $null -ne $Value -and $Value -isnot [string] -and $Value -isnot [bool] -and $Value -isnot [array] -and [double]$Value -ge $Minimum -and [double]$Value -le $Maximum -and [double]$Value -eq [math]::Truncate([double]$Value)
     }
-    function Number($Value) { return $null -ne $Value -and $Value -isnot [string] -and $Value -isnot [bool] -and [double]::IsFinite([double]$Value) }
+    function Number($Value) { return $null -ne $Value -and $Value -isnot [string] -and $Value -isnot [bool] -and $Value -isnot [array] -and [double]::IsFinite([double]$Value) }
     function JsonRow([string]$Text) {
         Require ($Text.Length -le 32768) 'JSON row exceeds byte cap'
         # Schema keys contain only ASCII names, so reject repeated names at each object
@@ -19,12 +19,17 @@ function Get-RefineryMinerEvidence {
             else { Require ($stack.Count -gt 0 -and $null -ne $stack[$stack.Count-1]) 'JSON key outside object'; $k=($t -replace '\s*:$','' | ConvertFrom-Json); Require (-not $stack[$stack.Count-1].ContainsKey($k)) 'duplicate JSON key'; $stack[$stack.Count-1][$k]=$true }
         }
         Require ($stack.Count -eq 0) 'unbalanced JSON'
-        try { $o=$Text | ConvertFrom-Json -Depth 16 -ErrorAction Stop } catch { throw 'Refinery/miner evidence: malformed JSON' }
+        try { $o=$Text | ConvertFrom-Json -NoEnumerate -Depth 16 -ErrorAction Stop } catch { throw 'Refinery/miner evidence: malformed JSON' }
         Require ($null -ne $o -and $o -isnot [array]) 'JSON object required'; return $o
     }
     function Unit($S,$Id) { return @($S.units | Where-Object {$_.id -eq $Id}) }
     function Player($S,$Id) { return @($S.players | Where-Object {$_.id -eq $Id}) }
-    function Semantic($S) { return ([ordered]@{epoch=$S.epoch;revision=$S.revision;digest=$S.digest;phase=$S.phase;winner=$S.winner;units=$S.units;players=$S.players;resources=$S.resources} | ConvertTo-Json -Depth 12 -Compress) }
+    function Semantic($S) {
+        $units=@($S.units|Sort-Object id|ForEach-Object{[ordered]@{id=[long]$_.id;owner=[long]$_.owner;kind=[long]$_.kind;x=[double]$_.x;y=[double]$_.y;z=[double]$_.z;hp=[double]$_.hp;cargo=[long]$_.cargo;rally=[long]$_.rally;rallyX=[double]$_.rallyX;rallyY=[double]$_.rallyY;rallyZ=[double]$_.rallyZ}})
+        $players=@($S.players|Sort-Object id|ForEach-Object{[ordered]@{id=[long]$_.id;team=[long]$_.team;credits=[long]$_.credits;gathered=[long]$_.gathered}})
+        $resources=@($S.resources|Sort-Object id|ForEach-Object{[ordered]@{id=[long]$_.id;owner=[long]$_.owner;x=[double]$_.x;y=[double]$_.y;z=[double]$_.z;remaining=[long]$_.remaining}})
+        return ([ordered]@{epoch=[long]$S.epoch;revision=[long]$S.revision;digest=$S.digest;phase=[long]$S.phase;winner=[long]$S.winner;units=$units;players=$players;resources=$resources} | ConvertTo-Json -Depth 12 -Compress)
+    }
     $roles=if($Scenario -eq 'Coop'){@('host','rendered','observer')}else{@('host','rendered')}
     $owners=if($Scenario -eq 'Coop'){@(1,2,100)}else{@(1,100)}
     $maps=@{}; $counts=@{}; $events=@()
@@ -55,7 +60,11 @@ function Get-RefineryMinerEvidence {
                     if($collection -eq 'players') { Require ((Integer $record.credits) -and (Integer $record.gathered) -and (Integer $record.team 0 100)) 'invalid player'; continue }
                     Require (Integer $record.owner 1) 'invalid owner'
                     foreach($axis in @('x','y','z')) { Require ($null -ne $record.$axis -and (Number $record.$axis) -and [math]::Abs([double]$record.$axis) -le 10000) 'nonfinite/out of world position' }
-                    if($collection -eq 'units') { Require ((Integer $record.kind 0 4) -and (Integer $record.cargo 0 50) -and (Number $record.hp) -and $record.hp -ge 0 -and $record.hp -le 300) 'invalid unit' }
+                    if($collection -eq 'units') { Require ((Integer $record.kind 0 4) -and (Integer $record.cargo 0 50) -and (Number $record.hp) -and $record.hp -ge 0 -and $record.hp -le 300) 'invalid unit'
+                        Require (Integer $record.rally 0 1) 'invalid rally flag'
+                        foreach($axis in @('rallyX','rallyY','rallyZ')) { Require ((Number $record.$axis) -and [math]::Abs([double]$record.$axis) -le 10000) 'invalid rally coordinate' }
+                        Require ($record.rallyZ -eq 0 -and (($record.rally -eq 0 -and $record.rallyX -eq 0 -and $record.rallyY -eq 0) -or ($record.rally -eq 1 -and $record.kind -eq 4 -and $record.hp -gt 0))) 'noncanonical or ineligible rally state'
+                    }
                     else { Require (Integer $record.remaining) 'invalid resource' }
                 }
             }
@@ -130,5 +139,7 @@ function Get-RefineryMinerEvidence {
     }
     foreach($owner in $owners) { Require (@($grants | Where-Object owner -eq $owner).Count -ge 1) "missing owner $owner grant" }
     Require (@($events | Where-Object event -in @('gather','load','deposit')).Count -eq 3*$grants.Count) 'orphan phase event'
+    # Optional internal handoff for companion policies; expose only fully validated states.
+    if($null -ne $ValidatedStateContext){$ValidatedStateContext.maps=$maps;$ValidatedStateContext.common=$common;$ValidatedStateContext.roles=$roles}
     return [ordered]@{passed=$true;requiredRoles=$roles;requiredOwners=$owners;rowsByRole=$counts;commonEpochRevisions=$common;grants=$proofs;physicalInputVerified=$false;internetTest=$false;performanceTest=$false;phasePolicy='common published identity, loaded cargo, and persistent post-deposit empty cargo/delivery total; immediate credit/ore attribution comes from authoritative bounded events'}
 }

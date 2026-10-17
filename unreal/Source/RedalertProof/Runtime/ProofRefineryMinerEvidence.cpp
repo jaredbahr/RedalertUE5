@@ -172,10 +172,14 @@ void FProofRefineryMinerEvidence::LogSnapshot(const FProofSnapshot& State, const
     bool First = true;
     for (const FProofUnitRecord& U : State.Units)
     {
-        if (!EvidenceFinite(U.Position) || !FMath::IsFinite(U.HitPoints)) { Fail(TEXT("nonfinite-snapshot")); return; }
+        if (!EvidenceFinite(U.Position) || !FMath::IsFinite(U.HitPoints)
+            || !EvidenceFinite(U.RallyPoint) || FMath::Abs(U.RallyPoint.X) > FProofCommandModel::WorldExtent
+            || FMath::Abs(U.RallyPoint.Y) > FProofCommandModel::WorldExtent || U.RallyPoint.Z != 0.0
+            || (!U.bHasRallyPoint && U.RallyPoint != FVector::ZeroVector)
+            || (U.bHasRallyPoint && (U.Kind != EProofUnitKind::Factory || U.HitPoints <= 0.f))) { Fail(TEXT("nonfinite-snapshot")); return; }
         if (!First) Json += TEXT(","); First = false;
-        Json += FString::Printf(TEXT("{\"id\":%d,\"owner\":%d,\"kind\":%d,\"x\":%.6f,\"y\":%.6f,\"z\":%.6f,\"hp\":%.3f,\"cargo\":%d}"),
-            U.UnitId, U.OwnerId, static_cast<int32>(U.Kind), U.Position.X, U.Position.Y, U.Position.Z, U.HitPoints, U.Cargo);
+        Json += FString::Printf(TEXT("{\"id\":%d,\"owner\":%d,\"kind\":%d,\"x\":%.6f,\"y\":%.6f,\"z\":%.6f,\"hp\":%.3f,\"cargo\":%d,\"rally\":%d,\"rallyX\":%.17g,\"rallyY\":%.17g,\"rallyZ\":%.17g}"),
+            U.UnitId, U.OwnerId, static_cast<int32>(U.Kind), U.Position.X, U.Position.Y, U.Position.Z, U.HitPoints, U.Cargo, U.bHasRallyPoint ? 1 : 0, U.RallyPoint.X, U.RallyPoint.Y, U.RallyPoint.Z);
     }
     Json += TEXT("],\"players\":["); First = true;
     for (const FProofPlayerRecord& P : State.Players)

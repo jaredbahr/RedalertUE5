@@ -27,10 +27,12 @@ public:
     // Intent templates. The pawn stamps each command with its sequence and
     // match epoch immediately before sending it through the existing route.
     TArray<FProofCommand> PlanMove(const FProofSnapshot& Snapshot, int32 OwnerId, const FVector& Destination) const;
+    TArray<FProofCommand> PlanAttackMove(const FProofSnapshot& Snapshot, int32 OwnerId, const FVector& Destination) const;
     TArray<FProofCommand> PlanAttack(const FProofSnapshot& Snapshot, int32 OwnerId, int32 TargetUnitId) const;
     TArray<FProofCommand> PlanStop(const FProofSnapshot& Snapshot, int32 OwnerId) const;
 
 private:
+    TArray<FProofCommand> PlanTravel(const FProofSnapshot& Snapshot, int32 OwnerId, const FVector& Destination, EProofCommandType Type) const;
     struct FGroup
     {
         TArray<int32> UnitIds;

@@ -25,6 +25,9 @@ function Get-StopControlsEvidence {
         foreach($u in $S.units){
             Require ((Integer $u.id 1) -and -not $ids.ContainsKey([long]$u.id) -and (Integer $u.owner) -and (Integer $u.kind 0 4) -and (Integer $u.cargo 0 50)) 'invalid/duplicate unit'
             $ids[[long]$u.id]=$true
+            Require (Integer $u.rally 0 1) 'invalid rally flag'
+            foreach($k in @('rallyX','rallyY','rallyZ')){Require ((Number $u.$k) -and [math]::Abs([double]$u.$k) -le 10000) 'invalid rally coordinate'}
+            Require ($u.rallyZ -eq 0 -and (($u.rally -eq 0 -and $u.rallyX -eq 0 -and $u.rallyY -eq 0) -or ($u.rally -eq 1 -and $u.kind -eq 4 -and $u.hp -gt 0))) 'noncanonical or ineligible rally state'
             foreach($k in @('x','y','z','hp')){Require (Number $u.$k) 'non-finite unit field'}
             Require ($u.hp -ge 0 -and $u.hp -le 300 -and [math]::Abs($u.x) -le 10000 -and [math]::Abs($u.y) -le 10000 -and [math]::Abs($u.z) -le 10000) 'unit outside proof bounds'
         }
@@ -34,7 +37,7 @@ function Get-StopControlsEvidence {
         foreach($r in $S.resources){Require ((Integer $r.id 1) -and -not $ids.ContainsKey([long]$r.id) -and (Integer $r.owner) -and (Integer $r.remaining)) 'invalid/duplicate resource';$ids[[long]$r.id]=$true;foreach($k in @('x','y','z')){Require (Number $r.$k) 'invalid resource position'}}
     }
     function Semantic($S,[switch]$WithoutRevision){
-        $units=@($S.units|Sort-Object id|ForEach-Object{[ordered]@{id=[long]$_.id;owner=[long]$_.owner;kind=[long]$_.kind;x=[double]$_.x;y=[double]$_.y;z=[double]$_.z;hp=[double]$_.hp;cargo=[long]$_.cargo}})
+        $units=@($S.units|Sort-Object id|ForEach-Object{[ordered]@{id=[long]$_.id;owner=[long]$_.owner;kind=[long]$_.kind;x=[double]$_.x;y=[double]$_.y;z=[double]$_.z;hp=[double]$_.hp;cargo=[long]$_.cargo;rally=[long]$_.rally;rallyX=[double]$_.rallyX;rallyY=[double]$_.rallyY;rallyZ=[double]$_.rallyZ}})
         $players=@($S.players|Sort-Object id|ForEach-Object{[ordered]@{id=[long]$_.id;team=[long]$_.team;credits=[long]$_.credits;gathered=[long]$_.gathered}})
         $resources=@($S.resources|Sort-Object id|ForEach-Object{[ordered]@{id=[long]$_.id;owner=[long]$_.owner;x=[double]$_.x;y=[double]$_.y;z=[double]$_.z;remaining=[long]$_.remaining}})
         $value=[ordered]@{epoch=[long]$S.epoch;skirmish=[long]$S.skirmish;phase=[long]$S.phase;winner=[long]$S.winner;units=$units;players=$players;resources=$resources}

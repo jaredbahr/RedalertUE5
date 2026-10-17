@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Runtime/ProofAttackMoveRuntimeState.h"
 #include "GameFramework/Pawn.h"
 #include "Presentation/ProofSelectionState.h"
 #include "Presentation/ProofGroupOrderQueue.h"
@@ -34,6 +35,8 @@ protected:
     virtual void BeginPlay() override;
 
 private:
+    FProofAttackMoveRuntimeState AttackMoveRuntime;
+    void TickAttackMoveRuntime(float DeltaSeconds);
     UPROPERTY(VisibleAnywhere) TObjectPtr<UCameraComponent> Camera;
     UPROPERTY(Transient) TObjectPtr<UStaticMesh> ProxyMesh;
     UPROPERTY(Transient) TObjectPtr<UStaticMesh> StructureMesh;
@@ -158,6 +161,22 @@ private:
     int32 SkirmishFocusTarget = INDEX_NONE;
     int32 SkirmishProduceRecordsBefore = -1;
     bool bSkirmishCounterattack = false;
+    bool bFactoryRallyEvidence = false;
+    int32 FactoryRallyStage = 0;
+    int32 FactoryRallyFactory = INDEX_NONE;
+    int32 FactoryRallyUnit = INDEX_NONE;
+    int32 FactoryRallySetSequence = 0;
+    int32 FactoryRallyProduceSequence = 0;
+    int32 FactoryRallySpawnRevision = INDEX_NONE;
+    int32 FactoryRallyNativeRight = 0;
+    float FactoryRallySeenAt = -1.f;
+    float FactoryRallySpawnSeenAt = -1.f;
+    float FactoryRallyCaptureAt = -1.f;
+    FVector FactoryRallyDestination = FVector::ZeroVector;
+    FVector FactoryRallyObservedSpawn = FVector::ZeroVector;
+    TSet<int32> FactoryRallyBeforeIds;
+    TSet<int32> FactoryRallyProgressRevisions;
+    bool TickFactoryRallyFixture();
     void BuildUnderCursor(EProofCommandType Type);
     void OnManualRefinery();
     void OnManualFactory();
@@ -165,7 +184,9 @@ private:
     void FinishSkirmishScenario(bool bPass, const TCHAR* Reason);
     void SelectUnderCursor();
     void OrderUnderCursor();
+    bool SetFactoryRally(const FVector& GroundPoint);
     void StopSelected();
+    void AttackMoveUnderCursor();
     void Produce();
     void ZoomIn();
     void ZoomOut();
