@@ -1,2 +1,2 @@
-param([string]$EngineRoot='D:\Epic Games\UE_5.7',[ValidateRange(60,1800)][int]$SessionSeconds=900,[switch]$CameraPan,[switch]$CameraEdgePan)
-& (Join-Path $PSScriptRoot 'start-local-interactive.ps1') -EngineRoot $EngineRoot -SessionSeconds $SessionSeconds -Skirmish -CameraPan:$CameraPan -CameraEdgePan:$CameraEdgePan
+param([string]$EngineRoot=$env:UE_ENGINE_ROOT,[ValidateRange(60,1800)][int]$SessionSeconds=900,[switch]$CameraPan,[switch]$CameraEdgePan,[string]$StorageRoot=$env:RA2_STORAGE_ROOT)
+& (Join-Path $PSScriptRoot 'start-local-interactive.ps1') -EngineRoot $EngineRoot -StorageRoot $StorageRoot -SessionSeconds $SessionSeconds -Skirmish -CameraPan:$CameraPan -CameraEdgePan:$CameraEdgePan
