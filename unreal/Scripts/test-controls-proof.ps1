@@ -6,9 +6,11 @@ param(
     [ValidateRange(0,65536)][int]$MaxCacheMiB = 2048,
     [ValidateRange(0,65536)][int]$MaxTempMiB = 1024,
     [switch]$UnoptimizedShaders,
+    [switch]$TypeSelection,
     [switch]$CleanPresentation
 )
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'TypeSelectionControlsEvidence.ps1')
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $repoRoot = (Resolve-Path (Join-Path $projectRoot '..')).Path
 $project = Join-Path $projectRoot 'RedalertProof.uproject'
@@ -19,7 +21,8 @@ if (-not (Test-Path -LiteralPath (Join-Path $projectRoot 'Content\CommandProofGe
 $probe = [Net.Sockets.UdpClient]::new()
 try { $probe.Client.ExclusiveAddressUse=$true; $probe.Client.Bind([Net.IPEndPoint]::new([Net.IPAddress]::Loopback,$Port)) }
 finally { $probe.Dispose() }
-$run = Join-Path $repoRoot ('generated\controls-' + [DateTime]::UtcNow.ToString('yyyyMMdd-HHmmss-fff'))
+$runPrefix=if ($TypeSelection) {'generated\controls-type-selection-'} else {'generated\controls-'}
+$run = Join-Path $repoRoot ($runPrefix + [DateTime]::UtcNow.ToString('yyyyMMdd-HHmmss-fff'))
 $images = Join-Path $run 'screenshots'
 $cache = Join-Path $repoRoot 'generated\controls-cache'
 New-Item -ItemType Directory -Force -Path $run,$images,$cache,(Join-Path $run 'temp') | Out-Null
@@ -178,6 +181,7 @@ try {
     [Environment]::SetEnvironmentVariable('TEMP',(Join-Path $run 'temp'),'Process')
     [Environment]::SetEnvironmentVariable('TMP',(Join-Path $run 'temp'),'Process')
     function Start-Controls([string]$Role,[string]$Destination,[string[]]$Mode,[int]$CoreLimit=2) {
+        if ($TypeSelection -and $Role -in @('host','rendered')) { $Mode+='-ProofTypeSelectionControls' }
         $log=Join-Path $run ($Role+'.log')
         $launchArguments=@(('"'+$project+'"'),$Destination)+$Mode+@('-unattended','-nosound','-nosplash','-NoSourceControl','-NoP4','-ini:GameUserSettings:[/Script/Engine.GameUserSettings]:FrameRateLimit=30','-ddc=BlockoutDDC','-logcmds="LogDerivedDataCache Verbose"',('-CoreLimit='+$CoreLimit),('-port='+$Port),('-abslog="'+$log+'"'))
         if($Role -in @('rendered','observer')) {
@@ -322,7 +326,12 @@ try {
     if($common.Count -lt 3) { throw 'Need at least three shared host/rendered/observer revisions.' }
     foreach($revision in $common) { if($maps[0][$revision] -ne $maps[1][$revision] -or $maps[0][$revision] -ne $maps[2][$revision]) { throw "Replicated digest mismatch at $revision." } }
     $result.commonRevisions=$common
-    foreach($name in @('01-selected.png','02-moved-combat-produced.png')) {
+    $captureNames=@('01-selected.png','02-moved-combat-produced.png')
+    if ($TypeSelection) {
+        $captureNames+=@('03-type-before.png','04-type-after.png')
+        $result.typeSelection=Get-TypeSelectionControlsEvidence @{host=(Get-Content -LiteralPath (Join-Path $run 'host.log') -Raw);rendered=(Get-Content -LiteralPath (Join-Path $run 'rendered.log') -Raw);observer=(Get-Content -LiteralPath (Join-Path $run 'observer.log') -Raw)}
+    }
+    foreach($name in $captureNames) {
         $path=Join-Path $images $name
         if(-not(Test-Path -LiteralPath $path)) { throw "Missing fresh engine screenshot $name." }
         $file=Get-Item -LiteralPath $path

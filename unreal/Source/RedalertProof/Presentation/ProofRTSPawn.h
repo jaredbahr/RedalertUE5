@@ -45,6 +45,7 @@ private:
     FVector CameraGroundCenter = FVector::ZeroVector;
     bool bCameraPanEnabled = false;
     int32 ManualGroupPresses = 0;
+    int32 ManualTypeSelectPresses = 0;
     int32 LastSeenMatchEpoch = INDEX_NONE;
     int32 ManualRematchPresses = 0;
     bool bUsingBlockoutMesh = false;
@@ -72,6 +73,15 @@ private:
     FString LastRequestedType;
     int32 LastRequestedTarget = INDEX_NONE;
     TSet<FString> ControlsPassedEvidence;
+    bool bTypeSelectionControls = false;
+    int32 TypeSelectionStage = 0;
+    int32 TypeSelectionLastRevision = INDEX_NONE;
+    int32 TypeSelectionRows = 0;
+    float TypeSelectionStarted = 0.f;
+    TArray<int32> TypeSelectionExpected;
+    TMap<int32, FVector> TypeSelectionPositions;
+    void TickTypeSelectionControls();
+    bool LogTypeSelectionFrame(const TCHAR* Phase, const FString& ActionBefore = FString());
     int32 ControlsStep = 0;
     int32 ControlsOwnUnit = INDEX_NONE;
     int32 ControlsTargetUnit = INDEX_NONE;
@@ -133,6 +143,8 @@ private:
     void ZoomIn();
     void ZoomOut();
     void OnManualSelect();
+    void OnManualTypeSelect();
+    void SelectVisibleType();
     void OnManualGroupOne();
     void OnManualGroupTwo();
     void OnManualGroupThree();
