@@ -330,7 +330,11 @@ void AProofRTSPawn::HandleManualGroup(int32 Slot)
 void AProofRTSPawn::OnManualOrder()
 {
     const int32 BeforeSequence = LastRequestedSequence;
-    OrderUnderCursor();
+    const AProofPlayerController* PC = Cast<AProofPlayerController>(GetController());
+    const bool bControl = PC && (PC->IsInputKeyDown(EKeys::LeftControl) || PC->IsInputKeyDown(EKeys::RightControl));
+    const bool bShift = PC && (PC->IsInputKeyDown(EKeys::LeftShift) || PC->IsInputKeyDown(EKeys::RightShift));
+    if (bControl && bShift) AttackMoveUnderCursor();
+    else OrderUnderCursor();
     RecordManualInput(TEXT("RMB"), ManualRightPresses,
         LastRequestedSequence != BeforeSequence
             ? FString::Printf(TEXT("%s request #%d"), *LastRequestedType, LastRequestedSequence)
@@ -571,6 +575,23 @@ void AProofRTSPawn::OrderUnderCursor()
     Request(Command);
 }
 
+void AProofRTSPawn::AttackMoveUnderCursor()
+{
+    const AProofPlayerController* PC = Cast<AProofPlayerController>(GetController());
+    const AProofGameState* GS = GetWorld() ? GetWorld()->GetGameState<AProofGameState>() : nullptr;
+    if (!PC || !PC->IsLocalController() || PC->OwnerId == INDEX_NONE || !GS || PC->IsProofAutomation())
+    { RequestStatus = TEXT("Attack Move requires a current manual player and match state."); return; }
+    FVector Destination;
+    if (!CursorGroundPoint(Destination))
+    { RequestStatus = TEXT("Cursor did not project onto the ground."); return; }
+    const TArray<FProofCommand> Commands = Selection.PlanAttackMove(GS->Snapshot, PC->OwnerId, Destination);
+    if (Commands.IsEmpty())
+    { RequestStatus = TEXT("Select owned live Combat units in a playing skirmish for Attack Move."); return; }
+    RequestStatus = GroupOrders.Enqueue(GS->Snapshot, PC->OwnerId, Commands)
+        ? FString::Printf(TEXT("Queued Attack Move for %d units; waiting for host snapshots."), Commands.Num())
+        : TEXT("Attack Move queue full; previous pending orders retained.");
+}
+
 void AProofRTSPawn::StopSelected()
 {
     const AProofPlayerController* PC = Cast<AProofPlayerController>(GetController());
@@ -650,7 +671,8 @@ void AProofRTSPawn::Request(FProofCommand Command)
         return;
     }
     if (Command.Type == EProofCommandType::Move || Command.Type == EProofCommandType::Attack
-        || Command.Type == EProofCommandType::Gather || Command.Type == EProofCommandType::Stop) GroupOrders.CancelUnit(Command.UnitId);
+        || Command.Type == EProofCommandType::Gather || Command.Type == EProofCommandType::Stop
+        || Command.Type == EProofCommandType::AttackMove) GroupOrders.CancelUnit(Command.UnitId);
     // Capture the exact replicated source before submission; a local authority
     // may publish a newer snapshot synchronously while handling the request.
     const FProofUnitRecord* Source = GS->Snapshot.Units.FindByPredicate(
@@ -666,7 +688,8 @@ void AProofRTSPawn::Request(FProofCommand Command)
         : Command.Type == EProofCommandType::BuildRefinery ? TEXT("BuildRefinery")
         : Command.Type == EProofCommandType::BuildFactory ? TEXT("BuildFactory")
         : Command.Type == EProofCommandType::Gather ? TEXT("Gather")
-        : Command.Type == EProofCommandType::Stop ? TEXT("Stop") : TEXT("Produce");
+        : Command.Type == EProofCommandType::Stop ? TEXT("Stop")
+        : Command.Type == EProofCommandType::AttackMove ? TEXT("AttackMove") : TEXT("Produce");
     if (GS && GS->Snapshot.bSkirmish)
         UE_LOG(LogTemp, Display, TEXT("PROOF_SKIRMISH_REQUEST owner=%d sequence=%d type=%s unit=%d target=%d"),
             PC->OwnerId, Command.Sequence, *LastRequestedType, Command.UnitId, Command.TargetUnitId);

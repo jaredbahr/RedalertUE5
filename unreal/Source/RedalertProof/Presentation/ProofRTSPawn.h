@@ -141,6 +141,7 @@ private:
     void SelectUnderCursor();
     void OrderUnderCursor();
     void StopSelected();
+    void AttackMoveUnderCursor();
     void Produce();
     void ZoomIn();
     void ZoomOut();
