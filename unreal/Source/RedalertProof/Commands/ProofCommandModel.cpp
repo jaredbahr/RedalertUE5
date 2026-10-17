@@ -247,6 +247,33 @@ int32 FProofCommandModel::TeamForOwner(int32 OwnerId) const
     return Player ? Player->TeamId : INDEX_NONE;
 }
 
+FProofResourceRecord* FProofCommandModel::ResolveGatherResource(FOrder& Order, const FVector& From)
+{
+    FProofResourceRecord* Current = State.Resources.FindByPredicate([&Order](const FProofResourceRecord& Resource)
+        { return Resource.ResourceId == Order.TargetUnitId; });
+    // Missing records retain the disconnect cleanup policy: finish carried
+    // cargo, then stop. Only depletion of a still-existing patch can reselect.
+    if (!Current) { return nullptr; }
+    if (Current->Remaining > 0) { return Current; }
+
+    // Continue only an existing Gather order. Keep a live assigned patch until
+    // depletion; replacement is nearest to the miner, then lowest stable ID.
+    FProofResourceRecord* Best = nullptr;
+    double BestDistance = 0.0;
+    for (FProofResourceRecord& Resource : State.Resources)
+    {
+        if (Resource.Remaining <= 0) { continue; }
+        const double Distance = FVector::DistSquared(From, Resource.Position);
+        if (!Best || Distance < BestDistance || (Distance == BestDistance && Resource.ResourceId < Best->ResourceId))
+        {
+            Best = &Resource;
+            BestDistance = Distance;
+        }
+    }
+    if (Best) { Order.TargetUnitId = Best->ResourceId; }
+    return Best;
+}
+
 const FProofUnitRecord* FProofCommandModel::FindAttackMoveTarget(const TArray<FProofUnitRecord>& Units,
     const FProofUnitRecord& Unit, int32 PreferredTargetId) const
 {
@@ -495,8 +522,8 @@ void FProofCommandModel::Advance(float DeltaSeconds)
             }
             else
             {
-                const FProofResourceRecord* Resource = State.Resources.FindByPredicate([Order](const FProofResourceRecord& R) { return R.ResourceId == Order->TargetUnitId; });
-                if (!Resource || Resource->Remaining <= 0) { Orders.Remove(Unit.UnitId); continue; }
+                const FProofResourceRecord* Resource = ResolveGatherResource(*Order, Unit.Position);
+                if (!Resource) { Orders.Remove(Unit.UnitId); continue; }
                 Destination = Resource->Position;
             }
         }
@@ -648,15 +675,14 @@ void FProofCommandModel::Advance(float DeltaSeconds)
                     if (Unit.Cargo == 0)
                     {
                         Order->bReturning = false;
-                        const FProofResourceRecord* Resource = State.Resources.FindByPredicate([Order](const FProofResourceRecord& R) { return R.ResourceId == Order->TargetUnitId; });
-                        if (!Resource || Resource->Remaining <= 0) { Orders.Remove(Unit.UnitId); }
+                        if (!ResolveGatherResource(*Order, Unit.Position)) { Orders.Remove(Unit.UnitId); }
                     }
                 }
             }
             else
             {
-                FProofResourceRecord* Resource = State.Resources.FindByPredicate([Order](const FProofResourceRecord& R) { return R.ResourceId == Order->TargetUnitId; });
-                if (!Resource || Resource->Remaining <= 0) { Orders.Remove(Unit.UnitId); continue; }
+                FProofResourceRecord* Resource = ResolveGatherResource(*Order, Unit.Position);
+                if (!Resource) { Orders.Remove(Unit.UnitId); continue; }
                 if (FVector::DistSquared(Unit.Position, Resource->Position) <= 1.0)
                 {
                     const int32 Taken = FMath::Min(CargoCapacity - Unit.Cargo, Resource->Remaining);
