@@ -181,6 +181,9 @@ void AProofHUD::DrawHUD()
     {
         return;
     }
+    FBox2D TerminalHintBounds(ForceInit);
+    FString TerminalHint;
+    const float HintPadding = 5.f * UiScale;
     if (bSkirmish)
     {
         FProofMarkerLayout Layout(FVector2D(Canvas->ClipX, Canvas->ClipY),
@@ -205,12 +208,15 @@ void AProofHUD::DrawHUD()
             const float BannerHeight = ResultHeight + 24.f * UiScale;
             const float BannerX = FMath::Max(0.f, (Canvas->ClipX - BannerWidth) * 0.5f);
             const float BannerY = FMath::Max(PanelHeight + Top + 12.f * UiScale, Canvas->ClipY * 0.16f);
-            const FString Hint = PC->OwnerId == 1 ? TEXT("N: rematch   Esc: exit") : TEXT("Waiting for owner 1 to request rematch");
+            TerminalHint = PC->OwnerId == 1 ? TEXT("N: rematch   Esc: exit") : TEXT("Waiting for owner 1 to request rematch");
             float HintWidth = 0.f, HintHeight = 0.f;
-            GetTextSize(Hint, HintWidth, HintHeight, Font, UiScale);
+            GetTextSize(TerminalHint, HintWidth, HintHeight, Font, UiScale);
+            const FVector2D HintSize(HintWidth + HintPadding * 2.f, HintHeight + HintPadding * 2.f);
+            const FVector2D HintPosition(FMath::Clamp(BannerX, 0.f, FMath::Max(0.f, Canvas->ClipX - static_cast<float>(HintSize.X))),
+                BannerY + BannerHeight + 8.f * UiScale);
+            TerminalHintBounds = FBox2D(HintPosition, HintPosition + HintSize);
             Occlude(FBox2D(FVector2D(BannerX, BannerY), FVector2D(BannerX + BannerWidth, BannerY + BannerHeight)));
-            Occlude(FBox2D(FVector2D(BannerX, BannerY + BannerHeight + 8.f * UiScale),
-                FVector2D(BannerX + HintWidth, BannerY + BannerHeight + 8.f * UiScale + HintHeight)));
+            Occlude(TerminalHintBounds);
         }
         // 0 visible, 1 outside viewport, 2 hidden by HUD/banner/hint.
         const auto ClassifyFootprint = [&Layout, &Occluders](const FBox2D& Bounds)
@@ -227,11 +233,13 @@ void AProofHUD::DrawHUD()
             FLinearColor Color;
             float Radius;
             int32 Priority;
+            int32 SourceReservation;
         };
         struct FResourceMarker
         {
             const FProofResourceRecord* Resource;
             FVector2D Screen;
+            int32 SourceReservation;
         };
         TArray<FUnitMarker> Units;
         TArray<FResourceMarker> Resources;
@@ -274,8 +282,7 @@ void AProofHUD::DrawHUD()
                 ++CaptureStats.VisibleUnitGlyphs;
                 CaptureStats.bPrimaryGlyphVisible |= bPrimary;
             }
-            Units.Add({&Unit, Screen, Color, Radius, bPrimary ? 0 : (bSelected ? 1 : 2)});
-            Layout.Reserve(Footprint);
+            Units.Add({&Unit, Screen, Color, Radius, bPrimary ? 0 : (bSelected ? 1 : 2), Layout.Reserve(Footprint)});
         }
         for (const FProofResourceRecord& Resource : GS->Snapshot.Resources)
         {
@@ -284,8 +291,7 @@ void AProofHUD::DrawHUD()
             const FBox2D Footprint(Screen - FVector2D(8.f, 8.f), Screen + FVector2D(8.f, 8.f));
             if (ClassifyFootprint(Footprint) != 0) continue;
             if (bCaptureLayout) ++CaptureStats.VisibleResourceGlyphs;
-            Resources.Add({&Resource, Screen});
-            Layout.Reserve(Footprint);
+            Resources.Add({&Resource, Screen, Layout.Reserve(Footprint)});
         }
         Units.Sort([](const FUnitMarker& A, const FUnitMarker& B)
         {
@@ -295,14 +301,7 @@ void AProofHUD::DrawHUD()
         {
             return A.Resource->ResourceId < B.Resource->ResourceId;
         });
-        const auto DrawTether = [this](const FVector2D& Anchor, const FVector2D& Preferred, const FBox2D& Bounds, const FLinearColor& Color)
-        {
-            if ((Bounds.Min - Preferred).SizeSquared() <= 1.f) return;
-            const FVector2D End(FMath::Clamp(Anchor.X, Bounds.Min.X, Bounds.Max.X),
-                FMath::Clamp(Anchor.Y, Bounds.Min.Y, Bounds.Max.Y));
-            DrawLine(Anchor.X, Anchor.Y, End.X, End.Y, Color, 1.f);
-        };
-        const auto DrawUnitGroup = [this, &Layout, &DrawTether, &CaptureStats, bCaptureLayout, Font, UiScale](const FUnitMarker& Marker)
+        const auto DrawUnitGroup = [this, &Layout, &CaptureStats, bCaptureLayout, Font, UiScale](const FUnitMarker& Marker)
         {
             const FProofUnitRecord& Unit = *Marker.Unit;
             const float Scale = 0.88f * UiScale;
@@ -330,7 +329,8 @@ void AProofHUD::DrawHUD()
             const FVector2D Preferred(Marker.Screen.X - Size.X * 0.5f,
                 Marker.Priority == 0 ? Marker.Screen.Y - Marker.Radius - 4.f - Size.Y : Marker.Screen.Y + Marker.Radius + 4.f);
             FBox2D Bounds;
-            if (!Layout.TryPlace(Preferred, Size, Bounds))
+            FVector2D LeaderStart, LeaderEnd;
+            if (!Layout.TryPlaceLinked(Preferred, Size, Marker.SourceReservation, Bounds, LeaderStart, LeaderEnd))
             {
                 if (bCaptureLayout) ++CaptureStats.OmittedUnitGroups;
                 return;
@@ -340,7 +340,7 @@ void AProofHUD::DrawHUD()
                 ++CaptureStats.PlacedUnitGroups;
                 CaptureStats.bPrimaryGroupPlaced |= Marker.Priority == 0;
             }
-            DrawTether(Marker.Screen, Preferred, Bounds, Marker.Color);
+            DrawLine(LeaderStart.X, LeaderStart.Y, LeaderEnd.X, LeaderEnd.Y, Marker.Color, 1.f);
             DrawRect(FLinearColor(0.015f, 0.025f, 0.035f, 0.9f), Bounds.Min.X, Bounds.Min.Y, Size.X, Size.Y);
             if (!Label.IsEmpty())
                 DrawText(Label, Marker.Color, Bounds.Min.X + Padding, Bounds.Min.Y + Padding, Font, Scale, false);
@@ -377,13 +377,14 @@ void AProofHUD::DrawHUD()
             const FVector2D Size(FMath::Max(NameWidth, AmountWidth) + Padding * 2.f, NameHeight + AmountHeight + Padding * 3.f);
             const FVector2D Preferred(Marker.Screen.X - Size.X * 0.5f, Marker.Screen.Y + 10.f);
             FBox2D Bounds;
-            if (!Layout.TryPlace(Preferred, Size, Bounds))
+            FVector2D LeaderStart, LeaderEnd;
+            if (!Layout.TryPlaceLinked(Preferred, Size, Marker.SourceReservation, Bounds, LeaderStart, LeaderEnd))
             {
                 if (bCaptureLayout) ++CaptureStats.OmittedResourceGroups;
                 continue;
             }
             if (bCaptureLayout) ++CaptureStats.PlacedResourceGroups;
-            DrawTether(Marker.Screen, Preferred, Bounds, Color);
+            DrawLine(LeaderStart.X, LeaderStart.Y, LeaderEnd.X, LeaderEnd.Y, Color, 1.f);
             DrawRect(FLinearColor(0.015f, 0.025f, 0.035f, 0.9f), Bounds.Min.X, Bounds.Min.Y, Size.X, Size.Y);
             DrawText(Name, Color, Bounds.Min.X + Padding, Bounds.Min.Y + Padding, Font, Scale, false);
             DrawText(Amount, Color, Bounds.Min.X + Padding, Bounds.Min.Y + Padding * 2.f + NameHeight, Font, Scale, false);
@@ -463,8 +464,10 @@ void AProofHUD::DrawHUD()
         DrawText(Result, Result == TEXT("VICTORY") ? FLinearColor(0.25f, 1.f, 0.5f) :
             (Result == TEXT("DEFEAT") ? FLinearColor(1.f, 0.35f, 0.3f) : FLinearColor(0.85f, 0.9f, 1.f)),
             BannerX + 21.f * UiScale, BannerY + 12.f * UiScale, Font, 2.f * UiScale, false);
-        DrawText(PC->OwnerId == 1 ? TEXT("N: rematch   Esc: exit") : TEXT("Waiting for owner 1 to request rematch"),
-            FLinearColor(0.85f, 0.9f, 1.f), BannerX, BannerY + BannerHeight + 8.f * UiScale, Font, UiScale, false);
+        DrawRect(FLinearColor(0.01f, 0.02f, 0.04f, 1.f), TerminalHintBounds.Min.X, TerminalHintBounds.Min.Y,
+            TerminalHintBounds.GetSize().X, TerminalHintBounds.GetSize().Y);
+        DrawText(TerminalHint, FLinearColor::White, TerminalHintBounds.Min.X + HintPadding,
+            TerminalHintBounds.Min.Y + HintPadding, Font, UiScale, false);
     }
     if (bCaptureLayout && !CaptureFilename.IsEmpty())
     {
