@@ -1,0 +1,177 @@
+{
+  "testedCommit": "596bb3d2251d253e51a37044dfc65607d3a49b1a",
+  "buildSeconds": 25.72,
+  "model": {
+    "head": "596bb3d2251d253e51a37044dfc65607d3a49b1a",
+    "dirtyWorkingTree": false,
+    "startedUtc": "2026-10-17T02:34:47.2469554Z",
+    "finishedUtc": "2026-10-17T02:35:00.7339984Z",
+    "elapsedSeconds": 13.564,
+    "passed": true,
+    "testCount": 5,
+    "succeeded": 5,
+    "failed": 0,
+    "runDirectory": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\hud-layout-model-20261017-023447-162",
+    "error": null,
+    "cpuPolicy": {
+      "affinityMask": 3,
+      "priority": "Normal",
+      "polls": 61,
+      "repairs": 5,
+      "events": [
+        {
+          "beforePriority": "Normal",
+          "beforeMask": 255,
+          "utc": "2026-10-17T02:34:47.5268093Z"
+        },
+        {
+          "beforePriority": "Normal",
+          "beforeMask": 255,
+          "utc": "2026-10-17T02:34:47.9621401Z"
+        },
+        {
+          "beforePriority": "Normal",
+          "beforeMask": 255,
+          "utc": "2026-10-17T02:34:48.3782361Z"
+        },
+        {
+          "beforePriority": "Normal",
+          "beforeMask": 255,
+          "utc": "2026-10-17T02:34:49.4353326Z"
+        },
+        {
+          "beforePriority": "Normal",
+          "beforeMask": 255,
+          "utc": "2026-10-17T02:34:53.4527914Z"
+        }
+      ],
+      "peakObservedWorkingSetBytes": 2255020032,
+      "lastObservedCpuSeconds": 12.0,
+      "pollingIsNotHardConfinement": true
+    },
+    "cleanup": {
+      "launched": true,
+      "pid": 12188,
+      "verifiedExited": true,
+      "terminationRequested": false,
+      "error": null
+    }
+  },
+  "rendered": {
+    "passed": false,
+    "scenario": "Victory",
+    "head": "596bb3d2251d253e51a37044dfc65607d3a49b1a",
+    "dirtyWorkingTree": false,
+    "startedUtc": "2026-10-17T02:35:13.6512736Z",
+    "finishedUtc": "2026-10-17T02:36:21.2750068Z",
+    "elapsedSeconds": 67.697,
+    "scenarioElapsedSeconds": 67.473,
+    "scenarioTimeoutSeconds": 240,
+    "scenarioCoreLimit": 2,
+    "runDirectory": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\small-match-victory-20261017-023513-569",
+    "map": "/Game/CommandProofGenerated/Maps/CommandProof",
+    "topology": "one rendered standalone match client",
+    "transport": "UE native UDP loopback",
+    "physicalInputVerified": false,
+    "internetTest": false,
+    "performanceTest": false,
+    "cleanPresentation": true,
+    "storageGuard": {
+      "softPollingGuard": true,
+      "intervalSeconds": 10,
+      "maxCacheMiB": 2048,
+      "maxTempMiB": 1024,
+      "checks": 7,
+      "latestCacheBytes": 3682854,
+      "latestTempBytes": 4490,
+      "peakCacheBytes": 3682854,
+      "peakTempBytes": 4490
+    },
+    "cpuPolicy": {
+      "availableAffinityMask": "0xFF",
+      "fixtureAffinityMask": "0x3",
+      "logicalProcessors": [
+        0,
+        1
+      ],
+      "priority": "Normal",
+      "pollIntervalSeconds": 1,
+      "polls": 60,
+      "repairs": 3,
+      "processes": [
+        {
+          "pid": 2796,
+          "startUtc": "2026-10-17T02:35:13.8529225Z",
+          "role": "rendered",
+          "path": "D:\\Epic Games\\UE_5.7\\Engine\\Binaries\\Win64\\UnrealEditor.exe",
+          "priority": "Normal",
+          "affinityMask": "0x3"
+        }
+      ],
+      "lastPollElapsedSeconds": 67.195
+    },
+    "literalClientSetup": {
+      "startupFile": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\small-match-victory-20261017-023513-569\\literal-client-cvars.ini",
+      "expectedResolverDisabled": 1,
+      "startupConfirmedByRole": {},
+      "hostnameOrInternetTest": false,
+      "osDnsChanged": false
+    },
+    "readabilityCaptures": true,
+    "edgeCaptureEvidence": [],
+    "hudLayoutCaptureEvidence": [],
+    "renderConfiguration": {
+      "realViewport": true,
+      "offscreen": true,
+      "width": 1280,
+      "height": 720,
+      "optimizedShaders": 1,
+      "targetFPS": 30
+    },
+    "processes": [
+      {
+        "pid": 2796,
+        "startUtc": "2026-10-17T02:35:13.8529225Z",
+        "role": "rendered",
+        "path": "D:\\Epic Games\\UE_5.7\\Engine\\Binaries\\Win64\\UnrealEditor.exe",
+        "priority": "Normal",
+        "affinityMask": "0x3"
+      }
+    ],
+    "screenshots": [],
+    "commonRevisions": [],
+    "expectedWinner": 0,
+    "error": "rendered exited before expected marker: PROOF_SKIRMISH_COMPLETE role=client owner=1 status=pass scenario=Victory winnerTeam=0 built=1 gathered=1 produced=1 botBuilt=1 botProduced=1 botAttacked=1",
+    "cleanupErrors": []
+  },
+  "failure": "readability_projection_target; actual631.153,392.115 target24,468 firstleftedge",
+  "sourceDiagnosis": "Installed CameraComponent derives camera-to-viewtarget from pawn, SceneView adds that vector to projectionorigin; camera-relative move can cancel lateral shift. Failed run measured unchanged anchor but did not record rig/vieworigin.",
+  "preparedCorrection": "Translate camera owner rig once; immediately preserve all unit-view world transforms; verify actual mesh centers and unchanged snapshot before later two-pixel target check. Add rig/projection diagnostics.",
+  "files": [
+    {
+      "sha256": "a154b26acb6cec2eddf962b30c476fa59c35a6af8faeaff417bf1ed9c5797ee0",
+      "path": "generated/hud-readability-build-projection.log",
+      "bytes": 1634
+    },
+    {
+      "sha256": "0f147f145d8b4d21f7f84a04a03abbffa08c90981e5488afb640a2117e17557b",
+      "path": "generated/hud-readability-ubt-596bb3d.log",
+      "bytes": 4472
+    },
+    {
+      "sha256": "5814445d381fd994ecea5093d1836689825a7fcae7db3c8bb282e019156eefe2",
+      "path": "generated/hud-layout-model-20261017-023447-162/result.json",
+      "bytes": 1493
+    },
+    {
+      "sha256": "5aecac89b8a5d8b6dde90a33a02f05b624c0f2be235450be7bf5d68a4670ad21",
+      "path": "generated/small-match-victory-20261017-023513-569/result.json",
+      "bytes": 2794
+    },
+    {
+      "sha256": "dc94f3cac32621615231f292358d43a8638fc96eaf57bcb39d7aebfca6eaf405",
+      "path": "generated/small-match-victory-20261017-023513-569/rendered.log",
+      "bytes": 455350
+    }
+  ]
+}

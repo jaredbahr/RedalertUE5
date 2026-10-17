@@ -7,10 +7,12 @@ param(
     [ValidateRange(0,65536)][int]$MaxTempMiB = 1024,
     [switch]$CleanPresentation,
     [switch]$RefineryMinerEvidence,
+    [switch]$ReadabilityCaptures,
     [ValidateSet('1280x720','960x540')][string]$Viewport = '1280x720'
 )
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'RefineryMinerEvidence.ps1')
+if ($ReadabilityCaptures -and $Scenario -ne 'Victory') { throw 'ReadabilityCaptures requires the standalone Victory scenario.' }
 $Viewport = $Viewport.ToLowerInvariant()
 $viewportParts = $Viewport.Split('x')
 $viewportWidth = [int]$viewportParts[0]; $viewportHeight = [int]$viewportParts[1]
@@ -54,6 +56,7 @@ $result = [ordered]@{
     storageGuard=[ordered]@{softPollingGuard=$true;intervalSeconds=10;maxCacheMiB=$MaxCacheMiB;maxTempMiB=$MaxTempMiB;checks=0;latestCacheBytes=0;latestTempBytes=0;peakCacheBytes=0;peakTempBytes=0}
     cpuPolicy=[ordered]@{availableAffinityMask=('0x{0:X}' -f $availableAffinity);fixtureAffinityMask=('0x{0:X}' -f $fixtureAffinity);logicalProcessors=$fixtureLogicalProcessors;priority='Normal';pollIntervalSeconds=1;polls=0;repairs=0;processes=@()}
     literalClientSetup=[ordered]@{startupFile=$literalClientCVars;expectedResolverDisabled=1;startupConfirmedByRole=@{};hostnameOrInternetTest=$false;osDnsChanged=$false}
+    readabilityCaptures=[bool]$ReadabilityCaptures; edgeCaptureEvidence=@(); hudLayoutCaptureEvidence=@()
     renderConfiguration=[ordered]@{realViewport=$true;offscreen=$true;width=$viewportWidth;height=$viewportHeight;optimizedShaders=1;targetFPS=30}
     processes=@(); screenshots=@(); commonRevisions=@(); expectedWinner=$(if($Scenario -eq 'Defeat'){1}else{0}); error=$null; cleanupErrors=@()
 }
@@ -153,11 +156,59 @@ function Check-StorageBudget([switch]$Force) {
     if ($MaxCacheMiB -gt 0 -and $cacheBytes -gt ([int64]$MaxCacheMiB*1MB)) { throw "D: cache soft guard exceeded: $cacheBytes bytes." }
     if ($MaxTempMiB -gt 0 -and $tempBytes -gt ([int64]$MaxTempMiB*1MB)) { throw "D: temp soft guard exceeded: $tempBytes bytes." }
 }
+function Get-HUDLayoutCaptureEvidence([string]$Log,[string[]]$Names) {
+    $fields=@('epoch','revision','liveunits','visibleeligibleglyphs','culledglyphs','offscreenglyphs','occludedglyphs','placedunitgroups','omittedunitgroups','primaryglyphvisible','primarygroupplaced','visibleresourceglyphs','placedresourcegroups','omittedresourcegroups')
+    $pattern='PROOF_HUD_LAYOUT_CAPTURE name=(?<name>\S+)'
+    foreach($field in $fields) { $pattern+=' '+$field+'=(?<'+$field+'>\d+)' }
+    $markers=[regex]::Matches($Log,$pattern)
+    if($markers.Count -ne $Names.Count -or [regex]::Matches($Log,'PROOF_HUD_LAYOUT_CAPTURE').Count -ne $Names.Count) { throw 'Need exactly one HUD layout observation for every requested capture.' }
+    foreach($name in $Names) {
+        $matching=@($markers|Where-Object {$_.Groups['name'].Value -eq $name})
+        if($matching.Count -ne 1) { throw "Missing or repeated HUD layout observation: $name" }
+        $record=[ordered]@{name=$name}
+        foreach($field in $fields) { $record[$field]=[int]::Parse($matching[0].Groups[$field].Value,[Globalization.CultureInfo]::InvariantCulture) }
+        if($record.epoch -le 0 -or $record.revision -le 0 -or
+            $record.placedunitgroups+$record.omittedunitgroups -ne $record.visibleeligibleglyphs -or
+            $record.placedresourcegroups+$record.omittedresourcegroups -ne $record.visibleresourceglyphs -or
+            $record.visibleeligibleglyphs+$record.culledglyphs -ne $record.liveunits -or
+            $record.offscreenglyphs+$record.occludedglyphs -ne $record.culledglyphs -or
+            $record.primaryglyphvisible -gt 1 -or $record.primarygroupplaced -gt $record.primaryglyphvisible) {
+            throw "Inconsistent HUD placement observations: $name"
+        }
+        # Omitted and culled counts are observations, never a claim that hidden labels are readable.
+        [pscustomobject]$record
+    }
+}
+function Get-HUDEdgeCaptureEvidence([string]$Log,[int]$Width,[int]$Height) {
+    $number='(-?\d+(?:\.\d+)?)'
+    $pattern='PROOF_HUD_EDGE_CAPTURE name=(\S+) unit=(\d+) projectedX='+$number+' projectedY='+$number+' targetX='+$number+' targetY='+$number+' width=(\d+) height=(\d+) written=1 physicalInput=unverified'
+    $markers=[regex]::Matches($Log,$pattern)
+    if($markers.Count -ne 3 -or [regex]::Matches($Log,'PROOF_HUD_EDGE_CAPTURE').Count -ne 3) { throw 'Need exactly three distinct completed HUD edge capture markers.' }
+    $scale=[math]::Clamp($Width/1280.0,0.72,1.0)
+    $names=@('03-left-edge.png','04-right-edge.png','05-panel-edge.png')
+    $targets=@(@(24.0,(0.65*$Height)),@(($Width-24.0),(0.65*$Height)),@((0.30*$Width),((12.0+197.0)*$scale+24.0)))
+    $anchorId=0
+    for($index=0;$index -lt 3;$index++) {
+        $matchesForName=@($markers|Where-Object {$_.Groups[1].Value -eq $names[$index]})
+        if($matchesForName.Count -ne 1) { throw "Missing or repeated HUD edge marker: $($names[$index])" }
+        $match=$matchesForName[0]
+        $unit=[int]$match.Groups[2].Value
+        if($unit -le 0 -or ($anchorId -gt 0 -and $unit -ne $anchorId)) { throw 'HUD edge capture anchor changed or is invalid.' }
+        $anchorId=$unit
+        $coords=@(3..6|ForEach-Object {[double]::Parse($match.Groups[$_].Value,[Globalization.CultureInfo]::InvariantCulture)})
+        if([int]$match.Groups[7].Value -ne $Width -or [int]$match.Groups[8].Value -ne $Height) { throw 'HUD edge capture actual viewport differs from requested viewport.' }
+        if([math]::Abs($coords[2]-$targets[$index][0]) -gt 0.01 -or [math]::Abs($coords[3]-$targets[$index][1]) -gt 0.01) { throw 'HUD edge capture target differs from its required edge/panel location.' }
+        $distance=[math]::Sqrt([math]::Pow($coords[0]-$coords[2],2)+[math]::Pow($coords[1]-$coords[3],2))
+        if($distance -gt 2.0) { throw "HUD edge anchor projection misses its target: $($names[$index])" }
+        [pscustomobject]@{name=$names[$index];unit=$unit;projectedX=$coords[0];projectedY=$coords[1];targetX=$coords[2];targetY=$coords[3];projectionErrorPixels=$distance;width=$Width;height=$Height;physicalInputVerified=$false}
+    }
+}
 function Read-Log($Entry) { if (Test-Path -LiteralPath $Entry.Log) { return Get-Content -LiteralPath $Entry.Log -Raw }; return '' }
 function Start-Role([string]$Role,[string]$Destination,[string[]]$Mode) {
     $log=Join-Path $run ($Role+'.log')
     $launchArguments=@(('"'+$project+'"'),$Destination)+$Mode+@('-unattended','-nosound','-nosplash','-NoSourceControl','-NoP4','-CoreLimit=2','-ddc=BlockoutDDC','-logcmds="LogDerivedDataCache Verbose"',('-port='+$Port),'-ini:GameUserSettings:[/Script/Engine.GameUserSettings]:FrameRateLimit=30','-ini:Engine:[DevOptions.Shaders]:WorkerProcessPriority=0,[ConsoleVariables]:t.MaxFPS=30,[AssetRegistry]:EditorGameScansAR=Async,[ShaderCompiler]:r.Shaders.Optimize=1,[ConsoleVariables]:r.Shaders.Optimize=1',('-abslog="'+$log+'"'))
     if ($RefineryMinerEvidence) { $launchArguments+='-ProofRefineryMinerEvidence' }
+    if ($ReadabilityCaptures -and $Role -eq 'rendered') { $launchArguments+='-ProofHUDReadabilityCaptures' }
     $needsLiteralLoopback = $Scenario -eq 'Coop' -and $Role -in @('rendered','observer')
     if ($needsLiteralLoopback) {
         if ($Destination -notmatch '^127\.0\.0\.1:\d+$') { throw 'Literal-client CVar override is restricted to loopback destinations.' }
@@ -248,7 +299,13 @@ try {
         $complete=Read-Log $expected[0]
         if ($complete -notmatch ('PROOF_SKIRMISH_COMPLETE role=client owner=1 status=pass scenario='+$Scenario+' winnerTeam='+$result.expectedWinner+' built=1 gathered=1 produced=1 botBuilt=1 botProduced=1 botAttacked=1')) { throw 'Standalone completion evidence or expected winner is missing.' }
     }
-    foreach ($name in @('01-base.png','02-result.png')) {
+    $captureNames=@('01-base.png','02-result.png')
+    if ($ReadabilityCaptures) {
+        $result.edgeCaptureEvidence=@(Get-HUDEdgeCaptureEvidence (Read-Log $client) $viewportWidth $viewportHeight)
+        $captureNames+=@('03-left-edge.png','04-right-edge.png','05-panel-edge.png')
+        $result.hudLayoutCaptureEvidence=@(Get-HUDLayoutCaptureEvidence (Read-Log $client) $captureNames)
+    }
+    foreach ($name in $captureNames) {
         $path=Join-Path $images $name
         if (-not (Test-Path -LiteralPath $path)) { throw "Missing fresh engine screenshot $name." }
         $file=Get-Item -LiteralPath $path

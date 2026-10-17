@@ -11,4 +11,8 @@ class REDALERTPROOF_API AProofHUD : public AHUD
     GENERATED_BODY()
 public:
     virtual void DrawHUD() override;
+
+private:
+    // Capture fixture diagnostics: one record for each requested full path.
+    TSet<FString> LoggedHUDLayoutCaptures;
 };

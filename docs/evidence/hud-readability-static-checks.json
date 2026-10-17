@@ -1,0 +1,28 @@
+{
+  "status": "static-checks-only",
+  "baseCommit": "49bd2e080b07476d17889f00687ffa4081ad5a60",
+  "branch": "feat/hud-readability",
+  "checkedUtc": "2026-10-17T01:47:42.5606082Z",
+  "independentSourceReview": "No static blockers; runtime/visual acceptance pending.",
+  "checks": {
+    "powerShellParseErrors": 0,
+    "diffWhitespace": "pass",
+    "defaultReadabilitySwitch": "false",
+    "victoryOptIn": "pass",
+    "coopMisuseRejectedBeforeLaunch": "pass",
+    "validOmissionCountsPreserved": "pass",
+    "inconsistentPlacementCountsRejected": "pass",
+    "edgeTargetPolicy1280x720": "pass",
+    "edgeTargetPolicy960x540": "pass",
+    "fixtureAgentSyntheticPolicyCasesPassed": 17,
+    "secretPatternScan": "no matches"
+  },
+  "unrealBuild": "not run",
+  "actualHelperAutomation": "not run",
+  "runtimeCameraProjection": "not run",
+  "screenshotStatisticsAndWrites": "not run",
+  "visualAcceptance": "not run",
+  "heavyJobsLaunched": 0,
+  "startupIssue33": "open/unresolved",
+  "readabilityIssue18": "open/acceptance pending"
+}
