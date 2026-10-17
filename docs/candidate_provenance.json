@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "branch": "integrate/skirmish-nine-groups",
+  "mainAtPreparation": "2a41dadc72b7bb1153925b1949cfba510518dd4c",
+  "historyReconciliation": "65b2a73b24077b4e604abf93780a4a081809e797",
+  "reconciledTree": "380c7ac30a0d219baab11d2c03b70dbe4f82379e",
+  "sourceTree": "9905f4c2f4cba7248ec48ab08029095ad24c442a",
+  "controlsRunnerBlob": "0a874698c7ed15033588861a882372ed76156163",
+  "selected": [
+    {
+      "pr": 3,
+      "head": "68a5a767a77812c40d4fca8095df2528ce464aae"
+    },
+    {
+      "pr": 9,
+      "head": "462d2fa013ec9421f8a9e1a09a352a6b4aa3672f"
+    },
+    {
+      "pr": 14,
+      "head": "4b07de671ab14144f7272d57f1fbea13ecef0931"
+    },
+    {
+      "pr": 19,
+      "head": "fd7eb1fa0efae939d25c52b039c120fc927bd4bb"
+    },
+    {
+      "pr": 25,
+      "head": "eb376db9cd972a79921cd0569d45820ec1d7f796"
+    },
+    {
+      "pr": 26,
+      "head": "4b9da352e5612c778bcf0c9168ef20a6ac92d98e"
+    },
+    {
+      "pr": 27,
+      "head": "8f78dd0e82b8fc25c1a7a4c423eb1c20dcae9cc5"
+    },
+    {
+      "pr": 28,
+      "head": "0173ff8d9004432857c9a012caf60ecd872e617a"
+    },
+    {
+      "pr": 30,
+      "head": "ab6bda4099cc85ca6d87d778fbb0b22fbf12b0a8"
+    }
+  ],
+  "excluded": [
+    {
+      "pr": 29,
+      "head": "77073c545d844ca19faadde16f7ae4a80d4a1263"
+    },
+    {
+      "pr": 31,
+      "head": "c3e5a168ace3f6f0da21e463b451a943fb95543a"
+    }
+  ],
+  "validation": {
+    "status": "queued; not executed on candidate",
+    "heavySlotOwner": "Imagination",
+    "commands": [
+      "./unreal/Scripts/build-native-proof.ps1",
+      "./unreal/Scripts/test-group-controls.ps1",
+      "./unreal/Scripts/test-native-model.ps1",
+      "./unreal/Scripts/test-skirmish-model.ps1",
+      "./unreal/Scripts/test-fidelity-model.ps1",
+      "./unreal/Scripts/test-controls-proof.ps1 -CleanPresentation",
+      "./unreal/Scripts/test-native-proof.ps1",
+      "./unreal/Scripts/test-rpc-ingress.ps1",
+      "./unreal/Scripts/test-small-match.ps1 -Scenario Victory -CleanPresentation",
+      "./unreal/Scripts/test-small-match.ps1 -Scenario Defeat -CleanPresentation",
+      "./unreal/Scripts/test-small-match.ps1 -Scenario Coop -CleanPresentation",
+      "./unreal/Scripts/test-session-lifecycle.ps1"
+    ],
+    "expectedModelCases": 36,
+    "stopOnFirstFailure": true,
+    "automaticRetries": 0,
+    "existingLimitsUnchanged": true
+  },
+  "promotion": "requires later explicit Jared approval after exact candidate verification"
+}
