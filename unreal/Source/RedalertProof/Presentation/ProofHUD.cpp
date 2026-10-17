@@ -248,12 +248,12 @@ void AProofHUD::DrawHUD()
             const bool bOwn = Unit.OwnerId == PC->OwnerId;
             const bool bSelected = bOwn && Pawn && Pawn->GetSelectedUnitIds().Contains(Unit.UnitId);
             const bool bPrimary = bSelected && Unit.UnitId == Pawn->GetSelectedUnitId();
-            const FProofPlayerRecord* Owner = GS->Snapshot.Players.FindByPredicate([&Unit](const FProofPlayerRecord& Player)
+            const FProofPlayerRecord* UnitOwnerRecord = GS->Snapshot.Players.FindByPredicate([&Unit](const FProofPlayerRecord& Player)
             {
                 return Player.OwnerId == Unit.OwnerId;
             });
             const FLinearColor Color = bSelected ? FLinearColor::Yellow :
-                (Owner && Owner->TeamId == LocalTeam ? FLinearColor(0.18f, 0.95f, 0.55f) : FLinearColor(1.f, 0.32f, 0.25f));
+                (UnitOwnerRecord && UnitOwnerRecord->TeamId == LocalTeam ? FLinearColor(0.18f, 0.95f, 0.55f) : FLinearColor(1.f, 0.32f, 0.25f));
             const float Radius = bSelected ? 18.f : 10.f;
             // Include line thickness; partially offscreen/occluded anchors are
             // hidden instead of being clamped into an unrelated border pile.
