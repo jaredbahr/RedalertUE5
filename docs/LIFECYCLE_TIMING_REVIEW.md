@@ -58,3 +58,5 @@ The setup delay did not recur: process request-to-start observations took about 
 [Curated result and complete bounded phase ledger](evidence/lifecycle-phase-20261017.json) records the actual tested revision and raw-result hash. This publication commit is documentation/evidence after that tested revision. No PR or main promotion is implied; #21-24 have not been closed by this validation batch.
 
 The unexplained startup slowdown remains tracked in [issue #33](https://github.com/jaredbahr/RedalertUE5/issues/33). Telemetry may be integrated as diagnostics; neither its integration nor a later passing run is a causal fix or closes that issue.
+
+A later explicitly allocated combined candidate check passed at clean 2470a582 in 120.600 scenario seconds, with 421 shared digests and unchanged 240-second acceptance. See [combined validation](HUD_DIAGNOSTICS_VALIDATION.md). The startup cause remains unresolved in #33; no further run is requested by this publication.

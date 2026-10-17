@@ -1,0 +1,877 @@
+{
+  "testedHead": "2470a5821d6dabcb9d27cd79720a6bc21f466630",
+  "sourceTree": "fd8353a754ff4cd447d074509018794b93f6f580",
+  "build": {
+    "passed": true,
+    "actions": 4,
+    "maxParallelActions": 1,
+    "totalSeconds": 13.1,
+    "executorSeconds": 9.18,
+    "log": "generated/hud-diagnostics-build.log",
+    "sha256": "A205F5419FDDA7F487322D750D2FB49B907C9C693ABBD61B3ED4A161F9243FC8"
+  },
+  "runs": [
+    {
+      "run": "session-lifecycle-20261017-012035-526",
+      "head": "2470a5821d6dabcb9d27cd79720a6bc21f466630",
+      "dirty": false,
+      "passed": true,
+      "totalSeconds": 120.711,
+      "scenarioSeconds": 120.6,
+      "timeoutSeconds": 240,
+      "rawResultSha256": "E6324D3CEEE38D6DACF6D4D37504B434DE32D82A62864AD4A7E4CD67D07859C1",
+      "error": null,
+      "cleanupErrors": [],
+      "lifecycle": {
+        "terminals": [
+          {
+            "winnerTeam": 1,
+            "epoch": 1
+          },
+          {
+            "winnerTeam": 1,
+            "epoch": 2
+          }
+        ],
+        "rematches": [
+          2,
+          3
+        ],
+        "freshReceipts": [
+          {
+            "epoch": 2,
+            "sequence": 1,
+            "accepted": true,
+            "owner": 1
+          },
+          {
+            "epoch": 2,
+            "sequence": 1,
+            "accepted": true,
+            "owner": 2
+          },
+          {
+            "epoch": 3,
+            "sequence": 1,
+            "accepted": true,
+            "owner": 1
+          },
+          {
+            "epoch": 3,
+            "sequence": 1,
+            "accepted": true,
+            "owner": 2
+          }
+        ],
+        "commonDigests": 421,
+        "terminalSnapshotAgreements": [
+          {
+            "revision": 472,
+            "epoch": 1,
+            "winnerTeam": 1,
+            "digest": "3ce5f6aef9137e1c45b8ee4d9a4ade58"
+          },
+          {
+            "revision": 552,
+            "epoch": 2,
+            "winnerTeam": 1,
+            "digest": "a9d1617bdb91360646bc962028a0eda6"
+          }
+        ],
+        "staleEpochRejected": true,
+        "owner2RejoinedSlot2": true,
+        "thirdRejectedWhenFull": true
+      },
+      "timing": {
+        "scenarioStartedUtc": "2026-10-17T01:20:35.6423969Z",
+        "clock": "Stopwatch monotonic; UTC is correlation only",
+        "maxEvents": 256,
+        "droppedEvents": 0,
+        "activePhase": {
+          "kind": "wait-exit",
+          "role": "runner",
+          "detail": "host,lead,rejoin,third",
+          "observedUtc": "2026-10-17T01:22:35.3021219Z",
+          "scenarioElapsedSeconds": 119.66,
+          "remainingBudgetSeconds": 120.34,
+          "engineLogUtc": ""
+        },
+        "failurePhase": null,
+        "events": [
+          {
+            "kind": "scenario-start",
+            "role": "runner",
+            "detail": "fixed total budget seconds=240",
+            "observedUtc": "2026-10-17T01:20:35.6479547Z",
+            "scenarioElapsedSeconds": 0.005,
+            "remainingBudgetSeconds": 239.995,
+            "engineLogUtc": ""
+          },
+          {
+            "kind": "role-start-request",
+            "role": "host",
+            "detail": "/Game/CommandProofGenerated/Maps/CommandProof",
+            "observedUtc": "2026-10-17T01:20:35.6609592Z",
+            "scenarioElapsedSeconds": 0.019,
+            "remainingBudgetSeconds": 239.981,
+            "engineLogUtc": ""
+          },
+          {
+            "kind": "role-process-started",
+            "role": "host",
+            "detail": "2026-10-17T01:20:35.7032074Z",
+            "observedUtc": "2026-10-17T01:20:35.7125651Z",
+            "scenarioElapsedSeconds": 0.071,
+            "remainingBudgetSeconds": 239.929,
+            "engineLogUtc": ""
+          },
+          {
+            "kind": "wait-marker",
+            "role": "host",
+            "detail": "PROOF_LIFECYCLE_READY epoch=1",
+            "observedUtc": "2026-10-17T01:20:35.7285039Z",
+            "scenarioElapsedSeconds": 0.087,
+            "remainingBudgetSeconds": 239.913,
+            "engineLogUtc": ""
+          },
+          {
+            "kind": "marker-observed",
+            "role": "host",
+            "detail": "PROOF_LIFECYCLE_READY epoch=1",
+            "observedUtc": "2026-10-17T01:20:41.1633669Z",
+            "scenarioElapsedSeconds": 5.521,
+            "remainingBudgetSeconds": 234.479,
+            "engineLogUtc": "2026.10.17-01.20.40:888"
+          },
+          {
+            "kind": "role-start-request",
+            "role": "lead",
+            "detail": "127.0.0.1:55657",
+            "observedUtc": "2026-10-17T01:20:41.1638876Z",
+            "scenarioElapsedSeconds": 5.522,
+            "remainingBudgetSeconds": 234.478,
+            "engineLogUtc": ""
+          },
+          {
+            "kind": "role-process-started",
+            "role": "lead",
+            "detail": "2026-10-17T01:20:41.1681286Z",
+            "observedUtc": "2026-10-17T01:20:41.1735662Z",
+            "scenarioElapsedSeconds": 5.532,
+            "remainingBudgetSeconds": 234.468,
+            "engineLogUtc": ""
+          },
+          {
+            "kind": "wait-marker",
+            "role": "host",
+            "detail": "PROOF_LIFECYCLE_JOIN owner=1 epoch=1 seeded=1",
+            "observedUtc": "2026-10-17T01:20:41.1739387Z",
+            "scenarioElapsedSeconds": 5.532,
+            "remainingBudgetSeconds": 234.468,
+            "engineLogUtc": ""
+          },
+          {
+            "kind": "marker-observed",
+            "role": "host",
+            "detail": "PROOF_LIFECYCLE_JOIN owner=1 epoch=1 seeded=1",
+            "observedUtc": "2026-10-17T01:20:46.2224898Z",
+            "scenarioElapsedSeconds": 10.581,
+            "remainingBudgetSeconds": 229.419,
+            "engineLogUtc": "2026.10.17-01.20.46:146"
+          },
+          {
+            "kind": "role-start-request",
+            "role": "owner2",
+            "detail": "127.0.0.1:55657",
+            "observedUtc": "2026-10-17T01:20:46.2227862Z",
+            "scenarioElapsedSeconds": 10.581,
+            "remainingBudgetSeconds": 229.419,
+            "engineLogUtc": ""
+          },
+          {
+            "kind": "role-process-started",
+            "role": "owner2",
+            "detail": "2026-10-17T01:20:46.2259488Z",
+            "observedUtc": "2026-10-17T01:20:46.2337056Z",
+            "scenarioElapsedSeconds": 10.592,
+            "remainingBudgetSeconds": 229.408,
+            "engineLogUtc": ""
+          },
+          {
+            "kind": "wait-marker",
+            "role": "host",
+            "detail": "PROOF_LIFECYCLE_JOIN owner=2 epoch=1 seeded=1",
+            "observedUtc": "2026-10-17T01:20:46.2344318Z",
+            "scenarioElapsedSeconds": 10.593,
+            "remainingBudgetSeconds": 229.407,
+            "engineLogUtc": ""
+          },
+          {
+            "kind": "marker-observed",
+            "role": "host",
+            "detail": "PROOF_LIFECYCLE_JOIN owner=2 epoch=1 seeded=1",
+            "observedUtc": "2026-10-17T01:20:53.583003Z",
+            "scenarioElapsedSeconds": 17.941,
+            "remainingBudgetSeconds": 222.059,
+            "engineLogUtc": "2026.10.17-01.20.53:505"
+          },
+          {
+            "kind": "wait-marker",
+            "role": "lead",
+            "detail": "PROOF_SNAPSHOT role=client owner=1 epoch=1 revision=\\d+ digest=[A-Za-z0-9]+",
+            "observedUtc": "2026-10-17T01:20:53.5830941Z",
+            "scenarioElapsedSeconds": 17.941,
+            "remainingBudgetSeconds": 222.059,
+            "engineLogUtc": ""
+          },
+          {
+            "kind": "marker-observed",
+            "role": "lead",
+            "detail": "PROOF_SNAPSHOT role=client owner=1 epoch=1 revision=\\d+ digest=[A-Za-z0-9]+",
+            "observedUtc": "2026-10-17T01:20:53.5945258Z",
+            "scenarioElapsedSeconds": 17.953,
+            "remainingBudgetSeconds": 222.047,
+            "engineLogUtc": "2026.10.17-01.20.46:181"
+          },
+          {
+            "kind": "wait-marker",
+            "role": "owner2",
+            "detail": "PROOF_SNAPSHOT role=client owner=2 epoch=1 revision=\\d+ digest=[A-Za-z0-9]+",
+            "observedUtc": "2026-10-17T01:20:53.5946013Z",
+            "scenarioElapsedSeconds": 17.953,
+            "remainingBudgetSeconds": 222.047,
+            "engineLogUtc": ""
+          },
+          {
+            "kind": "marker-observed",
+            "role": "owner2",
+            "detail": "PROOF_SNAPSHOT role=client owner=2 epoch=1 revision=\\d+ digest=[A-Za-z0-9]+",
+            "observedUtc": "2026-10-17T01:20:53.6042239Z",
+            "scenarioElapsedSeconds": 17.962,
+            "remainingBudgetSeconds": 222.038,
+            "engineLogUtc": "2026.10.17-01.20.53:542"
+          },
+          {
+            "kind": "wait-common-snapshots",
+            "role": "runner",
+            "detail": "epoch=1",
+            "observedUtc": "2026-10-17T01:20:53.6082817Z",
+            "scenarioElapsedSeconds": 17.966,
+            "remainingBudgetSeconds": 222.034,
+            "engineLogUtc": ""
+          },
+          {
+            "kind": "wait-marker",
+            "role": "host",
+            "detail": "PROOF_LIFECYCLE_LOGOUT owner=2 epoch=1",
+            "observedUtc": "2026-10-17T01:20:53.7961534Z",
+            "scenarioElapsedSeconds": 18.154,
+            "remainingBudgetSeconds": 221.846,
+            "engineLogUtc": ""
+          },
+          {
+            "kind": "marker-observed",
+            "role": "host",
+            "detail": "PROOF_LIFECYCLE_LOGOUT owner=2 epoch=1",
+            "observedUtc": "2026-10-17T01:20:54.0229346Z",
+            "scenarioElapsedSeconds": 18.381,
+            "remainingBudgetSeconds": 221.619,
+            "engineLogUtc": "2026.10.17-01.20.53:773"
+          },
+          {
+            "kind": "role-start-request",
+            "role": "rejoin",
+            "detail": "127.0.0.1:55657",
+            "observedUtc": "2026-10-17T01:20:54.0237799Z",
+            "scenarioElapsedSeconds": 18.382,
+            "remainingBudgetSeconds": 221.618,
+            "engineLogUtc": ""
+          },
+          {
+            "kind": "role-process-started",
+            "role": "rejoin",
+            "detail": "2026-10-17T01:20:54.027068Z",
+            "observedUtc": "2026-10-17T01:20:54.0346566Z",
+            "scenarioElapsedSeconds": 18.393,
+            "remainingBudgetSeconds": 221.607,
+            "engineLogUtc": ""
+          },
+          {
+            "kind": "wait-marker",
+            "role": "host",
+            "detail": "PROOF_LIFECYCLE_JOIN owner=2 epoch=1 seeded=0",
+            "observedUtc": "2026-10-17T01:20:54.0350351Z",
+            "scenarioElapsedSeconds": 18.393,
+            "remainingBudgetSeconds": 221.607,
+            "engineLogUtc": ""
+          },
+          {
+            "kind": "marker-observed",
+            "role": "host",
+            "detail": "PROOF_LIFECYCLE_JOIN owner=2 epoch=1 seeded=0",
+            "observedUtc": "2026-10-17T01:21:00.6048832Z",
+            "scenarioElapsedSeconds": 24.963,
+            "remainingBudgetSeconds": 215.037,
+            "engineLogUtc": "2026.10.17-01.21.00:403"
+          },
+          {
+            "kind": "role-start-request",
+            "role": "third",
+            "detail": "127.0.0.1:55657",
+            "observedUtc": "2026-10-17T01:21:00.6059869Z",
+            "scenarioElapsedSeconds": 24.964,
+            "remainingBudgetSeconds": 215.036,
+            "engineLogUtc": ""
+          },
+          {
+            "kind": "role-process-started",
+            "role": "third",
+            "detail": "2026-10-17T01:21:00.6104379Z",
+            "observedUtc": "2026-10-17T01:21:00.6162777Z",
+            "scenarioElapsedSeconds": 24.974,
+            "remainingBudgetSeconds": 215.026,
+            "engineLogUtc": ""
+          },
+          {
+            "kind": "wait-marker",
+            "role": "host",
+            "detail": "PROOF_LIFECYCLE_REJECT reason=full",
+            "observedUtc": "2026-10-17T01:21:00.6180189Z",
+            "scenarioElapsedSeconds": 24.976,
+            "remainingBudgetSeconds": 215.024,
+            "engineLogUtc": ""
+          },
+          {
+            "kind": "marker-observed",
+            "role": "host",
+            "detail": "PROOF_LIFECYCLE_REJECT reason=full",
+            "observedUtc": "2026-10-17T01:21:09.5290636Z",
+            "scenarioElapsedSeconds": 33.887,
+            "remainingBudgetSeconds": 206.113,
+            "engineLogUtc": "2026.10.17-01.21.09:491"
+          },
+          {
+            "kind": "wait-marker",
+            "role": "third",
+            "detail": "PROOF_LIFECYCLE_CLIENT_REJECT reason=full",
+            "observedUtc": "2026-10-17T01:21:09.5291514Z",
+            "scenarioElapsedSeconds": 33.887,
+            "remainingBudgetSeconds": 206.113,
+            "engineLogUtc": ""
+          },
+          {
+            "kind": "marker-observed",
+            "role": "third",
+            "detail": "PROOF_LIFECYCLE_CLIENT_REJECT reason=full",
+            "observedUtc": "2026-10-17T01:21:09.750904Z",
+            "scenarioElapsedSeconds": 34.109,
+            "remainingBudgetSeconds": 205.891,
+            "engineLogUtc": "2026.10.17-01.21.09:492"
+          },
+          {
+            "kind": "gate-written",
+            "role": "runner",
+            "detail": "play-epoch-1",
+            "observedUtc": "2026-10-17T01:21:09.7528897Z",
+            "scenarioElapsedSeconds": 34.111,
+            "remainingBudgetSeconds": 205.889,
+            "engineLogUtc": ""
+          },
+          {
+            "kind": "wait-marker",
+            "role": "host",
+            "detail": "PROOF_LIFECYCLE_TERMINAL epoch=1 winnerTeam=-?\\d+",
+            "observedUtc": "2026-10-17T01:21:09.752959Z",
+            "scenarioElapsedSeconds": 34.111,
+            "remainingBudgetSeconds": 205.889,
+            "engineLogUtc": ""
+          },
+          {
+            "kind": "marker-observed",
+            "role": "host",
+            "detail": "PROOF_LIFECYCLE_TERMINAL epoch=1 winnerTeam=-?\\d+",
+            "observedUtc": "2026-10-17T01:21:48.7722186Z",
+            "scenarioElapsedSeconds": 73.13,
+            "remainingBudgetSeconds": 166.87,
+            "engineLogUtc": "2026.10.17-01.21.48:527"
+          },
+          {
+            "kind": "wait-common-snapshots",
+            "role": "runner",
+            "detail": "epoch=1",
+            "observedUtc": "2026-10-17T01:21:48.776989Z",
+            "scenarioElapsedSeconds": 73.135,
+            "remainingBudgetSeconds": 166.865,
+            "engineLogUtc": ""
+          },
+          {
+            "kind": "wait-terminal-agreement",
+            "role": "runner",
+            "detail": "epoch=1 winner=1",
+            "observedUtc": "2026-10-17T01:21:48.8093901Z",
+            "scenarioElapsedSeconds": 73.168,
+            "remainingBudgetSeconds": 166.832,
+            "engineLogUtc": ""
+          },
+          {
+            "kind": "gate-written",
+            "role": "runner",
+            "detail": "rematch-epoch-1",
+            "observedUtc": "2026-10-17T01:21:48.8292746Z",
+            "scenarioElapsedSeconds": 73.187,
+            "remainingBudgetSeconds": 166.813,
+            "engineLogUtc": ""
+          },
+          {
+            "kind": "wait-marker",
+            "role": "host",
+            "detail": "PROOF_LIFECYCLE_REMATCH epoch=2",
+            "observedUtc": "2026-10-17T01:21:48.8293327Z",
+            "scenarioElapsedSeconds": 73.187,
+            "remainingBudgetSeconds": 166.813,
+            "engineLogUtc": ""
+          },
+          {
+            "kind": "marker-observed",
+            "role": "host",
+            "detail": "PROOF_LIFECYCLE_REMATCH epoch=2",
+            "observedUtc": "2026-10-17T01:21:49.1313024Z",
+            "scenarioElapsedSeconds": 73.489,
+            "remainingBudgetSeconds": 166.511,
+            "engineLogUtc": "2026.10.17-01.21.48:862"
+          },
+          {
+            "kind": "wait-marker",
+            "role": "host",
+            "detail": "PROOF_LIFECYCLE_RESEED owner=2 epoch=2 credits=350",
+            "observedUtc": "2026-10-17T01:21:49.1313824Z",
+            "scenarioElapsedSeconds": 73.49,
+            "remainingBudgetSeconds": 166.51,
+            "engineLogUtc": ""
+          },
+          {
+            "kind": "marker-observed",
+            "role": "host",
+            "detail": "PROOF_LIFECYCLE_RESEED owner=2 epoch=2 credits=350",
+            "observedUtc": "2026-10-17T01:21:49.1353255Z",
+            "scenarioElapsedSeconds": 73.493,
+            "remainingBudgetSeconds": 166.507,
+            "engineLogUtc": "2026.10.17-01.21.48:862"
+          },
+          {
+            "kind": "gate-written",
+            "role": "runner",
+            "detail": "stale-epoch-1",
+            "observedUtc": "2026-10-17T01:21:49.1377124Z",
+            "scenarioElapsedSeconds": 73.496,
+            "remainingBudgetSeconds": 166.504,
+            "engineLogUtc": ""
+          },
+          {
+            "kind": "wait-marker",
+            "role": "host",
+            "detail": "PROOF_LIFECYCLE_STALE_REJECT epoch=1 current=2 owner=1 sequence=1",
+            "observedUtc": "2026-10-17T01:21:49.1377652Z",
+            "scenarioElapsedSeconds": 73.496,
+            "remainingBudgetSeconds": 166.504,
+            "engineLogUtc": ""
+          },
+          {
+            "kind": "marker-observed",
+            "role": "host",
+            "detail": "PROOF_LIFECYCLE_STALE_REJECT epoch=1 current=2 owner=1 sequence=1",
+            "observedUtc": "2026-10-17T01:21:49.5538882Z",
+            "scenarioElapsedSeconds": 73.912,
+            "remainingBudgetSeconds": 166.088,
+            "engineLogUtc": "2026.10.17-01.21.49:161"
+          },
+          {
+            "kind": "wait-marker",
+            "role": "lead",
+            "detail": "PROOF_STALE_RECEIPT_IGNORED owner=1 epoch=1 current=2 sequence=1",
+            "observedUtc": "2026-10-17T01:21:49.5539772Z",
+            "scenarioElapsedSeconds": 73.912,
+            "remainingBudgetSeconds": 166.088,
+            "engineLogUtc": ""
+          },
+          {
+            "kind": "marker-observed",
+            "role": "lead",
+            "detail": "PROOF_STALE_RECEIPT_IGNORED owner=1 epoch=1 current=2 sequence=1",
+            "observedUtc": "2026-10-17T01:21:49.5665782Z",
+            "scenarioElapsedSeconds": 73.925,
+            "remainingBudgetSeconds": 166.075,
+            "engineLogUtc": "2026.10.17-01.21.49:162"
+          },
+          {
+            "kind": "gate-written",
+            "role": "runner",
+            "detail": "play-epoch-2",
+            "observedUtc": "2026-10-17T01:21:49.5676308Z",
+            "scenarioElapsedSeconds": 73.926,
+            "remainingBudgetSeconds": 166.074,
+            "engineLogUtc": ""
+          },
+          {
+            "kind": "wait-marker",
+            "role": "lead",
+            "detail": "PROOF_LIFECYCLE_CLIENT_RESULT owner=1 epoch=2 sequence=1 accepted=1 reason=accepted",
+            "observedUtc": "2026-10-17T01:21:49.5676866Z",
+            "scenarioElapsedSeconds": 73.926,
+            "remainingBudgetSeconds": 166.074,
+            "engineLogUtc": ""
+          },
+          {
+            "kind": "marker-observed",
+            "role": "lead",
+            "detail": "PROOF_LIFECYCLE_CLIENT_RESULT owner=1 epoch=2 sequence=1 accepted=1 reason=accepted",
+            "observedUtc": "2026-10-17T01:21:49.7832217Z",
+            "scenarioElapsedSeconds": 74.141,
+            "remainingBudgetSeconds": 165.859,
+            "engineLogUtc": "2026.10.17-01.21.49:598"
+          },
+          {
+            "kind": "wait-marker",
+            "role": "rejoin",
+            "detail": "PROOF_LIFECYCLE_CLIENT_RESULT owner=2 epoch=2 sequence=1 accepted=1 reason=accepted",
+            "observedUtc": "2026-10-17T01:21:49.7832986Z",
+            "scenarioElapsedSeconds": 74.141,
+            "remainingBudgetSeconds": 165.859,
+            "engineLogUtc": ""
+          },
+          {
+            "kind": "marker-observed",
+            "role": "rejoin",
+            "detail": "PROOF_LIFECYCLE_CLIENT_RESULT owner=2 epoch=2 sequence=1 accepted=1 reason=accepted",
+            "observedUtc": "2026-10-17T01:21:49.795835Z",
+            "scenarioElapsedSeconds": 74.154,
+            "remainingBudgetSeconds": 165.846,
+            "engineLogUtc": "2026.10.17-01.21.49:597"
+          },
+          {
+            "kind": "wait-marker",
+            "role": "host",
+            "detail": "PROOF_LIFECYCLE_TERMINAL epoch=2 winnerTeam=-?\\d+",
+            "observedUtc": "2026-10-17T01:21:49.7959259Z",
+            "scenarioElapsedSeconds": 74.154,
+            "remainingBudgetSeconds": 165.846,
+            "engineLogUtc": ""
+          },
+          {
+            "kind": "marker-observed",
+            "role": "host",
+            "detail": "PROOF_LIFECYCLE_TERMINAL epoch=2 winnerTeam=-?\\d+",
+            "observedUtc": "2026-10-17T01:22:34.4161224Z",
+            "scenarioElapsedSeconds": 118.774,
+            "remainingBudgetSeconds": 121.226,
+            "engineLogUtc": "2026.10.17-01.22.34:088"
+          },
+          {
+            "kind": "wait-common-snapshots",
+            "role": "runner",
+            "detail": "epoch=2",
+            "observedUtc": "2026-10-17T01:22:34.4198761Z",
+            "scenarioElapsedSeconds": 118.778,
+            "remainingBudgetSeconds": 121.222,
+            "engineLogUtc": ""
+          },
+          {
+            "kind": "wait-terminal-agreement",
+            "role": "runner",
+            "detail": "epoch=2 winner=1",
+            "observedUtc": "2026-10-17T01:22:34.4567285Z",
+            "scenarioElapsedSeconds": 118.815,
+            "remainingBudgetSeconds": 121.185,
+            "engineLogUtc": ""
+          },
+          {
+            "kind": "gate-written",
+            "role": "runner",
+            "detail": "rematch-epoch-2",
+            "observedUtc": "2026-10-17T01:22:34.5588039Z",
+            "scenarioElapsedSeconds": 118.917,
+            "remainingBudgetSeconds": 121.083,
+            "engineLogUtc": ""
+          },
+          {
+            "kind": "wait-marker",
+            "role": "host",
+            "detail": "PROOF_LIFECYCLE_REMATCH epoch=3",
+            "observedUtc": "2026-10-17T01:22:34.5588644Z",
+            "scenarioElapsedSeconds": 118.917,
+            "remainingBudgetSeconds": 121.083,
+            "engineLogUtc": ""
+          },
+          {
+            "kind": "marker-observed",
+            "role": "host",
+            "detail": "PROOF_LIFECYCLE_REMATCH epoch=3",
+            "observedUtc": "2026-10-17T01:22:34.7736839Z",
+            "scenarioElapsedSeconds": 119.132,
+            "remainingBudgetSeconds": 120.868,
+            "engineLogUtc": "2026.10.17-01.22.34:593"
+          },
+          {
+            "kind": "wait-marker",
+            "role": "host",
+            "detail": "PROOF_LIFECYCLE_RESEED owner=2 epoch=3 credits=350",
+            "observedUtc": "2026-10-17T01:22:34.7737744Z",
+            "scenarioElapsedSeconds": 119.132,
+            "remainingBudgetSeconds": 120.868,
+            "engineLogUtc": ""
+          },
+          {
+            "kind": "marker-observed",
+            "role": "host",
+            "detail": "PROOF_LIFECYCLE_RESEED owner=2 epoch=3 credits=350",
+            "observedUtc": "2026-10-17T01:22:34.7786679Z",
+            "scenarioElapsedSeconds": 119.137,
+            "remainingBudgetSeconds": 120.863,
+            "engineLogUtc": "2026.10.17-01.22.34:593"
+          },
+          {
+            "kind": "gate-written",
+            "role": "runner",
+            "detail": "play-epoch-3",
+            "observedUtc": "2026-10-17T01:22:34.7796023Z",
+            "scenarioElapsedSeconds": 119.138,
+            "remainingBudgetSeconds": 120.862,
+            "engineLogUtc": ""
+          },
+          {
+            "kind": "wait-marker",
+            "role": "lead",
+            "detail": "PROOF_LIFECYCLE_CLIENT_RESULT owner=1 epoch=3 sequence=1 accepted=1 reason=accepted",
+            "observedUtc": "2026-10-17T01:22:34.7796501Z",
+            "scenarioElapsedSeconds": 119.138,
+            "remainingBudgetSeconds": 120.862,
+            "engineLogUtc": ""
+          },
+          {
+            "kind": "marker-observed",
+            "role": "lead",
+            "detail": "PROOF_LIFECYCLE_CLIENT_RESULT owner=1 epoch=3 sequence=1 accepted=1 reason=accepted",
+            "observedUtc": "2026-10-17T01:22:35.0058791Z",
+            "scenarioElapsedSeconds": 119.364,
+            "remainingBudgetSeconds": 120.636,
+            "engineLogUtc": "2026.10.17-01.22.34:795"
+          },
+          {
+            "kind": "wait-marker",
+            "role": "rejoin",
+            "detail": "PROOF_LIFECYCLE_CLIENT_RESULT owner=2 epoch=3 sequence=1 accepted=1 reason=accepted",
+            "observedUtc": "2026-10-17T01:22:35.0059585Z",
+            "scenarioElapsedSeconds": 119.364,
+            "remainingBudgetSeconds": 120.636,
+            "engineLogUtc": ""
+          },
+          {
+            "kind": "marker-observed",
+            "role": "rejoin",
+            "detail": "PROOF_LIFECYCLE_CLIENT_RESULT owner=2 epoch=3 sequence=1 accepted=1 reason=accepted",
+            "observedUtc": "2026-10-17T01:22:35.019122Z",
+            "scenarioElapsedSeconds": 119.377,
+            "remainingBudgetSeconds": 120.623,
+            "engineLogUtc": "2026.10.17-01.22.34:794"
+          },
+          {
+            "kind": "wait-common-snapshots",
+            "role": "runner",
+            "detail": "epoch=3",
+            "observedUtc": "2026-10-17T01:22:35.0192077Z",
+            "scenarioElapsedSeconds": 119.377,
+            "remainingBudgetSeconds": 120.623,
+            "engineLogUtc": ""
+          },
+          {
+            "kind": "gate-written",
+            "role": "runner",
+            "detail": "finish",
+            "observedUtc": "2026-10-17T01:22:35.0568908Z",
+            "scenarioElapsedSeconds": 119.415,
+            "remainingBudgetSeconds": 120.585,
+            "engineLogUtc": ""
+          },
+          {
+            "kind": "wait-marker",
+            "role": "host",
+            "detail": "PROOF_LIFECYCLE_COMPLETE role=host status=pass",
+            "observedUtc": "2026-10-17T01:22:35.0572405Z",
+            "scenarioElapsedSeconds": 119.415,
+            "remainingBudgetSeconds": 120.585,
+            "engineLogUtc": ""
+          },
+          {
+            "kind": "marker-observed",
+            "role": "host",
+            "detail": "PROOF_LIFECYCLE_COMPLETE role=host status=pass",
+            "observedUtc": "2026-10-17T01:22:35.2717868Z",
+            "scenarioElapsedSeconds": 119.63,
+            "remainingBudgetSeconds": 120.37,
+            "engineLogUtc": "2026.10.17-01.22.35:063"
+          },
+          {
+            "kind": "wait-marker",
+            "role": "lead",
+            "detail": "PROOF_LIFECYCLE_CLIENT_COMPLETE role=lead status=pass",
+            "observedUtc": "2026-10-17T01:22:35.2718746Z",
+            "scenarioElapsedSeconds": 119.63,
+            "remainingBudgetSeconds": 120.37,
+            "engineLogUtc": ""
+          },
+          {
+            "kind": "marker-observed",
+            "role": "lead",
+            "detail": "PROOF_LIFECYCLE_CLIENT_COMPLETE role=lead status=pass",
+            "observedUtc": "2026-10-17T01:22:35.2849034Z",
+            "scenarioElapsedSeconds": 119.643,
+            "remainingBudgetSeconds": 120.357,
+            "engineLogUtc": "2026.10.17-01.22.35:055"
+          },
+          {
+            "kind": "wait-marker",
+            "role": "rejoin",
+            "detail": "PROOF_LIFECYCLE_CLIENT_COMPLETE role=rejoin status=pass",
+            "observedUtc": "2026-10-17T01:22:35.2850175Z",
+            "scenarioElapsedSeconds": 119.643,
+            "remainingBudgetSeconds": 120.357,
+            "engineLogUtc": ""
+          },
+          {
+            "kind": "marker-observed",
+            "role": "rejoin",
+            "detail": "PROOF_LIFECYCLE_CLIENT_COMPLETE role=rejoin status=pass",
+            "observedUtc": "2026-10-17T01:22:35.2973294Z",
+            "scenarioElapsedSeconds": 119.655,
+            "remainingBudgetSeconds": 120.345,
+            "engineLogUtc": "2026.10.17-01.22.35:056"
+          },
+          {
+            "kind": "wait-marker",
+            "role": "third",
+            "detail": "PROOF_LIFECYCLE_CLIENT_COMPLETE role=third status=pass",
+            "observedUtc": "2026-10-17T01:22:35.2974006Z",
+            "scenarioElapsedSeconds": 119.656,
+            "remainingBudgetSeconds": 120.344,
+            "engineLogUtc": ""
+          },
+          {
+            "kind": "marker-observed",
+            "role": "third",
+            "detail": "PROOF_LIFECYCLE_CLIENT_COMPLETE role=third status=pass",
+            "observedUtc": "2026-10-17T01:22:35.3000378Z",
+            "scenarioElapsedSeconds": 119.658,
+            "remainingBudgetSeconds": 120.342,
+            "engineLogUtc": "2026.10.17-01.21.09:492"
+          },
+          {
+            "kind": "wait-exit",
+            "role": "runner",
+            "detail": "host,lead,rejoin,third",
+            "observedUtc": "2026-10-17T01:22:35.3021219Z",
+            "scenarioElapsedSeconds": 119.66,
+            "remainingBudgetSeconds": 120.34,
+            "engineLogUtc": ""
+          }
+        ]
+      }
+    },
+    {
+      "run": "small-match-victory-20261017-012236-307",
+      "head": "2470a5821d6dabcb9d27cd79720a6bc21f466630",
+      "dirty": false,
+      "passed": true,
+      "totalSeconds": 66.818,
+      "scenarioSeconds": 66.665,
+      "timeoutSeconds": 240,
+      "rawResultSha256": "45146B3ACB418DE9A2775FC87F80A9E4ABA596BFD08E8428EB7E9147CBCFF4C6",
+      "error": null,
+      "cleanupErrors": [],
+      "render": {
+        "realViewport": true,
+        "offscreen": true,
+        "width": 1280,
+        "height": 720,
+        "optimizedShaders": 1,
+        "targetFPS": 30
+      },
+      "cleanPresentation": true,
+      "screenshots": [
+        {
+          "name": "01-base.png",
+          "width": 1280,
+          "height": 720,
+          "bytes": 812427,
+          "sha256": "2AB66CF05C69ADE290D5F4CF7B4BF4B76D44612D8233AD0241E1980B07BA8CD8"
+        },
+        {
+          "name": "02-result.png",
+          "width": 1280,
+          "height": 720,
+          "bytes": 808383,
+          "sha256": "EC3A1518BDF7EF57C8C0D1EE35730821C93167B42155B37ADEBFF425D1E4D6FA"
+        }
+      ],
+      "actualWinner": 0,
+      "allSixLoopFlags": 1
+    },
+    {
+      "run": "small-match-victory-20261017-012343-136",
+      "head": "2470a5821d6dabcb9d27cd79720a6bc21f466630",
+      "dirty": false,
+      "passed": true,
+      "totalSeconds": 64.435,
+      "scenarioSeconds": 64.319,
+      "timeoutSeconds": 240,
+      "rawResultSha256": "F952334B1C34263C6884E3CE7B1CFA7CDE5C29AD55322069170368056535A91F",
+      "error": null,
+      "cleanupErrors": [],
+      "render": {
+        "realViewport": true,
+        "offscreen": true,
+        "width": 960,
+        "height": 540,
+        "optimizedShaders": 1,
+        "targetFPS": 30
+      },
+      "cleanPresentation": true,
+      "screenshots": [
+        {
+          "name": "01-base.png",
+          "width": 960,
+          "height": 540,
+          "bytes": 427766,
+          "sha256": "6D37D47CF4B7308DC857D48EB1AFCB26F012C8E9292FC1A0E86278ED2498F365"
+        },
+        {
+          "name": "02-result.png",
+          "width": 960,
+          "height": 540,
+          "bytes": 424750,
+          "sha256": "119F2CD56E7722D2A83FACB0FD0C07759D3CFD1B481B7AF70D7D6D56647A9E82"
+        }
+      ],
+      "actualWinner": 0,
+      "allSixLoopFlags": 1
+    }
+  ],
+  "capturesInspected": [
+    "1280/01-base",
+    "1280/02-result",
+    "960/01-base",
+    "960/02-result"
+  ],
+  "review": "Independent evidence and full issue-acceptance audit found no blocker to scoped integration",
+  "failuresThisBatch": 0,
+  "automaticRetries": 0,
+  "sourceFixesDuringBatch": 0,
+  "deadlineExtensions": 0,
+  "slotReleased": true,
+  "ownedUEProcessesRemaining": 0,
+  "limits": [
+    "Dense overlap/edge-case readability remains18",
+    "Earlier main timeout retained and startup cause unresolved33",
+    "Model/Victory/Defeat/Coop/native/controls/ingress evidence at4fd retained separately; not rerun here",
+    "No physical input/focus, final art, Internet or performance acceptance"
+  ]
+}

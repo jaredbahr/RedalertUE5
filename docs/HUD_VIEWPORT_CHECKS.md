@@ -1,12 +1,12 @@
 # Pending HUD viewport and dense-overlap checks
 
-Prepared fixture support only; no new engine build or render has run on this revision. Historical `8dc1f9f` build/1280 evidence remains in [HUD_MARKER_ANCHORS.md](HUD_MARKER_ANCHORS.md). The three anchor corrections remain exactly three `bScalePosition=false` changes; the new pawn/runner changes only allow an explicit second fixture viewport.
+This protocol was prepared before runtime execution, then completed once at clean 2470a582. Both viewport presets passed; see HUD_DIAGNOSTICS_VALIDATION.md. Historical `8dc1f9f` build/1280 evidence remains in [HUD_MARKER_ANCHORS.md](HUD_MARKER_ANCHORS.md). The three anchor corrections remain exactly three `bScalePosition=false` changes; the new pawn/runner changes only allow an explicit second fixture viewport.
 
 The runner accepts `-Viewport 1280x720` (unchanged default) or `-Viewport 960x540`. It passes that contract to the pawn, waits for the actual configured viewport, and checks both PNG dimensions. Any other preset is rejected; direct unsupported fixture arguments fail the fixture. This does not declare a minimum supported product resolution.
 
-## One pending bounded batch
+## Prepared bounded batch (completed once)
 
-Imagination owns the heavy-test slot during preparation. Run nothing until the slot is handed back. On a clean reviewed candidate with existing ignored assets, perform one build with MaxParallelActions=1, then exactly one existing Victory run per preset, serialized:
+During preparation Imagination owned the heavy slot. The batch waited for its explicit handoff, then ran once and released the slot on owned-process exit. These commands are retained protocol, not a new run request. The completed batch used a clean reviewed candidate with existing ignored assets, one build with MaxParallelActions=1, then exactly one existing Victory run per preset, serialized:
 
     .\unreal\Scripts\build-native-proof.ps1
     .\unreal\Scripts\test-small-match.ps1 -Scenario Victory -Viewport 1280x720 -TimeoutSeconds 240 -CleanPresentation
@@ -32,4 +32,4 @@ The previous 1280 images still show overlapping labels in dense clusters. This p
 
 Human input/focus, final art/scale, Internet behavior and performance remain outside these captures. No new performance or army-size claim follows from the two presets.
 
-Preparation checks completed: independent source review; PowerShell syntax; parameter-only probes for default 1280x720, 960x540 and uppercase 960X540 normalized to the same dimensions; unsupported 800x600 rejected. The existing 240-second default was preserved. These checks launch no engine and do not compile or validate the current C++ fixture changes.
+Preparation checks completed: independent source review; PowerShell syntax; parameter-only probes for default 1280x720, 960x540 and uppercase 960X540 normalized to the same dimensions; unsupported 800x600 rejected. The existing 240-second default was preserved. Those preparation checks launched no engine. The subsequent candidate batch compiled the fixture and ran both presets; exact results and retained readability limits are in HUD_DIAGNOSTICS_VALIDATION.md.
