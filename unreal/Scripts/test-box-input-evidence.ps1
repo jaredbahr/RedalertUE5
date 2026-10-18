@@ -63,11 +63,12 @@ function Transcript([int]$DuplicateCallbacks=2){
     $events.Add(@{time=9999;priority=0;tag='PROOF_BOX_FINISH';row=[ordered]@{passed=1;cases=31;elapsed=110;reason='bounded-diagnostic-cases-complete';unverified='real-pointer,physical-focus,capture,lost-release-occurrence,gameplay';population='diagnostic-over-cap'}})
     return (($events|Sort-Object time,priority|ForEach-Object {Line $_.tag $_.row}) -join "`n")
 }
-function Check([string]$Name,[scriptblock]$Body,[bool]$Reject=$false){
+function Check([string]$Name,[scriptblock]$Body,[bool]$Reject=$false,[string]$ExpectedError=''){
     if($watch.Elapsed.TotalSeconds -ge 90){throw 'Pure preflight90-second bound exceeded'}
     $errorText=$null;$accepted=$false
     try{& $Body|Out-Null;$accepted=$true}catch{$errorText=$_.Exception.Message}
     $passed=if($Reject){-not $accepted}else{$accepted}
+    if($ExpectedError -and $errorText -cnotlike ($ExpectedError+'*')){$passed=$false}
     $checks.Add(@{name=$Name;passed=$passed;rejected= -not $accepted;error=$errorText})
     if(-not $passed){throw ('Preflight failed: '+$Name+' '+$errorText)}
 }
@@ -75,6 +76,27 @@ $positive=Transcript 2;$normalized=Transcript 1
 $positive|Set-Content -LiteralPath (Join-Path $OutputDirectory 'synthetic-positive.log') -Encoding utf8
 Check 'positive-complete302records' {Check-Oracle $positive $images}
 Check 'positive-normalized-duplicate-edges' {Check-Oracle $normalized $images}
+$ueTimestamp=($positive.Split("`n")|ForEach-Object {'[2026.10.18-20.13.33:131][854]LogTemp: Display: '+$_}) -join "`n"
+Check 'positive-UE-timestamp-frame-prefix' {Check-Oracle $ueTimestamp $images}
+$uePlain=($positive.Split("`n")|ForEach-Object {'LogTemp: Display: '+$_}) -join "`n"
+Check 'positive-UE-plain-prefix-shutdown' {Check-Oracle ($uePlain+"`nLogExit: Exiting.") $images}
+$lines=@($positive.Split("`n"))
+$embedded='NOT'+$positive
+Check 'embedded-NOTPROOF_BOX-rejected' {Check-Oracle $embedded $images} $true 'Evidence tag has an invalid line/prefix boundary'
+$finishFirst=(@($lines[-1])+@($lines[0..($lines.Count-2)])) -join "`n"
+Check 'FINISH-first-rejected' {Check-Oracle $finishFirst $images} $true 'Diagnostic stream order mismatch'
+$resultLine=@($lines|Where-Object {$_ -like 'PROOF_BOX_RESULT case=0 *'})[0]
+$resultFirst=(@($resultLine)+@($lines|Where-Object {$_ -cne $resultLine})) -join "`n"
+Check 'result-before-actions-rejected' {Check-Oracle $resultFirst $images} $true 'Diagnostic stream order mismatch'
+$hudLine=@($lines|Where-Object {$_ -like 'PROOF_BOX_HUD *'})[0]
+$hudAfter=(@($lines|Where-Object {$_ -cne $hudLine})+@($hudLine)) -join "`n"
+Check 'HUD-after-FINISH-rejected' {Check-Oracle $hudAfter $images} $true 'Diagnostic stream order mismatch'
+foreach($finishMutation in @(@('reason','failed'),@('elapsed','NaN'),@('elapsed','-1'),@('elapsed','220'),@('unverified','none'),@('population','gameplay'))){
+    $badFinish=[regex]::Replace($lines[-1],'(?<!\S)'+$finishMutation[0]+'=\S+',$finishMutation[0]+'='+$finishMutation[1])
+    if($badFinish -ceq $lines[-1]){throw 'Finish mutation did not apply'}
+    $bad=(@($lines[0..($lines.Count-2)])+@($badFinish)) -join "`n"
+    Check ('finish-'+$finishMutation[0]+'-'+$finishMutation[1]+'-rejected') {Check-Oracle $bad $images} $true 'Contradictory terminal finish metadata'
+}
 $mutations=@(
     @('owner-stimulus-absent',15,'sampled','owner','1'),@('epoch-stimulus-absent',16,'sampled','epoch','7'),@('phase-stimulus-absent',17,'sampled','matchPhase','1'),
     @('resize-stimulus-absent',14,'resized','width','1280'),@('resize-restoration-absent',14,'before-release','height','540'),

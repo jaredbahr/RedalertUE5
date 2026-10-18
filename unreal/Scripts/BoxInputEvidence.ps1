@@ -1,6 +1,6 @@
 # Pure diagnostic evidence validation. Dot-sourcing never starts a process or
 # queries machine load. The independent preflight uses synthetic records only.
-function Read-Rows([string]$Text,[string]$Tag) {
+function Read-BoxRow([string]$Tag,[string]$Fields) {
     $schema=switch($Tag){
         'PROOF_BOX_SEED' {'id,owner,kind,hp,x,y,digest,population'}
         'PROOF_BOX_EDGE' {'case,key,pressed,frame,processedFrame,device,user,handled,ready,focus,foreground,injectedPress,injectedRelease,inputSource,pointerSource,physicalInput'}
@@ -11,24 +11,86 @@ function Read-Rows([string]$Text,[string]$Tag) {
         default {throw 'Unknown evidence tag'}
     }
     $keys=$schema.Split(',')
-    $rows=@()
-    foreach($match in [regex]::Matches($Text,([regex]::Escape($Tag)+' ([^\r\n]+)'))){
-        if($match.Groups[1].Value.Length -gt 4096 -or $match.Groups[1].Value -match '[^\x20-\x7E]' -or $match.Groups[1].Value -notmatch '^(?:[A-Za-z][A-Za-z0-9]*=(?:\[[^\]]*\]|\S+))(?: [A-Za-z][A-Za-z0-9]*=(?:\[[^\]]*\]|\S+))*$'){throw 'Malformed evidence row'}
+        if($Fields.Length -gt 4096 -or $Fields -match '[^\x20-\x7E]' -or $Fields -notmatch '^(?:[A-Za-z][A-Za-z0-9]*=(?:\[[^\]]*\]|\S+))(?: [A-Za-z][A-Za-z0-9]*=(?:\[[^\]]*\]|\S+))*$'){throw 'Malformed evidence row'}
         $row=[ordered]@{}
-        foreach($field in [regex]::Matches($match.Groups[1].Value,'([A-Za-z][A-Za-z0-9]*)=(\[[^\]]*\]|\S+)')){
+        foreach($field in [regex]::Matches($Fields,'([A-Za-z][A-Za-z0-9]*)=(\[[^\]]*\]|\S+)')){
             if($row.Contains($field.Groups[1].Value) -or $field.Groups[1].Value -cnotin $keys){throw 'Duplicate/unknown evidence key'}
             $row[$field.Groups[1].Value]=$field.Groups[2].Value
         }
         if($row.Count -ne $keys.Count){throw 'Missing evidence key'}
-        $rows+=,$row
+    return $row
+}
+function Read-Rows($Stream,[string]$Tag) {
+    return @($Stream|Where-Object {$_.Tag -ceq $Tag}|ForEach-Object {$_.Row})
+}
+function Read-BoxRecordStream([string]$Text) {
+    # Only bare records or the actual UE LogTemp prefix are evidence. Other UE
+    # messages may occur between records, including normal shutdown after FINISH.
+    $prefix='(?:\[\d{4}\.\d{2}\.\d{2}-\d{2}\.\d{2}\.\d{2}:\d{3}\])?(?:\[\s*\d+\])?LogTemp:\s*(?:Display|Warning|Error):\s*'
+    $pattern='^(?:'+$prefix+')?(?<tag>PROOF_BOX_[A-Z_]+) (?<fields>[^\r\n]+)$'
+    $records=[Collections.Generic.List[object]]::new()
+    foreach($line in [regex]::Split($Text,'\r?\n')){
+        if(-not $line.Contains('PROOF_BOX_')){continue}
+        $match=[regex]::Match($line,$pattern)
+        if(-not $match.Success){throw 'Evidence tag has an invalid line/prefix boundary'}
+        $tag=$match.Groups['tag'].Value
+        $records.Add(@{Tag=$tag;Row=(Read-BoxRow $tag $match.Groups['fields'].Value)})
     }
-    return $rows
+    return $records.ToArray()
+}
+function Assert-BoxRecordOrder($Stream) {
+    $expected=[Collections.Generic.List[string]]::new()
+    foreach($id in 1..19){$expected.Add('S:'+ $id)}
+    foreach($case in 0..30){
+        $steps=if($case -in 19..27){
+            $key=@('One','Two','Three','Four','Five','Six','Seven','Eight','Nine')[$case-19]
+            "O:baseline,E:LeftControl1,E:${key}1,E:${key}0,E:LeftControl0,E:LeftMouseButton1,E:LeftMouseButton0,E:${key}1,E:${key}0,O:key-regression,R"
+        }elseif($case -eq 28){'O:baseline,E:T1,O:type-first,E:T0,O:key-regression,R'
+        }elseif($case -eq 29){'O:baseline,E:T1,O:type-first,E:T0,E:T1,E:T0,O:key-regression,R'
+        }elseif($case -eq 30){'O:baseline,E:RightMouseButton1,E:RightMouseButton0,O:key-regression,R'
+        }else{
+            $begin='O:baseline,'+$(if($case -in @(7,10)){'E:LeftShift1,'}else{''})+'E:LeftMouseButton1,O:pressed,'
+            $begin+= $(if($case -eq 7){'E:LeftShift0,'}elseif($case -eq 8){'E:LeftShift1,'}else{''})
+            $body=if($case -in @(0,1)){''}elseif($case -in @(2,3)){'O:capture-request,H,O:capture-complete,O:sampled,O:before-release,'}elseif($case -eq 14){'O:resized,O:before-release,'}elseif($case -eq 18){'O:sampled,E:LeftMouseButton1,O:before-release,'}else{'O:sampled,O:before-release,'}
+            $begin+$body+'E:LeftMouseButton0,O:released,R'+$(if($case -in @(8,10)){',E:LeftShift0'}elseif($case -eq 18){',E:LeftMouseButton0,O:duplicate-released,R'}else{''})
+        }
+        foreach($step in $steps.Split(',')){
+            if($step -ceq 'H'){$expected.Add('H')}
+            elseif($step -ceq 'R'){$expected.Add("R:${case}")}
+            else{$part=$step.Split(':');$expected.Add($part[0]+':'+$case+':'+$part[1])}
+        }
+    }
+    $expected.Add('F')
+    if($Stream.Count -ne $expected.Count){throw 'Ordered stream cardinality mismatch'}
+    for($index=0;$index -lt $Stream.Count;$index++){
+        $record=$Stream[$index];$row=$record.Row
+        $actual=switch($record.Tag){
+            'PROOF_BOX_SEED' {'S:'+$row.id}
+            'PROOF_BOX_EDGE' {'E:'+$row.case+':'+$row.key+$row.pressed}
+            'PROOF_BOX_OBSERVE' {'O:'+$row.case+':'+$row.phase}
+            'PROOF_BOX_RESULT' {'R:'+$row.case}
+            'PROOF_BOX_HUD' {'H'}
+            'PROOF_BOX_FINISH' {'F'}
+            default {throw 'Unrecognized ordered record'}
+        }
+        if($actual -cne $expected[$index]){throw "Diagnostic stream order mismatch at record$index"}
+    }
+}
+function Assert-BoxFinish($Finish) {
+    $elapsed=[double]0
+    if($Finish.passed -cne '1' -or $Finish.cases -cne '31' -or $Finish.reason -cne 'bounded-diagnostic-cases-complete' -or
+        $Finish.population -cne 'diagnostic-over-cap' -or $Finish.unverified -cne 'real-pointer,physical-focus,capture,lost-release-occurrence,gameplay' -or
+        -not [double]::TryParse($Finish.elapsed,[Globalization.NumberStyles]::Float,[Globalization.CultureInfo]::InvariantCulture,[ref]$elapsed) -or
+        -not [double]::IsFinite($elapsed) -or $elapsed -lt 0 -or $elapsed -ge 220){throw 'Contradictory terminal finish metadata'}
 }
 function Check-Oracle([string]$Text,[string]$Images) {
     if($Text.Length -gt 16MB){throw 'Oversized diagnostic log'}
-    $finish=@(Read-Rows $Text 'PROOF_BOX_FINISH')
+    $stream=@(Read-BoxRecordStream $Text)
+    Assert-BoxRecordOrder $stream
+    $finish=@(Read-Rows $stream 'PROOF_BOX_FINISH')
+    Assert-BoxFinish $finish[0]
     if($finish.Count -ne 1 -or $finish[0].passed -cne '1' -or $finish[0].cases -cne '31'){throw 'Missing complete successful fixture'}
-    $observed=@(Read-Rows $Text 'PROOF_BOX_OBSERVE');$outcomes=@(Read-Rows $Text 'PROOF_BOX_RESULT');$seeds=@(Read-Rows $Text 'PROOF_BOX_SEED');$edges=@(Read-Rows $Text 'PROOF_BOX_EDGE')
+    $observed=@(Read-Rows $stream 'PROOF_BOX_OBSERVE');$outcomes=@(Read-Rows $stream 'PROOF_BOX_RESULT');$seeds=@(Read-Rows $stream 'PROOF_BOX_SEED');$edges=@(Read-Rows $stream 'PROOF_BOX_EDGE')
     if($observed.Count -gt 150 -or $outcomes.Count -ne 32 -or $seeds.Count -ne 19){throw 'Unexpected evidence cardinality'}
     if($edges.Count -ne 126){throw 'Exact126 injected edge records required'}
     for($index=0;$index -lt 19;$index++){
@@ -81,7 +143,7 @@ function Check-Oracle([string]$Text,[string]$Images) {
             if([uint64]$duplicate.processedFrame -le [uint64]$caseEdges[-1].frame -or $duplicate.ids -cne $a.ids -or $duplicate.primary -cne $a.primary -or $duplicate.revision -cne $a.revision -or $duplicate.nativePress -cne $a.nativePress -or ([int]$duplicate.nativeRelease-[int]$b.nativeRelease) -notin @(1,2) -or $duplicate.armed -cne '0' -or $duplicate.leftDown -cne '0'){throw 'Duplicate release changed selection or lacks processed-edge evidence'}
         }
     }
-    $hud=@(Read-Rows $Text 'PROOF_BOX_HUD')
+    $hud=@(Read-Rows $stream 'PROOF_BOX_HUD')
     if($hud.Count -ne 2 -or @($hud|Where-Object {$_.drawn -cne '1' -or $_.physicalInput -cne 'false'}).Count){throw 'Exact two drawn outline capture rows required'}
     foreach($case in @(2,3)){
         $request=@($observed|Where-Object {$_.case -ceq [string]$case -and $_.phase -ceq 'capture-request'})[0]
