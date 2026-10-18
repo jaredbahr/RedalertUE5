@@ -7,6 +7,11 @@
 #include "Presentation/ProofUnitViewGrounding.h"
 #include <limits>
 
+// Keep the numerical oracle meaningful under the module's /fp:fast setting.
+#if defined(_MSC_VER)
+#pragma float_control(precise, on, push)
+#endif
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FProofUnitViewFacingTest, "RedalertProof.Controls.UnitViewFacing",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FProofUnitViewFacingTest::RunTest(const FString&)
@@ -85,9 +90,31 @@ bool FProofUnitViewFacingTest::RunTest(const FString&)
 
     const double Tiny = std::numeric_limits<double>::denorm_min();
     const double Huge = std::numeric_limits<double>::max();
-    TestTrue(TEXT("Subnormal vectors retain usable directions without reciprocal overflow"),
-        Delta(FVector(0.0, Tiny, 0.0), FVector(Tiny, 0.0, 0.0), Radians)
-        && FMath::Abs(Radians + Pi / 2.0) < Tolerance);
+    volatile double RuntimeTiny = Tiny;
+    if (RuntimeTiny != 0.0)
+    {
+        TestTrue(TEXT("Usable subnormal vectors retain cardinal direction without reciprocal overflow"),
+            Delta(FVector(0.0, Tiny, 0.0), FVector(Tiny, 0.0, 0.0), Radians)
+            && FMath::Abs(Radians + Pi / 2.0) < Tolerance);
+        TestTrue(TEXT("Usable subnormal vectors retain diagonal direction without reciprocal overflow"),
+            Delta(FVector(Tiny, Tiny, 0.0), FVector(-Tiny, Tiny, 0.0), Radians)
+            && FMath::Abs(Radians - Pi / 2.0) < Tolerance);
+    }
+    else
+    {
+        // DAZ may make the input compare as zero. Do not change native FP mode.
+        Radians = 123.0;
+        TestTrue(TEXT("Effective-zero subnormal input rejects and clears the angle"),
+            !Delta(FVector(0.0, Tiny, 0.0), FVector(Tiny, 0.0, 0.0), Radians)
+            && Radians == 0.0 && !std::signbit(Radians));
+    }
+    const double MinimumNormal = std::numeric_limits<double>::min();
+    for (const double Small : {MinimumNormal, 1.e-200})
+    {
+        TestTrue(TEXT("Nonzero small normal vectors retain direction when original squaring underflows"),
+            Delta(FVector(Small, 2.0 * Small, 0.0), FVector(-2.0 * Small, Small, 0.0), Radians)
+            && FMath::Abs(Radians - Pi / 2.0) < Tolerance);
+    }
     TestTrue(TEXT("Extreme finite vectors do not overflow normalization"),
         Delta(FVector(Huge, Huge, Huge), FVector(-Huge, Huge, 0.0), Radians)
         && FMath::Abs(Radians - Pi / 2.0) < Tolerance);
@@ -111,4 +138,7 @@ bool FProofUnitViewFacingTest::RunTest(const FString&)
     }
     return true;
 }
+#if defined(_MSC_VER)
+#pragma float_control(pop)
+#endif
 #endif

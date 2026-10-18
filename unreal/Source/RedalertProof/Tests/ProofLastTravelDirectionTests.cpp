@@ -2,7 +2,15 @@
 #include "Misc/AutomationTest.h"
 #include "Commands/ProofCommandModel.h"
 #include <cmath>
+#include <cstdint>
+#include <cstring>
 #include <limits>
+
+// Keep the oracle and all test expressions precise even when the native target
+// uses /fp:fast. This never changes the executing thread's floating-point mode.
+#if defined(_MSC_VER)
+#pragma float_control(precise, on, push)
+#endif
 
 // Synthetic numeric and saturation boundaries only. Travel, orders, damage,
 // economy, production and lifecycle cases execute the production model.
@@ -53,6 +61,52 @@ int32 TravelKind(const FProofSnapshot& Snapshot, int32 Owner, EProofUnitKind Kin
 bool TravelNear(const FVector& A, const FVector& B)
 {
     return std::abs(A.X - B.X) <= 1.e-12 && std::abs(A.Y - B.Y) <= 1.e-12 && A.Z == B.Z;
+}
+std::uint64_t TravelBits(double Value)
+{
+    std::uint64_t Bits;
+    static_assert(sizeof(Bits) == sizeof(Value), "binary64 scalar oracle required");
+    std::memcpy(&Bits, &Value, sizeof(Bits));
+    return Bits;
+}
+bool TravelBitsEqual(const FVector& A, const FVector& B)
+{
+    return TravelBits(A.X) == TravelBits(B.X) && TravelBits(A.Y) == TravelBits(B.Y)
+        && TravelBits(A.Z) == TravelBits(B.Z);
+}
+// The analytic oracle allows only two binary64 ULPs for irrational
+// components, never an epsilon-based movement cutoff or an arbitrary axis.
+bool TravelWithinTwoUlps(double Actual, double Expected)
+{
+    if (!std::isfinite(Actual) || Actual == 0.0 || std::signbit(Actual) != std::signbit(Expected)) { return false; }
+    const std::uint64_t A = TravelBits(Actual), E = TravelBits(Expected);
+    return (A > E ? A - E : E - A) <= 2;
+}
+bool TravelAnalyticComponent(double Actual, double Expected)
+{
+    // Cardinals and zero components (including their signs) are exact.
+    if (Expected == 0.0 || std::abs(Expected) == 1.0) { return TravelBits(Actual) == TravelBits(Expected); }
+    return TravelWithinTwoUlps(Actual, Expected);
+}
+bool TravelAnalyticMatches(const FVector& Actual, const FVector& Expected)
+{
+    return TravelAnalyticComponent(Actual.X, Expected.X) && TravelAnalyticComponent(Actual.Y, Expected.Y)
+        && TravelBits(Actual.Z) == TravelBits(Expected.Z);
+}
+// Read both operands and store both results at runtime. In particular, do not
+// simplify subtraction from zero into a copy: FTZ can change that subtraction.
+// The comparisons also run in the active mode; DAZ can treat nonzero bits as zero.
+FVector TravelComputedDelta(const FVector& Before, const FVector& After)
+{
+    volatile double BeforeX = Before.X, BeforeY = Before.Y;
+    volatile double AfterX = After.X, AfterY = After.Y;
+    volatile double X = AfterX - BeforeX, Y = AfterY - BeforeY;
+    return FVector(X, Y, 0.0);
+}
+bool TravelHasComputedDelta(const FVector& Delta)
+{
+    volatile double X = Delta.X, Y = Delta.Y;
+    return X != 0.0 || Y != 0.0;
 }
 // Independent ordinary-world oracle: hypot rather than the production rescale.
 bool TravelMatchesActual(const FProofUnitRecord& Before, const FProofUnitRecord& After)
@@ -181,6 +235,36 @@ bool FProofLastTravelDirectionTest::RunTest(const FString&)
         Model.Advance(10.f);
         TestTrue(TEXT("skirmish normal endpoint is exact"), TravelUnit(Model.GetSnapshot(), Id).Position == Exact);
         TestTrue(TEXT("skirmish normal endpoint actual direction"), TravelMatchesActual(After, TravelUnit(Model.GetSnapshot(), Id)));
+    }
+    {
+        // Legal Submit/Advance can copy distinct endpoint bits even when the
+        // current mode computes a zero displacement. No fixture moves this unit.
+        FProofCommandModel Model;
+        Model.StartSkirmish();
+        TestTrue(TEXT("subnormal endpoint seat seeded"), Model.SeedSkirmishPlayer(1, 0, FVector::ZeroVector));
+        const int32 Id = TravelKind(Model.GetSnapshot(), 1, EProofUnitKind::Harvester);
+        TestTrue(TEXT("subnormal endpoint origin Move accepted"), Model.Submit(1, TravelCommand(1, EProofCommandType::Move, Id)).bAccepted);
+        Model.Advance(10.f);
+        TestTrue(TEXT("subnormal endpoint origin reached exactly"), TravelBitsEqual(TravelUnit(Model.GetSnapshot(), Id).Position, FVector::ZeroVector));
+        TestTrue(TEXT("subnormal endpoint prior-heading Move accepted"), Model.Submit(1, TravelCommand(2, EProofCommandType::Move, Id, FVector(1, 0, 0))).bAccepted);
+        Model.Advance(1.f);
+        const FProofUnitRecord Before = TravelUnit(Model.GetSnapshot(), Id);
+        TestTrue(TEXT("subnormal endpoint prior position is exact"), TravelBitsEqual(Before.Position, FVector(1, 0, 0)));
+        TestTrue(TEXT("subnormal endpoint prior heading is distinct positive X"), TravelBitsEqual(Before.LastTravelDirection, FVector(1, 0, 0)));
+        const FVector Destination(1, std::numeric_limits<double>::denorm_min(), 0);
+        TestTrue(TEXT("subnormal endpoint final Move accepted"), Model.Submit(1, TravelCommand(3, EProofCommandType::Move, Id, Destination)).bAccepted);
+        Model.Advance(0.1f);
+        const FProofUnitRecord After = TravelUnit(Model.GetSnapshot(), Id);
+        TestTrue(TEXT("subnormal endpoint copies exact destination bits"), TravelBitsEqual(After.Position, Destination));
+        TestFalse(TEXT("subnormal endpoint changes stored position bits"), TravelBitsEqual(After.Position, Before.Position));
+        const FVector Delta = TravelComputedDelta(Before.Position, After.Position);
+        const bool bHasTravel = TravelHasComputedDelta(Delta);
+        TestTrue(bHasTravel ? TEXT("subnormal endpoint strict analytic positive Y direction")
+            : TEXT("subnormal endpoint computed-zero retains exact prior heading bits"),
+            TravelBitsEqual(After.LastTravelDirection, bHasTravel ? FVector(0, 1, 0) : Before.LastTravelDirection));
+        Model.Advance(0.1f);
+        TestTrue(TEXT("subnormal endpoint arrival preserves exact heading bits"),
+            TravelBitsEqual(TravelUnit(Model.GetSnapshot(), Id).LastTravelDirection, After.LastTravelDirection));
     }
     {
         FProofCommandModel Model;
@@ -314,30 +398,78 @@ bool FProofLastTravelDirectionTest::RunTest(const FString&)
     }
     {
         // These are numeric helper controls, not claims about legal world positions.
+        // Analytic anchors are binary64 results of 1/sqrt(2), 1/sqrt(5), and
+        // 2/sqrt(5). The two-ULP component allowance avoids libm bit-identity
+        // assumptions. No production normalization algorithm is reused.
+        const double Diagonal = 0x1.6a09e667f3bccp-1;
+        const double OneOverRootFive = 0x1.c9f25c5bfedd9p-2;
+        const double TwoOverRootFive = 0x1.c9f25c5bfedd9p-1;
         const double Huge = std::numeric_limits<double>::max();
         const double Tiny = std::numeric_limits<double>::denorm_min();
-        const FVector Prior(0, -1, 0);
-        const FVector Inputs[] = { FVector(Huge, Huge, 0), FVector(-Huge, Huge, 0),
-            FVector(Tiny, Tiny, 0), FVector(-Tiny, 0, 0), FVector(0, -Tiny, 0),
-            FVector(Huge, Tiny, 0), FVector(-0.0, Tiny, 0) };
-        for (const FVector& Position : Inputs)
+        const double TwoTiny = 0x0.0000000000002p-1022;
+        const double Normal = std::numeric_limits<double>::min();
+        const double NextNormal = std::nextafter(Normal, 1.0);
+        const double NextNextNormal = std::nextafter(NextNormal, 1.0);
+        // Distinct from every expected nonzero direction, with signed-zero Z
+        // to make exact computed-zero retention stronger than vector equality.
+        const FVector Prior(-0.6, -0.8, -0.0);
+        struct FNumericCase
         {
+            const TCHAR* Label;
+            FVector Before, After, ExpectedNonzero;
+            bool bMustBeNonzero;
+        };
+        const FNumericCase Cases[] = {
+            { TEXT("huge_diagonal"), {}, {Huge, Huge, 0}, {Diagonal, Diagonal, 0}, true },
+            { TEXT("huge_negative_positive"), {}, {-Huge, Huge, 0}, {-Diagonal, Diagonal, 0}, true },
+            { TEXT("huge_ratio_1_2"), {}, {Huge / 2, Huge, 0}, {OneOverRootFive, TwoOverRootFive, 0}, true },
+            { TEXT("huge_positive_x"), {}, {Huge, 0, 0}, {1, 0, 0}, true },
+            { TEXT("huge_negative_y"), {}, {0, -Huge, 0}, {0, -1, 0}, true },
+            { TEXT("subnormal_diagonal"), {}, {Tiny, Tiny, 0}, {Diagonal, Diagonal, 0}, false },
+            { TEXT("subnormal_ratio_1_2"), {}, {Tiny, TwoTiny, 0}, {OneOverRootFive, TwoOverRootFive, 0}, false },
+            { TEXT("subnormal_negative_x"), {}, {-Tiny, 0, 0}, {-1, 0, 0}, false },
+            { TEXT("subnormal_negative_y"), {}, {0, -Tiny, 0}, {0, -1, 0}, false },
+            { TEXT("huge_subnormal"), {}, {Huge, Tiny, 0}, {1, 0, 0}, true },
+            { TEXT("signed_zero_subnormal"), {}, {-0.0, Tiny, 0}, {0, 1, 0}, false },
+            { TEXT("minimum_normal_diagonal"), {}, {Normal, Normal, 0}, {Diagonal, Diagonal, 0}, true },
+            { TEXT("minimum_normal_ratio_1_2"), {}, {Normal, 2 * Normal, 0}, {OneOverRootFive, TwoOverRootFive, 0}, true },
+            { TEXT("small_normal_square_underflow"), {}, {1.e-200, 2.e-200, 0}, {OneOverRootFive, TwoOverRootFive, 0}, true },
+            { TEXT("adjacent_normal_diagonal"), {Normal, Normal, 0}, {NextNormal, NextNormal, 0}, {Diagonal, Diagonal, 0}, false },
+            { TEXT("adjacent_normal_ratio_1_2"), {Normal, Normal, 0}, {NextNormal, NextNextNormal, 0}, {OneOverRootFive, TwoOverRootFive, 0}, false },
+            { TEXT("exact_zero"), {10, 20, 0}, {10, 20, 0}, {}, false },
+            { TEXT("signed_zero"), {}, {-0.0, -0.0, 0}, {}, false },
+            { TEXT("vertical_only"), {10, 20, 0}, {10, 20, 100}, {}, false }
+        };
+        for (const FNumericCase& Case : Cases)
+        {
+            const FVector Delta = TravelComputedDelta(Case.Before, Case.After);
+            const bool bHasTravel = TravelHasComputedDelta(Delta);
             FProofUnitRecord Unit;
-            Unit.Position = Position;
+            Unit.Position = Case.After;
             Unit.LastTravelDirection = Prior;
-            FProofLastTravelDirectionFixture::Record(Unit, FVector::ZeroVector);
-            const FVector Direction = Unit.LastTravelDirection;
-            TestTrue(TEXT("extreme and subnormal output is finite normalized XY"), std::isfinite(Direction.X)
-                && std::isfinite(Direction.Y) && Direction.Z == 0.0 && std::abs(std::hypot(Direction.X, Direction.Y) - 1.0) < 1.e-12);
-            TestTrue(TEXT("numeric update preserves source position"), Unit.Position == Position);
-            TestTrue(TEXT("numeric direction preserves nonzero component signs"),
-                (Position.X == 0.0 || Direction.X == 0.0 || std::signbit(Direction.X) == std::signbit(Position.X))
-                && (Position.Y == 0.0 || Direction.Y == 0.0 || std::signbit(Direction.Y) == std::signbit(Position.Y)));
-            TestTrue(TEXT("zero output components are canonical positive zero"),
-                (Direction.X != 0.0 || !std::signbit(Direction.X)) && (Direction.Y != 0.0 || !std::signbit(Direction.Y)) && !std::signbit(Direction.Z));
-            if (std::abs(Position.X) == std::abs(Position.Y))
-                TestTrue(TEXT("equal extreme components stay diagonal"), std::abs(std::abs(Direction.X) - std::sqrt(0.5)) < 1.e-12
-                    && std::abs(std::abs(Direction.Y) - std::sqrt(0.5)) < 1.e-12);
+            FProofLastTravelDirectionFixture::Record(Unit, Case.Before);
+            TestTrue(FString::Printf(TEXT("numeric %s required nonzero displacement"), Case.Label),
+                !Case.bMustBeNonzero || bHasTravel);
+            TestFalse(FString::Printf(TEXT("numeric %s analytic oracle rejects unchanged prior"), Case.Label),
+                TravelAnalyticMatches(Prior, Case.ExpectedNonzero));
+            TestTrue(FString::Printf(TEXT("numeric %s %s; delta bits=%016llx,%016llx output bits=%016llx,%016llx,%016llx"),
+                Case.Label, bHasTravel ? TEXT("strict analytic direction") : TEXT("computed-zero retains prior bits"),
+                static_cast<unsigned long long>(TravelBits(Delta.X)), static_cast<unsigned long long>(TravelBits(Delta.Y)),
+                static_cast<unsigned long long>(TravelBits(Unit.LastTravelDirection.X)),
+                static_cast<unsigned long long>(TravelBits(Unit.LastTravelDirection.Y)),
+                static_cast<unsigned long long>(TravelBits(Unit.LastTravelDirection.Z))),
+                bHasTravel ? TravelAnalyticMatches(Unit.LastTravelDirection, Case.ExpectedNonzero)
+                    : TravelBitsEqual(Unit.LastTravelDirection, Prior));
+            TestTrue(FString::Printf(TEXT("numeric %s preserves source position bits"), Case.Label),
+                TravelBitsEqual(Unit.Position, Case.After));
+            TestTrue(FString::Printf(TEXT("numeric %s finite normalized XY and exact zero Z"), Case.Label),
+                std::isfinite(Unit.LastTravelDirection.X) && std::isfinite(Unit.LastTravelDirection.Y)
+                && Unit.LastTravelDirection.Z == 0.0
+                && TravelWithinTwoUlps(std::hypot(Unit.LastTravelDirection.X, Unit.LastTravelDirection.Y), 1.0));
+            TestTrue(FString::Printf(TEXT("numeric %s canonical computed-travel zero components"), Case.Label),
+                !bHasTravel || ((Unit.LastTravelDirection.X != 0.0 || TravelBits(Unit.LastTravelDirection.X) == 0)
+                    && (Unit.LastTravelDirection.Y != 0.0 || TravelBits(Unit.LastTravelDirection.Y) == 0)
+                    && TravelBits(Unit.LastTravelDirection.Z) == 0));
         }
         const double NaN = std::numeric_limits<double>::quiet_NaN();
         const double Inf = std::numeric_limits<double>::infinity();
@@ -348,23 +480,23 @@ bool FProofLastTravelDirectionTest::RunTest(const FString&)
             FProofUnitRecord Unit;
             Unit.Position = Position; Unit.LastTravelDirection = Prior;
             FProofLastTravelDirectionFixture::Record(Unit, FVector::ZeroVector);
-            TestTrue(TEXT("invalid current position retains prior direction"), Unit.LastTravelDirection == Prior);
+            TestTrue(TEXT("invalid current position retains prior direction"), TravelBitsEqual(Unit.LastTravelDirection, Prior));
             Unit.Position = FVector(1, 1, 0);
             FProofLastTravelDirectionFixture::Record(Unit, Position);
-            TestTrue(TEXT("invalid previous position retains prior direction"), Unit.LastTravelDirection == Prior);
+            TestTrue(TEXT("invalid previous position retains prior direction"), TravelBitsEqual(Unit.LastTravelDirection, Prior));
         }
         FProofUnitRecord Unit;
         Unit.Position = FVector(Huge, 0, 0); Unit.LastTravelDirection = Prior;
         FProofLastTravelDirectionFixture::Record(Unit, FVector(-Huge, 0, 0));
-        TestTrue(TEXT("overflowed displacement retains prior direction"), Unit.LastTravelDirection == Prior);
+        TestTrue(TEXT("overflowed displacement retains prior direction"), TravelBitsEqual(Unit.LastTravelDirection, Prior));
         Unit.Position = FVector(0, 0, 100);
         FProofLastTravelDirectionFixture::Record(Unit, FVector::ZeroVector);
-        TestTrue(TEXT("synthetic vertical displacement preserves prior direction"), Unit.LastTravelDirection == Prior);
+        TestTrue(TEXT("synthetic vertical displacement preserves prior direction"), TravelBitsEqual(Unit.LastTravelDirection, Prior));
         FProofLastTravelDirectionFixture::Record(Unit, Unit.Position);
-        TestTrue(TEXT("exact zero displacement preserves prior direction"), Unit.LastTravelDirection == Prior);
+        TestTrue(TEXT("exact zero displacement preserves prior direction"), TravelBitsEqual(Unit.LastTravelDirection, Prior));
         Unit.Position = FVector(100, 0, 0); Unit.HitPoints = 0.f;
         FProofLastTravelDirectionFixture::Record(Unit, FVector::ZeroVector);
-        TestTrue(TEXT("dead record cannot acquire a synthetic direction"), Unit.LastTravelDirection == Prior);
+        TestTrue(TEXT("dead record cannot acquire a synthetic direction"), TravelBitsEqual(Unit.LastTravelDirection, Prior));
         FProofCommandModel Model; Model.AddPlayer(1);
         TestEqual(TEXT("extreme helper coverage does not relax world-bound validation"), Model.SeedUnit(1, FVector(Huge, 0, 0)), INDEX_NONE);
         TestEqual(TEXT("nonfinite helper coverage does not relax seed validation"), Model.SeedUnit(1, FVector(NaN, 0, 0)), INDEX_NONE);
@@ -406,4 +538,7 @@ bool FProofLastTravelDirectionTest::RunTest(const FString&)
     }
     return true;
 }
+#if defined(_MSC_VER)
+#pragma float_control(pop)
+#endif
 #endif

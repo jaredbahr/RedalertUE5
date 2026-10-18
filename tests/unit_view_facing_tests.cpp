@@ -7,6 +7,16 @@
 #include <limits>
 #include <stdexcept>
 #include <string>
+#if defined(__SSE__) || defined(_M_X64) || defined(_M_IX86)
+#include <xmmintrin.h>
+#define PROOF_FACING_HAS_MXCSR 1
+#else
+#define PROOF_FACING_HAS_MXCSR 0
+#endif
+
+#if defined(_MSC_VER)
+#pragma float_control(precise, on, push)
+#endif
 
 namespace
 {
@@ -18,11 +28,11 @@ void Require(bool Condition, const std::string& Why)
     ++Checks;
     if (!Condition) throw std::runtime_error(Why);
 }
-void CheckAlignment(V Forward, V Direction)
+void CheckAlignment(V Forward, V Direction, const std::string& Label = "ordinary_alignment")
 {
     const V SavedForward = Forward, SavedDirection = Direction;
     double Delta = 123.0;
-    Require(FProofUnitViewFacing::TryYawDelta(Forward, Direction, Delta), "valid finite vectors rejected");
+    Require(FProofUnitViewFacing::TryYawDelta(Forward, Direction, Delta), Label + ": valid finite vectors rejected");
     Require(std::isfinite(Delta) && std::abs(Delta) <= Pi, "delta finite and bounded");
     // Independent long-double trig/hypot oracle; no helper normalization reused.
     const long double FL = std::hypot(static_cast<long double>(Forward.X), static_cast<long double>(Forward.Y));
@@ -41,12 +51,49 @@ void CheckRejected(V Forward, V Direction)
     Require(!FProofUnitViewFacing::TryYawDelta(Forward, Direction, Delta), "invalid vector accepted");
     Require(Delta == 0.0 && !std::signbit(Delta), "failure must clear output to positive zero");
 }
+
+// Only this isolated portable executable may change its own MXCSR. The native
+// automation body observes the engine's existing mode without modifying it.
+struct ScopedFpMode
+{
+#if PROOF_FACING_HAS_MXCSR
+    const unsigned Saved = _mm_getcsr();
+    ~ScopedFpMode() { _mm_setcsr(Saved); }
+    void Restore() { _mm_setcsr(Saved); }
+    bool Restored() const { return _mm_getcsr() == Saved; }
+#else
+    void Restore() {}
+    bool Restored() const { return true; }
+#endif
+    void Set(const std::string& Mode)
+    {
+        if (Mode == "native") return;
+#if PROOF_FACING_HAS_MXCSR
+        unsigned Flags;
+        if (Mode == "gradual") Flags = 0;
+        else if (Mode == "ftz") Flags = 0x8000u;
+        else if (Mode == "daz") Flags = 0x40u;
+        else if (Mode == "ftz-daz") Flags = 0x8040u;
+        else throw std::runtime_error("unknown FP mode");
+        _mm_setcsr((Saved & ~0x8040u) | Flags);
+#else
+        throw std::runtime_error("explicit FP controls require an x86 MXCSR target");
+#endif
+    }
+};
 }
 
-int main()
+int main(int argc, char** argv)
 {
     try
     {
+        if (argc == 2 && std::string(argv[1]) == "--fp-modes-supported")
+            return PROOF_FACING_HAS_MXCSR ? 0 : 1;
+        const std::string Mode = argc == 2 ? argv[1] : "native";
+        if (argc > 2) throw std::runtime_error("usage: test [native|gradual|ftz|daz|ftz-daz]");
+        ScopedFpMode FpMode;
+        FpMode.Set(Mode);
+        std::cout << "FP mode: " << Mode << '\n';
         double Delta = 123.0;
         Require(FProofUnitViewFacing::TryYawDelta({0, 1, 0}, {1, 0, 0}, Delta)
             && std::abs(Delta + Pi / 2) < 1.e-15, "+Y front to +X cardinal sign");
@@ -67,8 +114,21 @@ int main()
         }
         const double Tiny = std::numeric_limits<double>::denorm_min();
         const double Huge = std::numeric_limits<double>::max();
-        CheckAlignment({0,Tiny,0},{Tiny,0,0});
-        CheckAlignment({Tiny,Tiny,0},{-Tiny,Tiny,0});
+        volatile double RuntimeTiny = Tiny;
+        if (RuntimeTiny != 0.0)
+        {
+            CheckAlignment({0,Tiny,0},{Tiny,0,0}, "subnormal_cardinal");
+            CheckAlignment({Tiny,Tiny,0},{-Tiny,Tiny,0}, "subnormal_diagonal");
+        }
+        else
+        {
+            CheckRejected({0,Tiny,0},{Tiny,0,0});
+            CheckRejected({Tiny,Tiny,0},{-Tiny,Tiny,0});
+        }
+        const double MinimumNormal = std::numeric_limits<double>::min();
+        CheckAlignment({MinimumNormal,MinimumNormal,0},{-MinimumNormal,MinimumNormal,0}, "minimum_normal_diagonal");
+        CheckAlignment({MinimumNormal,2*MinimumNormal,0},{-2*MinimumNormal,MinimumNormal,0}, "minimum_normal_ratio");
+        CheckAlignment({1.e-200,2.e-200,0},{-2.e-200,1.e-200,0}, "small_normal_square_underflow");
         CheckAlignment({Huge,Huge,Huge},{-Huge,Huge,0});
         CheckAlignment({Huge,Tiny,0},{Tiny,-Huge,0});
         CheckAlignment({-Tiny,Huge,0},{Huge,Tiny,0});
@@ -90,6 +150,8 @@ int main()
             Require(std::abs(Forward.X - .6) < 1.e-12 && std::abs(Forward.Y + .8) < 1.e-12
                 && Forward.Z == 3, "stationary repetition preserves alignment and Z");
         }
+        FpMode.Restore();
+        Require(FpMode.Restored(), "portable process restores its original MXCSR");
         std::cout << "PASS: unit view facing helper: " << Checks << " checks\n";
         return 0;
     }
@@ -99,3 +161,6 @@ int main()
         return 1;
     }
 }
+#if defined(_MSC_VER)
+#pragma float_control(pop)
+#endif
