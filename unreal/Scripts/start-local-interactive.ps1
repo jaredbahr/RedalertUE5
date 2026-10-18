@@ -1,16 +1,19 @@
 param(
-    [string]$EngineRoot = 'D:\Epic Games\UE_5.7',
+    [string]$EngineRoot = $env:UE_ENGINE_ROOT,
     [ValidateRange(60,1800)][int]$SessionSeconds = 900,
     [switch]$Skirmish,
     [switch]$CameraPan,
-    [switch]$CameraEdgePan
+    [switch]$CameraEdgePan,
+    [string]$StorageRoot = $env:RA2_STORAGE_ROOT
 )
 $ErrorActionPreference='Stop'
-$projectRoot=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$repoRoot=(Resolve-Path (Join-Path $projectRoot '..')).Path
+. (Join-Path $PSScriptRoot 'local-interactive-paths.ps1')
+$repoRoot=(Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
+$localPaths=Resolve-ProofInteractivePaths -RepoRoot $repoRoot -EngineRoot $EngineRoot -StorageRoot $StorageRoot
+$repoRoot=$localPaths.RepoRoot
+$projectRoot=$localPaths.ProjectRoot
 $project=Join-Path $projectRoot 'RedalertProof.uproject'
-$editor=Join-Path $EngineRoot 'Engine\Binaries\Win64\UnrealEditor.exe'
-if([IO.Path]::GetPathRoot($repoRoot) -ne 'D:\') { throw 'Use an isolated D: checkout.' }
+$editor=$localPaths.Editor
 foreach($path in @($editor,(Join-Path $projectRoot 'Binaries\Win64\UnrealEditor-RedalertProof.dll'),(Join-Path $projectRoot 'Content\CommandProofGenerated\Maps\CommandProof.umap'))) {
     if(-not(Test-Path -LiteralPath $path)) { throw "Missing prepared local file: $path" }
 }

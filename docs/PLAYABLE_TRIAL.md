@@ -6,13 +6,15 @@ The smallest trial is an editor-backed standalone game with construction, harves
 
 Use a prepared checkout containing the tested DLL and generated map. A fresh Git clone contains neither. Obtain the prepared-checkout location privately from the maintainer; personal machine paths are deliberately omitted here.
 
-Set the process-local environment variable `UE_ENGINE_ROOT` to the installed engine root. Open PowerShell at the prepared repository root and run:
+Set the process-local environment variable `UE_ENGINE_ROOT` to the installed engine root, and `RA2_STORAGE_ROOT` to an existing designated non-system directory containing the prepared checkout. Open PowerShell at the prepared repository root and run:
 
 ```powershell
 .\unreal\Scripts\start-small-match.ps1 -EngineRoot $env:UE_ENGINE_ROOT -SessionSeconds 900 -CameraPan -CameraEdgePan
 ```
 
 Wait until the shared-PC engine allocation is free before launching. The script warns for five seconds, then opens a visible 1280x720 game window. Click inside it to focus. Startup has varied; do not mistake a slow startup for a completed input test or start duplicate instances.
+
+The updated launcher accepts explicit `-EngineRoot` and `-StorageRoot` overrides. It rejects missing configuration, system-volume storage, a checkout outside the configured storage root, and junction/reparse paths before creating output or launching a process. Keep these settings in the current PowerShell process; do not commit personal paths or change machine-wide environment settings. This launcher-only change does not validate a new engine build or physical input.
 
 This uses installed UE 5.7.4 and existing local assets. It is not a packaged executable. The default guard closes the session after 15 minutes, including any rematches; Escape exits earlier. The script limits its game process to two available logical CPUs at Normal priority and targets 30 FPS, without proving measured frame rate. Process cache/temp paths point into this checkout's ignored `generated/`; this is not an exhaustive guarantee of zero writes to the system drive. Sound is disabled.
 
