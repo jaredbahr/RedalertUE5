@@ -2,7 +2,7 @@
 
 ## Scope
 
-Build on the merged legacy-label and bounded skirmish marker work. Current skirmish row two combines credits, delivered ore and selected-description text, while FitToWidth removes trailing characters until the line fits. Primary ID/HP already has a separate fallback row, but role, cargo, group count and factory rally can compete for remaining width. This is source-observed information loss risk, not a new measured screenshot failure.
+Build on the merged legacy-label and bounded skirmish marker work. At the baseline, skirmish row two combined credits, delivered ore and selected-description text, while FitToWidth removes trailing characters until the line fits. Primary ID/HP already has a separate fallback row, but role, cargo, group count and factory rally can compete for remaining width. This is source-observed information loss risk, not a new measured screenshot failure.
 
 Prepare one presentation-only change: separate economy from selection, offer explicit full/compact variants with the same critical values, measure each with the real Canvas font/scale, and choose the first variant that fits. Never silently shorten an ID, health, credit amount or cargo value into another value. When no complete critical variant fits, show an explicit unavailable/overflow state and fail critical-field acceptance for that viewport. Never present silently clipped critical values as a successful fit. Keep remaining generic hint clipping separate from critical-field presentation. Preserve the panel footprint and shared camera exclusion, marker placement/leaders/brackets, command/input behavior and all resource/simulation rules.
 
@@ -32,7 +32,7 @@ Local lane owns ProofHUD.cpp wiring, candidate content and applicable engine/nat
 
 Preserve the existing known-working trial checkout, DLL and14 assets as rollback. A refresh requires final merged-source/config/project and asset/cache-path checks plus applicable build/runtime acceptance. The validator-source change also means old asset evidence manifests cannot be promoted as current. Keep new trial preparation separate; do not overwrite rollback while awaiting acceptance. No paid Actions, binaries, raw private logs or new installations are needed.
 
-## Preparation state
+## Historical preparation state
 
 Prepared source now includes the reviewed cloud helper, complete local formatting/Canvas wiring and fail-closed critical-text capture checks. Cloud supplied23 portable checks, passing normal and optimized builds with independent review. Local production-parser44 synthetic checks pass in PowerShell7 and5.1. Three native formatter groups are prepared alongside the original ten HUD cases. No UE compile/runtime or trial refresh has run at this checkpoint. Imagination release at04:28UTC is confirmed; fresh admission is still required.
 ## Exact cloud assignment contract
@@ -75,3 +75,7 @@ Root-owned variants, first preferred (cloud must not implement/change strings):
 Non-factory rally suffix is empty in both. Factory set suffix: full = '   Rally {x},{y}', compact = '  Rally {x},{y}'. Factory unset suffix: full = '   Rally none: right-click ground', compact = '  Rally none'. All numeric strings and kind names are identical across variants; retain the current integer formatting and rounded HP/rally display convention. Every selected-primary variant keeps selection count, ID, full generic kind, HP, cargo and applicable rally state; no-selection variants emit no invented zero values. Economy contains no selection suffix. Control hints already occupy separate rows; keep current input behavior and bounded manual/focus logging intact.
 
 Local formatting/native capture cases must check identical underlying values across candidates, large values, no selection, single/group selection, each generic kind, factory rally set/unset and explicit NoChoice. Width tests alone are not proof that these strings fit the real Canvas; rendered1280/960 acceptance remains gated on a fresh allocated build and native-size inspection. Any later label/row changes need source review before accepting this scope.
+
+## Subsequent execution
+
+The frozen implementation passed its scoped build/native/two-viewport gates. See [scoped validation](SKIRMISH_HUD_STATUS_VALIDATION.md) for exact checkpoints and limits; those results supersede the preparation-only execution state above.
