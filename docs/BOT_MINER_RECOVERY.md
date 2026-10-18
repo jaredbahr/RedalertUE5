@@ -71,6 +71,22 @@ At the prepared source, GCC 14.2 C++17 normal and `-O2 -DNDEBUG` runs each pass
 287 explicit checks in six test bodies. The same new tests against the unchanged
 baseline bot reproduce 11 failures, including missing miner recovery and deposit.
 These portable results are source-level regression evidence, not an Unreal build,
-runtime, network, performance or original-game fidelity pass. Native build, the
-broader skirmish suite and representative bot-match runtime checks remain pending
-under the separately coordinated local admission and test budgets.
+runtime, network, performance or original-game fidelity pass.
+
+### Native and representative runtime validation
+
+At engine checkpoint `2a232d143b25a518c9d8857d5bf3d78807935706`, the installed-toolchain
+Unreal build passed in 46.637 seconds and all exact 28 skirmish native groups passed
+in 16.495 seconds. The two new groups execute the actual planner and model in Unreal:
+combat loss of both miners with a surviving refinery, accepted replacement construction,
+then Gather, earned deposit and no repeated refinery construction.
+
+The ordinary rendered Victory regression passed in 77.501 seconds total / 77.436
+scenario; Defeat passed in 50.354 / 50.253. Both stayed within the existing 240/220-second
+limits, and four fresh 1280x720 captures were reviewed. These are standalone bot-match
+regressions; they do not demonstrate the miner-loss event in a rendered scene.
+
+Fresh approved load/process admission preceded each stage. The polled two-CPU,
+Normal-priority and identity-owned cleanup safeguards do not prove continuous
+confinement. Physical input, networking, performance and final art remain unverified.
+The prepared human trial and rollback are unchanged.
