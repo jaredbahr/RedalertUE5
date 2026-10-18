@@ -51,6 +51,14 @@ bash tests/run_unit_view_grounding_tests.sh --sanitized
 
 The default command runs both normal and optimized builds; `--sanitized` runs AddressSanitizer and UndefinedBehaviorSanitizer with leak detection disabled.
 
-The exact combined source still needs local UE build, all 15 named Controls tests, applicable existing model gates, the repaired geometry observer's full scenario and fresh matched contact captures under the unchanged admission policy. Re-run the existing readability camera checks to validate their independent lower-bound oracle. Retain failed before attempts; do not relabel them as successful after-fix evidence.
+## Local acceptance
 
-No native compile, rendered after-fix or full geometry acceptance is claimed by the cloud implementation alone.
+The exact production checkpoint `ed7bf581e2a698bf827b0470261c21c52371f725` (Source tree `2980a614f7b0817ada98b69af0bcf5953559683e`) passed a local UE build, all 40 named Skirmish tests, all 15 named Controls tests, standalone default Victory, and the existing readability Victory at 1280x720. The readability run exercised the changed world-bounds assertion during all three camera-rig moves and produced five original captures. Native reports had zero failed tests or error entries.
+
+A separate instrumented checkpoint `55800878ca985ca4773edaa9cac4789b47d09b40` combines this production change with the local geometry observer and its grounded parser. It passed its own build, Skirmish40, Controls15, full five-capture geometry Victory and default Victory. Actual PowerShell policy checks passed 58 cases; the parser independently transforms all eight local box corners, verifies the reported world box, preserves model X/Y and checks lower Z against model ground Z.
+
+Matched mesh/scale/floor evidence changes the Harvester cube's lower bound from approximately -35 cm to 0 cm against the unchanged floor top at 0. Its component center is approximately 35 cm after placement. Rhino lower bounds remain 0 cm. The after run observes approximately 205 cm of same-Harvester motion and 180 cm of same-Rhino motion without model writes. Original PNGs were inspected independently. The accepted before checkpoint and its old parser remain separate; earlier failed attempts stay failed.
+
+All runs used fresh admission samples, serial allocation and the original build/native/runtime bounds. Affinity and priority were observed and repaired by polling; this is not continuous confinement or a performance result. The 14 reused assets and preserved human-trial/rollback workspaces were unchanged.
+
+The observer and parser are local diagnostic work, outside this seven-file production patch. Rendered evidence covers the loaded assets in these runs; signed-scale and fallback variants are synthetic/native coverage. Semantic forward direction, physical input, networking, final art and balance remain unverified. No yaw or art-style change is included.
