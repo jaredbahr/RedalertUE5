@@ -12,7 +12,7 @@ public:
     static constexpr int32 MaxCommandsPerInterval = 2;
     static constexpr double DispatchIntervalSeconds = 0.1;
 
-    // Move/Attack/Stop batches replace matching units atomically without
+    // Move/Attack/Stop/Gather batches replace matching units atomically without
     // changing the dispatch clock or reserving command sequences.
     bool Enqueue(const FProofSnapshot& Snapshot, int32 OwnerId, const TArray<FProofCommand>& Commands);
     TArray<FProofCommand> PopReady(const FProofSnapshot& Snapshot, int32 OwnerId, double WallSeconds);

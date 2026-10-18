@@ -234,6 +234,7 @@ private:
     void RecordManualInput(const TCHAR* Key, int32& Count, const FString& Outcome);
     void ObserveViewportFocus();
     int32 FindUnitUnderCursor(bool bOwnOnly) const;
+    int32 FindResourceUnderCursor(bool bAllowDepleted) const;
     bool CursorGroundPoint(FVector& OutPoint) const;
     bool PointerWorldRay(FVector& OutOrigin, FVector& OutDirection) const;
     void Request(FProofCommand Command);

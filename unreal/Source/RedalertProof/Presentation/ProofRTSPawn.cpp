@@ -593,6 +593,26 @@ void AProofRTSPawn::SelectUnderCursor()
     RequestStatus = SelectedUnitId == INDEX_NONE ? TEXT("No owned live unit selected.") : TEXT("Owned unit selected. Right-click ground or an enemy.");
 }
 
+int32 AProofRTSPawn::FindResourceUnderCursor(bool bAllowDepleted) const
+{
+    const AProofPlayerController* PC = Cast<AProofPlayerController>(GetController());
+    const AProofGameState* GS = GetWorld()->GetGameState<AProofGameState>();
+    FVector2D Pointer;
+    if (!PC || !GS || !GetPointerScreenPosition(Pointer)) return INDEX_NONE;
+    double BestDistance = FMath::Square(32.0);
+    int32 ResourceId = INDEX_NONE;
+    for (const FProofResourceRecord& Resource : GS->Snapshot.Resources)
+    {
+        FVector2D Screen;
+        if ((Resource.Remaining > 0 || bAllowDepleted) && PC->ProjectWorldLocationToScreen(Resource.Position, Screen))
+        {
+            const double Distance = FVector2D::DistSquared(Pointer, Screen);
+            if (Distance < BestDistance) { BestDistance = Distance; ResourceId = Resource.ResourceId; }
+        }
+    }
+    return ResourceId;
+}
+
 void AProofRTSPawn::OrderUnderCursor()
 {
     AProofPlayerController* PC = Cast<AProofPlayerController>(GetController());
@@ -611,9 +631,20 @@ void AProofRTSPawn::OrderUnderCursor()
             Commands = Selection.PlanAttack(GS->Snapshot, PC->OwnerId, TargetId);
         else
         {
-            FVector Destination;
-            if (!CursorGroundPoint(Destination)) { RequestStatus = TEXT("Cursor did not project onto the ground."); return; }
-            Commands = Selection.PlanMove(GS->Snapshot, PC->OwnerId, Destination);
+            int32 ResourceId = INDEX_NONE;
+            if (GS->Snapshot.bSkirmish && Selection.IsAllHarvesters(GS->Snapshot, PC->OwnerId))
+            {
+                const bool bLoaded = GS->Snapshot.Units.ContainsByPredicate([this](const FProofUnitRecord& Unit)
+                    { return Selection.GetSelectedUnitIds().Contains(Unit.UnitId) && Unit.Cargo > 0; });
+                ResourceId = FindResourceUnderCursor(bLoaded);
+            }
+            if (ResourceId != INDEX_NONE) Commands = Selection.PlanGather(GS->Snapshot, PC->OwnerId, ResourceId);
+            else
+            {
+                FVector Destination;
+                if (!CursorGroundPoint(Destination)) { RequestStatus = TEXT("Cursor did not project onto the ground."); return; }
+                Commands = Selection.PlanMove(GS->Snapshot, PC->OwnerId, Destination);
+            }
         }
         if (Commands.IsEmpty()) RequestStatus = TEXT("No eligible selected units for that order.");
         else RequestStatus = GroupOrders.Enqueue(GS->Snapshot, PC->OwnerId, Commands)
@@ -640,27 +671,13 @@ void AProofRTSPawn::OrderUnderCursor()
     }
     if (GS->Snapshot.bSkirmish && Selected && Selected->Kind == EProofUnitKind::Harvester)
     {
-        FVector2D Pointer;
-        if (GetPointerScreenPosition(Pointer))
+        const int32 ResourceId = FindResourceUnderCursor(Selected->Cargo > 0);
+        if (ResourceId != INDEX_NONE)
         {
-            double BestDistance = FMath::Square(32.0);
-            int32 ResourceId = INDEX_NONE;
-            for (const FProofResourceRecord& Resource : GS->Snapshot.Resources)
-            {
-                FVector2D Screen;
-                if ((Resource.Remaining > 0 || Selected->Cargo > 0) && PC->ProjectWorldLocationToScreen(Resource.Position, Screen))
-                {
-                    const double Distance = FVector2D::DistSquared(Pointer, Screen);
-                    if (Distance < BestDistance) { BestDistance = Distance; ResourceId = Resource.ResourceId; }
-                }
-            }
-            if (ResourceId != INDEX_NONE)
-            {
-                Command.Type = EProofCommandType::Gather;
-                Command.TargetUnitId = ResourceId;
-                Request(Command);
-                return;
-            }
+            Command.Type = EProofCommandType::Gather;
+            Command.TargetUnitId = ResourceId;
+            Request(Command);
+            return;
         }
     }
     const int32 TargetId = FindUnitUnderCursor(false);

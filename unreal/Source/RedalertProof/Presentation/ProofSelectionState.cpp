@@ -1,5 +1,6 @@
 #include "Presentation/ProofSelectionState.h"
 #include "Presentation/ProofContextOrderPolicy.h"
+#include "Presentation/ProofGatherEligibility.h"
 
 namespace
 {
@@ -280,6 +281,47 @@ TArray<FProofCommand> FProofSelectionState::PlanStop(const FProofSnapshot& Snaps
         Command.UnitId = UnitId;
         Commands.Add(Command);
         if (Commands.Num() == MaxSelectedUnits) { break; }
+    }
+    return Commands;
+}
+
+bool FProofSelectionState::IsAllHarvesters(const FProofSnapshot& Snapshot, int32 OwnerId) const
+{
+    if (!IsCurrentContext(Snapshot, OwnerId) || SelectedUnitIds.IsEmpty()) return false;
+    for (int32 UnitId : SelectedUnitIds)
+    {
+        const FProofUnitRecord* Unit = FindUnit(Snapshot, UnitId);
+        if (!Unit || !IsOwnedLiveUnit(Snapshot, OwnerId, UnitId) || Unit->Kind != EProofUnitKind::Harvester) return false;
+    }
+    return true;
+}
+
+bool FProofSelectionState::CanGather(const FProofSnapshot& Snapshot, int32 OwnerId, int32 UnitId, int32 ResourceId)
+{
+    const FProofUnitRecord* Unit = FindUnit(Snapshot, UnitId);
+    const FProofResourceRecord* Resource = Snapshot.Resources.FindByPredicate(
+        [ResourceId](const FProofResourceRecord& Record) { return Record.ResourceId == ResourceId; });
+    const bool bRefinery = Snapshot.Units.ContainsByPredicate([OwnerId](const FProofUnitRecord& Record)
+        { return Record.OwnerId == OwnerId && Record.Kind == EProofUnitKind::Refinery && Record.HitPoints > 0.f; });
+    return ProofGatherEligibility::CanGather(Snapshot.bSkirmish && Snapshot.MatchPhase == EProofMatchPhase::Playing,
+        OwnerId >= 0 && FindPlayer(Snapshot, OwnerId), UnitId > 0 && Unit && Unit->OwnerId == OwnerId
+            && Unit->HitPoints > 0.f && Unit->Kind == EProofUnitKind::Harvester,
+        ResourceId > 0 && Resource, Resource ? Resource->Remaining : 0, Unit ? Unit->Cargo : 0, bRefinery);
+}
+
+TArray<FProofCommand> FProofSelectionState::PlanGather(const FProofSnapshot& Snapshot, int32 OwnerId, int32 ResourceId) const
+{
+    TArray<FProofCommand> Commands;
+    if (!IsAllHarvesters(Snapshot, OwnerId)) return Commands;
+    // Selection IDs are canonical, ascending and bounded by MaxSelectedUnits.
+    for (int32 UnitId : SelectedUnitIds)
+    {
+        if (!CanGather(Snapshot, OwnerId, UnitId, ResourceId)) continue;
+        FProofCommand Command;
+        Command.Type = EProofCommandType::Gather;
+        Command.UnitId = UnitId;
+        Command.TargetUnitId = ResourceId;
+        Commands.Add(Command);
     }
     return Commands;
 }
