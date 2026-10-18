@@ -1,5 +1,6 @@
 #include "Presentation/ProofRTSPawn.h"
 #include "Presentation/ProofCameraPan.h"
+#include "Presentation/ProofTypeSelectionAdapter.h"
 #include "Presentation/ProofPointerBounds.h"
 #include "Presentation/ProofSkirmishOwnershipRecovery.h"
 #include "Presentation/ProofHUDPanelLayout.h"
@@ -382,53 +383,13 @@ void AProofRTSPawn::SelectTypeByGesture(double WallSeconds, bool bFocused)
     const AProofPlayerController* PC = Cast<AProofPlayerController>(GetController());
     const AProofGameState* GS = GetWorld() ? GetWorld()->GetGameState<AProofGameState>() : nullptr;
     if (!PC || !GS || !PC->IsLocalController()) { TypeGesture.Cancel(); return; }
-    const FProofSnapshot& Snapshot = GS->Snapshot;
-    if (!FMath::IsFinite(WallSeconds) || WallSeconds < 0.0) { TypeGesture.Cancel(); return; }
-    const bool bCurrentSelectionContext = Selection.HasCurrentContext(Snapshot, PC->OwnerId);
-    Selection.Synchronize(Snapshot, PC->OwnerId);
+    const auto Scope = ProofTypeSelectionAdapter::Apply(Selection, TypeGesture, GS->Snapshot, PC->OwnerId,
+        WallSeconds, bFocused, [this]() { return SelectVisibleType(); });
     SelectedUnitId = Selection.GetPrimaryUnitId();
-    if (!bCurrentSelectionContext) { TypeGesture.Cancel(); RequestStatus = TEXT("Select a live owned unit in this match first."); return; }
-    if (TypeGesture.IsArmed() && (TypeGesture.Expected().Owner != PC->OwnerId || TypeGesture.Expected().Epoch != Snapshot.MatchEpoch
-        || TypeGesture.Expected().SelectionRevision != Selection.GetSelectionRevision() || TypeGesture.Expected().Mode != (Snapshot.bSkirmish ? 1 : 0))) TypeGesture.Cancel();
-    const int32 VisibleAnchorId = Selection.GetPrimaryUnitId();
-    const int32 AnchorId = TypeGesture.IsArmed() ? TypeGesture.Expected().Anchor : VisibleAnchorId;
-    const FProofUnitRecord* Anchor = Snapshot.Units.FindByPredicate([AnchorId](const FProofUnitRecord& Unit) { return Unit.UnitId == AnchorId; });
-    const bool bValidAnchor = Anchor && Anchor->OwnerId == PC->OwnerId && Anchor->HitPoints > 0.f
-        && FMath::IsFinite(Anchor->HitPoints) && !Anchor->Position.ContainsNaN()
-        && FMath::Abs(Anchor->Position.X) <= FProofCommandModel::WorldExtent
-        && FMath::Abs(Anchor->Position.Y) <= FProofCommandModel::WorldExtent && FMath::Abs(Anchor->Position.Z) <= FProofCommandModel::WorldExtent;
-    const bool bMapContext = bValidAnchor && PC->OwnerId >= 0 && Snapshot.MatchEpoch >= 0
-        && Selection.GetSelectionRevision() < MAX_uint64
-        && Snapshot.Players.ContainsByPredicate([PC](const FProofPlayerRecord& Player) { return Player.OwnerId == PC->OwnerId; })
-        && (!Snapshot.bSkirmish || (Snapshot.MatchEpoch > 0 && Snapshot.MatchPhase == EProofMatchPhase::Playing));
-    ProofTypeSelectGesture::Context Context;
-    Context.Owner = PC->OwnerId; Context.Epoch = Snapshot.MatchEpoch; Context.Anchor = AnchorId;
-    Context.Kind = Anchor ? static_cast<int32>(Anchor->Kind) : INDEX_NONE;
-    Context.Mode = Snapshot.bSkirmish ? 1 : 0; Context.SelectionRevision = Selection.GetSelectionRevision();
-    if (!bMapContext && bFocused)
-    {
-        TypeGesture.Cancel();
-        SelectVisibleType(); // Preserve existing single-press behavior; do not arm expansion.
-        return;
-    }
-    const auto Scope = TypeGesture.Press(WallSeconds, Context, bMapContext, bFocused);
     if (Scope == ProofTypeSelectGesture::Scope::Battlefield)
-    {
-        const bool bSelected = Selection.SelectBattlefieldType(Snapshot, PC->OwnerId, AnchorId);
-        SelectedUnitId = Selection.GetPrimaryUnitId();
-        RequestStatus = bSelected ? FString::Printf(TEXT("%d battlefield owned units of the same generic kind selected."), Selection.GetSelectedUnitIds().Num())
-            : TEXT("Battlefield type selection context changed; press T again.");
-    }
-    else if (Scope == ProofTypeSelectGesture::Scope::Visible)
-    {
-        const FProofUnitRecord* VisibleAnchor = Snapshot.Units.FindByPredicate([VisibleAnchorId](const FProofUnitRecord& Unit) { return Unit.UnitId == VisibleAnchorId; });
-        if (!SelectVisibleType()) { TypeGesture.Cancel(); return; }
-        if (!VisibleAnchor || VisibleAnchor->OwnerId != PC->OwnerId || !(VisibleAnchor->HitPoints > 0.f)
-            || !FMath::IsFinite(VisibleAnchor->HitPoints) || VisibleAnchor->Position.ContainsNaN()) { TypeGesture.Cancel(); return; }
-        Context.Anchor = VisibleAnchorId; Context.Kind = static_cast<int32>(VisibleAnchor->Kind);
-        Context.SelectionRevision = Selection.GetSelectionRevision();
-        TypeGesture.CommitVisible(WallSeconds, Context);
-    }
+        RequestStatus = FString::Printf(TEXT("%d battlefield owned units of the same generic kind selected."), Selection.GetSelectedUnitIds().Num());
+    else if (Scope == ProofTypeSelectGesture::Scope::Ignored)
+        RequestStatus = TEXT("Type selection context or gesture changed; select a live owned unit and press T again.");
 }
 
 bool AProofRTSPawn::SelectVisibleType()

@@ -1,6 +1,7 @@
 #if WITH_DEV_AUTOMATION_TESTS
 #include "Misc/AutomationTest.h"
 #include "Presentation/ProofSelectionState.h"
+#include "Presentation/ProofTypeSelectionAdapter.h"
 #include "Presentation/ProofTypeSelectGesture.h"
 #include <limits>
 namespace
@@ -36,7 +37,91 @@ bool FProofMapTypeContextTest::RunTest(const FString&)
     for(int32 Variant=0;Variant<8;++Variant){FProofSnapshot Changed=S;FProofSelectionState Probe=Selection;if(Variant==0)Changed.MatchEpoch++;if(Variant==1)Changed.MatchPhase=EProofMatchPhase::Finished;if(Variant==2)Changed.Players.RemoveAt(0);if(Variant==3)Changed.Units.RemoveAll([](const FProofUnitRecord& U){return U.UnitId==30;});if(Variant==4)Changed.Units[2].HitPoints=0;if(Variant==5)Changed.Units[2].OwnerId=2;if(Variant==6)Changed.Units[2].Position.X=std::numeric_limits<double>::quiet_NaN();if(Variant==7)Changed.MatchEpoch=0;TestFalse(TEXT("Invalid source/context fails closed"),Probe.SelectBattlefieldType(Changed,1,30));if(Variant==0 || Variant==7)TestEqual(TEXT("Epoch context rejection clears selection"),Probe.GetSelectedUnitIds().Num(),0);}
     TestFalse(TEXT("Owner change cannot carry anchor"),Selection.SelectBattlefieldType(S,2,30));
     TestEqual(TEXT("Owner context rejection clears selection"),Selection.GetSelectedUnitIds().Num(),0);
-    TestFalse(TEXT("Nonpositive source fails"),Selection.SelectBattlefieldType(S,1,0));return true;
+    TestFalse(TEXT("Nonpositive source fails"),Selection.SelectBattlefieldType(S,1,0));
+
+    // Invoke the same production adapter used by Pawn, with real selection
+    // actions. Visible candidate/failure inputs are controlled here; this is
+    // not a claim of engine viewport projection or OS keyboard/focus delivery.
+    using Scope=ProofTypeSelectGesture::Scope;
+    for(int32 Variant=0;Variant<3;++Variant)
+    {
+        FProofSnapshot Changed=S;
+        FProofUnitRecord Extra;Extra.UnitId=80;Extra.OwnerId=1;Extra.Kind=EProofUnitKind::Harvester;Changed.Units.Add(Extra);
+        FProofSelectionState Local;Local.SelectSingle(Changed,1,40);Local.Toggle(Changed,1,30);
+        if(Variant==0)Changed.Units[2].HitPoints=0;
+        if(Variant==1)Changed.Units.RemoveAll([](const FProofUnitRecord& Unit){return Unit.UnitId==30;});
+        if(Variant==2)Changed.Units[2].OwnerId=2;
+        const FString Before=Changed.ComputeDigest();int32 Calls=0;ProofTypeSelectGesture::State Gesture;
+        const Scope Action=ProofTypeSelectionAdapter::Apply(Local,Gesture,Changed,1,1.0,true,[&](){++Calls;return Local.SelectVisibleType(Changed,1,{40,80});});
+        TestTrue(TEXT("Shared adapter rejects dead/removed/foreign pre-sync primary"),Action==Scope::Ignored);
+        TestEqual(TEXT("No fallback-kind visible action was invoked"),Calls,0);
+        TestTrue(TEXT("Normal pruning preserves the secondary without expanding its kind"),Local.GetSelectedUnitIds()==TArray<int32>({40}));
+        TestFalse(TEXT("Stale primary cannot arm a new pair"),Gesture.IsArmed());
+        TestEqual(TEXT("Rejected adapter leaves snapshot unchanged"),Changed.ComputeDigest(),Before);
+    }
+    for(int32 Empty=0;Empty<2;++Empty)
+    {
+        FProofSelectionState Local;Local.SelectSingle(S,1,30);ProofTypeSelectGesture::State Gesture;int32 Calls=0;
+        const TArray<int32> Visible=Empty?TArray<int32>():TArray<int32>({10,20});
+        const auto VisibleAction=[&](){++Calls;return Local.SelectVisibleType(S,1,Visible);};
+        TestTrue(TEXT("Actual shared adapter first press remains visible-only"),ProofTypeSelectionAdapter::Apply(Local,Gesture,S,1,1.0,true,VisibleAction)==Scope::Visible);
+        TestTrue(TEXT("First action uses exact controlled visible set"),Local.GetSelectedUnitIds()==Visible);
+        TestTrue(TEXT("Successful empty/offscreen internal transition arms original source"),Gesture.IsArmed() && Gesture.Expected().Anchor==30);
+        Gesture.Release();
+        TestTrue(TEXT("Actual shared adapter expands from retained original anchor"),ProofTypeSelectionAdapter::Apply(Local,Gesture,S,1,1.1,true,VisibleAction)==Scope::Battlefield);
+        TestTrue(TEXT("Battlefield result remains exact owned live kind"),Local.GetSelectedUnitIds()==TArray<int32>({10,20,30}));
+        TestEqual(TEXT("Offscreen source restored as primary"),Local.GetPrimaryUnitId(),30);
+        TestEqual(TEXT("Second map action does not invoke another visible action"),Calls,1);
+    }
+    for(int32 Variant=0;Variant<3;++Variant)
+    {
+        FProofSnapshot Changed=S;FProofSelectionState Local;Local.SelectSingle(S,1,30);ProofTypeSelectGesture::State Gesture;int32 Calls=0;
+        const auto VisibleAction=[&](){++Calls;return Local.SelectVisibleType(Changed,1,{10,20,40});};
+        ProofTypeSelectionAdapter::Apply(Local,Gesture,Changed,1,1.0,true,VisibleAction);Gesture.Release();
+        if(Variant==0)Changed.Units[2].HitPoints=0;
+        if(Variant==1)Changed.Units.RemoveAll([](const FProofUnitRecord& Unit){return Unit.UnitId==30;});
+        if(Variant==2)Changed.Units[2].OwnerId=2;
+        TestTrue(TEXT("Armed original source invalidation cannot silently restart from fallback"),ProofTypeSelectionAdapter::Apply(Local,Gesture,Changed,1,1.1,true,VisibleAction)==Scope::Ignored);
+        TestEqual(TEXT("Source invalidation never invokes a second visible action"),Calls,1);
+        TestFalse(TEXT("Source invalidation cancels pending pair"),Gesture.IsArmed());
+    }
+    {
+        FProofSelectionState Local;Local.SelectSingle(S,1,30);ProofTypeSelectGesture::State Gesture;
+        const auto VisibleAction=[&](){return Local.SelectVisibleType(S,1,{10,20,40});};
+        ProofTypeSelectionAdapter::Apply(Local,Gesture,S,1,1.0,true,VisibleAction);Gesture.Release();
+        Local.SelectSingle(S,1,40);
+        TestTrue(TEXT("External selection starts a fresh visible pair, not prior map expansion"),ProofTypeSelectionAdapter::Apply(Local,Gesture,S,1,1.1,true,VisibleAction)==Scope::Visible);
+        TestTrue(TEXT("Fresh pair uses newly selected kind/source"),Local.GetSelectedUnitIds()==TArray<int32>({40}) && Gesture.Expected().Anchor==40);
+    }
+    {
+        FProofSelectionState Local;Local.SelectSingle(S,1,30);ProofTypeSelectGesture::State Gesture;int32 Calls=0;
+        const auto VisibleAction=[&](){++Calls;return Local.SelectVisibleType(S,1,{10,20});};
+        ProofTypeSelectionAdapter::Apply(Local,Gesture,S,1,1.0,true,VisibleAction);
+        TestTrue(TEXT("Held duplicate press is ignored by actual adapter"),ProofTypeSelectionAdapter::Apply(Local,Gesture,S,1,1.05,true,VisibleAction)==Scope::Ignored);
+        TestTrue(TEXT("Focus loss while held cancels pair"),ProofTypeSelectionAdapter::Apply(Local,Gesture,S,1,1.1,false,VisibleAction)==Scope::Ignored && !Gesture.IsArmed());
+        Gesture.Release(); // Logical release outside the viewport, not an OS event.
+        TestTrue(TEXT("Focus recovery starts visible first"),ProofTypeSelectionAdapter::Apply(Local,Gesture,S,1,1.2,true,VisibleAction)==Scope::Visible);
+        Gesture.Release();
+        TestTrue(TEXT("Fresh recovered pair may expand"),ProofTypeSelectionAdapter::Apply(Local,Gesture,S,1,1.3,true,VisibleAction)==Scope::Battlefield);
+        TestEqual(TEXT("Ignored held/focus actions never call visible action"),Calls,2);
+    }
+    {
+        FProofSelectionState Local;Local.SelectSingle(S,1,30);ProofTypeSelectGesture::State Gesture;int32 Calls=0;
+        const auto VisibleAction=[&](){++Calls;return Local.SelectVisibleType(S,1,{10,20});};
+        TestTrue(TEXT("Controlled projection/viewport callback failure rejects action"),ProofTypeSelectionAdapter::Apply(Local,Gesture,S,1,1.0,true,[&](){++Calls;return false;})==Scope::Ignored);
+        TestFalse(TEXT("Failed visible action cannot arm pending expansion"),Gesture.IsArmed());Gesture.Release();
+        TestTrue(TEXT("Recovery after failed callback is a fresh visible action"),ProofTypeSelectionAdapter::Apply(Local,Gesture,S,1,1.1,true,VisibleAction)==Scope::Visible);
+        Gesture.Release();
+        TestTrue(TEXT("Recovered released pair completes battlefield expansion"),ProofTypeSelectionAdapter::Apply(Local,Gesture,S,1,1.2,true,VisibleAction)==Scope::Battlefield);
+        TestTrue(TEXT("Recovered pair has exact owned live battlefield IDs"),Local.GetSelectedUnitIds()==TArray<int32>({10,20,30}));
+        TestEqual(TEXT("Recovered map second press bypasses visible callback"),Calls,2);
+        Gesture.Release();
+        TestTrue(TEXT("A later first press arms a separate fresh pair"),ProofTypeSelectionAdapter::Apply(Local,Gesture,S,1,1.3,true,VisibleAction)==Scope::Visible && Gesture.IsArmed());
+        Gesture.Release();
+        TestTrue(TEXT("Invalid clock cancels that separate adapter pair"),ProofTypeSelectionAdapter::Apply(Local,Gesture,S,1,std::numeric_limits<double>::quiet_NaN(),true,VisibleAction)==Scope::Ignored && !Gesture.IsArmed());
+        TestEqual(TEXT("Invalid clock never invokes visible callback"),Calls,3);
+    }
+    return true;
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FProofMapTypeCapTest,"RedalertProof.MapTypeSelection.DeterministicCap",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FProofMapTypeCapTest::RunTest(const FString&)
