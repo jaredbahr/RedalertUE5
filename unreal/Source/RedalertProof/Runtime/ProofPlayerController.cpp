@@ -24,6 +24,7 @@ AProofPlayerController::AProofPlayerController()
     bControlsObserver = FParse::Param(FCommandLine::Get(), TEXT("ProofControlsObserver"));
     bStopInputBindingTrace = bControlsAutomation && !bControlsObserver
         && FParse::Param(FCommandLine::Get(), TEXT("ProofStopInputBinding"));
+    bStopInputBindingTrace |= FParse::Param(FCommandLine::Get(), TEXT("ProofBoxInputFixture"));
     bSkirmishObserver = bSkirmishMode && FParse::Param(FCommandLine::Get(), TEXT("ProofSkirmishObserver"));
     bIngressFixture = FParse::Param(FCommandLine::Get(), TEXT("ProofIngressFixture"));
     bIngressFlood = FParse::Param(FCommandLine::Get(), TEXT("ProofIngressFlood"));

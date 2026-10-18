@@ -42,6 +42,7 @@ protected:
     virtual void BeginPlay() override;
 
 private:
+    friend class AProofBoxInputFixture;
     FProofReturnCargoRuntimeState ReturnCargoRuntime;
     bool TickReturnCargoFixture();
     bool ReturnCargoCheck(bool bCondition, const TCHAR* Reason);

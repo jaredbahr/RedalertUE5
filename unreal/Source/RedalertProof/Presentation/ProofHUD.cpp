@@ -70,6 +70,9 @@ void AProofHUD::DrawHUD()
         DrawLine(DragBounds.Min.X, DragBounds.Min.Y, DragBounds.Min.X, DragBounds.Max.Y, FLinearColor::Yellow, 2.f);
         DrawLine(DragBounds.Max.X, DragBounds.Min.Y, DragBounds.Max.X, DragBounds.Max.Y, FLinearColor::Yellow, 2.f);
         DrawLine(DragBounds.Min.X, DragBounds.Max.Y, DragBounds.Max.X, DragBounds.Max.Y, FLinearColor::Yellow, 2.f);
+        if (FParse::Param(FCommandLine::Get(), TEXT("ProofBoxInputFixture")) && FScreenshotRequest::IsScreenshotRequested())
+            UE_LOG(LogTemp, Display, TEXT("PROOF_BOX_HUD frame=%llu left=%.9f top=%.9f right=%.9f bottom=%.9f width=%.0f height=%.0f screenshot=%s drawn=1 physicalInput=false"),
+                GFrameCounter, DragBounds.Min.X, DragBounds.Min.Y, DragBounds.Max.X, DragBounds.Max.Y, Canvas->ClipX, Canvas->ClipY, *FScreenshotRequest::GetFilename());
     }
     DrawRect(FLinearColor(0.015f, 0.025f, 0.045f, 0.88f), Left, Top, PanelWidth, PanelHeight);
 
