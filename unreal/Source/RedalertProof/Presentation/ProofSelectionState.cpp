@@ -66,6 +66,7 @@ void FProofSelectionState::Synchronize(const FProofSnapshot& Snapshot, int32 Own
 {
     if (MatchEpoch != Snapshot.MatchEpoch || SelectionOwnerId != OwnerId)
     {
+        BumpSelectionRevision();
         MatchEpoch = Snapshot.MatchEpoch;
         SelectionOwnerId = OwnerId;
         SelectedUnitIds.Reset();
@@ -77,16 +78,20 @@ void FProofSelectionState::Synchronize(const FProofSnapshot& Snapshot, int32 Own
         }
         return;
     }
+    const TArray<int32> BeforeIds = SelectedUnitIds;
+    const int32 BeforePrimary = PrimaryUnitId;
     PruneIds(SelectedUnitIds, Snapshot, OwnerId);
     if (!SelectedUnitIds.Contains(PrimaryUnitId))
     {
         PrimaryUnitId = SelectedUnitIds.IsEmpty() ? INDEX_NONE : SelectedUnitIds[0];
     }
+    if (BeforeIds != SelectedUnitIds || BeforePrimary != PrimaryUnitId) BumpSelectionRevision();
 }
 
 void FProofSelectionState::SelectSingle(const FProofSnapshot& Snapshot, int32 OwnerId, int32 UnitId)
 {
     Synchronize(Snapshot, OwnerId);
+    BumpSelectionRevision(); // Explicit reselection invalidates a pending key pair.
     SelectedUnitIds.Reset();
     PrimaryUnitId = INDEX_NONE;
     if (IsOwnedLiveUnit(Snapshot, OwnerId, UnitId))
@@ -101,6 +106,7 @@ void FProofSelectionState::Toggle(const FProofSnapshot& Snapshot, int32 OwnerId,
     Synchronize(Snapshot, OwnerId);
     if (!IsOwnedLiveUnit(Snapshot, OwnerId, UnitId)) { return; }
     const int32 ExistingIndex = SelectedUnitIds.IndexOfByKey(UnitId);
+    if (ExistingIndex != INDEX_NONE || SelectedUnitIds.Num() < MaxSelectedUnits) BumpSelectionRevision();
     if (ExistingIndex != INDEX_NONE)
     {
         SelectedUnitIds.RemoveAt(ExistingIndex, 1, EAllowShrinking::No);
@@ -126,8 +132,24 @@ bool FProofSelectionState::IsViewportCenterVisible(const FVector2D& Center, cons
 bool FProofSelectionState::SelectVisibleType(const FProofSnapshot& Snapshot, int32 OwnerId,
     const TArray<int32>& VisibleUnitIds)
 {
+    return SelectTypeCandidates(Snapshot, OwnerId, VisibleUnitIds, PrimaryUnitId);
+}
+
+bool FProofSelectionState::SelectBattlefieldType(const FProofSnapshot& Snapshot, int32 OwnerId, int32 AnchorUnitId)
+{
     const bool bCurrentContext = IsCurrentContext(Snapshot, OwnerId);
-    const int32 SourcePrimary = PrimaryUnitId;
+    Synchronize(Snapshot, OwnerId);
+    if (!bCurrentContext || !FindPlayer(Snapshot, OwnerId)
+        || (Snapshot.bSkirmish && (Snapshot.MatchEpoch <= 0 || Snapshot.MatchPhase != EProofMatchPhase::Playing))) return false;
+    TArray<int32> Candidates;
+    for (const FProofUnitRecord& Unit : Snapshot.Units) Candidates.Add(Unit.UnitId);
+    return SelectTypeCandidates(Snapshot, OwnerId, Candidates, AnchorUnitId);
+}
+
+bool FProofSelectionState::SelectTypeCandidates(const FProofSnapshot& Snapshot, int32 OwnerId,
+    const TArray<int32>& VisibleUnitIds, int32 SourcePrimary)
+{
+    const bool bCurrentContext = IsCurrentContext(Snapshot, OwnerId);
     Synchronize(Snapshot, OwnerId);
     const FProofUnitRecord* Primary = FindUnit(Snapshot, SourcePrimary);
     // A stale/empty anchor cannot implicitly choose a new kind after pruning or
@@ -150,6 +172,7 @@ bool FProofSelectionState::SelectVisibleType(const FProofSnapshot& Snapshot, int
         Matches.SetNum(bKeepPrimary ? MaxSelectedUnits - 1 : MaxSelectedUnits, EAllowShrinking::No);
         if (bKeepPrimary) { Matches.Add(SourcePrimary); Matches.Sort(); }
     }
+    BumpSelectionRevision();
     SelectedUnitIds = MoveTemp(Matches);
     PrimaryUnitId = bKeepPrimary ? SourcePrimary : (SelectedUnitIds.IsEmpty() ? INDEX_NONE : SelectedUnitIds[0]);
     return true;
@@ -169,6 +192,7 @@ void FProofSelectionState::RecallGroup(int32 Slot, const FProofSnapshot& Snapsho
     Synchronize(Snapshot, OwnerId);
     FGroup& Group = Groups[Slot - 1];
     PruneIds(Group.UnitIds, Snapshot, OwnerId);
+    BumpSelectionRevision();
     SelectedUnitIds = Group.UnitIds;
     PrimaryUnitId = SelectedUnitIds.Contains(Group.PrimaryUnitId) ? Group.PrimaryUnitId
         : (SelectedUnitIds.IsEmpty() ? INDEX_NONE : SelectedUnitIds[0]);

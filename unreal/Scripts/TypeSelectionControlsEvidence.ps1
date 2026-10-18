@@ -1,6 +1,6 @@
 # Pure offline policy for the opt-in rendered shared-T handler fixture.
 function Get-TypeSelectionControlsEvidence {
-    param([Parameter(Mandatory)][hashtable]$Logs)
+    param([Parameter(Mandatory)][hashtable]$Logs,[switch]$MapMode)
     function Need($Condition,[string]$Why){if(-not $Condition){throw "Type selection evidence: $Why"}}
     function Num($V){return $null -ne $V -and $V -isnot [string] -and $V -isnot [bool] -and $V -isnot [array] -and [double]::IsFinite([double]$V)}
     function Int($V,[long]$Min=0,[long]$Max=2147483647){return (Num $V) -and [double]$V -ge $Min -and [double]$V -le $Max -and [double]$V -eq [math]::Truncate([double]$V)}
@@ -48,18 +48,21 @@ function Get-TypeSelectionControlsEvidence {
         foreach($m in [regex]::Matches($text,'PROOF_TYPE_SELECTION_FRAME([^\r\n]*)')){
             Need ($role -eq 'rendered') 'frame outside rendered role';$rows++;$bytes+=$m.Length;Need ($rows -le 1024 -and $bytes -le 4MB) 'frame cap'
             $f=Json $m.Groups[1].Value.Trim();Identity $f;Ids $f.selected;Ids $f.expected;Ids $f.group9;Units $f.units
-            Need ($f.phase -cin @('before','after','observed') -and (Int $f.owner) -and $f.owner -eq 1 -and (Int $f.width) -and $f.width -eq 1280 -and (Int $f.height) -and $f.height -eq 720 -and (Int $f.primary 1) -and (Int $f.groupPrimary 1)) 'invalid frame envelope'
+            Need ($f.phase -cin $(if($MapMode){@('before','visible','after','observed')}else{@('before','after','observed')}) -and (Int $f.owner) -and $f.owner -eq 1 -and (Int $f.width) -and $f.width -eq 1280 -and (Int $f.height) -and $f.height -eq 720 -and (Int $f.primary 1) -and (Int $f.groupPrimary 1)) 'invalid frame envelope'
             Need ((Int $f.nativeT) -and $f.nativeT -eq 0 -and (Int $f.sequence) -and $f.sequence -eq 4 -and (Int $f.queue) -and $f.queue -eq 0) 'native callback, sequence or queue changed'
             Need ($f.expected.Count -eq 2 -and $f.units.Count -eq 2 -and (SameIds @($f.units.id|Sort-Object) $f.expected)) 'expected real two-unit set missing'
-            foreach($u in $f.units){Need ($u.owner -eq 1 -and $u.kind -eq 0 -and $u.hp -gt 0 -and (Num $u.screenX) -and (Num $u.screenY) -and $u.screenX -ge 0 -and $u.screenX -lt $f.width -and $u.screenY -ge 0 -and $u.screenY -lt $f.height) 'unit not live owned combat with visible projected center'}
+            foreach($u in $f.units){Need ($u.owner -eq 1 -and $u.kind -eq 0 -and $u.hp -gt 0 -and (Num $u.screenX) -and (Num $u.screenY)) 'unit not live owned combat with finite projected center';if(-not $MapMode){Need ($u.screenX -ge 0 -and $u.screenX -lt $f.width -and $u.screenY -ge 0 -and $u.screenY -lt $f.height) 'unit not visible'}}
             Need ($map.ContainsKey([long]$f.revision) -and $map[[long]$f.revision] -ceq $f.digest) 'frame ordinary digest mismatch'
             $frames+=,$f
         }
         $complete=[regex]::Matches($text,'PROOF_TYPE_SELECTION_COMPLETE([^\r\n]*)')
         if($role -eq 'rendered'){Need ($complete.Count -eq 1 -and $complete[0].Groups[1].Value.Trim() -ceq 'status=pass inputSource=sharedHandler nativeCallbackInvoked=0 physicalInputVerified=0') 'missing/extraneous or false-scope completion'}else{Need ($complete.Count -eq 0) 'completion outside rendered role'}
     }
-    Need ($frames.Count -ge 5 -and $frames[0].phase -ceq 'before' -and $frames[1].phase -ceq 'after') 'before/after phases missing or reordered'
-    $before=$frames[0];$after=$frames[1];$anchor=[long]$before.primary
+    $afterIndex=if($MapMode){2}else{1}
+    Need ($frames.Count -ge 5+$([int][bool]$MapMode) -and $frames[0].phase -ceq 'before' -and $frames[$afterIndex].phase -ceq 'after') 'before/after phases missing or reordered'
+    $before=$frames[0];$after=$frames[$afterIndex];$anchor=[long]$before.primary
+    $visibleIds=@($before.units|Where-Object {$_.screenX -ge 0 -and $_.screenX -lt $before.width -and $_.screenY -ge 0 -and $_.screenY -lt $before.height}|Sort-Object id|ForEach-Object id)
+    if($MapMode){Need ($frames[1].phase -ceq 'visible' -and $visibleIds.Count -eq 1 -and $visibleIds[0] -eq $anchor -and (SameIds $frames[1].selected $visibleIds) -and $frames[1].actionBeforeDigest -ceq $frames[1].digest) 'map proof lacks exact visible-only first pass/offscreen candidate'}
     Need ($before.revision -le $after.revision) 'action precedes initial selection'
     Need ($before.selected.Count -eq 1 -and $before.selected[0] -eq $anchor -and $before.expected -contains $anchor -and (SameIds $before.group9 @($anchor)) -and $before.groupPrimary -eq $anchor) 'invalid initial anchor/group'
     Need ($after.actionBeforeDigest -is [string] -and $after.actionBeforeDigest -ceq $after.digest) 'shared handler mutated snapshot digest'
@@ -67,9 +70,10 @@ function Get-TypeSelectionControlsEvidence {
     foreach($f in $frames){
         Need ((SameIds $f.expected $before.expected) -and $f.primary -eq $anchor -and (SameIds $f.group9 $before.group9) -and $f.groupPrimary -eq $anchor) 'candidate/primary/group changed'
         foreach($u in $f.units){$old=@($before.units|Where-Object id -eq $u.id)[0];foreach($k in @('x','y','z','cargo')){Need ($u.$k -eq $old.$k) 'unit moved or cargo changed during selection'}}
-        if($f.phase -cne 'before'){Need (SameIds $f.selected $before.expected) 'selection is not exact expected pair'}
+        if($MapMode){$currentVisible=@($f.units|Where-Object {$_.screenX -ge 0 -and $_.screenX -lt $f.width -and $_.screenY -ge 0 -and $_.screenY -lt $f.height}|Sort-Object id|ForEach-Object id);Need (SameIds $currentVisible $visibleIds) 'map action/observation changed visible/offscreen classification'}
+        if($f.phase -notin @('before','visible')){Need (SameIds $f.selected $before.expected) 'selection is not exact expected pair'}
         if($f.phase -ceq 'observed'){Need ($f.revision -ge $after.revision -and $f.revision -gt $lastRev -and -not $seen.ContainsKey([long]$f.revision)) 'duplicate/regressing observed revision';$seen[[long]$f.revision]=$true;$lastRev=[long]$f.revision}
-        else{Need (($f -eq $before) -or ($f -eq $after)) 'duplicate before/after phase'}
+        else{Need (($f -eq $before) -or ($f -eq $after) -or ($MapMode -and $f -eq $frames[1])) 'duplicate before/visible/after phase'}
         Need ($clocks.ContainsKey([long]$f.revision)) 'missing authoritative frame snapshot'
         $c=$clocks[[long]$f.revision]
         Need ($c.digest -ceq $f.digest -and $c.owner1Submissions -eq 4) 'host command ingress or digest changed'
@@ -82,5 +86,5 @@ function Get-TypeSelectionControlsEvidence {
     Need ($span -ge 1.0) 'need one actual host simulation second without new commands or movement'
     # Immediate action must also have an authoritative published state, not merely a local claimed digest.
     Need ($clocks.ContainsKey([long]$after.revision)) 'missing authoritative action snapshot'
-    return [ordered]@{passed=$true;inputSource='sharedHandler';nativeCallbackInvoked=$false;physicalInputVerified=$false;osWindowFocusVerified=$false;selectedIds=@($before.expected);primary=$anchor;commonRevisions=@($common.revision);hostSimulationSeconds=$span;hostOwner1Submissions=4;clockRows=$clocks.Count;frameRows=$frames.Count}
+    return [ordered]@{passed=$true;mapGestureEnabled=[bool]$MapMode;focusInput=$(if($MapMode){'synthetic policy input; OS focus not verified'}else{'not asserted'});inputSource='sharedHandler';nativeCallbackInvoked=$false;physicalInputVerified=$false;osWindowFocusVerified=$false;selectedIds=@($before.expected);primary=$anchor;commonRevisions=@($common.revision);hostSimulationSeconds=$span;hostOwner1Submissions=4;clockRows=$clocks.Count;frameRows=$frames.Count}
 }

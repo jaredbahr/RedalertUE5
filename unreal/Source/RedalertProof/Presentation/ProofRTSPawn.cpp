@@ -45,6 +45,8 @@ void AProofRTSPawn::BeginPlay()
 {
     Super::BeginPlay();
     bTypeSelectionControls = FParse::Param(FCommandLine::Get(), TEXT("ProofTypeSelectionControls"));
+    bMapTypeSelectionControls = FParse::Param(FCommandLine::Get(), TEXT("ProofMapTypeSelectionControls"));
+    if (bMapTypeSelectionControls && !bTypeSelectionControls) { FPlatformMisc::RequestExitWithStatus(false, 1); return; }
     if (bTypeSelectionControls && (FParse::Param(FCommandLine::Get(), TEXT("ProofStopControls")) || FParse::Param(FCommandLine::Get(), TEXT("ProofSkirmish")) || !FParse::Param(FCommandLine::Get(), TEXT("ProofControlsAutomation"))))
     {
         UE_LOG(LogTemp, Error, TEXT("PROOF_TYPE_SELECTION_ERROR incompatible_fixture_flags"));
@@ -113,6 +115,7 @@ void AProofRTSPawn::SetupPlayerInputComponent(UInputComponent* Input)
     Input->BindKey(EKeys::F, IE_Pressed, this, &AProofRTSPawn::OnManualFactory);
     Input->BindKey(EKeys::N, IE_Pressed, this, &AProofRTSPawn::OnManualRematch);
     Input->BindKey(EKeys::T, IE_Pressed, this, &AProofRTSPawn::OnManualTypeSelect);
+    Input->BindKey(EKeys::T, IE_Released, this, &AProofRTSPawn::OnManualTypeRelease);
     Input->BindKey(EKeys::One, IE_Pressed, this, &AProofRTSPawn::OnManualGroupOne);
     Input->BindKey(EKeys::Two, IE_Pressed, this, &AProofRTSPawn::OnManualGroupTwo);
     Input->BindKey(EKeys::Three, IE_Pressed, this, &AProofRTSPawn::OnManualGroupThree);
@@ -310,9 +313,10 @@ void AProofRTSPawn::ObserveViewportFocus()
 {
     const UGameViewportClient* GameViewport = GetWorld() ? GetWorld()->GetGameViewport() : nullptr;
     const FViewport* Viewport = GameViewport ? GameViewport->Viewport : nullptr;
-    if (!Viewport) return;
+    if (!Viewport) { TypeGesture.Cancel(); bViewportFocused = bViewportForeground = false; bFocusObserved = false; return; }
     const bool bFocused = Viewport->HasFocus();
     const bool bForeground = Viewport->IsForegroundWindow();
+    if (!bFocused || !bForeground) TypeGesture.Cancel();
     if (!bFocusObserved || bFocused != bViewportFocused || bForeground != bViewportForeground)
     {
         bFocusObserved = true;
@@ -364,20 +368,77 @@ void AProofRTSPawn::OnManualSelect()
 
 void AProofRTSPawn::OnManualTypeSelect()
 {
-    SelectVisibleType();
+    ObserveViewportFocus();
+    SelectTypeByGesture(FPlatformTime::Seconds(), bViewportFocused && bViewportForeground);
     // Only the bound callback records a native input edge. Shared actions and
     // model tests cannot produce a physical-input verification claim.
     RecordManualInput(TEXT("T"), ManualTypeSelectPresses, RequestStatus);
 }
 
-void AProofRTSPawn::SelectVisibleType()
+void AProofRTSPawn::OnManualTypeRelease() { TypeGesture.Release(); }
+
+void AProofRTSPawn::SelectTypeByGesture(double WallSeconds, bool bFocused)
 {
     const AProofPlayerController* PC = Cast<AProofPlayerController>(GetController());
     const AProofGameState* GS = GetWorld() ? GetWorld()->GetGameState<AProofGameState>() : nullptr;
-    if (!PC || !GS || !PC->IsLocalController()) return;
+    if (!PC || !GS || !PC->IsLocalController()) { TypeGesture.Cancel(); return; }
+    const FProofSnapshot& Snapshot = GS->Snapshot;
+    if (!FMath::IsFinite(WallSeconds) || WallSeconds < 0.0) { TypeGesture.Cancel(); return; }
+    const bool bCurrentSelectionContext = Selection.HasCurrentContext(Snapshot, PC->OwnerId);
+    Selection.Synchronize(Snapshot, PC->OwnerId);
+    SelectedUnitId = Selection.GetPrimaryUnitId();
+    if (!bCurrentSelectionContext) { TypeGesture.Cancel(); RequestStatus = TEXT("Select a live owned unit in this match first."); return; }
+    if (TypeGesture.IsArmed() && (TypeGesture.Expected().Owner != PC->OwnerId || TypeGesture.Expected().Epoch != Snapshot.MatchEpoch
+        || TypeGesture.Expected().SelectionRevision != Selection.GetSelectionRevision() || TypeGesture.Expected().Mode != (Snapshot.bSkirmish ? 1 : 0))) TypeGesture.Cancel();
+    const int32 VisibleAnchorId = Selection.GetPrimaryUnitId();
+    const int32 AnchorId = TypeGesture.IsArmed() ? TypeGesture.Expected().Anchor : VisibleAnchorId;
+    const FProofUnitRecord* Anchor = Snapshot.Units.FindByPredicate([AnchorId](const FProofUnitRecord& Unit) { return Unit.UnitId == AnchorId; });
+    const bool bValidAnchor = Anchor && Anchor->OwnerId == PC->OwnerId && Anchor->HitPoints > 0.f
+        && FMath::IsFinite(Anchor->HitPoints) && !Anchor->Position.ContainsNaN()
+        && FMath::Abs(Anchor->Position.X) <= FProofCommandModel::WorldExtent
+        && FMath::Abs(Anchor->Position.Y) <= FProofCommandModel::WorldExtent && FMath::Abs(Anchor->Position.Z) <= FProofCommandModel::WorldExtent;
+    const bool bMapContext = bValidAnchor && PC->OwnerId >= 0 && Snapshot.MatchEpoch >= 0
+        && Selection.GetSelectionRevision() < MAX_uint64
+        && Snapshot.Players.ContainsByPredicate([PC](const FProofPlayerRecord& Player) { return Player.OwnerId == PC->OwnerId; })
+        && (!Snapshot.bSkirmish || (Snapshot.MatchEpoch > 0 && Snapshot.MatchPhase == EProofMatchPhase::Playing));
+    ProofTypeSelectGesture::Context Context;
+    Context.Owner = PC->OwnerId; Context.Epoch = Snapshot.MatchEpoch; Context.Anchor = AnchorId;
+    Context.Kind = Anchor ? static_cast<int32>(Anchor->Kind) : INDEX_NONE;
+    Context.Mode = Snapshot.bSkirmish ? 1 : 0; Context.SelectionRevision = Selection.GetSelectionRevision();
+    if (!bMapContext && bFocused)
+    {
+        TypeGesture.Cancel();
+        SelectVisibleType(); // Preserve existing single-press behavior; do not arm expansion.
+        return;
+    }
+    const auto Scope = TypeGesture.Press(WallSeconds, Context, bMapContext, bFocused);
+    if (Scope == ProofTypeSelectGesture::Scope::Battlefield)
+    {
+        const bool bSelected = Selection.SelectBattlefieldType(Snapshot, PC->OwnerId, AnchorId);
+        SelectedUnitId = Selection.GetPrimaryUnitId();
+        RequestStatus = bSelected ? FString::Printf(TEXT("%d battlefield owned units of the same generic kind selected."), Selection.GetSelectedUnitIds().Num())
+            : TEXT("Battlefield type selection context changed; press T again.");
+    }
+    else if (Scope == ProofTypeSelectGesture::Scope::Visible)
+    {
+        const FProofUnitRecord* VisibleAnchor = Snapshot.Units.FindByPredicate([VisibleAnchorId](const FProofUnitRecord& Unit) { return Unit.UnitId == VisibleAnchorId; });
+        if (!SelectVisibleType()) { TypeGesture.Cancel(); return; }
+        if (!VisibleAnchor || VisibleAnchor->OwnerId != PC->OwnerId || !(VisibleAnchor->HitPoints > 0.f)
+            || !FMath::IsFinite(VisibleAnchor->HitPoints) || VisibleAnchor->Position.ContainsNaN()) { TypeGesture.Cancel(); return; }
+        Context.Anchor = VisibleAnchorId; Context.Kind = static_cast<int32>(VisibleAnchor->Kind);
+        Context.SelectionRevision = Selection.GetSelectionRevision();
+        TypeGesture.CommitVisible(WallSeconds, Context);
+    }
+}
+
+bool AProofRTSPawn::SelectVisibleType()
+{
+    const AProofPlayerController* PC = Cast<AProofPlayerController>(GetController());
+    const AProofGameState* GS = GetWorld() ? GetWorld()->GetGameState<AProofGameState>() : nullptr;
+    if (!PC || !GS || !PC->IsLocalController()) return false;
     int32 Width = 0, Height = 0;
     PC->GetViewportSize(Width, Height);
-    if (Width <= 0 || Height <= 0) { RequestStatus = TEXT("Type selection needs an active viewport."); return; }
+    if (Width <= 0 || Height <= 0) { RequestStatus = TEXT("Type selection needs an active viewport."); return false; }
     TArray<int32> VisibleIds;
     for (const FProofUnitRecord& Unit : GS->Snapshot.Units)
     {
@@ -390,6 +451,7 @@ void AProofRTSPawn::SelectVisibleType()
     SelectedUnitId = Selection.GetPrimaryUnitId();
     RequestStatus = bSelected ? FString::Printf(TEXT("%d visible owned units of the same generic kind selected."), Selection.GetSelectedUnitIds().Num())
         : TEXT("Select an owned live unit before type selection.");
+    return bSelected;
 }
 void AProofRTSPawn::OnManualGroupOne() { HandleManualGroup(1); }
 void AProofRTSPawn::OnManualGroupTwo() { HandleManualGroup(2); }
@@ -1070,7 +1132,7 @@ void AProofRTSPawn::TickControlsAutomation(float DeltaSeconds)
         ControlsStageTime = ControlsElapsed;
         ControlsStep = 6;
     }
-    else if (ControlsStep == 7 && bTypeSelectionControls) TickTypeSelectionControls();
+    else if (ControlsStep == 7 && bTypeSelectionControls) { if (bMapTypeSelectionControls) TickMapTypeSelectionControls(); else TickTypeSelectionControls(); }
     else if (ControlsStep == 6 && ControlsElapsed - ControlsStageTime > 1.f)
     {
         const bool bScreenshots = IFileManager::Get().FileSize(*FPaths::Combine(ControlsOutput, TEXT("01-selected.png"))) > 1024
