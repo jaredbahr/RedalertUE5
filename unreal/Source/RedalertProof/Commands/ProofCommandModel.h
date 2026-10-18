@@ -67,6 +67,9 @@ struct REDALERTPROOF_API FProofUnitRecord
     UPROPERTY() int32 UnitId = INDEX_NONE;
     UPROPERTY() int32 OwnerId = INDEX_NONE;
     UPROPERTY() FVector Position = FVector::ZeroVector;
+    // Authoritative display metadata only: last actual nonzero XY travel.
+    // Zero means no observed travel; this is not hull/turret simulation state.
+    UPROPERTY() FVector LastTravelDirection = FVector::ZeroVector;
     UPROPERTY() float HitPoints = 100.f;
     UPROPERTY() EProofUnitKind Kind = EProofUnitKind::Combat;
     UPROPERTY() int32 Cargo = 0;
@@ -154,6 +157,7 @@ private:
     friend class FProofRefineryMinerIdBoundaryTest;
     friend struct FProofOreReselectionFixture;
     friend struct FProofReturnCargoFixture;
+    friend struct FProofLastTravelDirectionFixture;
 #endif
     struct FOrder
     {
@@ -175,6 +179,7 @@ private:
     int32 CommandsPerAdvance = 32;
 
     void BumpRevision();
+    static void RecordLastTravelDirection(FProofUnitRecord& Unit, const FVector& PreviousPosition);
     static bool IsFinitePosition(const FVector& Position);
     static bool IsInWorld(const FVector& Position);
     int32 AddUnit(int32 OwnerId, const FVector& Position, EProofUnitKind Kind, float HitPoints);
