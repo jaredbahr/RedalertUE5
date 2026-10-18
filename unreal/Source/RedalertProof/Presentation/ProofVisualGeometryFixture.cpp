@@ -121,9 +121,13 @@ void AProofRTSPawn::RestoreVisualGeometryView()
         || !FMath::IsNearlyEqual(Camera->OrthoWidth, VisualGeometry.PriorOrthoWidth))
     { FinishSkirmishScenario(false, TEXT("geometry_view_restore")); return; }
     if (VisualGeometry.Stage == 5)
+    {
         UE_LOG(LogTemp, Display, TEXT("PROOF_RHINO_DIRECTION_RESTORED stage=%d verified=1"), VisualGeometry.DirectionStage);
+    }
     else
+    {
         UE_LOG(LogTemp, Display, TEXT("PROOF_VISUAL_GEOMETRY_RESTORED stage=%d verified=1"), VisualGeometry.Stage);
+    }
 }
 
 bool AProofRTSPawn::LogVisualGeometryObservation() const
@@ -212,9 +216,13 @@ bool AProofRTSPawn::LogVisualGeometryObservation() const
     Json.ReplaceInline(TEXT("\r"), TEXT(""));
     Json.ReplaceInline(TEXT("\n"), TEXT(""));
     if (VisualGeometry.Stage == 5)
+    {
         UE_LOG(LogTemp, Display, TEXT("PROOF_RHINO_DIRECTION %s"), *Json);
+    }
     else
+    {
         UE_LOG(LogTemp, Display, TEXT("PROOF_VISUAL_GEOMETRY %s"), *Json);
+    }
     return true;
 }
 
