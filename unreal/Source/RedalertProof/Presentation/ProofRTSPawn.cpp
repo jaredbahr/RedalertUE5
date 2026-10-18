@@ -1557,7 +1557,7 @@ void AProofRTSPawn::TickSkirmishScenario(float DeltaSeconds)
                 && (!bGroupGatherEvidence || GroupGatherStage == 3)
                 && (!ReturnCargoRuntime.bEnabled || ReturnCargoRuntime.Stage == 15)
                 && (!FactoryProduction.bEnabled || FactoryProduction.Complete())
-                && (!VisualGeometry.bEnabled || VisualGeometry.Stage == 5);
+                && (!VisualGeometry.bEnabled || (VisualGeometry.Stage == 5 && VisualGeometry.DirectionStage == 6));
             if (bPass && bHUDReadabilityCaptures && !TickHUDReadabilityCaptures()) return;
             FinishSkirmishScenario(bPass, bPass ? TEXT("complete_loop") : TEXT("outcome_or_evidence"));
         }

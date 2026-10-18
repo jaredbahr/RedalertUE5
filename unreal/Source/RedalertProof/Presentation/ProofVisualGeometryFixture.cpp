@@ -120,7 +120,10 @@ void AProofRTSPawn::RestoreVisualGeometryView()
         || !Camera->GetComponentTransform().Equals(VisualGeometry.PriorCamera, 0.001f)
         || !FMath::IsNearlyEqual(Camera->OrthoWidth, VisualGeometry.PriorOrthoWidth))
     { FinishSkirmishScenario(false, TEXT("geometry_view_restore")); return; }
-    UE_LOG(LogTemp, Display, TEXT("PROOF_VISUAL_GEOMETRY_RESTORED stage=%d verified=1"), VisualGeometry.Stage);
+    if (VisualGeometry.Stage == 5)
+        UE_LOG(LogTemp, Display, TEXT("PROOF_RHINO_DIRECTION_RESTORED stage=%d verified=1"), VisualGeometry.DirectionStage);
+    else
+        UE_LOG(LogTemp, Display, TEXT("PROOF_VISUAL_GEOMETRY_RESTORED stage=%d verified=1"), VisualGeometry.Stage);
 }
 
 bool AProofRTSPawn::LogVisualGeometryObservation() const
@@ -146,7 +149,16 @@ bool AProofRTSPawn::LogVisualGeometryObservation() const
     if (!Floor) return false;
     const TSharedRef<FJsonObject> Row = MakeShared<FJsonObject>();
     Row->SetStringField(TEXT("capture"), VisualGeometry.CaptureName);
-    Row->SetNumberField(TEXT("stage"), VisualGeometry.Stage);
+    Row->SetNumberField(TEXT("stage"), VisualGeometry.Stage == 5 ? VisualGeometry.DirectionStage : VisualGeometry.Stage);
+    if (VisualGeometry.Stage == 5)
+    {
+        FProofCommandResult Receipt;
+        if (!PC->FindReceipt(VisualGeometry.DirectionSequence, Receipt) || !Receipt.bAccepted) return false;
+        Row->SetNumberField(TEXT("moveSequence"), VisualGeometry.DirectionSequence);
+        Row->SetBoolField(TEXT("moveReceiptAccepted"), true);
+        GeometryVector(Row, TEXT("moveOrigin"), VisualGeometry.DirectionOrigin);
+        GeometryVector(Row, TEXT("moveGoal"), VisualGeometry.DirectionGoal);
+    }
     Row->SetNumberField(TEXT("unit"), Unit->UnitId);
     Row->SetNumberField(TEXT("owner"), Unit->OwnerId);
     Row->SetNumberField(TEXT("kind"), static_cast<int32>(Unit->Kind));
@@ -199,7 +211,10 @@ bool AProofRTSPawn::LogVisualGeometryObservation() const
     // Condense to one row, so retained raw evidence is independently parseable.
     Json.ReplaceInline(TEXT("\r"), TEXT(""));
     Json.ReplaceInline(TEXT("\n"), TEXT(""));
-    UE_LOG(LogTemp, Display, TEXT("PROOF_VISUAL_GEOMETRY %s"), *Json);
+    if (VisualGeometry.Stage == 5)
+        UE_LOG(LogTemp, Display, TEXT("PROOF_RHINO_DIRECTION %s"), *Json);
+    else
+        UE_LOG(LogTemp, Display, TEXT("PROOF_VISUAL_GEOMETRY %s"), *Json);
     return true;
 }
 
@@ -207,7 +222,8 @@ bool AProofRTSPawn::TickVisualGeometryFixture(int32 FixtureHarvesterId)
 {
     const AProofGameState* GS = GetWorld()->GetGameState<AProofGameState>();
     const AProofPlayerController* PC = Cast<AProofPlayerController>(GetController());
-    if (!GS || !PC || VisualGeometry.Stage == 5) return false;
+    if (!GS || !PC) return false;
+    if (VisualGeometry.Stage == 5 && !VisualGeometry.bCapturing) return TickRhinoDirectionObservation();
     auto Find = [GS](int32 Id) { return GS->Snapshot.Units.FindByPredicate([Id](const FProofUnitRecord& U)
         { return U.UnitId == Id && U.HitPoints > 0.f; }); };
     if (VisualGeometry.bCapturing)
@@ -230,6 +246,11 @@ bool AProofRTSPawn::TickVisualGeometryFixture(int32 FixtureHarvesterId)
             if (VisualGeometry.Stage == 0) VisualGeometry.HarvesterContact = Target->Position;
             if (VisualGeometry.Stage == 1) VisualGeometry.HarvesterMotionA = Target->Position;
             if (VisualGeometry.Stage == 3) VisualGeometry.CombatMotionA = Target->Position;
+            if (VisualGeometry.Stage == 5 && VisualGeometry.DirectionStage == 4)
+            {
+                VisualGeometry.StationaryPosition = Target->Position;
+                VisualGeometry.StationaryElapsed = SkirmishElapsed;
+            }
             IFileManager::Get().MakeDirectory(*SkirmishOutput, true);
             FScreenshotRequest::RequestScreenshot(FPaths::Combine(SkirmishOutput, VisualGeometry.CaptureName), true, false);
             VisualGeometry.bRequested = true;
@@ -237,8 +258,16 @@ bool AProofRTSPawn::TickVisualGeometryFixture(int32 FixtureHarvesterId)
         if (VisualGeometry.bRequested && IFileManager::Get().FileSize(*FPaths::Combine(SkirmishOutput, VisualGeometry.CaptureName)) > 1024)
         {
             RestoreVisualGeometryView();
-            ++VisualGeometry.Stage;
-            UE_LOG(LogTemp, Display, TEXT("PROOF_VISUAL_GEOMETRY_WRITTEN stage=%d"), VisualGeometry.Stage);
+            if (VisualGeometry.Stage == 5)
+            {
+                ++VisualGeometry.DirectionStage;
+                UE_LOG(LogTemp, Display, TEXT("PROOF_RHINO_DIRECTION_WRITTEN stage=%d"), VisualGeometry.DirectionStage);
+            }
+            else
+            {
+                ++VisualGeometry.Stage;
+                UE_LOG(LogTemp, Display, TEXT("PROOF_VISUAL_GEOMETRY_WRITTEN stage=%d"), VisualGeometry.Stage);
+            }
         }
         return true;
     }
@@ -279,4 +308,65 @@ bool AProofRTSPawn::TickVisualGeometryFixture(int32 FixtureHarvesterId)
             return BeginVisualGeometryCapture(Unit->UnitId, TEXT("07-geometry-rhino-motion-b.png"));
     }
     return false;
+}
+
+bool AProofRTSPawn::TickRhinoDirectionObservation()
+{
+    if (VisualGeometry.DirectionStage == 6) return false;
+    const AProofGameState* GS = GetWorld()->GetGameState<AProofGameState>();
+    AProofPlayerController* PC = Cast<AProofPlayerController>(GetController());
+    if (!GS || !PC || GS->Snapshot.MatchPhase == EProofMatchPhase::Finished)
+    { FinishSkirmishScenario(false, TEXT("direction_context")); return true; }
+    const FProofUnitRecord* Unit = GS->Snapshot.Units.FindByPredicate([this](const FProofUnitRecord& U)
+        { return U.UnitId == VisualGeometry.CombatId && U.HitPoints > 0.f; });
+    if (!Unit || Unit->OwnerId != PC->OwnerId || Unit->Kind != EProofUnitKind::Combat)
+    { FinishSkirmishScenario(false, TEXT("direction_unit_lost")); return true; }
+    if (VisualGeometry.DirectionStage == 0 || VisualGeometry.DirectionStage == 2)
+    {
+        // The same local selection and Move handler used by ordinary play.
+        if (LastRequestedSequence > 0)
+        {
+            FProofCommandResult Prior;
+            if (!PC->FindReceipt(LastRequestedSequence, Prior)) return true;
+            if (!Prior.bAccepted) { FinishSkirmishScenario(false, TEXT("direction_prior_receipt")); return true; }
+        }
+        if (!SetControlsCursorFromWorld(Unit->Position)) return true;
+        SelectUnderCursor();
+        if (SelectedUnitId != Unit->UnitId) { FinishSkirmishScenario(false, TEXT("direction_selection")); return true; }
+        const FVector Offset = VisualGeometry.DirectionStage == 0 ? FVector(300.f, 0.f, 0.f) : FVector(0.f, -300.f, 0.f);
+        VisualGeometry.DirectionOrigin = Unit->Position;
+        VisualGeometry.DirectionGoal = Unit->Position + Offset;
+        if (!SetControlsCursorFromWorld(VisualGeometry.DirectionGoal)) return true;
+        const int32 Before = LastRequestedSequence;
+        OrderUnderCursor();
+        if (LastRequestedSequence <= Before || LastRequestedType != TEXT("Move") || LastRequestedUnitId != Unit->UnitId)
+        { FinishSkirmishScenario(false, TEXT("direction_move_handler")); return true; }
+        VisualGeometry.DirectionSequence = LastRequestedSequence;
+        UE_LOG(LogTemp, Display, TEXT("PROOF_RHINO_DIRECTION_MOVE stage=%d unit=%d sequence=%d destinationX=%.9f destinationY=%.9f"),
+            VisualGeometry.DirectionStage, Unit->UnitId, LastRequestedSequence,
+            VisualGeometry.DirectionGoal.X, VisualGeometry.DirectionGoal.Y);
+        ++VisualGeometry.DirectionStage;
+        return true;
+    }
+    FProofCommandResult Receipt;
+    if (!PC->FindReceipt(VisualGeometry.DirectionSequence, Receipt)) return true;
+    if (!Receipt.bAccepted) { FinishSkirmishScenario(false, TEXT("direction_move_receipt")); return true; }
+    if (VisualGeometry.DirectionStage == 1 || VisualGeometry.DirectionStage == 3)
+    {
+        if (FVector::DistSquared(Unit->Position, VisualGeometry.DirectionOrigin) >= FMath::Square(100.f))
+            BeginVisualGeometryCapture(Unit->UnitId, VisualGeometry.DirectionStage == 1
+                ? TEXT("08-rhino-direction-first.png") : TEXT("09-rhino-direction-turn.png"));
+        return true;
+    }
+    if (VisualGeometry.DirectionStage == 4)
+    {
+        if (Unit->Position.Equals(VisualGeometry.DirectionGoal, 0.01f))
+            BeginVisualGeometryCapture(Unit->UnitId, TEXT("10-rhino-stationary-a.png"));
+        return true;
+    }
+    if (!Unit->Position.Equals(VisualGeometry.StationaryPosition, 0.01f))
+    { FinishSkirmishScenario(false, TEXT("direction_stationary_drift")); return true; }
+    if (SkirmishElapsed - VisualGeometry.StationaryElapsed >= 1.2f)
+        BeginVisualGeometryCapture(Unit->UnitId, TEXT("11-rhino-stationary-b.png"));
+    return true;
 }

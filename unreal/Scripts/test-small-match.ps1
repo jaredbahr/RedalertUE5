@@ -20,6 +20,7 @@ param(
 $ErrorActionPreference = 'Stop'
 if ($VisualGeometryEvidence -and ($Scenario -ne 'Victory' -or $ReturnCargoEvidence -or $GroupGatherEvidence -or $FactoryProductionEvidence -or $FactoryRallyEvidence -or $CoopContextEvidence -or $ReadabilityCaptures -or $CameraEdgeCaptures -or $RefineryMinerEvidence)) { throw 'VisualGeometryEvidence requires plain standalone Victory.' }
 . (Join-Path $PSScriptRoot 'VisualGeometryEvidence.ps1')
+. (Join-Path $PSScriptRoot 'RhinoDirectionEvidence.ps1')
 . (Join-Path $PSScriptRoot 'RefineryMinerEvidence.ps1')
 . (Join-Path $PSScriptRoot 'GroupGatherEvidence.ps1')
 . (Join-Path $PSScriptRoot 'ReturnCargoEvidence.ps1')
@@ -100,6 +101,7 @@ $result = [ordered]@{
     groupGatherEvidenceEnabled=[bool]$GroupGatherEvidence; groupGatherEvidence=$null
     returnCargoEvidenceEnabled=[bool]$ReturnCargoEvidence; returnCargoEvidence=$null
     visualGeometryEvidenceEnabled=[bool]$VisualGeometryEvidence; visualGeometryEvidence=$null
+    rhinoDirectionEvidence=$null
     processes=@(); screenshots=@(); commonRevisions=@(); expectedWinner=$(if($Scenario -eq 'Defeat'){1}else{0}); error=$null; cleanupErrors=@()
 }
 $entries = [Collections.Generic.List[object]]::new()
@@ -353,6 +355,7 @@ try {
     if ($GroupGatherEvidence) { $captureNames+='03-group-gather.png' }
     if ($ReturnCargoEvidence) { $captureNames+='03-return-cargo.png' }
     if ($VisualGeometryEvidence) { $captureNames+=@('03-geometry-harvester-contact.png','04-geometry-harvester-motion-a.png','05-geometry-harvester-motion-b.png','06-geometry-rhino-motion-a.png','07-geometry-rhino-motion-b.png') }
+    if ($VisualGeometryEvidence) { $captureNames+=@('08-rhino-direction-first.png','09-rhino-direction-turn.png','10-rhino-stationary-a.png','11-rhino-stationary-b.png') }
     if ($FactoryRallyEvidence) { $captureNames+='03-factory-rally.png' }
     if ($CoopContextEvidence) { $captureNames+=@('04-context-single.png','05-context-group.png') }
     if ($ReadabilityCaptures) {
@@ -388,6 +391,7 @@ try {
         if ($CoopContextEvidence) { $result.coopContextEvidence=Get-CoopContextEvidence -Logs $evidenceLogs -ValidatedStateContext $stateContext -RallyEvidence $result.factoryRallyEvidence }
     }
     if ($VisualGeometryEvidence) { $result.visualGeometryEvidence=Get-VisualGeometryEvidence -Log (Read-Log $client) }
+    if ($VisualGeometryEvidence) { $result.rhinoDirectionEvidence=Get-RhinoDirectionEvidence -Log (Read-Log $client) }
     $retryLog=Read-Log $client
     if($Scenario -eq 'Coop'){$retryLog=(Read-Log $serverEntry)+[Environment]::NewLine+$retryLog}
     $result.ownershipRetryEvidence=Get-SkirmishOwnershipRetryEvidence -Log $retryLog -RequireSemanticEvidence:$RefineryMinerEvidence

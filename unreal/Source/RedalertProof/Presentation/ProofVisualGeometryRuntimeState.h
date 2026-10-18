@@ -22,4 +22,11 @@ struct FProofVisualGeometryRuntimeState
     FVector HarvesterMotionA = FVector::ZeroVector;
     FVector CombatMotionA = FVector::ZeroVector;
     FString CaptureName;
+    // Isolated diagnostic: ordinary pointer Move requests, never model writes.
+    int32 DirectionStage = 0;
+    int32 DirectionSequence = 0;
+    FVector DirectionOrigin = FVector::ZeroVector;
+    FVector DirectionGoal = FVector::ZeroVector;
+    FVector StationaryPosition = FVector::ZeroVector;
+    float StationaryElapsed = 0.f;
 };

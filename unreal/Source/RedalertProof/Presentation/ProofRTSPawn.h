@@ -47,6 +47,7 @@ private:
     bool BeginVisualGeometryCapture(int32 UnitId, const TCHAR* Name);
     void RestoreVisualGeometryView();
     bool LogVisualGeometryObservation() const;
+    bool TickRhinoDirectionObservation();
     FProofReturnCargoRuntimeState ReturnCargoRuntime;
     bool TickReturnCargoFixture();
     bool ReturnCargoCheck(bool bCondition, const TCHAR* Reason);
