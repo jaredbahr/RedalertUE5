@@ -271,6 +271,11 @@ FProofCommandResult AProofGameMode::SubmitForOwner(int32 TrustedOwnerId, const F
     TOptional<FProofSnapshot> AttackMoveBefore;
     if (AttackMoveEvidence.Enabled()) AttackMoveBefore.Emplace(Model.GetSnapshot());
     FProofCommandResult Result = Model.Submit(TrustedOwnerId, Command);
+    if (TrustedOwnerId == 1 && Command.Type == EProofCommandType::Gather
+        && FParse::Param(FCommandLine::Get(), TEXT("ProofGroupGatherEvidence")))
+        UE_LOG(LogTemp, Display, TEXT("PROOF_GROUP_GATHER_COMMAND {\"owner\":%d,\"epoch\":%d,\"sequence\":%d,\"unit\":%d,\"resource\":%d,\"accepted\":%d,\"revision\":%d}"),
+            TrustedOwnerId, MatchEpoch, Command.Sequence, Command.UnitId, Command.TargetUnitId,
+            Result.bAccepted ? 1 : 0, Model.GetSnapshot().Revision);
     if (TrustedOwnerId == 1 && FParse::Param(FCommandLine::Get(), TEXT("ProofCoopContextEvidence")))
     {
         if (++CoopContextCommandRows > 256)

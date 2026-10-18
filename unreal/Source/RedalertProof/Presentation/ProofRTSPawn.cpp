@@ -65,6 +65,7 @@ void AProofRTSPawn::BeginPlay()
         FPlatformMisc::RequestExitWithStatus(false, 1);
         return;
     }
+    bGroupGatherEvidence = FParse::Param(FCommandLine::Get(), TEXT("ProofGroupGatherEvidence"));
     bFactoryRallyEvidence = FParse::Param(FCommandLine::Get(), TEXT("ProofFactoryRallyEvidence"));
     CoopContext.bEnabled = FParse::Param(FCommandLine::Get(), TEXT("ProofCoopContextEvidence"));
     FParse::Value(FCommandLine::Get(), TEXT("ProofSkirmishScenario="), SkirmishScenario);
@@ -1369,6 +1370,8 @@ void AProofRTSPawn::TickSkirmishScenario(float DeltaSeconds)
     { FinishSkirmishScenario(false, TEXT("camera_edge_requires_victory_readability")); return; }
     if (bHUDReadabilityCaptures && SkirmishScenario != TEXT("Victory"))
     { FinishSkirmishScenario(false, TEXT("readability_requires_victory")); return; }
+    if (bGroupGatherEvidence && (SkirmishScenario != TEXT("Victory") || bHUDReadabilityCaptures || bFactoryRallyEvidence || CoopContext.bEnabled))
+    { FinishSkirmishScenario(false, TEXT("group_gather_requires_plain_victory")); return; }
     if (CoopContext.bEnabled && (!bFactoryRallyEvidence || SkirmishScenario != TEXT("Coop")))
     { FinishSkirmishScenario(false, TEXT("context_requires_cooperative_rally")); return; }
     SkirmishElapsed += DeltaSeconds;
@@ -1451,7 +1454,8 @@ void AProofRTSPawn::TickSkirmishScenario(float DeltaSeconds)
             const bool bPass = Snapshot.WinnerTeam == ExpectedWinner && bSkirmishBuilt && bSkirmishGathered
                 && bSkirmishProduced && bSkirmishBotRefinery && bSkirmishBotFactory && bSkirmishBotProduced
                 && bSkirmishBotAttacked && bSkirmishBaseCaptured && (!bFactoryRallyEvidence || FactoryRallyStage == 4)
-                && (!CoopContext.bEnabled || CoopContext.Stage == 8);
+                && (!CoopContext.bEnabled || CoopContext.Stage == 8)
+                && (!bGroupGatherEvidence || GroupGatherStage == 3);
             if (bPass && bHUDReadabilityCaptures && !TickHUDReadabilityCaptures()) return;
             FinishSkirmishScenario(bPass, bPass ? TEXT("complete_loop") : TEXT("outcome_or_evidence"));
         }
@@ -1526,6 +1530,11 @@ void AProofRTSPawn::TickSkirmishScenario(float DeltaSeconds)
         BuildUnderCursor(EProofCommandType::BuildFactory);
         if (LastRequestedSequence > BeforeSequence && LastRequestedType == TEXT("BuildFactory")) ++SkirmishStage;
         else FinishSkirmishScenario(false, TEXT("build_factory_not_sent"));
+        return;
+    }
+    if (SkirmishStage == 2 && bGroupGatherEvidence && Harvester && Refinery && Factory)
+    {
+        if (TickGroupGatherFixture()) ++SkirmishStage;
         return;
     }
     if (SkirmishStage == 2 && Harvester && Refinery && Factory)

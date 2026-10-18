@@ -11,10 +11,16 @@ param(
     [switch]$CoopContextEvidence,
     [switch]$ReadabilityCaptures,
     [switch]$CameraEdgeCaptures,
-    [ValidateSet('1280x720','960x540')][string]$Viewport = '1280x720'
+    [ValidateSet('1280x720','960x540')][string]$Viewport = '1280x720',
+    [switch]$GroupGatherEvidence
 )
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'RefineryMinerEvidence.ps1')
+. (Join-Path $PSScriptRoot 'GroupGatherEvidence.ps1')
+if ($GroupGatherEvidence) {
+    if ($Scenario -ne 'Victory' -or $FactoryRallyEvidence -or $CoopContextEvidence -or $ReadabilityCaptures -or $CameraEdgeCaptures) { throw 'GroupGatherEvidence requires plain Victory.' }
+    $RefineryMinerEvidence = [switch]::new($true)
+}
 . (Join-Path $PSScriptRoot 'SkirmishRetryEvidence.ps1')
 . (Join-Path $PSScriptRoot 'CameraEdgeEvidence.ps1')
 if ($CameraEdgeCaptures -and (-not $ReadabilityCaptures -or $Scenario -ne 'Victory')) { throw 'CameraEdgeCaptures requires Victory and ReadabilityCaptures.' }
@@ -75,6 +81,7 @@ $result = [ordered]@{
     literalClientSetup=[ordered]@{startupFile=$literalClientCVars;expectedResolverDisabled=1;startupConfirmedByRole=@{};hostnameOrInternetTest=$false;osDnsChanged=$false}
     cameraEdgeCaptures=[bool]$CameraEdgeCaptures; cameraEdgeEvidence=$null; readabilityCaptures=[bool]$ReadabilityCaptures; edgeCaptureEvidence=@(); hudLayoutCaptureEvidence=@(); hudCriticalTextEvidence=@(); factoryRallyEvidenceEnabled=[bool]$FactoryRallyEvidence; factoryRallyEvidence=$null; coopContextEvidenceEnabled=[bool]$CoopContextEvidence; coopContextEvidence=$null
     renderConfiguration=[ordered]@{realViewport=$true;offscreen=$true;width=$viewportWidth;height=$viewportHeight;optimizedShaders=1;targetFPS=30}
+    groupGatherEvidenceEnabled=[bool]$GroupGatherEvidence; groupGatherEvidence=$null
     processes=@(); screenshots=@(); commonRevisions=@(); expectedWinner=$(if($Scenario -eq 'Defeat'){1}else{0}); error=$null; cleanupErrors=@()
 }
 $entries = [Collections.Generic.List[object]]::new()
@@ -225,6 +232,7 @@ function Start-Role([string]$Role,[string]$Destination,[string[]]$Mode) {
     $log=Join-Path $run ($Role+'.log')
     $launchArguments=@(('"'+$project+'"'),$Destination)+$Mode+@('-unattended','-nosound','-nosplash','-NoSourceControl','-NoP4','-CoreLimit=2','-ddc=BlockoutDDC','-logcmds="LogDerivedDataCache Verbose"',('-port='+$Port),'-ini:GameUserSettings:[/Script/Engine.GameUserSettings]:FrameRateLimit=30','-ini:Engine:[DevOptions.Shaders]:WorkerProcessPriority=0,[ConsoleVariables]:t.MaxFPS=30,[AssetRegistry]:EditorGameScansAR=Async,[ShaderCompiler]:r.Shaders.Optimize=1,[ConsoleVariables]:r.Shaders.Optimize=1',('-abslog="'+$log+'"'))
     if ($RefineryMinerEvidence) { $launchArguments+='-ProofRefineryMinerEvidence' }
+    if ($GroupGatherEvidence) { $launchArguments+='-ProofGroupGatherEvidence' }
     if ($FactoryRallyEvidence) { $launchArguments+='-ProofFactoryRallyEvidence' }
     if ($CoopContextEvidence) { $launchArguments+='-ProofCoopContextEvidence' }
     if ($ReadabilityCaptures -and $Role -eq 'rendered') { $launchArguments+='-ProofHUDReadabilityCaptures' }
@@ -320,6 +328,7 @@ try {
         if ($complete -notmatch ('PROOF_SKIRMISH_COMPLETE role=client owner=1 status=pass scenario='+$Scenario+' winnerTeam='+$result.expectedWinner+' built=1 gathered=1 produced=1 botBuilt=1 botProduced=1 botAttacked=1')) { throw 'Standalone completion evidence or expected winner is missing.' }
     }
     $captureNames=@('01-base.png','02-result.png')
+    if ($GroupGatherEvidence) { $captureNames+='03-group-gather.png' }
     if ($FactoryRallyEvidence) { $captureNames+='03-factory-rally.png' }
     if ($CoopContextEvidence) { $captureNames+=@('04-context-single.png','05-context-group.png') }
     if ($ReadabilityCaptures) {
@@ -348,6 +357,7 @@ try {
         if($Scenario -eq 'Coop') { $evidenceLogs.observer=Read-Log $observer }
         $stateContext=@{}
         $result.refineryMinerEvidence=Get-RefineryMinerEvidence -Logs $evidenceLogs -Scenario $Scenario -ValidatedStateContext $stateContext
+        if ($GroupGatherEvidence) { $result.groupGatherEvidence=Get-GroupGatherEvidence -Log (Read-Log $client) -ValidatedStateContext $stateContext -RefineryEvidence $result.refineryMinerEvidence }
         if ($FactoryRallyEvidence) { $result.factoryRallyEvidence=Get-FactoryRallyEvidence -Logs $evidenceLogs }
         if ($CoopContextEvidence) { $result.coopContextEvidence=Get-CoopContextEvidence -Logs $evidenceLogs -ValidatedStateContext $stateContext -RallyEvidence $result.factoryRallyEvidence }
     }

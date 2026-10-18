@@ -19,6 +19,7 @@ public:
     AProofPlayerController();
     UPROPERTY(Replicated) int32 OwnerId = INDEX_NONE;
     int32 NextLocalCommandSequence();
+    int32 PeekNextLocalCommandSequence() const { return NextLocalSequence; }
     void SynchronizeMatchEpoch();
     bool IsProofAutomation() const { return bAutomation; }
     bool IsControlsAutomation() const { return bControlsAutomation; }
