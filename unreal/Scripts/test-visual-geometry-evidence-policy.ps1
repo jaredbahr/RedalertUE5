@@ -38,6 +38,19 @@ Reject 'zero motion' {param($r)$r[2].component.location=$r[1].component.location
 Reject 'offscreen bound' {param($r)$r[0].projectedMin[0]=-1}
 Reject 'negative scale' {param($r)$r[0].component.scale[2]=-1}
 Reject 'wrong stage' {param($r)$r[2].stage=4}
+Reject 'string stage' {param($r)$r[0].stage='0'}
+Reject 'boolean stage' {param($r)$r[0].stage=$false}
+Reject 'negative elapsed' {param($r)$r[0].elapsed=-.5}
+Reject 'elapsed outside existing bound' {param($r)$r[4].elapsed=221}
 $text=Log (Fixture)
 foreach($case in @(@{name='missing restoration';text=($text-replace'PROOF_VISUAL_GEOMETRY_RESTORED stage=2 verified=1','')},@{name='missing write';text=($text-replace'PROOF_VISUAL_GEOMETRY_WRITTEN stage=3','')},@{name='duplicate JSON key';text=($text-replace'"stage":0','"stage":0,"stage":0')},@{name='extra row';text=($text+"`n"+($text-split"`n")[0])})){$rejected=$false;try{Get-VisualGeometryEvidence -Log $case.text|Out-Null}catch{$rejected=$true};Check $rejected $case.name}
+foreach($case in @(
+    @{name='extra malformed measurement';text=($text+"`nPROOF_VISUAL_GEOMETRY malformed")},
+    @{name='restoration trailing junk';text=($text-replace'verified=1','verified=10')},
+    @{name='write trailing junk';text=($text-replace'WRITTEN stage=1','WRITTEN stage=1 junk')},
+    @{name='cross-kind order';text=($text-replace'RESTORED stage=0 verified=1\nPROOF_VISUAL_GEOMETRY_WRITTEN stage=1',('WRITTEN stage=1'+"`n"+'PROOF_VISUAL_GEOMETRY_RESTORED stage=0 verified=1'))},
+    @{name='explicit geometry error';text=($text+"`nPROOF_VISUAL_GEOMETRY_ERROR failed")},
+    @{name='explicit scenario failure';text=($text+"`nPROOF_SKIRMISH_COMPLETE role=client status=fail")},
+    @{name='oversized log';text=('x'*(24MB+1))}
+)){$rejected=$false;try{Get-VisualGeometryEvidence -Log $case.text|Out-Null}catch{$rejected=$true};Check $rejected $case.name}
 "visual geometry policy checks=$script:checks failures=0 (synthetic policy only; no UE/pixel evidence)"

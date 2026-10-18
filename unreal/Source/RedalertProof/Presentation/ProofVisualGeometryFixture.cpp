@@ -100,14 +100,24 @@ void AProofRTSPawn::RestoreVisualGeometryView()
     const bool bRigRestored = GeometryMoveRig(this, VisualGeometry.PriorPawn, UnitViews);
     Camera->SetWorldTransform(VisualGeometry.PriorCamera);
     Camera->SetOrthoWidth(VisualGeometry.PriorOrthoWidth);
+    bool bVisibilityRestored = true;
     for (const auto& Entry : VisualGeometry.PriorVisibility)
-        if (UnitViews.Contains(Entry.Key) && UnitViews[Entry.Key]) UnitViews[Entry.Key]->SetVisibility(Entry.Value);
+        if (UnitViews.Contains(Entry.Key) && UnitViews[Entry.Key])
+        {
+            UnitViews[Entry.Key]->SetVisibility(Entry.Value);
+            bVisibilityRestored &= UnitViews[Entry.Key]->IsVisible() == Entry.Value;
+        }
+    bool bCursorRestored = false;
     if (AProofPlayerController* PC = Cast<AProofPlayerController>(GetController()))
+    {
         PC->bShowMouseCursor = VisualGeometry.bPriorCursor;
+        bCursorRestored = PC->bShowMouseCursor == VisualGeometry.bPriorCursor;
+    }
     VisualGeometry.PriorVisibility.Reset();
     VisualGeometry.bCapturing = false;
     VisualGeometry.bRequested = false;
-    if (!bRigRestored || !Camera->GetComponentTransform().Equals(VisualGeometry.PriorCamera, 0.001f)
+    if (!bRigRestored || !bVisibilityRestored || !bCursorRestored
+        || !Camera->GetComponentTransform().Equals(VisualGeometry.PriorCamera, 0.001f)
         || !FMath::IsNearlyEqual(Camera->OrthoWidth, VisualGeometry.PriorOrthoWidth))
     { FinishSkirmishScenario(false, TEXT("geometry_view_restore")); return; }
     UE_LOG(LogTemp, Display, TEXT("PROOF_VISUAL_GEOMETRY_RESTORED stage=%d verified=1"), VisualGeometry.Stage);
