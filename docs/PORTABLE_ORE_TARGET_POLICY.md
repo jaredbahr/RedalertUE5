@@ -1,0 +1,9 @@
+# Portable mining-target policy
+
+This isolates the already merged ore-reselection rule from the UE model so the actual production decision can be tested without an engine build. It introduces no new mining, timing, balance, command or input behavior and is independent of the blocked battlefield-type-selection draft.
+
+`Commands/ProofOreTargetPolicy.h` borrows resource metadata and squared-distance callbacks. A missing assigned record stops selection; it is not treated as depletion. A positive assigned patch stays assigned. Only depletion of an existing patch searches nonempty alternatives, choosing nearest squared distance, then lower stable resource ID. Exact duplicate ties retain array order, matching the original function. Missing/sticky assignments never evaluate distances. Valid finite world geometry remains the model's responsibility; this helper does not add geometry validation or pathfinding.
+
+`ResolveGatherResource` uses this header directly, retaining the existing `FVector::DistSquared` calculation and resource-array storage. It updates the order target only after selection succeeds. No protocol, snapshots, timers or resource records change.
+
+`tests/ore_target_policy_tests.cpp` directly includes the production header. Its 3,174 prepared checks remain active under `NDEBUG`: explicit assignment/depletion/duplicate/extrema cases, 1,024 generated fixtures against an independent stable-sort oracle, lazy-distance and nonmutation checks, and unique-ID permutations. Normal and optimized C++17 cloud execution is pending. No local compiler or engine was launched; UE adapter compilation and integration acceptance remain blocked by unavailable resource admission. Earlier engine evidence for the merged behavior does not compile this extraction. PR #54, the prepared human trial and rollback remain untouched.

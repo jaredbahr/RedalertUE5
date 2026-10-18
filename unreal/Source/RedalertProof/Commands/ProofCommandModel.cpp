@@ -1,4 +1,5 @@
 #include "Commands/ProofCommandModel.h"
+#include "Commands/ProofOreTargetPolicy.h"
 #include "Skirmish/ProofSkirmishRules.h"
 
 #include "Misc/SecureHash.h"
@@ -249,29 +250,18 @@ int32 FProofCommandModel::TeamForOwner(int32 OwnerId) const
 
 FProofResourceRecord* FProofCommandModel::ResolveGatherResource(FOrder& Order, const FVector& From)
 {
-    FProofResourceRecord* Current = State.Resources.FindByPredicate([&Order](const FProofResourceRecord& Resource)
-        { return Resource.ResourceId == Order.TargetUnitId; });
-    // Missing records retain the disconnect cleanup policy: finish carried
-    // cargo, then stop. Only depletion of a still-existing patch can reselect.
-    if (!Current) { return nullptr; }
-    if (Current->Remaining > 0) { return Current; }
-
-    // Continue only an existing Gather order. Keep a live assigned patch until
-    // depletion; replacement is nearest to the miner, then lowest stable ID.
-    FProofResourceRecord* Best = nullptr;
-    double BestDistance = 0.0;
-    for (FProofResourceRecord& Resource : State.Resources)
-    {
-        if (Resource.Remaining <= 0) { continue; }
-        const double Distance = FVector::DistSquared(From, Resource.Position);
-        if (!Best || Distance < BestDistance || (Distance == BestDistance && Resource.ResourceId < Best->ResourceId))
+    const int32 Index = ProofOreTargetPolicy::SelectIndex(Order.TargetUnitId, State.Resources.Num(),
+        [this](int32 ResourceIndex)
         {
-            Best = &Resource;
-            BestDistance = Distance;
-        }
-    }
-    if (Best) { Order.TargetUnitId = Best->ResourceId; }
-    return Best;
+            const FProofResourceRecord& Resource = State.Resources[ResourceIndex];
+            return ProofOreTargetPolicy::ResourceView{Resource.ResourceId, Resource.Remaining};
+        },
+        [this, &From](int32 ResourceIndex)
+        { return FVector::DistSquared(From, State.Resources[ResourceIndex].Position); });
+    if (Index == ProofOreTargetPolicy::InvalidIndex) return nullptr;
+    FProofResourceRecord& Resource = State.Resources[Index];
+    Order.TargetUnitId = Resource.ResourceId;
+    return &Resource;
 }
 
 const FProofUnitRecord* FProofCommandModel::FindAttackMoveTarget(const TArray<FProofUnitRecord>& Units,
