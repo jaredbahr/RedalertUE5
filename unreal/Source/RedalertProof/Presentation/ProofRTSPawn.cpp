@@ -5,6 +5,7 @@
 #include "Presentation/ProofReturnCargoSelection.h"
 #include "Presentation/ProofSkirmishOwnershipRecovery.h"
 #include "Presentation/ProofHUDPanelLayout.h"
+#include "Presentation/ProofUnitViewGrounding.h"
 #include "Camera/CameraComponent.h"
 #include "Components/InputComponent.h"
 #include "Components/SceneComponent.h"
@@ -283,9 +284,18 @@ void AProofRTSPawn::Tick(float DeltaSeconds)
             }
             else View->SetWorldScale3D(bUsingBlockoutMesh ? FVector(0.3f) : FVector(1.f, 1.f, 0.6f));
         }
-        if (View)
+        if (View && View->GetStaticMesh())
         {
-            View->SetWorldLocation(Unit.Position + (bUsingBlockoutMesh ? FVector::ZeroVector : FVector(0.f, 0.f, 30.f)));
+            // Each selected mesh has its own pivot and scaled/rotated lower bound.
+            // Unit.Position remains the authoritative ground-plane position.
+            const FBox LocalBounds = View->GetStaticMesh()->GetBoundingBox();
+            const FTransform ViewTransform = View->GetComponentTransform();
+            const double Lift = FProofUnitViewGrounding::VerticalOffset(
+                {LocalBounds.Min.X, LocalBounds.Min.Y, LocalBounds.Min.Z},
+                {LocalBounds.Max.X, LocalBounds.Max.Y, LocalBounds.Max.Z},
+                {ViewTransform.GetScaledAxis(EAxis::X).Z, ViewTransform.GetScaledAxis(EAxis::Y).Z,
+                    ViewTransform.GetScaledAxis(EAxis::Z).Z});
+            View->SetWorldLocation(Unit.Position + FVector(0.0, 0.0, Lift));
         }
     }
     for (auto It = UnitViews.CreateIterator(); It; ++It)
@@ -1388,13 +1398,19 @@ bool AProofRTSPawn::TickHUDReadabilityCaptures()
         return false;
     }
     if (SkirmishElapsed - HUDEdgeStageStarted < 0.25f) return false;
-    // Check the actual rendered mesh centers after the rig move and later tick.
+    // Independently check actual world bounds after the rig move and later tick.
+    // Do not repeat the placement helper: a wrong lift must fail this oracle.
     for (const FProofUnitRecord& Unit : Snapshot.Units)
     {
         if (Unit.HitPoints <= 0.f) continue;
         const TObjectPtr<UStaticMeshComponent>* View = UnitViews.Find(Unit.UnitId);
-        const FVector Expected = Unit.Position + (bUsingBlockoutMesh ? FVector::ZeroVector : FVector(0.f, 0.f, 30.f));
-        if (!View || !*View || !(*View)->GetComponentLocation().Equals(Expected, 0.01))
+        if (!View || !*View || !(*View)->GetStaticMesh())
+        { FinishSkirmishScenario(false, TEXT("readability_unit_view_moved")); return false; }
+        const FVector Actual = (*View)->GetComponentLocation();
+        const FBox WorldBounds = (*View)->GetStaticMesh()->GetBoundingBox().TransformBy((*View)->GetComponentTransform());
+        if (!WorldBounds.IsValid || !FMath::IsNearlyEqual(Actual.X, Unit.Position.X, 0.01)
+            || !FMath::IsNearlyEqual(Actual.Y, Unit.Position.Y, 0.01)
+            || !FMath::IsNearlyEqual(WorldBounds.Min.Z, Unit.Position.Z, 0.01))
         { FinishSkirmishScenario(false, TEXT("readability_unit_view_moved")); return false; }
     }
     if (FVector2D::Distance(Projected, HUDEdgeTarget) > 2.0)
