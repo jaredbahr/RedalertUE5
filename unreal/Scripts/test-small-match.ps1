@@ -20,6 +20,7 @@ $ErrorActionPreference = 'Stop'
 if ($CameraEdgeCaptures -and (-not $ReadabilityCaptures -or $Scenario -ne 'Victory')) { throw 'CameraEdgeCaptures requires Victory and ReadabilityCaptures.' }
 . (Join-Path $PSScriptRoot 'FactoryRallyEvidence.ps1')
 . (Join-Path $PSScriptRoot 'CoopContextEvidence.ps1')
+. (Join-Path $PSScriptRoot 'HUDCriticalTextEvidence.ps1')
 if ($CoopContextEvidence) {
     if ($Scenario -ne 'Coop') { throw 'CoopContextEvidence requires the three-role Coop scenario.' }
     $FactoryRallyEvidence = [switch]::new($true)
@@ -72,7 +73,7 @@ $result = [ordered]@{
     storageGuard=[ordered]@{softPollingGuard=$true;intervalSeconds=10;maxCacheMiB=$MaxCacheMiB;maxTempMiB=$MaxTempMiB;checks=0;latestCacheBytes=0;latestTempBytes=0;peakCacheBytes=0;peakTempBytes=0}
     cpuPolicy=[ordered]@{availableAffinityMask=('0x{0:X}' -f $availableAffinity);fixtureAffinityMask=('0x{0:X}' -f $fixtureAffinity);logicalProcessors=$fixtureLogicalProcessors;priority='Normal';pollIntervalSeconds=1;polls=0;repairs=0;processes=@()}
     literalClientSetup=[ordered]@{startupFile=$literalClientCVars;expectedResolverDisabled=1;startupConfirmedByRole=@{};hostnameOrInternetTest=$false;osDnsChanged=$false}
-    cameraEdgeCaptures=[bool]$CameraEdgeCaptures; cameraEdgeEvidence=$null; readabilityCaptures=[bool]$ReadabilityCaptures; edgeCaptureEvidence=@(); hudLayoutCaptureEvidence=@(); factoryRallyEvidenceEnabled=[bool]$FactoryRallyEvidence; factoryRallyEvidence=$null; coopContextEvidenceEnabled=[bool]$CoopContextEvidence; coopContextEvidence=$null
+    cameraEdgeCaptures=[bool]$CameraEdgeCaptures; cameraEdgeEvidence=$null; readabilityCaptures=[bool]$ReadabilityCaptures; edgeCaptureEvidence=@(); hudLayoutCaptureEvidence=@(); hudCriticalTextEvidence=@(); factoryRallyEvidenceEnabled=[bool]$FactoryRallyEvidence; factoryRallyEvidence=$null; coopContextEvidenceEnabled=[bool]$CoopContextEvidence; coopContextEvidence=$null
     renderConfiguration=[ordered]@{realViewport=$true;offscreen=$true;width=$viewportWidth;height=$viewportHeight;optimizedShaders=1;targetFPS=30}
     processes=@(); screenshots=@(); commonRevisions=@(); expectedWinner=$(if($Scenario -eq 'Defeat'){1}else{0}); error=$null; cleanupErrors=@()
 }
@@ -329,6 +330,7 @@ try {
             $result.cameraEdgeEvidence=Get-CameraEdgeCaptureEvidence (Read-Log $client)
         }
         $result.hudLayoutCaptureEvidence=@(Get-HUDLayoutCaptureEvidence (Read-Log $client) $captureNames)
+        $result.hudCriticalTextEvidence=@(Get-HUDCriticalTextEvidence (Read-Log $client) $captureNames)
     }
     foreach ($name in $captureNames) {
         $path=Join-Path $images $name

@@ -34,7 +34,7 @@ Preserve the existing known-working trial checkout, DLL and14 assets as rollback
 
 ## Preparation state
 
-This lane contains a plan only. No helper, HUD implementation, engine compile, runtime process or human-trial refresh has run. Host allocation release is pending. Dot cloud ownership must be confirmed by the coordinating task before duplicate work begins.
+Prepared source now includes the reviewed cloud helper, complete local formatting/Canvas wiring and fail-closed critical-text capture checks. Cloud supplied23 portable checks, passing normal and optimized builds with independent review. Local production-parser44 synthetic checks pass in PowerShell7 and5.1. Three native formatter groups are prepared alongside the original ten HUD cases. No UE compile/runtime or trial refresh has run at this checkpoint. Imagination release at04:28UTC is confirmed; fresh admission is still required.
 ## Exact cloud assignment contract
 
 Baseline: public main618ac23f5669cd0ef2783c589cc37b2eea0fdcfa, rechecked unchanged before this assignment. Local reviewed plan checkpoint4b90b927e489426f607ba15618895c7606efe953 is not a public baseline. Cloud owns only the following production header and portable test file:
