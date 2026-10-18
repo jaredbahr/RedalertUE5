@@ -336,7 +336,7 @@ bool FProofBotMinerRecoveryModelTest::RunTest(const FString&)
             Command.Type = Type; Command.UnitId = UnitId; Command.TargetUnitId = TargetId; Command.Destination = Destination;
             return TestTrue(TEXT("Public depletion trace command is accepted"), DepletedModel.Submit(OwnerId, Command).bAccepted);
         };
-        const auto LiveKindId = [&](int32 OwnerId, EProofUnitKind Kind)
+        const auto LiveKindId = [&](int32 OwnerId, EProofUnitKind Kind) -> int32
         {
             for (const FProofUnitRecord& Record : DepletedModel.GetSnapshot().Units)
                 if (Record.OwnerId == OwnerId && Record.Kind == Kind && Record.HitPoints > 0.f) return Record.UnitId;
