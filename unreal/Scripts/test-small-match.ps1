@@ -106,7 +106,7 @@ $result = [ordered]@{
     returnCargoEvidenceEnabled=[bool]$ReturnCargoEvidence; returnCargoEvidence=$null
     refineryAutoGatherEvidenceEnabled=[bool]$RefineryAutoGatherEvidence; refineryAutoGatherEvidence=$null
     sourceTree=$autoSource; dllSHA256=$(if($RefineryAutoGatherEvidence){(Get-FileHash -LiteralPath (Join-Path $projectRoot 'Binaries\Win64\UnrealEditor-RedalertProof.dll') -Algorithm SHA256).Hash}else{$null})
-    processes=@(); screenshots=@(); commonRevisions=@(); expectedWinner=$(if($Scenario -eq 'Defeat'){1}else{0}); error=$null; cleanupErrors=@()
+    processes=@(); screenshots=@(); commonRevisions=@(); expectedWinner=$(if($RefineryAutoGatherEvidence){$null}elseif($Scenario -eq 'Defeat'){1}else{0}); error=$null; cleanupErrors=@()
 }
 $entries = [Collections.Generic.List[object]]::new()
 $ownedWorkers = [Collections.Generic.List[object]]::new()

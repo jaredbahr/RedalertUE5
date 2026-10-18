@@ -30,7 +30,7 @@ function Get-AutoSnapshotDigest($S) {
 }
 function ConvertTo-AutoSnapshot($S) {
     Assert-AutoFields $S @('revision','epoch','skirmish','phase','winner','digest','players','units','resources')
-    Assert-AutoGather ((Test-AutoInteger $S.revision) -and (Test-AutoInteger $S.epoch 1) -and $S.skirmish -is [bool] -and $S.skirmish -and (Test-AutoInteger $S.phase 0 2) -and (Test-AutoInteger $S.winner -1 100) -and $S.digest -cmatch '^[A-Fa-f0-9]{32}$') 'snapshot header'
+    Assert-AutoGather ((Test-AutoInteger $S.revision) -and (Test-AutoInteger $S.epoch 1) -and $S.skirmish -is [bool] -and $S.skirmish -and (Test-AutoInteger $S.phase 0 2) -and (Test-AutoInteger $S.winner -1 100) -and $S.digest -is [string] -and $S.digest -cmatch '^[A-Fa-f0-9]{32}$') 'snapshot header'
     $out=[ordered]@{revision=$S.revision;epoch=$S.epoch;skirmish=$S.skirmish;phase=$S.phase;winner=$S.winner;digest=$S.digest.ToUpperInvariant();players=@();units=@();resources=@()}
     foreach($collection in @('players','units','resources')) {
         Assert-AutoGather ($S[$collection] -is [array]) 'snapshot collection must be array'
@@ -62,6 +62,16 @@ function ConvertTo-AutoSnapshot($S) {
     return $out
 }
 function Get-AutoSemantic($S) { return ConvertTo-Json -InputObject $S -Depth 20 -Compress }
+function Register-AutoSnapshot([hashtable]$Registry,[hashtable]$Ordinary,$S) {
+    $key="$($S.epoch):$($S.revision)";$semantic=Get-AutoSemantic $S
+    if($Registry.ContainsKey($key)) {
+        Assert-AutoGather ($Registry[$key].semantic -ceq $semantic) "contradictory state for epoch/revision $key"
+    } else {
+        Assert-AutoGather ($Registry.Count -lt 16384) 'canonical state registry cap'
+        $Registry[$key]=@{semantic=$semantic;digest=$S.digest}
+    }
+    if($Ordinary.ContainsKey($key)){Assert-AutoGather ($Ordinary[$key] -ceq $S.digest) 'canonical/ordinary digest contradiction'}
+}
 function Get-AutoUnit($S,$Id) { return @($S.units | Where-Object id -eq $Id)[0] }
 function Get-AutoPlayer($S,$Id) { return @($S.players | Where-Object id -eq $Id)[0] }
 function Get-AutoResource($S,$Id) { return @($S.resources | Where-Object id -eq $Id)[0] }
@@ -82,27 +92,33 @@ function Get-RefineryAutoGatherEvidence {
     param([hashtable]$Logs,[string]$RunId,[string]$SourceTree)
     Assert-AutoGather ($RunId -cmatch '^[a-f0-9]{32}$' -and $SourceTree -cmatch '^[a-f0-9]{40}$') 'expected source/run binding'
     Assert-AutoGather ($Logs.Count -eq 3 -and $Logs.ContainsKey('host') -and $Logs.ContainsKey('rendered') -and $Logs.ContainsKey('observer')) 'exact three roles required'
-    $maps=@{}; $streams=@{}; $counts=@{}
+    $maps=@{}; $streams=@{}; $counts=@{}; $registry=@{}; $ordinaryRegistry=@{}
     foreach($role in @('host','rendered','observer')) {
         $viewer=@{host=0;rendered=1;observer=2}[$role];$view=if($viewer -eq 0){'host'}else{'client'}
         $text=[string]$Logs[$role]
         Assert-AutoGather ($text.Length -le 24MB -and $text -notmatch 'PROOF_AUTO_GATHER_ERROR|Fatal error:|Assertion failed:') "bounded error-free $role log"
-        $matches=[regex]::Matches($text,'(?m)^[^\r\n]*?PROOF_AUTO_GATHER (?<json>\{[^\r\n]*\})\r?$')
-        Assert-AutoGather ($matches.Count -gt 1 -and $matches.Count -le 4096 -and $matches.Count -eq [regex]::Matches($text,'PROOF_AUTO_GATHER ').Count) 'missing/malformed/truncated stream record'
+        $streamMatches=[regex]::Matches($text,'(?m)^[^\r\n]*?PROOF_AUTO_GATHER (?<json>\{[^\r\n]*\})\r?$')
+        Assert-AutoGather ($streamMatches.Count -gt 1 -and $streamMatches.Count -le 4096 -and $streamMatches.Count -eq [regex]::Matches($text,'PROOF_AUTO_GATHER ').Count) 'missing/malformed/truncated stream record'
         $records=@();$map=@{};$ordinal=0;$bytes=0;$snapshotCount=0;$epoch=0;$finished=$false;$lastRevision=-1
+        $hostHighWater=-1;$activeAdvancePair=$null
         $normal=@{}
         foreach($m in [regex]::Matches($text,'PROOF_SNAPSHOT role=(host|client|observer) owner=(\d+) epoch=(\d+) revision=(\d+) digest=([A-Za-z0-9]+)')) {
             if($m.Groups[1].Value -ne $view -or [int]$m.Groups[2].Value -ne $viewer){continue}
             $key=$m.Groups[3].Value+':'+$m.Groups[4].Value;$digest=$m.Groups[5].Value.ToUpperInvariant()
+            Assert-AutoGather ($digest -cmatch '^[A-F0-9]{32}$') 'ordinary digest syntax'
+            Assert-AutoGather (-not $ordinaryRegistry.ContainsKey($key) -or $ordinaryRegistry[$key] -ceq $digest) 'pairwise ordinary digest contradiction'
+            $ordinaryRegistry[$key]=$digest
+            if($registry.ContainsKey($key)){Assert-AutoGather ($registry[$key].digest -ceq $digest) 'ordinary/canonical digest contradiction'}
             Assert-AutoGather (-not $normal.ContainsKey($key) -or $normal[$key] -ceq $digest) 'contradictory ordinary digest';$normal[$key]=$digest
         }
-        foreach($m in $matches) {
+        foreach($m in $streamMatches) {
             Assert-AutoGather (-not $finished) 'record after finish'
             $json=$m.Groups['json'].Value;$bytes+=$json.Length
             Assert-AutoGather ($json.Length -le 65536 -and $bytes -le 16MB) 'stream byte cap'
             $document=[Text.Json.JsonDocument]::Parse($json)
             try { Assert-AutoJsonElement $document.RootElement } finally { $document.Dispose() }
             $r=ConvertFrom-Json -InputObject $json -AsHashtable -Depth 24
+            foreach($field in @('run','source','role','event')) { Assert-AutoGather ($r[$field] -is [string]) "scalar string required for $field" }
             $base=@('v','run','source','role','viewer','row','event','epoch')
             $extra=switch($r.event) { snapshot {@('state')} command {@('owner','type','unit','target','sequence','payloadEpoch','cx','cy','cz','accepted','grant','before','after')} {$_ -in @('travel','load','return','deposit')} {@('owner','miner','refinery','resource','before','after')} finish {@('passed','records','snapshots')} default {throw 'AutoGather: unknown stream event'} }
             Assert-AutoFields $r ($base+$extra)
@@ -110,16 +126,30 @@ function Get-RefineryAutoGatherEvidence {
             if($epoch -eq 0){$epoch=$r.epoch}; Assert-AutoGather ($r.epoch -eq $epoch) 'epoch changed within fixture'
             if($r.event -eq 'snapshot') {
                 $s=ConvertTo-AutoSnapshot $r.state;$r.state=$s;$snapshotCount++
+                Register-AutoSnapshot $registry $ordinaryRegistry $s
                 Assert-AutoGather ($s.epoch -eq $epoch -and $s.revision -gt $lastRevision -and $snapshotCount -le 1536) 'snapshot epoch/revision/cap';$lastRevision=$s.revision
                 $key="$epoch`:$($s.revision)"
                 Assert-AutoGather ($normal.ContainsKey($key) -and $normal[$key] -ceq $s.digest -and -not $map.ContainsKey($key)) 'ordinary snapshot binding';$map[$key]=$s
+                if($viewer -eq 0){Assert-AutoGather ($s.revision -ge $hostHighWater) 'host published revision regressed';$hostHighWater=$s.revision;$activeAdvancePair=$null}
             } elseif($r.event -eq 'finish') {
                 Assert-AutoGather ($r.passed -is [bool] -and $r.passed -and (Test-AutoInteger $r.records 1) -and $r.records -eq $ordinal -and (Test-AutoInteger $r.snapshots 1) -and $r.snapshots -eq $snapshotCount) 'incomplete stream finish'
                 $finished=$true
             } else {
                 Assert-AutoGather ($viewer -eq 0) 'authoritative event outside host'
                 $r.before=ConvertTo-AutoSnapshot $r.before;$r.after=ConvertTo-AutoSnapshot $r.after
+                Register-AutoSnapshot $registry $ordinaryRegistry $r.before
+                Register-AutoSnapshot $registry $ordinaryRegistry $r.after
                 Assert-AutoGather ($r.before.epoch -eq $epoch -and $r.after.epoch -eq $epoch -and $r.after.revision -ge $r.before.revision) 'event trusted epoch/revision'
+                if($r.event -eq 'command') {
+                    Assert-AutoGather ($r.before.revision -ge $hostHighWater) 'host command revision regressed'
+                    $hostHighWater=$r.after.revision;$activeAdvancePair=$null
+                } else {
+                    $pair="$($r.before.epoch):$($r.before.revision):$($r.after.revision)"
+                    # Multiple miners/phases may describe exactly the same Advance.
+                    # A command/publication ends that batch; stale pairs cannot resume.
+                    Assert-AutoGather ($r.before.revision -ge $hostHighWater -or ($null -ne $activeAdvancePair -and $pair -ceq $activeAdvancePair -and $r.after.revision -eq $hostHighWater)) 'host phase revision regressed'
+                    $hostHighWater=$r.after.revision;$activeAdvancePair=$pair
+                }
             }
             $records+=,$r
         }
@@ -201,7 +231,10 @@ function Get-RefineryAutoGatherEvidence {
             if(-not $check.ContainsKey('identity')){$check.identity=$key}
             if(-not $check.ContainsKey('travel') -and $s.revision -ge $g.phases.travel.after.revision -and $s.revision -lt $g.phases.load.after.revision -and $u.cargo -eq 0 -and (Get-AutoDistance $u $spawn) -gt 0 -and (Get-AutoDistance $u $ore) -lt (Get-AutoDistance $spawn $ore)){$check.travel=$key}
             if(-not $check.ContainsKey('loaded') -and $s.revision -ge $g.phases.load.after.revision -and $s.revision -lt $g.phases.deposit.after.revision -and $u.cargo -eq (Get-AutoUnit $g.phases.load.after $g.miner).cargo -and $ore.remaining -le (Get-AutoResource $g.phases.load.after $g.resource).remaining){$check.loaded=$key}
-            if(-not $check.ContainsKey('deposited') -and $s.revision -ge $g.phases.deposit.after.revision -and $u.cargo -eq 0 -and $p.gathered -ge (Get-AutoPlayer $g.phases.deposit.after $g.owner).gathered -and $null -ne (Get-AutoDepot $s $u)){$check.deposited=$key}
+            # Deposit position/credits/contributors are proved by the exact host
+            # transition above. The receiving checkpoint uses persistent delivery
+            # totals and tracked identity; publication may follow the next movement.
+            if(-not $check.ContainsKey('deposited') -and $s.revision -ge $g.phases.deposit.after.revision -and $u.cargo -eq 0 -and $p.gathered -ge (Get-AutoPlayer $g.phases.deposit.after $g.owner).gathered){$check.deposited=$key}
         }
         Assert-AutoGather ($check.Count -eq 4) 'missing actual receiving-client common identity/travel/load/deposit checkpoints'
         $proofs+=,@{owner=$g.owner;epoch=$g.epoch;buildSequence=$g.sequence;miner=$g.miner;refinery=$g.refinery;resource=$g.resource;checkpoints=$check;contributors=$g.contributors}

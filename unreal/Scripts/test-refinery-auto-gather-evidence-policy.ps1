@@ -50,6 +50,23 @@ function New-AutoTestFixture {
     $streams=@{host=@($hostRows.ToArray());rendered=@($states|ForEach-Object {@{event='snapshot';state=$_}});observer=@($states|ForEach-Object {@{event='snapshot';state=$_}})}
     return Copy-AutoTest $streams
 }
+function New-AutoTestDelayedFixture {
+    $d=New-AutoTestFixture
+    foreach($role in @('host','rendered','observer')) {
+        foreach($r in $d[$role]) {
+            if($r.event -ne 'snapshot' -or $r.state.revision -lt 10){continue}
+            # Deposit transition remains exactly9->10 in authoritative phase
+            # records. Publication first sees11, one15cm movement step later.
+            $r.state.revision++
+            foreach($id in @(6,8)) {
+                $u=Get-AutoUnit $r.state $id;$u.dx=600/[math]::Sqrt(482500);$u.dy=-350/[math]::Sqrt(482500)
+                $baseY=if($id -eq 6){350.0}else{1350.0};$u.x=15*$u.dx;$u.y=$baseY+15*$u.dy
+            }
+        }
+    }
+    Set-AutoTestDigests $d
+    return $d
+}
 function ConvertTo-AutoTestLogs($Streams,[switch]$Prefix) {
     $logs=@{}
     foreach($role in @('host','rendered','observer')){
@@ -154,6 +171,38 @@ Reject-AutoTest 'finish snapshot count mismatch' {$args[0].host=[regex]::Replace
 Reject-AutoTest 'wrong actual travel direction' {param($d) $r=@($d.host|Where-Object event -eq travel)[0];$u=Get-AutoUnit $r.after 6;$u.dx=-$u.dx;Set-AutoTestDigests $d}
 Reject-AutoTest 'accepted Move overrides trip' {param($d) $cmd=Copy-AutoTest @($d.host|Where-Object event -eq command)[0];$cmd.type=0;$cmd.unit=6;$cmd.sequence=2;$cmd.grant=$null;$cmd.before=Copy-AutoTest $cmd.after;$d.host=@($d.host[0..2])+@($cmd)+@($d.host[3..($d.host.Count-1)])}
 Reject-AutoTest 'accepted ReturnCargo overrides trip' {param($d) $cmd=Copy-AutoTest @($d.host|Where-Object event -eq command)[0];$cmd.type=9;$cmd.unit=6;$cmd.sequence=2;$cmd.grant=$null;$cmd.before=Copy-AutoTest $cmd.after;$d.host=@($d.host[0..2])+@($cmd)+@($d.host[3..($d.host.Count-1)])}
+Reject-AutoTest 'event-only contradictory credits with valid digests' {param($d) $r=@($d.host|Where-Object event -eq travel)[0];$r.before.players[1].credits++;$r.after.players[1].credits++;Set-AutoTestDigests $d}
+Reject-AutoTest 'pairwise contradiction while third role misses revision' {param($d) $d.rendered[4].state.players[1].credits++;$d.observer=@($d.observer|Where-Object {$_.state.revision -ne 8});Set-AutoTestDigests $d}
+Reject-AutoTest 'stale-revision accepted override after deposit' {param($d) $r=Copy-AutoTest @($d.host|Where-Object event -eq command)[0];$r.type=5;$r.unit=6;$r.target=1;$r.sequence=2;$r.grant=$null;$r.before=Copy-AutoTest @($d.host|Where-Object event -eq load)[0].after;$r.after=Copy-AutoTest $r.before;$r.after.revision++;$d.host=@($d.host[0..($d.host.Count-2)])+@($r,$d.host[-1]);Set-AutoTestDigests $d}
+Reject-AutoTest 'stale command with otherwise canonical states' {param($d) $r=Copy-AutoTest @($d.host|Where-Object event -eq command)[0];$r.type=5;$r.unit=6;$r.target=1;$r.sequence=2;$r.grant=$null;$r.before=Copy-AutoTest @($d.host|Where-Object event -eq load)[0].after;$r.after=Copy-AutoTest @($d.host|Where-Object event -eq return)[0].after;$d.host=@($d.host[0..($d.host.Count-2)])+@($r,$d.host[-1])}
+Reject-AutoTest 'old phase batch cannot resume after publication' {param($d) $r=Copy-AutoTest @($d.host|Where-Object event -eq travel)[0];$d.host=@($d.host[0..($d.host.Count-2)])+@($r,$d.host[-1])}
+Accept-AutoTest 'valid delayed publication fifteen cm after deposit' (ConvertTo-AutoTestLogs (New-AutoTestDelayedFixture))
+$missingThird=New-AutoTestFixture;$missingThird.observer=@($missingThird.observer|Where-Object {$_.state.revision -ne 8})
+Accept-AutoTest 'consistent pairwise revision while third role misses it' (ConvertTo-AutoTestLogs $missingThird)
+$sameStep=New-AutoTestFixture
+$sharedAfter=Copy-AutoTest @($sameStep.host|Where-Object event -eq deposit)[0].after;$sharedAfter.revision=9
+foreach($id in @(6,8)){$u=Get-AutoUnit $sharedAfter $id;$u.dx=-600/[math]::Sqrt(482500);$u.dy=350/[math]::Sqrt(482500)}
+$sharedBefore=Copy-AutoTest @($sameStep.host|Where-Object event -eq load)[0].after
+foreach($role in @('host','rendered','observer')) {
+    $sameStep[$role]=@($sameStep[$role]|Where-Object {-not ($_.event -eq 'snapshot' -and $_.state.revision -eq 9)})
+    foreach($r in $sameStep[$role]) {
+        if($r.event -in @('return','deposit')){$r.before=Copy-AutoTest $sharedBefore;$r.after=Copy-AutoTest $sharedAfter}
+        if($r.event -eq 'snapshot' -and $r.state.revision -eq 10){$r.state=Copy-AutoTest $sharedAfter}
+        elseif($r.event -eq 'snapshot' -and $r.state.revision -eq 11){$r.state.revision=10;foreach($id in @(6,8)){$u=Get-AutoUnit $r.state $id;$u.dx=-600/[math]::Sqrt(482500);$u.dy=350/[math]::Sqrt(482500)}}
+    }
+}
+Set-AutoTestDigests $sameStep
+Accept-AutoTest 'simultaneous miners return and deposit share one advance pair' (ConvertTo-AutoTestLogs $sameStep)
+Reject-AutoTest 'source array truthy match' {param($d) $d.host=$d.host.Replace(('"source":"'+('b'*40)+'"'),('"source":["'+('b'*40)+'","other"]'))} -Raw
+Reject-AutoTest 'run array truthy match' {param($d) $d.host=$d.host.Replace(('"run":"'+('a'*32)+'"'),('"run":["'+('a'*32)+'","other"]'))} -Raw
+Reject-AutoTest 'role array truthy match' {param($d) $d.host=$d.host.Replace('"role":"host"','"role":["host","other"]')} -Raw
+Reject-AutoTest 'event array truthy match' {param($d) $d.host=$d.host.Replace('"event":"snapshot"','"event":["snapshot","other"]')} -Raw
+Reject-AutoTest 'digest array truthy match' {param($d) $d.host=[regex]::Replace($d.host,'"digest":"([A-Fa-f0-9]{32})"','"digest":["$1","other"]')} -Raw
+Reject-AutoTest 'numeric source' {param($d) $d.host=$d.host.Replace(('"source":"'+('b'*40)+'"'),'"source":1')} -Raw
+Reject-AutoTest 'null run' {param($d) $d.host=$d.host.Replace(('"run":"'+('a'*32)+'"'),'"run":null')} -Raw
+Reject-AutoTest 'boolean role' {param($d) $d.host=$d.host.Replace('"role":"host"','"role":true')} -Raw
+Reject-AutoTest 'object event' {param($d) $d.host=$d.host.Replace('"event":"snapshot"','"event":{"name":"snapshot"}')} -Raw
+Reject-AutoTest 'numeric digest' {param($d) $d.host=[regex]::Replace($d.host,'"digest":"[A-Fa-f0-9]{32}"','"digest":1')} -Raw
 $result=[ordered]@{passed=$true;checks=$checks.Count;tests=$checks.ToArray();engineLaunched=$false;syntheticOnly=$true;run=$script:TestRun;source=$script:TestSource}
 if($OutputPath){$result|ConvertTo-Json -Depth 8|Set-Content -LiteralPath $OutputPath -Encoding utf8}
 $result|ConvertTo-Json -Depth 8
