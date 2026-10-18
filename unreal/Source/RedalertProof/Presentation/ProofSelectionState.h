@@ -13,6 +13,8 @@ public:
 
     const TArray<int32>& GetSelectedUnitIds() const { return SelectedUnitIds; }
     int32 GetPrimaryUnitId() const { return PrimaryUnitId; }
+    uint64 GetSelectionRevision() const { return SelectionRevision; }
+    bool HasCurrentContext(const FProofSnapshot& Snapshot, int32 OwnerId) const { return IsCurrentContext(Snapshot, OwnerId); }
 
     void Synchronize(const FProofSnapshot& Snapshot, int32 OwnerId);
     void SelectSingle(const FProofSnapshot& Snapshot, int32 OwnerId, int32 UnitId);
@@ -23,6 +25,7 @@ public:
     // Snapshot-only relationship check shared by all right-click branches.
     static bool IsHostileTarget(const FProofSnapshot& Snapshot, int32 OwnerId, int32 TargetUnitId);
     bool SelectVisibleType(const FProofSnapshot& Snapshot, int32 OwnerId, const TArray<int32>& VisibleUnitIds);
+    bool SelectBattlefieldType(const FProofSnapshot& Snapshot, int32 OwnerId, int32 AnchorUnitId);
     void AssignGroup(int32 Slot, const FProofSnapshot& Snapshot, int32 OwnerId);
     void RecallGroup(int32 Slot, const FProofSnapshot& Snapshot, int32 OwnerId);
 
@@ -44,6 +47,9 @@ private:
         int32 PrimaryUnitId = INDEX_NONE;
     };
 
+    uint64 SelectionRevision = 0;
+    void BumpSelectionRevision() { if (SelectionRevision < MAX_uint64) ++SelectionRevision; }
+    bool SelectTypeCandidates(const FProofSnapshot& Snapshot, int32 OwnerId, const TArray<int32>& Candidates, int32 Anchor);
     int32 MatchEpoch = INDEX_NONE;
     int32 SelectionOwnerId = INDEX_NONE;
     int32 PrimaryUnitId = INDEX_NONE;
