@@ -87,9 +87,11 @@ bool FProofSkirmishHarvestTest::RunTest(const FString&)
     const int32 Harvester = FirstKind(Opening, 1, EProofUnitKind::Harvester);
     const int32 Ore = Opening.Resources[0].ResourceId;
     TestTrue(TEXT("Refinery built"), Model.Submit(1, Command(1, EProofCommandType::BuildRefinery, INDEX_NONE, INDEX_NONE, FVector(300, 0, 0))).bAccepted);
+    // Isolate the explicitly commanded miner; automatic-grant behavior has its own tests.
+    if (!TestTrue(TEXT("Stop incidental granted miner"), Model.Submit(1, Command(2, EProofCommandType::Stop, Model.GetSnapshot().Units.Last().UnitId)).bAccepted)) return false;
     Model.Advance(50.f);
     TestEqual(TEXT("Time does not mint credits"), PlayerById(Model.GetSnapshot(), 1)->Credits, 250);
-    TestTrue(TEXT("Gather ordered"), Model.Submit(1, Command(2, EProofCommandType::Gather, Harvester, Ore)).bAccepted);
+    TestTrue(TEXT("Gather ordered"), Model.Submit(1, Command(3, EProofCommandType::Gather, Harvester, Ore)).bAccepted);
     Model.Advance(1.f);
     TestEqual(TEXT("Travel alone leaves ore intact"), Model.GetSnapshot().Resources[0].Remaining, 500);
     Model.Advance(2.f);
@@ -113,14 +115,14 @@ bool FProofSkirmishHarvestTest::RunTest(const FString&)
     TestEqual(TEXT("All deposits credited"), PlayerById(Exhausted, 1)->Credits, 750);
     Model.Advance(100.f);
     TestEqual(TEXT("Exhausted patch grants no income"), PlayerById(Model.GetSnapshot(), 1)->Credits, 750);
-    TestEqual(TEXT("Depleted resource rejected"), Model.Submit(1, Command(3, EProofCommandType::Gather, Harvester, Ore)).Reason, FString(TEXT("resource")));
-    TestTrue(TEXT("Factory built"), Model.Submit(1, Command(4, EProofCommandType::BuildFactory, INDEX_NONE, INDEX_NONE, FVector(-300, 0, 0))).bAccepted);
+    TestEqual(TEXT("Depleted resource rejected"), Model.Submit(1, Command(4, EProofCommandType::Gather, Harvester, Ore)).Reason, FString(TEXT("resource")));
+    TestTrue(TEXT("Factory built"), Model.Submit(1, Command(5, EProofCommandType::BuildFactory, INDEX_NONE, INDEX_NONE, FVector(-300, 0, 0))).bAccepted);
     const int32 Factory = FirstKind(Model.GetSnapshot(), 1, EProofUnitKind::Factory);
     for (int32 Index = 0; Index < 7; ++Index)
     {
-        TestTrue(TEXT("Produce up to live cap"), Model.Submit(1, Command(5 + Index, EProofCommandType::Produce, Factory)).bAccepted);
+        TestTrue(TEXT("Produce up to live cap"), Model.Submit(1, Command(6 + Index, EProofCommandType::Produce, Factory)).bAccepted);
     }
-    TestEqual(TEXT("Eighth combat unit is over cap including the granted miner"), Model.Submit(1, Command(12, EProofCommandType::Produce, Factory)).Reason, FString(TEXT("capacity")));
+    TestEqual(TEXT("Eighth combat unit is over cap including the granted miner"), Model.Submit(1, Command(13, EProofCommandType::Produce, Factory)).Reason, FString(TEXT("capacity")));
     const FProofSnapshot Capped = Model.GetSnapshot();
     TestEqual(TEXT("Failed production does not spend"), PlayerById(Capped, 1)->Credits, 250);
     TestEqual(TEXT("Live record cap"), Capped.Units.Num(), FProofCommandModel::SkirmishRecordCap);
@@ -147,7 +149,9 @@ bool FProofSkirmishInterruptedCargoTest::RunTest(const FString&)
     const int32 Harvester = FirstKind(Opening, 1, EProofUnitKind::Harvester);
     const int32 Ore = Opening.Resources[0].ResourceId;
     TestTrue(TEXT("Build own refinery"), Model.Submit(1, Command(1, EProofCommandType::BuildRefinery, INDEX_NONE, INDEX_NONE, FVector(300, 0, 0))).bAccepted);
-    TestTrue(TEXT("Gather finite patch"), Model.Submit(1, Command(2, EProofCommandType::Gather, Harvester, Ore)).bAccepted);
+    // Isolate the explicitly commanded miner; automatic-grant behavior has its own tests.
+    if (!TestTrue(TEXT("Stop incidental granted miner"), Model.Submit(1, Command(2, EProofCommandType::Stop, Model.GetSnapshot().Units.Last().UnitId)).bAccepted)) return false;
+    TestTrue(TEXT("Gather finite patch"), Model.Submit(1, Command(3, EProofCommandType::Gather, Harvester, Ore)).bAccepted);
     Model.Advance(3.f);
     Model.Advance(2.f);
     for (int32 Trip = 0; Trip < 8; ++Trip)
@@ -160,17 +164,17 @@ bool FProofSkirmishInterruptedCargoTest::RunTest(const FString&)
     TestEqual(TEXT("Final extraction exhausts patch"), FinalLoad.Resources[0].Remaining, 0);
     TestEqual(TEXT("Last load still needs deposit"), UnitById(FinalLoad, Harvester)->Cargo, 50);
     TestEqual(TEXT("Only delivered ore earned"), PlayerById(FinalLoad, 1)->TotalGathered, 450);
-    TestTrue(TEXT("Move can interrupt return"), Model.Submit(1, Command(3, EProofCommandType::Move, Harvester, INDEX_NONE, FVector(550, 300, 0))).bAccepted);
+    TestTrue(TEXT("Move can interrupt return"), Model.Submit(1, Command(4, EProofCommandType::Move, Harvester, INDEX_NONE, FVector(550, 300, 0))).bAccepted);
     Model.Advance(2.f);
     TestEqual(TEXT("Move grants no deposit"), PlayerById(Model.GetSnapshot(), 1)->TotalGathered, 450);
-    TestTrue(TEXT("Loaded harvester can resume from depleted patch"), Model.Submit(1, Command(4, EProofCommandType::Gather, Harvester, Ore)).bAccepted);
-    TestTrue(TEXT("Repeated resume accepted without minting cargo"), Model.Submit(1, Command(5, EProofCommandType::Gather, Harvester, Ore)).bAccepted);
+    TestTrue(TEXT("Loaded harvester can resume from depleted patch"), Model.Submit(1, Command(5, EProofCommandType::Gather, Harvester, Ore)).bAccepted);
+    TestTrue(TEXT("Repeated resume accepted without minting cargo"), Model.Submit(1, Command(6, EProofCommandType::Gather, Harvester, Ore)).bAccepted);
     Model.Advance(3.f);
     const FProofSnapshot Deposited = Model.GetSnapshot();
     TestEqual(TEXT("Resumed return empties final cargo"), UnitById(Deposited, Harvester)->Cargo, 0);
     TestEqual(TEXT("All extracted ore deposited once"), PlayerById(Deposited, 1)->TotalGathered, 500);
     TestEqual(TEXT("Exactly starting credits minus refinery plus finite ore"), PlayerById(Deposited, 1)->Credits, 750);
-    TestEqual(TEXT("Empty harvester still cannot gather depleted patch"), Model.Submit(1, Command(6, EProofCommandType::Gather, Harvester, Ore)).Reason, FString(TEXT("resource")));
+    TestEqual(TEXT("Empty harvester still cannot gather depleted patch"), Model.Submit(1, Command(7, EProofCommandType::Gather, Harvester, Ore)).Reason, FString(TEXT("resource")));
     Model.Advance(20.f);
     TestEqual(TEXT("No further income after final deposit"), PlayerById(Model.GetSnapshot(), 1)->Credits, 750);
     TestEqual(TEXT("Ore remains nonnegative"), Model.GetSnapshot().Resources[0].Remaining, 0);

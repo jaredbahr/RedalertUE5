@@ -58,7 +58,9 @@ bool OreSetup(FProofCommandModel& Model, int32& Miner, int32& Patch, int32& Gran
     if (!Model.Submit(1, OreOrder(1, EProofCommandType::BuildRefinery, INDEX_NONE,
         INDEX_NONE, FVector(300, 0, 0))).bAccepted) return false;
     Granted = Model.GetSnapshot().Units.Last().UnitId;
-    return Model.Submit(1, OreOrder(2, EProofCommandType::Gather, Miner, Patch)).bAccepted;
+    // These tests control when each miner starts, so isolate the initial grant.
+    if (!Model.Submit(1, OreOrder(2, EProofCommandType::Stop, Granted)).bAccepted) return false;
+    return Model.Submit(1, OreOrder(3, EProofCommandType::Gather, Miner, Patch)).bAccepted;
 }
 bool OreFinishFirstPatch(FProofCommandModel& Model, int32 Miner, int32 Patch)
 {
@@ -175,11 +177,11 @@ bool FProofOreContestedTest::RunTest(const FString&)
     // through Move commands, then their Gather orders compete in one advance.
     FProofOreReselectionFixture::SetRemaining(Model, Patch, 50);
     const FVector Center = OrePatch(Model.GetSnapshot(), Patch).Position;
-    if (!TestTrue(TEXT("Move original miner"), Model.Submit(1, OreOrder(3, EProofCommandType::Move, Miner, INDEX_NONE, Center)).bAccepted)
-        || !TestTrue(TEXT("Move granted miner"), Model.Submit(1, OreOrder(4, EProofCommandType::Move, Granted, INDEX_NONE, Center)).bAccepted)) return false;
+    if (!TestTrue(TEXT("Move original miner"), Model.Submit(1, OreOrder(4, EProofCommandType::Move, Miner, INDEX_NONE, Center)).bAccepted)
+        || !TestTrue(TEXT("Move granted miner"), Model.Submit(1, OreOrder(5, EProofCommandType::Move, Granted, INDEX_NONE, Center)).bAccepted)) return false;
     Model.Advance(10.f);
-    if (!TestTrue(TEXT("First miner gathers"), Model.Submit(1, OreOrder(5, EProofCommandType::Gather, Miner, Patch)).bAccepted)
-        || !TestTrue(TEXT("Second miner gathers"), Model.Submit(1, OreOrder(6, EProofCommandType::Gather, Granted, Patch)).bAccepted)) return false;
+    if (!TestTrue(TEXT("First miner gathers"), Model.Submit(1, OreOrder(6, EProofCommandType::Gather, Miner, Patch)).bAccepted)
+        || !TestTrue(TEXT("Second miner gathers"), Model.Submit(1, OreOrder(7, EProofCommandType::Gather, Granted, Patch)).bAccepted)) return false;
     Model.Advance(1.f);
     const FProofSnapshot Contested = Model.GetSnapshot();
     TestEqual(TEXT("First stable miner gets the final finite load"), OreMiner(Contested, Miner).Cargo, 50);
@@ -206,11 +208,11 @@ bool FProofOreOrdersTest::RunTest(const FString&)
         const FVector Before = OreMiner(Model.GetSnapshot(), Miner).Position;
         if (Variant == 0)
         {
-            TestTrue(TEXT("Explicit Stop replaces Gather"), Model.Submit(1, OreOrder(3, EProofCommandType::Stop, Miner)).bAccepted);
+            TestTrue(TEXT("Explicit Stop replaces Gather"), Model.Submit(1, OreOrder(4, EProofCommandType::Stop, Miner)).bAccepted);
         }
         else if (Variant == 1)
         {
-            TestTrue(TEXT("Explicit Move replaces Gather"), Model.Submit(1, OreOrder(3, EProofCommandType::Move,
+            TestTrue(TEXT("Explicit Move replaces Gather"), Model.Submit(1, OreOrder(4, EProofCommandType::Move,
                 Miner, INDEX_NONE, FVector(-300, 0, 0))).bAccepted);
         }
         Model.Advance(100.f);

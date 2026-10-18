@@ -460,7 +460,25 @@ FProofCommandResult FProofCommandModel::Submit(int32 TrustedOwnerId, const FProo
         // from that not-yet-inserted structure. These allocations cannot fail
         // after the synchronous preflight, and a rejection cannot consume IDs.
         AddUnit(TrustedOwnerId, Command.Destination, bBuildRefinery ? EProofUnitKind::Refinery : EProofUnitKind::Factory, 200.f);
-        if (bBuildRefinery) { AddUnit(TrustedOwnerId, MinerSpawn, EProofUnitKind::Harvester, 100.f); }
+        if (bBuildRefinery)
+        {
+            const int32 MinerId = AddUnit(TrustedOwnerId, MinerSpawn, EProofUnitKind::Harvester, 100.f);
+            // One initial order belongs to this grant, never to existing idle
+            // or stopped miners. No ore leaves the new miner idle. Subsequent
+            // travel, extraction, return and explicit overrides are ordinary Gather.
+            const int32 ResourceIndex = ProofOreTargetPolicy::SelectNearestIndex(State.Resources.Num(),
+                [this](int32 Index)
+                { return ProofOreTargetPolicy::ResourceView{State.Resources[Index].ResourceId, State.Resources[Index].Remaining}; },
+                [this, &MinerSpawn](int32 Index)
+                { return FVector::DistSquared(MinerSpawn, State.Resources[Index].Position); });
+            if (ResourceIndex != ProofOreTargetPolicy::InvalidIndex)
+            {
+                FOrder Order;
+                Order.Type = EProofCommandType::Gather;
+                Order.TargetUnitId = State.Resources[ResourceIndex].ResourceId;
+                Orders.Add(MinerId, Order);
+            }
+        }
         Player->Credits -= Cost;
     }
     else

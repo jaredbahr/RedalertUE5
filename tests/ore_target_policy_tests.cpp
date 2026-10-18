@@ -92,6 +92,30 @@ int main()
         Check(Distances == 0);
     }
 
+    // The one-time initial assignment does not need a prior resource ID.
+    // Its independent oracle sorts eligible (distance, stable ID) pairs.
+    for (auto Patches : {std::vector<Patch>{}, std::vector<Patch>{{1, 0, 0}},
+        std::vector<Patch>{{8, 4, 9}, {3, 9, 9}, {6, 4, 2}, {1, 0, 0}},
+        std::vector<Patch>{{8, 4, 9}, {3, 9, 9}, {6, 0, 0}}})
+    {
+        for (int Reversed = 0; Reversed < 2; ++Reversed)
+        {
+            int Calls = 0;
+            const auto Before = Patches;
+            const auto Result = ProofOreTargetPolicy::SelectNearestIndex(static_cast<std::int32_t>(Patches.size()),
+                [&Patches](std::int32_t Index) { return ProofOreTargetPolicy::ResourceView{Patches[Index].Id, Patches[Index].Remaining}; },
+                [&Patches, &Calls](std::int32_t Index) { ++Calls; return Patches[Index].Distance; });
+            std::vector<std::tuple<double, std::int32_t, std::int32_t>> Ranked;
+            for (std::size_t I = 0; I < Patches.size(); ++I)
+                if (Patches[I].Remaining > 0) Ranked.emplace_back(Patches[I].Distance, Patches[I].Id, static_cast<std::int32_t>(I));
+            std::sort(Ranked.begin(), Ranked.end());
+            Check(Result == (Ranked.empty() ? -1 : std::get<2>(Ranked.front())));
+            Check(Calls == static_cast<int>(Ranked.size()));
+            Check(Patches == Before);
+            std::reverse(Patches.begin(), Patches.end());
+        }
+    }
+
     // 1,024 generated fixtures, including sticky, missing, depleted and ties.
     for (std::int32_t Count = 1; Count <= 32; ++Count)
     {
@@ -137,7 +161,7 @@ int main()
             Check(Calls == 8);
         }
     }
-    if (Checks != 3174) { ++Failures; std::cerr << "Unexpected check count: " << Checks << '\n'; }
+    if (Checks != 3198) { ++Failures; std::cerr << "Unexpected check count: " << Checks << '\n'; }
     std::cout << Checks << " checks, " << Failures << " failures\n";
     return Failures == 0 ? 0 : 1;
 }

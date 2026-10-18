@@ -179,8 +179,11 @@ bool FProofSkirmishLoadedOreDisconnectTest::RunTest(const FString&)
     const int32 HarvesterId = FindDisconnectUnit(Opening, 2, EProofUnitKind::Harvester);
     if (!TestTrue(TEXT("Survivor builds a refinery"), Model.Submit(2, MakeDisconnectCommand(1,
         EProofCommandType::BuildRefinery, INDEX_NONE, INDEX_NONE, FVector(300, 2000, 0))).bAccepted)
+        // Isolate the survivor whose removed-ore order is under test.
+        || !TestTrue(TEXT("Stop incidental survivor grant"), Model.Submit(2, MakeDisconnectCommand(2,
+            EProofCommandType::Stop, Model.GetSnapshot().Units.Last().UnitId)).bAccepted)
         || !TestTrue(TEXT("Survivor gathers departing player's ore"), Model.Submit(2,
-            MakeDisconnectCommand(2, EProofCommandType::Gather, HarvesterId, OreId)).bAccepted)) return false;
+            MakeDisconnectCommand(3, EProofCommandType::Gather, HarvesterId, OreId)).bAccepted)) return false;
 
     Model.Advance(14.f);
     const FProofSnapshot Loaded = Model.GetSnapshot();
@@ -236,7 +239,7 @@ bool FProofSkirmishLoadedOreDisconnectTest::RunTest(const FString&)
     // Removal stops the old assignment, not future commands by the survivor.
     // The ordinary next sequence can explicitly target the surviving own ore.
     if (!TestTrue(TEXT("Fresh Gather recovers after removed-source delivery"), Model.Submit(2,
-        MakeDisconnectCommand(3, EProofCommandType::Gather, HarvesterId, RecoveryOreId)).bAccepted)) return false;
+        MakeDisconnectCommand(4, EProofCommandType::Gather, HarvesterId, RecoveryOreId)).bAccepted)) return false;
     Model.Advance(30.f);
     const FProofSnapshot Recovering = Model.GetSnapshot();
     const FProofUnitRecord* RecoveringHarvester = Recovering.Units.FindByPredicate([HarvesterId]
