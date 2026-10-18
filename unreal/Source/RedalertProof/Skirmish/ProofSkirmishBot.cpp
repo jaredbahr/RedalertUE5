@@ -101,6 +101,7 @@ TArray<FProofCommand> FProofSkirmishBot::Decide(const FProofSnapshot& Snapshot, 
     const FProofUnitRecord* HQ = nullptr;
     const FProofUnitRecord* Refinery = nullptr;
     const FProofUnitRecord* Factory = nullptr;
+    bool bHasHarvester = false;
     for (const FProofUnitRecord& Unit : Snapshot.Units)
     {
         if (Unit.OwnerId != OwnerId || Unit.HitPoints <= 0.f) { continue; }
@@ -108,6 +109,7 @@ TArray<FProofCommand> FProofSkirmishBot::Decide(const FProofSnapshot& Snapshot, 
         if (Unit.Kind == EProofUnitKind::HQ && (!HQ || Unit.UnitId < HQ->UnitId)) { HQ = &Unit; }
         if (Unit.Kind == EProofUnitKind::Refinery && (!Refinery || Unit.UnitId < Refinery->UnitId)) { Refinery = &Unit; }
         if (Unit.Kind == EProofUnitKind::Factory && (!Factory || Unit.UnitId < Factory->UnitId)) { Factory = &Unit; }
+        bHasHarvester |= Unit.Kind == EProofUnitKind::Harvester;
     }
     OwnUnits.Sort([](const FProofUnitRecord& A, const FProofUnitRecord& B) { return A.UnitId < B.UnitId; });
     for (auto It = IssuedOrders.CreateIterator(); It; ++It)
@@ -139,7 +141,14 @@ TArray<FProofCommand> FProofSkirmishBot::Decide(const FProofSnapshot& Snapshot, 
     int32 PlannedLiveCount = OwnUnits.Num();
     FVector PlannedMinerPosition;
     bool bPlannedMiner = false;
-    if (HQ && !Refinery && SpendableCredits >= RefineryCost && PlannedLiveCount <= MaxLiveUnitsPerOwner - 2)
+    // A surviving refinery cannot restore lost miners by itself. Reuse the
+    // authoritative refinery-plus-miner grant only when every own miner is
+    // gone and ore remains. A surviving miner suppresses extra construction;
+    // the usual funds, two-record capacity and spawn checks still apply.
+    const bool bNeedsReplacementMiner = !bHasHarvester && Snapshot.Resources.ContainsByPredicate(
+        [](const FProofResourceRecord& Resource) { return Resource.ResourceId > 0 && Resource.Remaining > 0; });
+    if (HQ && (!Refinery || bNeedsReplacementMiner) && SpendableCredits >= RefineryCost
+        && PlannedLiveCount <= MaxLiveUnitsPerOwner - 2)
     {
         FVector Site, MinerPosition;
         if (FindBuildPosition(PlacementView, HQ->Position, Site, &MinerPosition)
