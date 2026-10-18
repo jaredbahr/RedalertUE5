@@ -31,3 +31,11 @@ The allocation was released at 2026-10-17 14:38:03 UTC with zero UE/build proces
 The accepted run reports `inputSource=engineInjection`, `pointerSource=projectedSynthetic`, `physicalInputVerified=false` and `osWindowFocusVerified=false`. Physical S, other bindings/modifiers, Alt-Tab and OS focus remain open under issue #17. The old broad input/higher-digit fixture evidence is not transferred. Dense legacy labels and the clipped native-status suffix remain visible; issue #18 remains open.
 
 This candidate is local and unpublished. Jared's specific approval covered PR43; it does not authorize publication or merge of this branch or the pointer-bounds follow-up.
+
+## Combined acceptance checkpoint
+
+The combined candidate at `9b9403f51417fcce3de159b779943c49bae31023` was subsequently built and checked after pointer-bounds reconciliation. Source tree `7592f7c0e3fcd30fc9b9002855acb8c7c7e8690d`, Config and project inputs bind the fresh DLL `82269BA43E6E2EDE4E82734C6C82D1242265C7142D68A8BCDA516311FC3BFB3E`.
+
+The unchanged exact 12-case native suite, default controls, native S-key Stop binding and cooperative context-routing scenarios passed. All 11 fresh captures were inspected at native size by root and independent review. Cooperative checks recorded 324 matching revisions, ten context phases and 126 commands. The initial combined native timeout remains a failed attempt; a separate readiness diagnostic passed before the new unchanged acceptance run. No startup cause is declared fixed.
+
+This supersedes the earlier pending-combination statement for that exact checkpoint. Original standalone and failed evidence is retained privately; later documentation-only publication changes do not change the bound engine inputs. Physical keyboard/mouse, OS focus, internet play, army-scale performance, art and broader HUD acceptance remain unverified. Issues #17/#18 remain open. No paid Actions or raw private logs are needed for publication.
