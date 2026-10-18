@@ -321,11 +321,11 @@ bool AProofGameMode::ReturnCargoEvidenceRow()
 
 // Read-only snapshots immediately around the real Submit. resumeResource is
 // accepted-command provenance, not an assertion that private Orders were read.
-void AProofGameMode::ObserveReturnCargoCommand(int32 Owner, const FProofCommand& Command,
+void AProofGameMode::ObserveReturnCargoCommand(int32 TrustedOwnerId, const FProofCommand& Command,
     const FProofCommandResult& Result, const FProofSnapshot& Before, const FProofSnapshot& After)
 {
-    const FProofPlayerRecord* Prior = ReturnPlayer(Before, Owner);
-    const FProofPlayerRecord* Current = ReturnPlayer(After, Owner);
+    const FProofPlayerRecord* Prior = ReturnPlayer(Before, TrustedOwnerId);
+    const FProofPlayerRecord* Current = ReturnPlayer(After, TrustedOwnerId);
     if (!Prior || !Current || !ReturnCargoEvidenceRow()) return;
     if (Result.bAccepted)
     {
@@ -352,7 +352,7 @@ void AProofGameMode::ObserveReturnCargoCommand(int32 Owner, const FProofCommand&
     const FVector To = B ? B->Position : FVector::ZeroVector;
     const int32* Resume = ReturnCargoGatherSources.Find(Command.UnitId);
     UE_LOG(LogTemp, Display, TEXT("PROOF_RETURN_CARGO_COMMAND {\"owner\":%d,\"epoch\":%d,\"sequence\":%d,\"type\":%d,\"unit\":%d,\"target\":%d,\"accepted\":%d,\"revisionBefore\":%d,\"revision\":%d,\"cargoBefore\":%d,\"cargoAfter\":%d,\"creditsBefore\":%d,\"creditsAfter\":%d,\"gatheredBefore\":%d,\"gatheredAfter\":%d,\"xBefore\":%.17g,\"yBefore\":%.17g,\"zBefore\":%.17g,\"x\":%.17g,\"y\":%.17g,\"z\":%.17g,\"resumeResource\":%d,\"conservedBefore\":%lld,\"conservedAfter\":%lld}"),
-        Owner, MatchEpoch, Command.Sequence, static_cast<int32>(Command.Type), Command.UnitId, Command.TargetUnitId,
+        TrustedOwnerId, MatchEpoch, Command.Sequence, static_cast<int32>(Command.Type), Command.UnitId, Command.TargetUnitId,
         Result.bAccepted ? 1 : 0, Before.Revision, After.Revision, A ? A->Cargo : 0, B ? B->Cargo : 0,
         Prior->Credits, Current->Credits, Prior->TotalGathered, Current->TotalGathered,
         From.X, From.Y, From.Z, To.X, To.Y, To.Z, Resume ? *Resume : INDEX_NONE,

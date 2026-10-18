@@ -108,7 +108,7 @@ private:
     TMap<int32, FReturnCargoEvidenceOrder> ReturnCargoActive;
     TMap<int32, FReturnCargoEvidenceOrder> ReturnCargoAwaitingResume;
     bool ReturnCargoEvidenceRow();
-    void ObserveReturnCargoCommand(int32 Owner, const FProofCommand& Command, const FProofCommandResult& Result,
+    void ObserveReturnCargoCommand(int32 TrustedOwnerId, const FProofCommand& Command, const FProofCommandResult& Result,
         const FProofSnapshot& Before, const FProofSnapshot& After);
     void ObserveReturnCargoAdvance(const FProofSnapshot& Before, const FProofSnapshot& After);
     TSet<int32> GroupGatherDepositMiners;
