@@ -54,7 +54,7 @@ bool AMRuntimeConfig(FProofAttackMoveRuntimeState& R, const TCHAR* Role)
     { AMRuntimeFail(Role, TEXT("fixture_configuration")); return false; }
     for (const TCHAR* Flag : {TEXT("ProofAutomation"), TEXT("ProofControlsAutomation"), TEXT("ProofControlsObserver"),
         TEXT("ProofSkirmishObserver"), TEXT("ProofSkirmishFixtureHost"), TEXT("ProofLifecycleFixtureHost"),
-        TEXT("ProofFactoryRallyEvidence"), TEXT("ProofStopControls"), TEXT("ProofTypeSelectionControls"), TEXT("ProofCameraPan"), TEXT("ProofCameraEdgePan")})
+        TEXT("ProofFactoryRallyEvidence"), TEXT("ProofCoopContextEvidence"), TEXT("ProofStopControls"), TEXT("ProofTypeSelectionControls"), TEXT("ProofCameraPan"), TEXT("ProofCameraEdgePan")})
         if (FParse::Param(Cmd, Flag)) { AMRuntimeFail(Role, TEXT("incompatible_fixture_flags")); return false; }
     const auto Startup = FProofAttackMoveReleasePolicy::Evaluate(true, FCString::Strcmp(Role, TEXT("host")) == 0, false,
         IFileManager::Get().FileExists(*R.Release), FString(),

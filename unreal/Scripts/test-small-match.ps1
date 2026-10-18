@@ -8,6 +8,7 @@ param(
     [switch]$CleanPresentation,
     [switch]$RefineryMinerEvidence,
     [switch]$FactoryRallyEvidence,
+    [switch]$CoopContextEvidence,
     [switch]$ReadabilityCaptures,
     [switch]$CameraEdgeCaptures,
     [ValidateSet('1280x720','960x540')][string]$Viewport = '1280x720'
@@ -18,6 +19,11 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'CameraEdgeEvidence.ps1')
 if ($CameraEdgeCaptures -and (-not $ReadabilityCaptures -or $Scenario -ne 'Victory')) { throw 'CameraEdgeCaptures requires Victory and ReadabilityCaptures.' }
 . (Join-Path $PSScriptRoot 'FactoryRallyEvidence.ps1')
+. (Join-Path $PSScriptRoot 'CoopContextEvidence.ps1')
+if ($CoopContextEvidence) {
+    if ($Scenario -ne 'Coop') { throw 'CoopContextEvidence requires the three-role Coop scenario.' }
+    $FactoryRallyEvidence = [switch]::new($true)
+}
 if ($FactoryRallyEvidence) {
     if ($Scenario -ne 'Coop') { throw 'FactoryRallyEvidence requires the three-role Coop scenario.' }
     $RefineryMinerEvidence = [switch]::new($true)
@@ -66,7 +72,7 @@ $result = [ordered]@{
     storageGuard=[ordered]@{softPollingGuard=$true;intervalSeconds=10;maxCacheMiB=$MaxCacheMiB;maxTempMiB=$MaxTempMiB;checks=0;latestCacheBytes=0;latestTempBytes=0;peakCacheBytes=0;peakTempBytes=0}
     cpuPolicy=[ordered]@{availableAffinityMask=('0x{0:X}' -f $availableAffinity);fixtureAffinityMask=('0x{0:X}' -f $fixtureAffinity);logicalProcessors=$fixtureLogicalProcessors;priority='Normal';pollIntervalSeconds=1;polls=0;repairs=0;processes=@()}
     literalClientSetup=[ordered]@{startupFile=$literalClientCVars;expectedResolverDisabled=1;startupConfirmedByRole=@{};hostnameOrInternetTest=$false;osDnsChanged=$false}
-    cameraEdgeCaptures=[bool]$CameraEdgeCaptures; cameraEdgeEvidence=$null; readabilityCaptures=[bool]$ReadabilityCaptures; edgeCaptureEvidence=@(); hudLayoutCaptureEvidence=@(); factoryRallyEvidenceEnabled=[bool]$FactoryRallyEvidence; factoryRallyEvidence=$null
+    cameraEdgeCaptures=[bool]$CameraEdgeCaptures; cameraEdgeEvidence=$null; readabilityCaptures=[bool]$ReadabilityCaptures; edgeCaptureEvidence=@(); hudLayoutCaptureEvidence=@(); factoryRallyEvidenceEnabled=[bool]$FactoryRallyEvidence; factoryRallyEvidence=$null; coopContextEvidenceEnabled=[bool]$CoopContextEvidence; coopContextEvidence=$null
     renderConfiguration=[ordered]@{realViewport=$true;offscreen=$true;width=$viewportWidth;height=$viewportHeight;optimizedShaders=1;targetFPS=30}
     processes=@(); screenshots=@(); commonRevisions=@(); expectedWinner=$(if($Scenario -eq 'Defeat'){1}else{0}); error=$null; cleanupErrors=@()
 }
@@ -219,6 +225,7 @@ function Start-Role([string]$Role,[string]$Destination,[string[]]$Mode) {
     $launchArguments=@(('"'+$project+'"'),$Destination)+$Mode+@('-unattended','-nosound','-nosplash','-NoSourceControl','-NoP4','-CoreLimit=2','-ddc=BlockoutDDC','-logcmds="LogDerivedDataCache Verbose"',('-port='+$Port),'-ini:GameUserSettings:[/Script/Engine.GameUserSettings]:FrameRateLimit=30','-ini:Engine:[DevOptions.Shaders]:WorkerProcessPriority=0,[ConsoleVariables]:t.MaxFPS=30,[AssetRegistry]:EditorGameScansAR=Async,[ShaderCompiler]:r.Shaders.Optimize=1,[ConsoleVariables]:r.Shaders.Optimize=1',('-abslog="'+$log+'"'))
     if ($RefineryMinerEvidence) { $launchArguments+='-ProofRefineryMinerEvidence' }
     if ($FactoryRallyEvidence) { $launchArguments+='-ProofFactoryRallyEvidence' }
+    if ($CoopContextEvidence) { $launchArguments+='-ProofCoopContextEvidence' }
     if ($ReadabilityCaptures -and $Role -eq 'rendered') { $launchArguments+='-ProofHUDReadabilityCaptures' }
     if ($CameraEdgeCaptures -and $Role -eq 'rendered') { $launchArguments+='-ProofCameraEdgeCaptures' }
     $needsLiteralLoopback = $Scenario -eq 'Coop' -and $Role -in @('rendered','observer')
@@ -313,6 +320,7 @@ try {
     }
     $captureNames=@('01-base.png','02-result.png')
     if ($FactoryRallyEvidence) { $captureNames+='03-factory-rally.png' }
+    if ($CoopContextEvidence) { $captureNames+=@('04-context-single.png','05-context-group.png') }
     if ($ReadabilityCaptures) {
         $result.edgeCaptureEvidence=@(Get-HUDEdgeCaptureEvidence (Read-Log $client) $viewportWidth $viewportHeight)
         $captureNames+=@('03-left-edge.png','04-right-edge.png','05-panel-edge.png')
@@ -336,8 +344,10 @@ try {
     if ($RefineryMinerEvidence) {
         $evidenceLogs=@{host=$(if($Scenario -eq 'Coop'){Read-Log $serverEntry}else{Read-Log $client});rendered=(Read-Log $client)}
         if($Scenario -eq 'Coop') { $evidenceLogs.observer=Read-Log $observer }
-        $result.refineryMinerEvidence=Get-RefineryMinerEvidence -Logs $evidenceLogs -Scenario $Scenario
+        $stateContext=@{}
+        $result.refineryMinerEvidence=Get-RefineryMinerEvidence -Logs $evidenceLogs -Scenario $Scenario -ValidatedStateContext $stateContext
         if ($FactoryRallyEvidence) { $result.factoryRallyEvidence=Get-FactoryRallyEvidence -Logs $evidenceLogs }
+        if ($CoopContextEvidence) { $result.coopContextEvidence=Get-CoopContextEvidence -Logs $evidenceLogs -ValidatedStateContext $stateContext -RallyEvidence $result.factoryRallyEvidence }
     }
     $retryLog=Read-Log $client
     if($Scenario -eq 'Coop'){$retryLog=(Read-Log $serverEntry)+[Environment]::NewLine+$retryLog}

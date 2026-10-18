@@ -1,6 +1,7 @@
 #if WITH_DEV_AUTOMATION_TESTS
 #include "Misc/AutomationTest.h"
 #include "Presentation/ProofSelectionState.h"
+#include <limits>
 
 namespace
 {
@@ -272,4 +273,57 @@ bool FProofSelectionNineGroupsTest::RunTest(const FString&)
     TestEqual(TEXT("Owner change clears upper group nine despite reused ID"), Selection.GetSelectedUnitIds().Num(), 0);
     return true;
 }
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FProofCooperativeContextTargetsTest, "RedalertProof.Controls.CooperativeContextTargets",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FProofCooperativeContextTargetsTest::RunTest(const FString&)
+{
+    FProofSnapshot Snapshot = SelectionFixture();
+    const FString Before = Snapshot.ComputeDigest();
+    TestFalse(TEXT("Owned marker follows friendly ground behavior"), FProofSelectionState::IsHostileTarget(Snapshot, 1, 10));
+    TestFalse(TEXT("Cooperative teammate is friendly despite different owner"), FProofSelectionState::IsHostileTarget(Snapshot, 1, 40));
+    TestTrue(TEXT("Opposing team remains hostile"), FProofSelectionState::IsHostileTarget(Snapshot, 1, 50));
+    TestFalse(TEXT("Invalid target ID is not hostile"), FProofSelectionState::IsHostileTarget(Snapshot, 1, INDEX_NONE));
+    TestFalse(TEXT("Missing target ID is not hostile"), FProofSelectionState::IsHostileTarget(Snapshot, 1, 999));
+    TestFalse(TEXT("Unknown viewer cannot classify an enemy"), FProofSelectionState::IsHostileTarget(Snapshot, 99, 50));
+
+    FProofSelectionState Selection;
+    Selection.SelectSingle(Snapshot, 1, 10);
+    Selection.Toggle(Snapshot, 1, 20);
+    const FVector Destination(500, 0, 0);
+    const auto AllyOrders = FProofSelectionState::IsHostileTarget(Snapshot, 1, 40)
+        ? Selection.PlanAttack(Snapshot, 1, 40) : Selection.PlanMove(Snapshot, 1, Destination);
+    TestEqual(TEXT("Ally ground route moves Combat and Harvester"), AllyOrders.Num(), 2);
+    for (const FProofCommand& Command : AllyOrders)
+        TestTrue(TEXT("Ally click cannot plan an Attack"), Command.Type == EProofCommandType::Move);
+    TestEqual(TEXT("Direct attack planner still rejects allies"), Selection.PlanAttack(Snapshot, 1, 40).Num(), 0);
+    const auto EnemyOrders = Selection.PlanAttack(Snapshot, 1, 50);
+    TestEqual(TEXT("Enemy still gets one eligible Combat attack"), EnemyOrders.Num(), 1);
+    TestEqual(TEXT("Routing cannot change authoritative snapshot"), Snapshot.ComputeDigest(), Before);
+
+    FProofSnapshot MissingOwner = Snapshot;
+    MissingOwner.Units.FindByPredicate([](const FProofUnitRecord& Unit) { return Unit.UnitId == 50; })->OwnerId = 99;
+    TestFalse(TEXT("Missing target participant is not hostility"), FProofSelectionState::IsHostileTarget(MissingOwner, 1, 50));
+    FProofSnapshot Dead = Snapshot;
+    auto* Target = Dead.Units.FindByPredicate([](const FProofUnitRecord& Unit) { return Unit.UnitId == 50; });
+    Target->HitPoints = 0.f;
+    TestFalse(TEXT("Dead enemy is not a current attack marker"), FProofSelectionState::IsHostileTarget(Dead, 1, 50));
+    Target->HitPoints = std::numeric_limits<float>::quiet_NaN();
+    TestFalse(TEXT("NaN health is not live"), FProofSelectionState::IsHostileTarget(Dead, 1, 50));
+    Target->HitPoints = std::numeric_limits<float>::infinity();
+    TestFalse(TEXT("Infinite health is not a valid target"), FProofSelectionState::IsHostileTarget(Dead, 1, 50));
+    FProofSnapshot UnknownTeam = Snapshot;
+    UnknownTeam.Players.FindByPredicate([](const FProofPlayerRecord& Player) { return Player.OwnerId == 3; })->TeamId = INDEX_NONE;
+    TestFalse(TEXT("Unknown team cannot establish hostility"), FProofSelectionState::IsHostileTarget(UnknownTeam, 1, 50));
+
+    FProofSnapshot Legacy = Snapshot;
+    Legacy.bSkirmish = false;
+    TestTrue(TEXT("Legacy distinct owners with default team0 remain enemies"), FProofSelectionState::IsHostileTarget(Legacy, 1, 40));
+    Selection.SelectSingle(Legacy, 1, 10);
+    TestEqual(TEXT("Legacy same-team-number attack planning preserved"), Selection.PlanAttack(Legacy, 1, 40).Num(), 1);
+    Legacy.Players.RemoveAll([](const FProofPlayerRecord& Player) { return Player.OwnerId == 2; });
+    TestFalse(TEXT("Legacy still requires target player record"), FProofSelectionState::IsHostileTarget(Legacy, 1, 40));
+    return true;
+}
+
 #endif

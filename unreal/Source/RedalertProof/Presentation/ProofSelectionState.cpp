@@ -1,4 +1,5 @@
 #include "Presentation/ProofSelectionState.h"
+#include "Presentation/ProofContextOrderPolicy.h"
 
 namespace
 {
@@ -29,6 +30,17 @@ double BoundFormationCenter(double Requested, double MinimumOffset, double Maxim
     const double Extent = FProofCommandModel::WorldExtent;
     return FMath::Clamp(Requested, -Extent - MinimumOffset, Extent - MaximumOffset);
 }
+}
+
+bool FProofSelectionState::IsHostileTarget(const FProofSnapshot& Snapshot, int32 OwnerId, int32 TargetUnitId)
+{
+    if (OwnerId < 0 || TargetUnitId <= 0) return false;
+    const FProofUnitRecord* Target = FindUnit(Snapshot, TargetUnitId);
+    if (!Target || !(Target->HitPoints > 0.f) || !FMath::IsFinite(Target->HitPoints)) return false;
+    const FProofPlayerRecord* Owner = FindPlayer(Snapshot, OwnerId);
+    const FProofPlayerRecord* TargetOwner = FindPlayer(Snapshot, Target->OwnerId);
+    return Owner && TargetOwner && FProofContextOrderPolicy::IsHostile(Snapshot.bSkirmish,
+        OwnerId, Target->OwnerId, Owner->TeamId, TargetOwner->TeamId);
 }
 
 bool FProofSelectionState::IsOwnedLiveUnit(const FProofSnapshot& Snapshot, int32 OwnerId, int32 UnitId)
@@ -239,11 +251,7 @@ TArray<FProofCommand> FProofSelectionState::PlanAttack(const FProofSnapshot& Sna
     {
         return Commands;
     }
-    const FProofUnitRecord* Target = FindUnit(Snapshot, TargetUnitId);
-    const FProofPlayerRecord* OwnPlayer = FindPlayer(Snapshot, OwnerId);
-    const FProofPlayerRecord* TargetPlayer = Target ? FindPlayer(Snapshot, Target->OwnerId) : nullptr;
-    if (!Target || !(Target->HitPoints > 0.f) || Target->OwnerId == OwnerId || !OwnPlayer || !TargetPlayer
-        || (Snapshot.bSkirmish && OwnPlayer->TeamId == TargetPlayer->TeamId)) { return Commands; }
+    if (!IsHostileTarget(Snapshot, OwnerId, TargetUnitId)) { return Commands; }
     for (int32 UnitId : SelectedUnitIds)
     {
         const FProofUnitRecord* Unit = FindUnit(Snapshot, UnitId);
