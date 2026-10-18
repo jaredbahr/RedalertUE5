@@ -93,6 +93,25 @@ bool FProofMapTypeContextTest::RunTest(const FString&)
         TestTrue(TEXT("External selection starts a fresh visible pair, not prior map expansion"),ProofTypeSelectionAdapter::Apply(Local,Gesture,S,1,1.1,true,VisibleAction)==Scope::Visible);
         TestTrue(TEXT("Fresh pair uses newly selected kind/source"),Local.GetSelectedUnitIds()==TArray<int32>({40}) && Gesture.Expected().Anchor==40);
     }
+    for(int32 Variant=0;Variant<3;++Variant)
+    {
+        FProofSnapshot Changed=S;FProofSelectionState Local;Local.SelectSingle(S,1,30);ProofTypeSelectGesture::State Gesture;int32 Calls=0;
+        const auto VisibleAction=[&](){++Calls;return Local.SelectVisibleType(Changed,1,{10,20,40});};
+        TestTrue(TEXT("Original combat pair arms before explicit replacement"),ProofTypeSelectionAdapter::Apply(Local,Gesture,Changed,1,1.0,true,VisibleAction)==Scope::Visible);
+        Gesture.Release();Local.SelectSingle(Changed,1,40);
+        if(Variant==0)Changed.Units[2].HitPoints=0;
+        if(Variant==1)Changed.Units.RemoveAll([](const FProofUnitRecord& Unit){return Unit.UnitId==30;});
+        if(Variant==2)Changed.Units[2].OwnerId=2;
+        const FString Before=Changed.ComputeDigest();
+        TestTrue(TEXT("Explicit new selection retires dead/removed/foreign old anchor before validation"),ProofTypeSelectionAdapter::Apply(Local,Gesture,Changed,1,1.1,true,VisibleAction)==Scope::Visible);
+        TestTrue(TEXT("Fresh visible pair uses only newly selected harvester kind"),Local.GetSelectedUnitIds()==TArray<int32>({40}) && Gesture.IsArmed() && Gesture.Expected().Anchor==40);
+        TestEqual(TEXT("Explicit replacement invokes its own visible action"),Calls,2);
+        Gesture.Release();
+        TestTrue(TEXT("Replacement pair completes independently of invalid old anchor"),ProofTypeSelectionAdapter::Apply(Local,Gesture,Changed,1,1.2,true,VisibleAction)==Scope::Battlefield);
+        TestTrue(TEXT("Replacement battlefield selection stays exact"),Local.GetSelectedUnitIds()==TArray<int32>({40}));
+        TestEqual(TEXT("Replacement map action does not call visible callback again"),Calls,2);
+        TestEqual(TEXT("Replacement adapter does not mutate snapshot"),Changed.ComputeDigest(),Before);
+    }
     {
         FProofSelectionState Local;Local.SelectSingle(S,1,30);ProofTypeSelectGesture::State Gesture;int32 Calls=0;
         const auto VisibleAction=[&](){++Calls;return Local.SelectVisibleType(S,1,{10,20});};

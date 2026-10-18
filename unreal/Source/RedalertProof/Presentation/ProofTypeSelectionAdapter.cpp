@@ -24,17 +24,19 @@ ProofTypeSelectGesture::Scope ProofTypeSelectionAdapter::Apply(FProofSelectionSt
     const bool WasArmed = Gesture.IsArmed();
     const int32 PendingAnchorId = WasArmed ? Gesture.Expected().Anchor : VisibleAnchorId;
     const FProofUnitRecord* VisibleAnchor = AnchorRecord(Snapshot, VisibleAnchorId, OwnerId);
-    const FProofUnitRecord* PendingAnchor = AnchorRecord(Snapshot, PendingAnchorId, OwnerId);
     const bool CurrentContext = Selection.HasCurrentContext(Snapshot, OwnerId);
     Selection.Synchronize(Snapshot, OwnerId);
-    // Empty is allowed only for the successful internal visible pass of an
-    // armed pair. A stale original primary/source never becomes a new type.
-    if (!CurrentContext || !PendingAnchor || (!VisibleAnchor && !(WasArmed && VisibleAnchorId == INDEX_NONE)))
-    { Gesture.Cancel(); return Scope::Ignored; }
+    // An external selection/context change retires the old pair before its
+    // original anchor can constrain a fresh visible action.
     if (Gesture.IsArmed() && (Gesture.Expected().Owner != OwnerId || Gesture.Expected().Epoch != Snapshot.MatchEpoch
         || Gesture.Expected().SelectionRevision != Selection.GetSelectionRevision() || Gesture.Expected().Mode != (Snapshot.bSkirmish ? 1 : 0))) Gesture.Cancel();
-    const int32 AnchorId = Gesture.IsArmed() ? PendingAnchorId : VisibleAnchorId;
+    const bool CurrentPair = Gesture.IsArmed();
+    const int32 AnchorId = CurrentPair ? PendingAnchorId : VisibleAnchorId;
     const FProofUnitRecord* Anchor = AnchorRecord(Snapshot, AnchorId, OwnerId);
+    // Empty is allowed only for the successful internal visible pass of the
+    // still-current pair. A stale pre-sync primary never promotes a new kind.
+    if (!CurrentContext || !Anchor || (!VisibleAnchor && !(CurrentPair && VisibleAnchorId == INDEX_NONE)))
+    { Gesture.Cancel(); return Scope::Ignored; }
     const bool MapContext = Anchor && Snapshot.MatchEpoch >= 0 && Selection.GetSelectionRevision() < MAX_uint64
         && Snapshot.Players.ContainsByPredicate([OwnerId](const FProofPlayerRecord& Player) { return Player.OwnerId == OwnerId; })
         && (!Snapshot.bSkirmish || (Snapshot.MatchEpoch > 0 && Snapshot.MatchPhase == EProofMatchPhase::Playing));
