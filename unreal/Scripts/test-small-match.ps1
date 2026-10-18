@@ -332,6 +332,7 @@ try {
         $result.diagnosticGraphicsWarmup=@{passed=$true;serial=$true;insideScenarioBudget=$true;elapsedAfterWarmupAdmissionSeconds=$scenarioWatch.Elapsed.TotalSeconds;logSHA256=(Get-FileHash $warmup.Log).Hash}
         $result.diagnosticGraphicsWarmup.postWarmupAdmission=@{freshSamples=3;thresholdPercent=80;peakPercent=($samples.CounterSamples.CookedValue|Measure-Object -Maximum).Maximum;ownedWorkersReleased=$true;competingHeavyProcesses=0}
         $result.diagnosticGraphicsWarmup.postWarmupAdmission.samples=@($samples|ForEach-Object {@{utc=$_.Timestamp.ToUniversalTime().ToString('o');counters=@($_.CounterSamples|ForEach-Object {@{value=$_.CookedValue;status=$_.Status}})}})
+        if ($scenarioWatch.Elapsed.TotalSeconds -ge $TimeoutSeconds) { throw 'Post-warmup admission exhausted the unchanged scenario budget before match launch.' }
     }
     if ($Scenario -eq 'Coop') {
         $serverEntry=Start-Role 'host' '/Game/CommandProofGenerated/Maps/CommandProof' @('-server','-nullrhi','-MULTIHOME=127.0.0.1','-ProofSkirmish','-ProofSkirmishFixtureHost')
