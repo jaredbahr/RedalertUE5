@@ -3,6 +3,13 @@
 #include <algorithm>
 #include <cmath>
 
+// Preserve finite checks and direct divisions in MSVC /fp:fast builds. A
+// shared reciprocal can overflow for a subnormal forward/direction component.
+// Restore the includer's settings immediately after this small helper.
+#if defined(_MSC_VER)
+#pragma float_control(precise, on, push)
+#endif
+
 // Display-only world-Z alignment. The caller supplies the verified mesh's
 // scaled/rotated forward axis and the authoritative last-travel direction.
 // No client position history, movement epsilon, turn rate or simulation input.
@@ -42,3 +49,7 @@ private:
         return std::isfinite(OutX) && std::isfinite(OutY);
     }
 };
+
+#if defined(_MSC_VER)
+#pragma float_control(pop)
+#endif

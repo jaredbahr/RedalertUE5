@@ -61,6 +61,12 @@ bool FProofCommandModel::IsFinitePosition(const FVector& Position)
     return FMath::IsFinite(Position.X) && FMath::IsFinite(Position.Y) && FMath::IsFinite(Position.Z);
 }
 
+// MSVC /fp:fast otherwise rewrites the two Scale divisions into a shared
+// reciprocal, which overflows for a nonzero subnormal displacement. Keep this
+// presentation-only helper precise without changing surrounding gameplay code.
+#if defined(_MSC_VER)
+#pragma float_control(precise, on, push)
+#endif
 void FProofCommandModel::RecordLastTravelDirection(FProofUnitRecord& Unit, const FVector& PreviousPosition)
 {
     if (Unit.HitPoints <= 0.f || !IsFinitePosition(PreviousPosition) || !IsFinitePosition(Unit.Position)) { return; }
@@ -79,6 +85,9 @@ void FProofCommandModel::RecordLastTravelDirection(FProofUnitRecord& Unit, const
     Unit.LastTravelDirection = FVector(DirectionX == 0.0 ? 0.0 : DirectionX,
         DirectionY == 0.0 ? 0.0 : DirectionY, 0.0);
 }
+#if defined(_MSC_VER)
+#pragma float_control(pop)
+#endif
 
 bool FProofCommandModel::IsInWorld(const FVector& Position)
 {
