@@ -294,7 +294,7 @@ FProofCommandResult AProofGameMode::SubmitForOwner(int32 TrustedOwnerId, const F
     if (AttackMoveEvidence.Enabled()) AttackMoveBefore.Emplace(Model.GetSnapshot());
     const FProofSnapshot ReturnCargoBefore = bReturnCargoEvidence && TrustedOwnerId == 1 ? Model.GetSnapshot() : FProofSnapshot();
     FProofCommandResult Result = Model.Submit(TrustedOwnerId, Command);
-    if (ProofFacingDisplacementEnabled()) ObserveProofFacingCommand(TrustedOwnerId, Command, Result, Model.GetSnapshot());
+    if (ProofFacingDisplacementEnabled()) ObserveProofFacingCommand(MatchEpoch, TrustedOwnerId, Command, Result, Model.GetSnapshot());
     if (bReturnCargoEvidence && TrustedOwnerId == 1)
         ObserveReturnCargoCommand(TrustedOwnerId, Command, Result, ReturnCargoBefore, Model.GetSnapshot());
     if (TrustedOwnerId == 1 && Command.Type == EProofCommandType::Gather
@@ -575,7 +575,7 @@ void AProofGameMode::Tick(float DeltaSeconds)
                 if (StopEvidence.Enabled()) { StopEvidence.ObserveAdvance(MatchEpoch, 0.1f); }
                 SkirmishSeconds += 0.1;
                 const FProofSnapshot After = Model.GetSnapshot();
-                if (ProofFacingDisplacementEnabled()) ObserveProofFacingAdvance(EvidenceBeforeAdvance, After);
+                if (ProofFacingDisplacementEnabled()) ObserveProofFacingAdvance(MatchEpoch, EvidenceBeforeAdvance, After);
                 if (RefineryEvidence.Enabled()) RefineryEvidence.ObserveAdvance(MatchEpoch, EvidenceBeforeAdvance, After);
                 if (FParse::Param(FCommandLine::Get(), TEXT("ProofGroupGatherEvidence")))
                     ObserveGroupGatherDeposits(EvidenceBeforeAdvance, After);

@@ -31,28 +31,32 @@ bool ProofFacingDisplacementEnabled()
 }
 
 // Diagnostic bookkeeping only, after the real authoritative Submit returns.
-void ObserveProofFacingCommand(int32 Owner, const FProofCommand& Command,
+void ObserveProofFacingCommand(int32 TrustedMatchEpoch, int32 Owner, const FProofCommand& Command,
     const FProofCommandResult& Result, const FProofSnapshot& After)
 {
     if (!ProofFacingDisplacementEnabled() || Owner != 1 || !Result.bAccepted) return;
+    if (TrustedMatchEpoch <= 0)
+    { UE_LOG(LogTemp, Error, TEXT("PROOF_FACING_DISPLACEMENT_ERROR trusted_epoch")); return; }
     ObservedMoves.Remove(Command.UnitId);
     if (Command.Type != EProofCommandType::Move) return;
     const FProofUnitRecord* Unit = After.Units.FindByPredicate([&Command](const FProofUnitRecord& U)
         { return U.UnitId == Command.UnitId && U.OwnerId == 1 && U.HitPoints > 0.f; });
     if (!Unit) return;
-    ObservedMoves.Add(Unit->UnitId, {After.MatchEpoch, Command.Sequence});
+    ObservedMoves.Add(Unit->UnitId, {TrustedMatchEpoch, Command.Sequence});
     UE_LOG(LogTemp, Display, TEXT("PROOF_FACING_MOVE_ACCEPTED epoch=%d unit=%d sequence=%d revision=%d"),
-        After.MatchEpoch, Unit->UnitId, Command.Sequence, After.Revision);
+        TrustedMatchEpoch, Unit->UnitId, Command.Sequence, After.Revision);
 }
 
 // Read-only snapshots directly around one real Advance. No candidate direction,
 // destination, visual axis, or production normalization helper enters this trace.
-void ObserveProofFacingAdvance(const FProofSnapshot& Before, const FProofSnapshot& After)
+void ObserveProofFacingAdvance(int32 TrustedMatchEpoch, const FProofSnapshot& Before, const FProofSnapshot& After)
 {
     if (!ProofFacingDisplacementEnabled()) return;
+    if (TrustedMatchEpoch <= 0)
+    { UE_LOG(LogTemp, Error, TEXT("PROOF_FACING_DISPLACEMENT_ERROR trusted_epoch")); return; }
     for (const auto& Entry : ObservedMoves)
     {
-        if (Entry.Value.Epoch != After.MatchEpoch || Before.MatchEpoch != After.MatchEpoch) continue;
+        if (Entry.Value.Epoch != TrustedMatchEpoch) continue;
         const auto Find = [&Entry](const FProofSnapshot& S) { return S.Units.FindByPredicate(
             [&Entry](const FProofUnitRecord& U) { return U.UnitId == Entry.Key && U.OwnerId == 1 && U.HitPoints > 0.f; }); };
         const FProofUnitRecord* A = Find(Before);
@@ -61,7 +65,7 @@ void ObserveProofFacingAdvance(const FProofSnapshot& Before, const FProofSnapsho
         if (++DisplacementRows > 4096)
         { UE_LOG(LogTemp, Error, TEXT("PROOF_FACING_DISPLACEMENT_ERROR row_limit")); FPlatformMisc::RequestExitWithStatus(false, 1); return; }
         const TSharedRef<FJsonObject> Row = MakeShared<FJsonObject>();
-        Row->SetNumberField(TEXT("epoch"), After.MatchEpoch);
+        Row->SetNumberField(TEXT("epoch"), TrustedMatchEpoch);
         Row->SetNumberField(TEXT("unit"), Entry.Key);
         Row->SetNumberField(TEXT("sequence"), Entry.Value.Sequence);
         Row->SetNumberField(TEXT("beforeRevision"), Before.Revision);
