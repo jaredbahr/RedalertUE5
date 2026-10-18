@@ -1,0 +1,256 @@
+#if WITH_DEV_AUTOMATION_TESTS
+#include "Misc/AutomationTest.h"
+#include "Skirmish/ProofSkirmishBot.h"
+
+namespace
+{
+FProofSnapshot MinerLossSnapshot()
+{
+    FProofSnapshot Snapshot;
+    Snapshot.bSkirmish = true;
+    Snapshot.MatchPhase = EProofMatchPhase::Playing;
+    FProofPlayerRecord Owner;
+    Owner.OwnerId = 100;
+    Owner.TeamId = 1;
+    Owner.Credits = 100;
+    Snapshot.Players.Add(Owner);
+    const EProofUnitKind Kinds[] = {EProofUnitKind::HQ, EProofUnitKind::Refinery,
+        EProofUnitKind::Factory, EProofUnitKind::Harvester};
+    const FVector Positions[] = {FVector::ZeroVector, FVector(350, 0, 0),
+        FVector(-350, 0, 0), FVector(100, 0, 0)};
+    for (int32 Index = 0; Index < 4; ++Index)
+    {
+        FProofUnitRecord Record;
+        Record.UnitId = Index + 1;
+        Record.OwnerId = 100;
+        Record.Kind = Kinds[Index];
+        Record.Position = Positions[Index];
+        Record.HitPoints = Index == 3 ? 0.f : 100.f;
+        Snapshot.Units.Add(Record);
+    }
+    FProofResourceRecord Ore;
+    Ore.ResourceId = 1;
+    Ore.Position = FVector(550, 0, 0);
+    Ore.Remaining = 500;
+    Snapshot.Resources.Add(Ore);
+    return Snapshot;
+}
+
+int32 CountRecoveryCommands(const TArray<FProofCommand>& Commands)
+{
+    int32 Count = 0;
+    for (const FProofCommand& Command : Commands)
+        Count += Command.Type == EProofCommandType::BuildRefinery ? 1 : 0;
+    return Count;
+}
+
+int32 CountLiveKind(const FProofSnapshot& Snapshot, int32 OwnerId, EProofUnitKind Kind)
+{
+    int32 Count = 0;
+    for (const FProofUnitRecord& Record : Snapshot.Units)
+        Count += Record.OwnerId == OwnerId && Record.Kind == Kind && Record.HitPoints > 0.f ? 1 : 0;
+    return Count;
+}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FProofBotMinerRecoveryPlannerTest, "RedalertProof.Skirmish.BotMinerRecoveryPlanner",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FProofBotMinerRecoveryPlannerTest::RunTest(const FString&)
+{
+    FProofSnapshot Snapshot = MinerLossSnapshot();
+    FProofSkirmishBot Bot;
+    const TArray<FProofCommand> Commands = Bot.Decide(Snapshot, 100, 0.0);
+    TestEqual(TEXT("Last miner loss plans one replacement refinery"), CountRecoveryCommands(Commands), 1);
+    TestEqual(TEXT("Last 100 credits go to recovery before combat production"), Commands.Num(), 1);
+    if (Commands.Num() != 1) { return false; }
+    TestTrue(TEXT("Recovery uses an ordinary refinery command"), Commands[0].Type == EProofCommandType::BuildRefinery
+        && Commands[0].Sequence == 1 && Commands[0].UnitId == INDEX_NONE && Commands[0].TargetUnitId == INDEX_NONE);
+    FVector Spawn;
+    TestTrue(TEXT("Recovery site has a valid miner spawn"),
+        FProofCommandModel::FindSkirmishSpawn(Snapshot, Commands[0].Destination, Spawn));
+    TestTrue(TEXT("Recovery keeps existing structures distinct"),
+        FVector::DistSquared(Commands[0].Destination, Snapshot.Units[1].Position) >= 250.0 * 250.0
+        && FVector::DistSquared(Commands[0].Destination, Snapshot.Units[2].Position) >= 250.0 * 250.0);
+    TestEqual(TEXT("Planner leaves credits unchanged"), Snapshot.Players[0].Credits, 100);
+    TestEqual(TEXT("Planner cannot create a miner itself"), CountLiveKind(Snapshot, 100, EProofUnitKind::Harvester), 0);
+    TestEqual(TEXT("Subsecond repeat does not spam commands"), Bot.Decide(Snapshot, 100, 0.5).Num(), 0);
+
+    FProofSnapshot Permuted = Snapshot;
+    Permuted.Units.Swap(0, 3);
+    Permuted.Units.Swap(1, 2);
+    FProofSkirmishBot PermutedBot;
+    const TArray<FProofCommand> Reordered = PermutedBot.Decide(Permuted, 100, 0.0);
+    TestTrue(TEXT("Recovery is stable across unit record order"), Reordered.Num() == 1
+        && Reordered[0].Type == Commands[0].Type && Reordered[0].Destination == Commands[0].Destination);
+
+    FProofSnapshot Survivor = Snapshot;
+    Survivor.Units[3].HitPoints = 1.f;
+    FProofSkirmishBot SurvivorBot;
+    TestEqual(TEXT("Even one damaged owned miner suppresses extra refinery"),
+        CountRecoveryCommands(SurvivorBot.Decide(Survivor, 100, 0.0)), 0);
+
+    FProofSnapshot ForeignMiner = Snapshot;
+    ForeignMiner.Units[3].OwnerId = 1;
+    ForeignMiner.Units[3].HitPoints = 100.f;
+    FProofSkirmishBot ForeignBot;
+    TestEqual(TEXT("A foreign survivor cannot satisfy own recovery"),
+        CountRecoveryCommands(ForeignBot.Decide(ForeignMiner, 100, 0.0)), 1);
+
+    for (int32 Remaining : {0, -1})
+    {
+        FProofSnapshot Empty = Snapshot;
+        Empty.Resources[0].Remaining = Remaining;
+        FProofSkirmishBot EmptyBot;
+        TestEqual(TEXT("Depleted ore does not trigger pointless miner recovery"),
+            CountRecoveryCommands(EmptyBot.Decide(Empty, 100, 0.0)), 0);
+    }
+    FProofSnapshot Missing = Snapshot;
+    Missing.Resources.Reset();
+    FProofSkirmishBot MissingBot;
+    TestEqual(TEXT("No ore records means no extra refinery"), CountRecoveryCommands(MissingBot.Decide(Missing, 100, 0.0)), 0);
+    FProofSnapshot InvalidOre = Snapshot;
+    InvalidOre.Resources[0].ResourceId = 0;
+    FProofSkirmishBot InvalidBot;
+    TestEqual(TEXT("An invalid ore ID is not a recovery target"), CountRecoveryCommands(InvalidBot.Decide(InvalidOre, 100, 0.0)), 0);
+
+    for (int32 Credits : {0, 99})
+    {
+        FProofSnapshot Poor = Snapshot;
+        Poor.Players[0].Credits = Credits;
+        FProofSkirmishBot PoorBot;
+        TestEqual(TEXT("Unaffordable recovery is not submitted"), CountRecoveryCommands(PoorBot.Decide(Poor, 100, 0.0)), 0);
+        TestEqual(TEXT("Unaffordable planning does not debit funds"), Poor.Players[0].Credits, Credits);
+    }
+    FProofSnapshot NoHQ = Snapshot;
+    NoHQ.Units[0].HitPoints = 0.f;
+    FProofSkirmishBot NoHQBot;
+    TestEqual(TEXT("No live HQ prevents new construction"), CountRecoveryCommands(NoHQBot.Decide(NoHQ, 100, 0.0)), 0);
+
+    for (int32 LiveCount : {10, 11, 12})
+    {
+        FProofSnapshot Crowded = Snapshot;
+        for (int32 Id = 3; Id < LiveCount; ++Id)
+        {
+            FProofUnitRecord Combat;
+            Combat.UnitId = 100 + Id;
+            Combat.OwnerId = 100;
+            Combat.Position = FVector(5000, Id * 300, 0);
+            Crowded.Units.Add(Combat);
+        }
+        FProofSkirmishBot CrowdedBot;
+        const TArray<FProofCommand> Batch = CrowdedBot.Decide(Crowded, 100, 0.0);
+        TestEqual(TEXT("Recovery requires two free live record slots"), CountRecoveryCommands(Batch), LiveCount == 10 ? 1 : 0);
+        TestTrue(TEXT("Recovery cannot exceed decision budget"), Batch.Num() <= 4);
+    }
+    FProofSnapshot Blocked = Snapshot;
+    for (int32 X = -1500; X <= 1500; X += 300)
+        for (int32 Y = -1500; Y <= 1500; Y += 300)
+        {
+            FProofUnitRecord Blocker;
+            Blocker.UnitId = 1000 + Blocked.Units.Num();
+            Blocker.OwnerId = 1;
+            Blocker.Position = FVector(X, Y, 0);
+            Blocked.Units.Add(Blocker);
+        }
+    FProofSkirmishBot BlockedBot;
+    TestEqual(TEXT("No spawn space prevents a recovery build"), CountRecoveryCommands(BlockedBot.Decide(Blocked, 100, 0.0)), 0);
+    TestEqual(TEXT("Blocked planner preserves credits"), Blocked.Players[0].Credits, 100);
+
+    // Applying the returned grant to the next visible snapshot is sufficient
+    // to suppress further recovery. No hidden planner flag blocks future loss.
+    Snapshot.Units[3].HitPoints = 100.f;
+    Snapshot.Units[3].UnitId = 50;
+    const TArray<FProofCommand> Recovered = Bot.Decide(Snapshot, 100, 1.0);
+    TestEqual(TEXT("Recovered miner suppresses another refinery"), CountRecoveryCommands(Recovered), 0);
+    TestTrue(TEXT("Recovered miner joins the normal Gather path"), Recovered.ContainsByPredicate(
+        [](const FProofCommand& C) { return C.Type == EProofCommandType::Gather && C.UnitId == 50; }));
+    Snapshot.Units[3].HitPoints = 0.f;
+    TestEqual(TEXT("A later complete loss can recover again"), CountRecoveryCommands(Bot.Decide(Snapshot, 100, 2.0)), 1);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FProofBotMinerRecoveryModelTest, "RedalertProof.Skirmish.BotMinerRecoveryModel",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FProofBotMinerRecoveryModelTest::RunTest(const FString&)
+{
+    FProofCommandModel Model;
+    Model.StartSkirmish();
+    TestTrue(TEXT("Seed opposing human"), Model.SeedSkirmishPlayer(1, 0, FVector(5000, 0, 0)));
+    TestTrue(TEXT("Seed bot"), Model.SeedSkirmishPlayer(100, 1, FVector::ZeroVector));
+    FProofSkirmishBot Bot;
+    for (const FProofCommand& Command : Bot.Decide(Model.GetSnapshot(), 100, 0.0))
+        TestTrue(TEXT("Opening bot build passes shared validator"), Model.Submit(100, Command).bAccepted);
+    TestEqual(TEXT("Opening refinery grants a second miner"), CountLiveKind(Model.GetSnapshot(), 100, EProofUnitKind::Harvester), 2);
+    TestEqual(TEXT("Opening creates one refinery"), CountLiveKind(Model.GetSnapshot(), 100, EProofUnitKind::Refinery), 1);
+
+    int32 HumanSequence = 0;
+    const auto HumanCommand = [&](EProofCommandType Type, int32 UnitId, int32 TargetId, const FVector& Destination)
+    {
+        FProofCommand Command;
+        Command.Sequence = ++HumanSequence;
+        Command.Type = Type;
+        Command.UnitId = UnitId;
+        Command.TargetUnitId = TargetId;
+        Command.Destination = Destination;
+        return Model.Submit(1, Command).bAccepted;
+    };
+    TestTrue(TEXT("Human builds attack factory"), HumanCommand(EProofCommandType::BuildFactory, INDEX_NONE, INDEX_NONE, FVector(4700, 0, 0)));
+    FProofSnapshot State = Model.GetSnapshot();
+    const FProofUnitRecord* Factory = State.Units.FindByPredicate([](const FProofUnitRecord& U)
+        { return U.OwnerId == 1 && U.Kind == EProofUnitKind::Factory; });
+    if (!Factory) { TestTrue(TEXT("Human factory exists"), false); return false; }
+    TestTrue(TEXT("Human produces attacker"), HumanCommand(EProofCommandType::Produce, Factory->UnitId, INDEX_NONE, FVector::ZeroVector));
+    State = Model.GetSnapshot();
+    const FProofUnitRecord* Attacker = State.Units.FindByPredicate([](const FProofUnitRecord& U)
+        { return U.OwnerId == 1 && U.Kind == EProofUnitKind::Combat; });
+    if (!Attacker) { TestTrue(TEXT("Human attacker exists"), false); return false; }
+    const int32 AttackerId = Attacker->UnitId;
+    TArray<int32> MinerIds;
+    for (const FProofUnitRecord& U : State.Units)
+        if (U.OwnerId == 100 && U.Kind == EProofUnitKind::Harvester) MinerIds.Add(U.UnitId);
+    for (int32 MinerId : MinerIds)
+    {
+        TestTrue(TEXT("Attack miner accepted"), HumanCommand(EProofCommandType::Attack, AttackerId, MinerId, FVector::ZeroVector));
+        Model.Advance(40.f);
+    }
+    TestTrue(TEXT("Retire attacker away from economic recovery"), HumanCommand(EProofCommandType::Move, AttackerId, INDEX_NONE, FVector(5000, 0, 0)));
+    Model.Advance(40.f);
+    State = Model.GetSnapshot();
+    TestEqual(TEXT("Actual combat killed both bot miners"), CountLiveKind(State, 100, EProofUnitKind::Harvester), 0);
+    TestEqual(TEXT("Existing refinery survived combat"), CountLiveKind(State, 100, EProofUnitKind::Refinery), 1);
+    const FProofPlayerRecord* Before = State.Players.FindByPredicate([](const FProofPlayerRecord& P) { return P.OwnerId == 100; });
+    TestTrue(TEXT("Bot retains exactly the replacement cost"), Before && Before->Credits == FProofCommandModel::RefineryCost);
+    if (!Before) return false;
+    const int32 GatheredBefore = Before->TotalGathered;
+    const TArray<FProofCommand> Recovery = Bot.Decide(State, 100, 120.0);
+    TestEqual(TEXT("Surviving refinery does not block replacement miner"), CountRecoveryCommands(Recovery), 1);
+    for (const FProofCommand& Command : Recovery)
+        TestTrue(TEXT("Recovery uses accepted shared command"), Model.Submit(100, Command).bAccepted);
+    State = Model.GetSnapshot();
+    TestEqual(TEXT("Exactly one replacement miner is granted"), CountLiveKind(State, 100, EProofUnitKind::Harvester), 1);
+    TestEqual(TEXT("Exactly one additional refinery is constructed"), CountLiveKind(State, 100, EProofUnitKind::Refinery), 2);
+    const FProofPlayerRecord* After = State.Players.FindByPredicate([](const FProofPlayerRecord& P) { return P.OwnerId == 100; });
+    TestTrue(TEXT("Recovery charges exactly one refinery cost"), After && After->Credits == 0);
+    int32 LaterRefineries = 0;
+    bool bReplacementGather = false;
+    bool bDeposited = false;
+    for (int32 Tick = 1; Tick <= 30; ++Tick)
+    {
+        for (const FProofCommand& Command : Bot.Decide(Model.GetSnapshot(), 100, 120.0 + Tick))
+        {
+            LaterRefineries += Command.Type == EProofCommandType::BuildRefinery ? 1 : 0;
+            bReplacementGather |= Command.Type == EProofCommandType::Gather;
+            TestTrue(TEXT("Post-recovery command remains authoritative"), Model.Submit(100, Command).bAccepted);
+        }
+        Model.Advance(1.f);
+        const FProofSnapshot Current = Model.GetSnapshot();
+        const FProofPlayerRecord* Owner = Current.Players.FindByPredicate([](const FProofPlayerRecord& P) { return P.OwnerId == 100; });
+        bDeposited |= Owner && Owner->TotalGathered > GatheredBefore;
+    }
+    TestTrue(TEXT("Replacement actually receives Gather"), bReplacementGather);
+    TestTrue(TEXT("Replacement travels, extracts and deposits earned credits"), bDeposited);
+    TestEqual(TEXT("No repeated refinery construction after recovery"), LaterRefineries, 0);
+    TestTrue(TEXT("Recovery fixture remains a playing match"), Model.GetSnapshot().MatchPhase == EProofMatchPhase::Playing);
+    return true;
+}
+#endif
