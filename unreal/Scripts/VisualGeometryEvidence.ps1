@@ -1,4 +1,4 @@
-# Offline validation of read-only measurements; does not assume either suspected defect.
+# Offline validation of measured grounding, isolation, and same-unit motion.
 function Get-VisualGeometryEvidence {
     param([Parameter(Mandatory)][string]$Log)
     function Need($Pass,[string]$Reason) { if(-not $Pass){throw ('Visual geometry: '+$Reason)} }
@@ -13,6 +13,21 @@ function Get-VisualGeometryEvidence {
         Need ($Value.asset-is[string] -and $Value.asset-match'^/(Engine|Game)/') 'asset identity'
         foreach($p in @('localMin','localMax','worldMin','worldMax','location','scale','rotationPYR','axisX','axisY','axisZ')){Need (Vector $Value.$p) ('component vector '+$p)}
         for($i=0;$i-lt3;$i++){Need ($Value.localMin[$i]-lt$Value.localMax[$i]-and$Value.worldMin[$i]-lt$Value.worldMax[$i]-and$Value.scale[$i]-gt0) 'ordered bounds and positive scale'}
+    }
+    function TransformedBounds($Value) {
+        $minimum=@([double]::PositiveInfinity,[double]::PositiveInfinity,[double]::PositiveInfinity)
+        $maximum=@([double]::NegativeInfinity,[double]::NegativeInfinity,[double]::NegativeInfinity)
+        for($corner=0;$corner-lt8;$corner++){
+            $local=@(0..2|ForEach-Object {if($corner-band(1-shl$_)){[double]$Value.localMax[$_]}else{[double]$Value.localMin[$_]}})
+            for($axis=0;$axis-lt3;$axis++){
+                $world=[double]$Value.location[$axis]+[double]$Value.axisX[$axis]*$local[0]*[double]$Value.scale[0]+[double]$Value.axisY[$axis]*$local[1]*[double]$Value.scale[1]+[double]$Value.axisZ[$axis]*$local[2]*[double]$Value.scale[2]
+                $minimum[$axis]=[math]::Min($minimum[$axis],$world);$maximum[$axis]=[math]::Max($maximum[$axis],$world)
+            }
+        }
+        for($axis=0;$axis-lt3;$axis++){
+            Need ([math]::Abs($minimum[$axis]-[double]$Value.worldMin[$axis])-lt0.01-and[math]::Abs($maximum[$axis]-[double]$Value.worldMax[$axis])-lt0.01) 'logged bounds match independently transformed local corners'
+        }
+        [pscustomobject]@{minimum=$minimum;maximum=$maximum}
     }
     $names=@('03-geometry-harvester-contact.png','04-geometry-harvester-motion-a.png','05-geometry-harvester-motion-b.png','06-geometry-rhino-motion-a.png','07-geometry-rhino-motion-b.png')
     Need ($Log-notmatch'PROOF_VISUAL_GEOMETRY_ERROR|PROOF_SKIRMISH_ERROR|PROOF_SKIRMISH_COMPLETE[^\r\n]*status=fail') 'explicit failure marker'
@@ -36,7 +51,9 @@ function Get-VisualGeometryEvidence {
         Need ($r.component.asset-ceq$(if($i-lt3){'/Engine/BasicShapes/Cube.Cube'}else{'/Game/BlockoutGenerated/Meshes/SM_RhinoTank_Blockout.SM_RhinoTank_Blockout'})) 'actual displayed unit mesh'
         foreach($p in @('projectedMin','projectedMax')){Need ($r.$p-is[array]-and$r.$p.Count-eq2-and(Number $r.$p[0])-and(Number $r.$p[1])) 'projected bounds vector'}
         Need ($r.projectedMin[0]-ge16-and$r.projectedMin[1]-ge16-and$r.projectedMax[0]-le$r.width-16-and$r.projectedMax[1]-le$r.height-16-and$r.projectedMax[0]-gt$r.projectedMin[0]-and$r.projectedMax[1]-gt$r.projectedMin[1]) 'whole component bounds inside capture'
-        for($axis=0;$axis-lt3;$axis++){$expected=[double]$r.modelPosition[$axis];if($axis-eq2-and-not$r.rhinoLoaded){$expected+=30};Need ([math]::Abs([double]$r.component.location[$axis]-$expected)-lt0.01) 'component/model position binding'}
+        for($axis=0;$axis-lt2;$axis++){Need ([math]::Abs([double]$r.component.location[$axis]-[double]$r.modelPosition[$axis])-lt0.01) 'component/model XY binding'}
+        $bounds=TransformedBounds $r.component
+        Need ([math]::Abs([double]$bounds.minimum[2]-[double]$r.modelPosition[2])-lt0.01) 'transformed component bottom equals model ground Z'
         $previousRevision=$r.revision;$previousFrame=$r.frame;$previousElapsed=$r.elapsed;$rows+=,$r
     }
     Need ($rows[0].unit-eq$rows[1].unit-and$rows[1].unit-eq$rows[2].unit-and$rows[3].unit-eq$rows[4].unit-and$rows[0].unit-ne$rows[3].unit) 'same-unit observations'
