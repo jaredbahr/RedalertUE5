@@ -3,6 +3,8 @@
 #include "CoreMinimal.h"
 #include "Commands/ProofCommandModel.h"
 
+namespace ProofBoxSelection { struct Result; }
+
 // Local presentation state only. Every operation rechecks the replicated
 // snapshot; neither selection nor planned orders modify authoritative state.
 class REDALERTPROOF_API FProofSelectionState
@@ -19,6 +21,10 @@ public:
     void Synchronize(const FProofSnapshot& Snapshot, int32 OwnerId);
     void SelectSingle(const FProofSnapshot& Snapshot, int32 OwnerId, int32 UnitId);
     void Toggle(const FProofSnapshot& Snapshot, int32 OwnerId, int32 UnitId);
+    // Invalid/stale plans do not mutate state. One explicit revision on a valid
+    // commit; Shift preserves eligible current selection, including structures.
+    bool ApplyBoxSelection(const FProofSnapshot& Snapshot, int32 OwnerId,
+        int32 ExpectedOwnerId, int32 ExpectedEpoch, const ProofBoxSelection::Result& Plan, bool bAdditive);
     // Visible means a finite projected center in the half-open viewport. The
     // caller supplies projected IDs; ownership, life and generic Kind recheck here.
     static bool IsViewportCenterVisible(const FVector2D& Center, const FIntPoint& Viewport);
