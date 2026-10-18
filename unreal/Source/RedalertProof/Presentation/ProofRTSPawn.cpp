@@ -1,5 +1,6 @@
 #include "Presentation/ProofRTSPawn.h"
 #include "Presentation/ProofCameraPan.h"
+#include "Presentation/ProofTypeSelectionAdapter.h"
 #include "Presentation/ProofPointerBounds.h"
 #include "Presentation/ProofSkirmishOwnershipRecovery.h"
 #include "Presentation/ProofHUDPanelLayout.h"
@@ -45,6 +46,8 @@ void AProofRTSPawn::BeginPlay()
 {
     Super::BeginPlay();
     bTypeSelectionControls = FParse::Param(FCommandLine::Get(), TEXT("ProofTypeSelectionControls"));
+    bMapTypeSelectionControls = FParse::Param(FCommandLine::Get(), TEXT("ProofMapTypeSelectionControls"));
+    if (bMapTypeSelectionControls && !bTypeSelectionControls) { FPlatformMisc::RequestExitWithStatus(false, 1); return; }
     if (bTypeSelectionControls && (FParse::Param(FCommandLine::Get(), TEXT("ProofStopControls")) || FParse::Param(FCommandLine::Get(), TEXT("ProofSkirmish")) || !FParse::Param(FCommandLine::Get(), TEXT("ProofControlsAutomation"))))
     {
         UE_LOG(LogTemp, Error, TEXT("PROOF_TYPE_SELECTION_ERROR incompatible_fixture_flags"));
@@ -113,6 +116,7 @@ void AProofRTSPawn::SetupPlayerInputComponent(UInputComponent* Input)
     Input->BindKey(EKeys::F, IE_Pressed, this, &AProofRTSPawn::OnManualFactory);
     Input->BindKey(EKeys::N, IE_Pressed, this, &AProofRTSPawn::OnManualRematch);
     Input->BindKey(EKeys::T, IE_Pressed, this, &AProofRTSPawn::OnManualTypeSelect);
+    Input->BindKey(EKeys::T, IE_Released, this, &AProofRTSPawn::OnManualTypeRelease);
     Input->BindKey(EKeys::One, IE_Pressed, this, &AProofRTSPawn::OnManualGroupOne);
     Input->BindKey(EKeys::Two, IE_Pressed, this, &AProofRTSPawn::OnManualGroupTwo);
     Input->BindKey(EKeys::Three, IE_Pressed, this, &AProofRTSPawn::OnManualGroupThree);
@@ -310,9 +314,10 @@ void AProofRTSPawn::ObserveViewportFocus()
 {
     const UGameViewportClient* GameViewport = GetWorld() ? GetWorld()->GetGameViewport() : nullptr;
     const FViewport* Viewport = GameViewport ? GameViewport->Viewport : nullptr;
-    if (!Viewport) return;
+    if (!Viewport) { TypeGesture.Cancel(); bViewportFocused = bViewportForeground = false; bFocusObserved = false; return; }
     const bool bFocused = Viewport->HasFocus();
     const bool bForeground = Viewport->IsForegroundWindow();
+    if (!bFocused || !bForeground) TypeGesture.Cancel();
     if (!bFocusObserved || bFocused != bViewportFocused || bForeground != bViewportForeground)
     {
         bFocusObserved = true;
@@ -364,20 +369,37 @@ void AProofRTSPawn::OnManualSelect()
 
 void AProofRTSPawn::OnManualTypeSelect()
 {
-    SelectVisibleType();
+    ObserveViewportFocus();
+    SelectTypeByGesture(FPlatformTime::Seconds(), bViewportFocused && bViewportForeground);
     // Only the bound callback records a native input edge. Shared actions and
     // model tests cannot produce a physical-input verification claim.
     RecordManualInput(TEXT("T"), ManualTypeSelectPresses, RequestStatus);
 }
 
-void AProofRTSPawn::SelectVisibleType()
+void AProofRTSPawn::OnManualTypeRelease() { TypeGesture.Release(); }
+
+void AProofRTSPawn::SelectTypeByGesture(double WallSeconds, bool bFocused)
 {
     const AProofPlayerController* PC = Cast<AProofPlayerController>(GetController());
     const AProofGameState* GS = GetWorld() ? GetWorld()->GetGameState<AProofGameState>() : nullptr;
-    if (!PC || !GS || !PC->IsLocalController()) return;
+    if (!PC || !GS || !PC->IsLocalController()) { TypeGesture.Cancel(); return; }
+    const auto Scope = ProofTypeSelectionAdapter::Apply(Selection, TypeGesture, GS->Snapshot, PC->OwnerId,
+        WallSeconds, bFocused, [this]() { return SelectVisibleType(); });
+    SelectedUnitId = Selection.GetPrimaryUnitId();
+    if (Scope == ProofTypeSelectGesture::Scope::Battlefield)
+        RequestStatus = FString::Printf(TEXT("%d battlefield owned units of the same generic kind selected."), Selection.GetSelectedUnitIds().Num());
+    else if (Scope == ProofTypeSelectGesture::Scope::Ignored)
+        RequestStatus = TEXT("Type selection context or gesture changed; select a live owned unit and press T again.");
+}
+
+bool AProofRTSPawn::SelectVisibleType()
+{
+    const AProofPlayerController* PC = Cast<AProofPlayerController>(GetController());
+    const AProofGameState* GS = GetWorld() ? GetWorld()->GetGameState<AProofGameState>() : nullptr;
+    if (!PC || !GS || !PC->IsLocalController()) return false;
     int32 Width = 0, Height = 0;
     PC->GetViewportSize(Width, Height);
-    if (Width <= 0 || Height <= 0) { RequestStatus = TEXT("Type selection needs an active viewport."); return; }
+    if (Width <= 0 || Height <= 0) { RequestStatus = TEXT("Type selection needs an active viewport."); return false; }
     TArray<int32> VisibleIds;
     for (const FProofUnitRecord& Unit : GS->Snapshot.Units)
     {
@@ -390,6 +412,7 @@ void AProofRTSPawn::SelectVisibleType()
     SelectedUnitId = Selection.GetPrimaryUnitId();
     RequestStatus = bSelected ? FString::Printf(TEXT("%d visible owned units of the same generic kind selected."), Selection.GetSelectedUnitIds().Num())
         : TEXT("Select an owned live unit before type selection.");
+    return bSelected;
 }
 void AProofRTSPawn::OnManualGroupOne() { HandleManualGroup(1); }
 void AProofRTSPawn::OnManualGroupTwo() { HandleManualGroup(2); }
@@ -1070,7 +1093,7 @@ void AProofRTSPawn::TickControlsAutomation(float DeltaSeconds)
         ControlsStageTime = ControlsElapsed;
         ControlsStep = 6;
     }
-    else if (ControlsStep == 7 && bTypeSelectionControls) TickTypeSelectionControls();
+    else if (ControlsStep == 7 && bTypeSelectionControls) { if (bMapTypeSelectionControls) TickMapTypeSelectionControls(); else TickTypeSelectionControls(); }
     else if (ControlsStep == 6 && ControlsElapsed - ControlsStageTime > 1.f)
     {
         const bool bScreenshots = IFileManager::Get().FileSize(*FPaths::Combine(ControlsOutput, TEXT("01-selected.png"))) > 1024

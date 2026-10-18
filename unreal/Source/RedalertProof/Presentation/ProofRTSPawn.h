@@ -5,6 +5,7 @@
 #include "Presentation/ProofCoopContextRuntimeState.h"
 #include "GameFramework/Pawn.h"
 #include "Presentation/ProofSelectionState.h"
+#include "Presentation/ProofTypeSelectGesture.h"
 #include "Presentation/ProofGroupOrderQueue.h"
 #include "ProofRTSPawn.generated.h"
 
@@ -52,6 +53,7 @@ private:
     UPROPERTY(Transient) TMap<int32, TObjectPtr<UStaticMeshComponent>> UnitViews;
     int32 SelectedUnitId = INDEX_NONE;
     FProofSelectionState Selection;
+    ProofTypeSelectGesture::State TypeGesture;
     FProofGroupOrderQueue GroupOrders;
     FVector CameraGroundCenter = FVector::ZeroVector;
     bool bCameraPanEnabled = false;
@@ -89,6 +91,9 @@ private:
     int32 LastRequestedTarget = INDEX_NONE;
     TSet<FString> ControlsPassedEvidence;
     bool bTypeSelectionControls = false;
+    bool bMapTypeSelectionControls = false;
+    bool bMapTypeCameraPrepared = false;
+    void TickMapTypeSelectionControls();
     int32 TypeSelectionStage = 0;
     int32 TypeSelectionLastRevision = INDEX_NONE;
     int32 TypeSelectionRows = 0;
@@ -231,7 +236,9 @@ private:
     void ZoomOut();
     void OnManualSelect();
     void OnManualTypeSelect();
-    void SelectVisibleType();
+    void OnManualTypeRelease();
+    void SelectTypeByGesture(double WallSeconds, bool bFocused);
+    bool SelectVisibleType();
     void OnManualGroupOne();
     void OnManualGroupTwo();
     void OnManualGroupThree();

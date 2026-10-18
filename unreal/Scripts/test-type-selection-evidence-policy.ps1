@@ -1,4 +1,5 @@
 # Synthetic offline policy checks only. This does not launch Unreal or verify T hardware input.
+param([switch]$MapMode)
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'TypeSelectionControlsEvidence.ps1')
 function New-TypeLogs {
@@ -9,11 +10,11 @@ function New-TypeLogs {
         $units=@(@{id=1;owner=1;kind=0;hp=100;cargo=0;x=-700;y=-450;z=0},@{id=2;owner=1;kind=0;hp=100;cargo=0;x=-600;y=0;z=0})
         $clock=@{epoch=0;revision=$r;digest=$digest;simulatedSeconds=($r/5.0);owner1Submissions=4;units=$units}
         $logs.host+='PROOF_TYPE_SELECTION_CLOCK '+($clock|ConvertTo-Json -Compress -Depth 8)+"`n"
-        $phases=if($r -eq 10){@('before','after')}else{@('observed')}
+        $phases=if($r -eq 10){if($MapMode){@('before','visible','after')}else{@('before','after')}}else{@('observed')}
         foreach($phase in $phases){
-            $projected=@($units|ForEach-Object{$v=@{};foreach($k in $_.Keys){$v[$k]=$_[$k]};$v.screenX=500;$v.screenY=400;$v})
-            $selected=if($phase -eq 'before'){@(1)}else{@(1,2)}
-            $frame=@{phase=$phase;epoch=0;revision=$r;digest=$digest;actionBeforeDigest=$(if($phase -eq 'after'){$digest}else{''});owner=1;width=1280;height=720;primary=1;nativeT=0;sequence=4;queue=0;selected=@($selected);expected=@(1,2);group9=@(1);groupPrimary=1;units=$projected}
+            $projected=@($units|ForEach-Object{$v=@{};foreach($k in $_.Keys){$v[$k]=$_[$k]};$v.screenX=$(if($MapMode -and $_.id -eq 2){-50}else{500});$v.screenY=400;$v})
+            $selected=if($phase -in @('before','visible')){@(1)}else{@(1,2)}
+            $frame=@{phase=$phase;epoch=0;revision=$r;digest=$digest;actionBeforeDigest=$(if($phase -in @('after','visible')){$digest}else{''});owner=1;width=1280;height=720;primary=1;nativeT=0;sequence=4;queue=0;selected=@($selected);expected=@(1,2);group9=@(1);groupPrimary=1;units=$projected}
             $logs.rendered+='PROOF_TYPE_SELECTION_FRAME '+($frame|ConvertTo-Json -Compress -Depth 8)+"`n"
         }
     }
@@ -25,9 +26,9 @@ function Edit-TypeRow($Logs,[string]$Role,[string]$Marker,[scriptblock]$Edit){
     $Logs[$Role]=[regex]::Replace($Logs[$Role],($Marker+'([^\r\n]*)'),{param($m) $row=$m.Groups[1].Value.Trim()|ConvertFrom-Json -Depth 12;& $Edit $row;$changed++;return $Marker+' '+($row|ConvertTo-Json -Depth 12 -Compress)}.GetNewClosure())
 }
 $checks=0
-$valid=Get-TypeSelectionControlsEvidence (New-TypeLogs)
+$valid=Get-TypeSelectionControlsEvidence (New-TypeLogs) -MapMode:$MapMode
 if(-not $valid.passed -or $valid.commonRevisions.Count -lt 3 -or $valid.hostSimulationSeconds -lt 1 -or $valid.nativeCallbackInvoked -or $valid.physicalInputVerified){throw 'Valid synthetic evidence rejected/false scope'};$checks++
-function Reject-Type([string]$Name,[scriptblock]$Mutation){$l=New-TypeLogs;& $Mutation $l;$rejected=$false;try{$null=Get-TypeSelectionControlsEvidence $l}catch{$rejected=$true};if(-not $rejected){throw "Synthetic negative accepted: $Name"};$script:checks++}
+function Reject-Type([string]$Name,[scriptblock]$Mutation){$l=New-TypeLogs;& $Mutation $l;$rejected=$false;try{$null=Get-TypeSelectionControlsEvidence $l -MapMode:$MapMode}catch{$rejected=$true};if(-not $rejected){throw "Synthetic negative accepted: $Name"};$script:checks++}
 Reject-Type 'missing observer' {param($l)$l.Remove('observer')}
 Reject-Type 'missing clock' {param($l)$l.host=[regex]::Replace($l.host,'PROOF_TYPE_SELECTION_CLOCK[^\r\n]*','')}
 Reject-Type 'wrong selected IDs' {param($l)Edit-TypeRow $l rendered PROOF_TYPE_SELECTION_FRAME {param($r)if($r.phase -eq 'after'){$r.selected=@(1)}}}
@@ -48,4 +49,12 @@ Reject-Type 'producer error' {param($l)$l.host+="PROOF_TYPE_SELECTION_ERROR over
 Reject-Type 'false physical scope' {param($l)$l.rendered=$l.rendered.Replace('physicalInputVerified=0','physicalInputVerified=1')}
 Reject-Type 'duplicate frame' {param($l)$row=[regex]::Match($l.rendered,'PROOF_TYPE_SELECTION_FRAME[^\r\n]*"phase":"observed"[^\r\n]*').Value;if(-not $row){$row=([regex]::Matches($l.rendered,'PROOF_TYPE_SELECTION_FRAME[^\r\n]*')|Select-Object -Last 1).Value};$l.rendered+=$row+"`n"}
 Reject-Type 'observations precede action' {param($l)Edit-TypeRow $l rendered PROOF_TYPE_SELECTION_FRAME {param($r)if($r.phase -eq 'after'){$r.revision=18;$r.digest=('{0:x32}' -f 18);$r.actionBeforeDigest=$r.digest}}}
+if($MapMode){
+    Reject-Type 'no real offscreen record' {param($l)Edit-TypeRow $l rendered PROOF_TYPE_SELECTION_FRAME {param($r)$r.units[1].screenX=500}}
+    Reject-Type 'first T expanded too soon' {param($l)Edit-TypeRow $l rendered PROOF_TYPE_SELECTION_FRAME {param($r)if($r.phase -eq 'visible'){$r.selected=@(1,2)}}}
+    Reject-Type 'visible action mutated digest' {param($l)Edit-TypeRow $l rendered PROOF_TYPE_SELECTION_FRAME {param($r)if($r.phase -eq 'visible'){$r.actionBeforeDigest='f'*32}}}
+    Reject-Type 'after candidate became visible' {param($l)Edit-TypeRow $l rendered PROOF_TYPE_SELECTION_FRAME {param($r)if($r.phase -eq 'after'){$r.units[1].screenX=500}}}
+    Reject-Type 'visible candidate became visible' {param($l)Edit-TypeRow $l rendered PROOF_TYPE_SELECTION_FRAME {param($r)if($r.phase -eq 'visible'){$r.units[1].screenX=500}}}
+    Reject-Type 'missing visible phase' {param($l)$l.rendered=[regex]::Replace($l.rendered,'PROOF_TYPE_SELECTION_FRAME[^\r\n]*"phase":"visible"[^\r\n]*','')}
+}
 Write-Output "PASS $checks synthetic Type selection evidence policy checks; no UE/native/physical input evidence."

@@ -9,9 +9,11 @@ param(
     [switch]$CleanPresentation,
     [switch]$StopControls,
     [switch]$StopInputBinding,
-    [switch]$TypeSelection
+    [switch]$TypeSelection,
+    [switch]$MapTypeSelection
 )
 $ErrorActionPreference = 'Stop'
+if ($MapTypeSelection) { $TypeSelection = [switch]::new($true) }
 # These append mutually exclusive client step-seven state machines. Reject the
 # combination before paths, ports, files, graphics warmup or UE processes exist.
 if ($StopControls -and $TypeSelection) { throw 'StopControls and TypeSelection cannot run together.' }
@@ -194,6 +196,7 @@ try {
     [Environment]::SetEnvironmentVariable('TMP',(Join-Path $run 'temp'),'Process')
     function Start-Controls([string]$Role,[string]$Destination,[string[]]$Mode,[int]$CoreLimit=2) {
         if ($TypeSelection -and $Role -in @('host','rendered')) { $Mode+='-ProofTypeSelectionControls' }
+        if ($MapTypeSelection -and $Role -eq 'rendered') { $Mode+='-ProofMapTypeSelectionControls' }
         $log=Join-Path $run ($Role+'.log')
         $launchArguments=@(('"'+$project+'"'),$Destination)+$Mode+@('-unattended','-nosound','-nosplash','-NoSourceControl','-NoP4','-ini:GameUserSettings:[/Script/Engine.GameUserSettings]:FrameRateLimit=30','-ddc=BlockoutDDC','-logcmds="LogDerivedDataCache Verbose"',('-CoreLimit='+$CoreLimit),('-port='+$Port),('-abslog="'+$log+'"'))
         if($Role -in @('rendered','observer')) {
@@ -351,7 +354,7 @@ try {
     if($StopControls){$captureNames+=@('03-stop.png','04-stop-resumed.png')}
     if ($TypeSelection) {
         $captureNames+=@('03-type-before.png','04-type-after.png')
-        $result.typeSelection=Get-TypeSelectionControlsEvidence @{host=(Get-Content -LiteralPath (Join-Path $run 'host.log') -Raw);rendered=(Get-Content -LiteralPath (Join-Path $run 'rendered.log') -Raw);observer=(Get-Content -LiteralPath (Join-Path $run 'observer.log') -Raw)}
+        $result.typeSelection=Get-TypeSelectionControlsEvidence @{host=(Get-Content -LiteralPath (Join-Path $run 'host.log') -Raw);rendered=(Get-Content -LiteralPath (Join-Path $run 'rendered.log') -Raw);observer=(Get-Content -LiteralPath (Join-Path $run 'observer.log') -Raw)} -MapMode:$MapTypeSelection
     }
     foreach($name in $captureNames) {
         $path=Join-Path $images $name
