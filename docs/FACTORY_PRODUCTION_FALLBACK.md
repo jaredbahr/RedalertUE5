@@ -86,3 +86,28 @@ lost first factory, then confirm the existing insufficient-credit and
 no-factory messages. Physical `P` input/focus acceptance remains separate from
 scripted handler coverage. Existing launcher admission and cleanup limits
 still apply; this change does not authorize a game session.
+
+## Opt-in engine routing fixture (prepared)
+
+`test-small-match.ps1 -Scenario Coop -FactoryProductionEvidence -CleanPresentation`
+adds a separate three-role loopback fixture. It leaves the existing
+`-FactoryRallyEvidence` fixture and parser unchanged. The new fixture pays for
+two factories, sets distinct rallies, and invokes the actual `Produce()` handler
+with empty selection, the second factory selected, then an owned HQ selected.
+Construction, Gather, rally and Produce requests use the ordinary controller
+route. Credits come from normal mining and deposits. There are no authoritative
+snapshot setters, injected credits or direct fixture calls to model Submit.
+
+A bounded read-only host recorder checks both 150-credit builds, both rallies,
+and all three 50-credit productions against exact snapshot changes and legal
+spawn selection. The separate parser binds request selection, receipt sequence
+and epoch, exact new unit, ordered eligible factories and later rally movement
+to common host/rendered/observer snapshots. Only the observed proof unit is
+protected from the ordinary defense planner during its movement window; earned
+credit and replication waits still allow defense decisions. Three additional
+PNGs identify the cases. These are scripted shared-handler checks; physical `P`
+and focus testing remain separate.
+
+This fixture is prepared source, not an executed acceptance claim. It still
+requires source review, a fresh admitted UE/UHT build, native checks and an
+actual three-role run within the existing deadlines before integration.
