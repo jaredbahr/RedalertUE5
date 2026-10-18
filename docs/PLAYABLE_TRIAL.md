@@ -57,6 +57,10 @@ Pass requires observed physical actions and a full terminal/rematch cycle. Runti
 
 The launcher prints an ignored `generated/<interactive-run>/session.json` path; its sibling `game.log` records the session. Preserve both on failure. The receipt deliberately keeps `physicalInputVerified=false` and `humanConfirmationRequired=true`: attach human observations separately rather than changing those fields to imply automated proof. If a required local file is missing, stop and report its path; do not install or regenerate assets just to follow this guide.
 
+For a build containing the reviewed ReturnCargo and first-factory fallback changes,
+use the separate [focused physical-command checklist](RETURN_CARGO_HUMAN_TRIAL.md).
+It remains unperformed and does not change the prepared-build identity below.
+
 ## Tested source and queued work
 
 The prepared build's engine inputs match main at `4d9022339b249c9282a4146385f01a19057b787e`: Source `3e2d535030ef332108077f12c9cb3e9f3c312b1f`, Config `41ebcbe583f58912eaf58951ad071addcab503db`, project `176dd85ae0a2ca9667b749d2d2592a500de68ccf`. Its local DLL and generated-asset hashes were checked against retained private evidence. Recheck that binding before reuse after source changes; an old DLL does not validate new source.
