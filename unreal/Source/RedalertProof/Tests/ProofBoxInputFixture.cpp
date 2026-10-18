@@ -22,7 +22,7 @@
 namespace
 {
 constexpr int32 CaseCount = 31;
-const TCHAR* Names[CaseCount] = {TEXT("click"), TEXT("release-threshold"), TEXT("sticky-return"),
+const TCHAR* BoxInputCaseNames[CaseCount] = {TEXT("click"), TEXT("release-threshold"), TEXT("sticky-return"),
     TEXT("box-down-right"), TEXT("box-down-left"), TEXT("box-up-right"), TEXT("box-up-left"),
     TEXT("shift-latched-cap"), TEXT("late-shift-replaces"), TEXT("empty-clears"), TEXT("shift-empty"),
     TEXT("hud-start"), TEXT("hud-end-return-held"), TEXT("outside-pointer"), TEXT("real-resize"),
@@ -65,7 +65,7 @@ AProofBoxInputFixture::AProofBoxInputFixture()
 }
 bool AProofBoxInputFixture::Ready() const
 {
-    const UGameViewportClient* Client = GetWorld()->GetGameViewport();
+    UGameViewportClient* Client = GetWorld()->GetGameViewport();
     if (!PC || !Pawn || !PC->IsLocalController() || !PC->GetLocalPlayer() || !PC->PlayerInput || PC->GetPawn() != Pawn
         || PC->AcknowledgedPawn != Pawn || !Pawn->InputComponent || !Pawn->InputComponent->IsRegistered()
         || !Pawn->InputEnabled() || !Client || !Client->Viewport || Client->IgnoreInput()
@@ -82,7 +82,7 @@ bool AProofBoxInputFixture::Populate()
     int32 Width = 0, Height = 0; PC->GetViewportSize(Width, Height);
     if (Width != 1280 || Height != 720) return false;
     FProofSnapshot S; S.MatchEpoch = 7; S.bSkirmish = true; S.MatchPhase = EProofMatchPhase::Playing;
-    for (int32 Owner : {1, 2}) { FProofPlayerRecord P; P.OwnerId = Owner; S.Players.Add(P); }
+    for (int32 PlayerOwnerId : {1, 2}) { FProofPlayerRecord P; P.OwnerId = PlayerOwnerId; S.Players.Add(P); }
     for (int32 Id = 1; Id <= 19; ++Id)
     {
         const FVector2D Center = Id <= 16 ? FVector2D(800 + ((Id - 1) % 4) * 70, 350 + ((Id - 1) / 4) * 80)
@@ -156,7 +156,7 @@ void AProofBoxInputFixture::Observe(const TCHAR* Phase) const
     const TCHAR* TypeScope = Pawn->RequestStatus.Contains(TEXT("battlefield")) ? TEXT("battlefield")
         : Pawn->RequestStatus.Contains(TEXT("visible")) ? TEXT("visible") : TEXT("none");
     UE_LOG(LogTemp, Display, TEXT("PROOF_BOX_OBSERVE case=%d name=%s phase=%s frame=%llu processedFrame=%llu owner=%d epoch=%d matchPhase=%d width=%d height=%d x=%.9f y=%.9f ids=[%s] primary=%d revision=%llu nativePress=%d nativeRelease=%d nativeGroup=%d nativeType=%d nativeRight=%d leftDown=%d shiftDown=%d typeDown=%d armed=%d dragging=%d focus=%d foreground=%d sequence=%d queue=%d digest=%s capture=%s typeScope=%s orderType=%s physicalInput=false osFocusVerified=false"),
-        Case, Names[Case], Phase, GFrameCounter, PC->GetStopInputProcessedFrame(Pawn->InputComponent.Get()), PC->OwnerId, S.MatchEpoch, static_cast<int32>(S.MatchPhase),
+        Case, BoxInputCaseNames[Case], Phase, GFrameCounter, PC->GetStopInputProcessedFrame(Pawn->InputComponent.Get()), PC->OwnerId, S.MatchEpoch, static_cast<int32>(S.MatchPhase),
         Width, Height, Pawn->ControlsCursor.X, Pawn->ControlsCursor.Y, *IdText(Pawn->GetSelectedUnitIds()), Pawn->GetSelectedUnitId(), Pawn->Selection.GetSelectionRevision(),
         Pawn->ManualLeftPresses, Pawn->ManualLeftReleases, Pawn->ManualGroupPresses, Pawn->ManualTypeSelectPresses, Pawn->ManualRightPresses,
         PC->IsInputKeyDown(EKeys::LeftMouseButton), PC->IsInputKeyDown(EKeys::LeftShift), PC->IsInputKeyDown(EKeys::T),
@@ -193,7 +193,7 @@ bool AProofBoxInputFixture::Verify()
         && (Case != 29 || Pawn->RequestStatus.Contains(TEXT("battlefield")))
         && Pawn->GroupOrders.NumPending() == 0 && !Pawn->BoxGesture.IsArmed();
     UE_LOG(LogTemp, Display, TEXT("PROOF_BOX_RESULT case=%d name=%s passed=%d expected=[%s] expectedPrimary=%d expectedRevisionDelta=%llu nativePressDelta=%d nativeReleaseDelta=%d pointerSource=explicit-controls-cursor population=diagnostic-over-cap physicalInput=false"),
-        Case, Names[Case], Passed ? 1 : 0, *IdText(Expected), Primary, Delta, PressDelta, ReleaseDelta);
+        Case, BoxInputCaseNames[Case], Passed ? 1 : 0, *IdText(Expected), Primary, Delta, PressDelta, ReleaseDelta);
     return Passed;
 }
 void AProofBoxInputFixture::TickKeyRegression()
