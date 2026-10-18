@@ -2,6 +2,9 @@
 #include "Tests/ProofSkirmishBotTests.cpp"
 #include "Tests/ProofBotMinerRecoveryTests.cpp"
 
+static_assert(std::is_enum_v<decltype(INDEX_NONE)>,
+    "Portable INDEX_NONE must expose UE's enum-shaped lambda return-type checks.");
+
 int main()
 {
     for (const auto& Test : PortableProofTests::Registry())
