@@ -1,9 +1,18 @@
 function Get-FacingStateRows([string]$Log) {
     if($Log.Length-gt24MB){throw 'Facing state log exceeds bound'}
+    function Number($V){return $null-ne$V-and$V-isnot[string]-and$V-isnot[bool]-and$V-isnot[array]-and[double]::IsFinite([double]$V)}
+    function Keys($E){
+        if($E.ValueKind-eq[Text.Json.JsonValueKind]::Object){$seen=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase);foreach($p in $E.EnumerateObject()){if(-not$seen.Add($p.Name)){throw 'Duplicate facing JSON key'};Keys $p.Value}}
+        elseif($E.ValueKind-eq[Text.Json.JsonValueKind]::Array){foreach($v in $E.EnumerateArray()){Keys $v}}
+    }
+    if($Log-match'PROOF_FACING_[A-Z_]+[^\r\n]*(?:ERROR|status=fail)|PROOF_FACING_STATE_ERROR|Fatal error|Assertion failed'){throw 'Facing failure marker present'}
     $matches=[regex]::Matches($Log,'(?m)^.*PROOF_FACING_STATE (\{[^\r\n]*\})\r?$')
     if($matches.Count-gt4096-or$matches.Count-ne[regex]::Matches($Log,'PROOF_FACING_STATE(?=\s|$)').Count){throw 'Facing state rows incomplete or over limit'}
     foreach($m in $matches){
+        $doc=[Text.Json.JsonDocument]::Parse($m.Groups[1].Value);try{Keys $doc.RootElement}finally{$doc.Dispose()}
         $r=$m.Groups[1].Value|ConvertFrom-Json -ErrorAction Stop
+        foreach($p in @('viewer','epoch','revision','unit','owner','kind')){if(-not(Number $r.$p)-or[double]$r.$p-ne[math]::Truncate([double]$r.$p)-or$r.$p-lt0-or$r.$p-gt[int]::MaxValue){throw 'Facing state integer required'}}
+        if(-not(Number $r.hp)-or$r.role-isnot[string]-or$r.role-cnotin@('host','client')-or$r.digest-isnot[string]){throw 'Facing state typed fields required'}
         foreach($p in @('position','lastTravelDirection')){
             $v=$r.$p
             if($v-isnot[array]-or$v.Count-ne3-or@($v|Where-Object {$null-eq$_-or$_-is[string]-or$_-is[bool]-or-not[double]::IsFinite([double]$_)}).Count){throw 'Facing state finite vector required'}
@@ -69,6 +78,7 @@ function Get-FacingResetEvidence {
         foreach($role in @('host','lead','rejoin')){
             $r=@(Get-FacingStateRows $Logs[$role]|Where-Object {$_.epoch-eq$epoch})|Select-Object -First 1
             if(-not$r-or-not(Test-FacingVec $r.lastTravelDirection @(0,0,0))){throw 'Fresh rematch content retained old direction'}
+            if(($role-eq'host'-and($r.role-cne'host'-or$r.viewer-ne0))-or($role-eq'lead'-and($r.role-cne'client'-or$r.viewer-ne1))-or($role-eq'rejoin'-and($r.role-cne'client'-or$r.viewer-ne2))){throw 'Facing reset role/viewer mismatch'}
             $first[$role]=$r
         }
         if($first.host.unit-ne$first.lead.unit-or$first.host.unit-ne$first.rejoin.unit-or-not(Test-FacingVec $first.host.position $first.lead.position)-or-not(Test-FacingVec $first.host.position $first.rejoin.position)){throw 'Rematch fresh unit content disagrees'}
