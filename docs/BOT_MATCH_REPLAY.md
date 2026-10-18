@@ -28,6 +28,9 @@ Sanitizer support is required for that option. If the execution environment does
 not support LeakSanitizer (for example, a ptrace-based sandbox), run it with
 `ASAN_OPTIONS=detect_leaks=0` and explicitly report that leak checking was excluded.
 Sanitizer diagnostics are fatal; do not count a compile failure as a passing test.
+The shell runner does not enforce compiler or executable wall-time limits. Use
+an existing externally bounded job for execution; the 2,200-step limit below only
+bounds simulated progress and cannot stop a hung compiler or executable.
 
 ## Deterministic matrix
 
@@ -87,7 +90,14 @@ count, or income amount is hard-coded as a balance expectation.
 The initial reviewed source base is commit
 `4cacdd803220fb1ca1b6bc7a9cbc87ea686f04e8`. The source package records input Git
 blob/SHA-256 identities, actual runner output, independent review, and isolated
-deliberate-fault checks. Runtime source and the existing shim are dependencies,
+deliberate-fault checks. The published candidate was compatibility-tested against main
+`8a145884f9e8382788d4ac9b1bd61222661c2083`, then reconciled with merged main
+`a805940e864f800c6b0e1ab9aff474902e143d93`. This later integration changes no
+production or shim inputs used by this portable test. The reported cloud runs
+remain distinct from local source review; no additional Windows compiler or UE
+execution is claimed for this test-only integration.
+
+Runtime source and the existing shim are dependencies,
 not copies to add in this patch. The only additions are this document, the C++
 test, and its shell runner. No native automation test names or expected-name
 manifests change, because this is a standalone portable executable.
