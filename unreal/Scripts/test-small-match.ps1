@@ -14,9 +14,14 @@ param(
     [ValidateSet('1280x720','960x540')][string]$Viewport = '1280x720',
     [switch]$FactoryProductionEvidence,
     [switch]$GroupGatherEvidence,
-    [switch]$ReturnCargoEvidence
+    [switch]$ReturnCargoEvidence,
+    [switch]$RefineryAutoGatherEvidence
 )
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'RefineryAutoGatherEvidence.ps1')
+if ($RefineryAutoGatherEvidence -and ($Scenario -ne 'Coop' -or $RefineryMinerEvidence -or $ReturnCargoEvidence -or
+    $FactoryProductionEvidence -or $FactoryRallyEvidence -or $CoopContextEvidence -or $GroupGatherEvidence -or
+    $ReadabilityCaptures -or $CameraEdgeCaptures -or $CleanPresentation)) { throw 'RefineryAutoGatherEvidence requires its separate plain Coop fixture.' }
 . (Join-Path $PSScriptRoot 'RefineryMinerEvidence.ps1')
 . (Join-Path $PSScriptRoot 'GroupGatherEvidence.ps1')
 . (Join-Path $PSScriptRoot 'ReturnCargoEvidence.ps1')
@@ -82,6 +87,9 @@ if ($fixtureLogicalProcessors.Count -ne 2) { throw 'Small match requires two ava
 $head = (& git -C $repoRoot rev-parse HEAD).Trim()
 if ($LASTEXITCODE -ne 0) { throw 'Cannot record tested HEAD.' }
 $dirty = [bool](& git -C $repoRoot status --porcelain)
+$autoRunId=[guid]::NewGuid().ToString('N')
+$autoSource=(& git -C $repoRoot rev-parse 'HEAD:unreal/Source').Trim()
+if ($RefineryAutoGatherEvidence -and ($dirty -or $LASTEXITCODE -ne 0)) { throw 'Automatic Gather requires clean exact diagnostic source.' }
 $result = [ordered]@{
     passed=$false; scenario=$Scenario; head=$head; dirtyWorkingTree=$dirty
     startedUtc=[DateTime]::UtcNow.ToString('o'); finishedUtc=$null; elapsedSeconds=0; scenarioElapsedSeconds=0
@@ -96,6 +104,8 @@ $result = [ordered]@{
     factoryProductionEvidenceEnabled=[bool]$FactoryProductionEvidence; factoryProductionEvidence=$null
     groupGatherEvidenceEnabled=[bool]$GroupGatherEvidence; groupGatherEvidence=$null
     returnCargoEvidenceEnabled=[bool]$ReturnCargoEvidence; returnCargoEvidence=$null
+    refineryAutoGatherEvidenceEnabled=[bool]$RefineryAutoGatherEvidence; refineryAutoGatherEvidence=$null
+    sourceTree=$autoSource; dllSHA256=$(if($RefineryAutoGatherEvidence){(Get-FileHash -LiteralPath (Join-Path $projectRoot 'Binaries\Win64\UnrealEditor-RedalertProof.dll') -Algorithm SHA256).Hash}else{$null})
     processes=@(); screenshots=@(); commonRevisions=@(); expectedWinner=$(if($Scenario -eq 'Defeat'){1}else{0}); error=$null; cleanupErrors=@()
 }
 $entries = [Collections.Generic.List[object]]::new()
@@ -246,6 +256,7 @@ function Start-Role([string]$Role,[string]$Destination,[string[]]$Mode) {
     $log=Join-Path $run ($Role+'.log')
     $launchArguments=@(('"'+$project+'"'),$Destination)+$Mode+@('-unattended','-nosound','-nosplash','-NoSourceControl','-NoP4','-CoreLimit=2','-ddc=BlockoutDDC','-logcmds="LogDerivedDataCache Verbose"',('-port='+$Port),'-ini:GameUserSettings:[/Script/Engine.GameUserSettings]:FrameRateLimit=30','-ini:Engine:[DevOptions.Shaders]:WorkerProcessPriority=0,[ConsoleVariables]:t.MaxFPS=30,[AssetRegistry]:EditorGameScansAR=Async,[ShaderCompiler]:r.Shaders.Optimize=1,[ConsoleVariables]:r.Shaders.Optimize=1',('-abslog="'+$log+'"'))
     if ($RefineryMinerEvidence) { $launchArguments+='-ProofRefineryMinerEvidence' }
+    if ($RefineryAutoGatherEvidence) { $launchArguments+=@('-ProofRefineryAutoGather',('-ProofAutoGatherRun='+$autoRunId),('-ProofAutoGatherSource='+$autoSource)) }
     if ($GroupGatherEvidence) { $launchArguments+='-ProofGroupGatherEvidence' }
     if ($ReturnCargoEvidence) { $launchArguments+='-ProofReturnCargoEvidence' }
     if ($FactoryProductionEvidence) { $launchArguments+='-ProofFactoryProductionEvidence' }
@@ -298,6 +309,26 @@ try {
     [Environment]::SetEnvironmentVariable('UE-SharedDataCachePath','None','Process')
     [Environment]::SetEnvironmentVariable('TEMP',$temp,'Process'); [Environment]::SetEnvironmentVariable('TMP',$temp,'Process')
     $scenarioWatch=[Diagnostics.Stopwatch]::StartNew()
+    if ($RefineryAutoGatherEvidence) {
+        $result.topology='dedicated NullRHI host, offscreen owner-1 client, NullRHI owner-2 client; separate automatic-trip fixture'
+        $serverEntry=Start-Role 'host' '/Game/CommandProofGenerated/Maps/CommandProof' @('-server','-nullrhi','-MULTIHOME=127.0.0.1','-ProofSkirmish','-ProofSkirmishFixtureHost')
+        Wait-Marker $serverEntry 'PROOF_SKIRMISH_READY fixture=1'
+        $client=Start-Role 'rendered' ('127.0.0.1:'+$Port) @('-game','-RenderOffscreen','-windowed',('-ResX='+$viewportWidth),('-ResY='+$viewportHeight),'-ProofSkirmish')
+        Wait-Marker $serverEntry 'PROOF_SKIRMISH_PLAYER owner=1 '
+        $observer=Start-Role 'observer' ('127.0.0.1:'+$Port) @('-game','-nullrhi','-ProofSkirmish')
+        $expected=@($serverEntry,$client,$observer)
+        foreach($entry in $expected) { Wait-Marker $entry 'PROOF_AUTO_GATHER .*"event":"finish"' }
+        while (@($expected | Where-Object { -not $_.Process.HasExited }).Count -gt 0) {
+            Check-StorageBudget; Maintain-OwnedCpuPolicy
+            if ($scenarioWatch.Elapsed.TotalSeconds -ge $TimeoutSeconds) { throw 'Automatic-trip scenario exceeded its unchanged timeout.' }
+            Start-Sleep -Milliseconds 200
+        }
+        foreach($entry in $expected) { if($entry.Process.ExitCode -ne 0){throw "Automatic-trip $($entry.Role) exit $($entry.Process.ExitCode)"} }
+        Check-StorageBudget -Force
+        $result.refineryAutoGatherEvidence=Get-RefineryAutoGatherEvidence -Logs @{host=(Read-Log $serverEntry);rendered=(Read-Log $client);observer=(Read-Log $observer)} -RunId $autoRunId -SourceTree $autoSource
+        if ($scenarioWatch.Elapsed.TotalSeconds -ge $TimeoutSeconds) { throw 'Automatic-trip parser exceeded its unchanged scenario timeout.' }
+        $result.passed=$true
+    } else {
     if ($Scenario -eq 'Coop') {
         $serverEntry=Start-Role 'host' '/Game/CommandProofGenerated/Maps/CommandProof' @('-server','-nullrhi','-MULTIHOME=127.0.0.1','-ProofSkirmish','-ProofSkirmishFixtureHost')
         Wait-Marker $serverEntry 'PROOF_SKIRMISH_READY fixture=1'
@@ -385,6 +416,7 @@ try {
     if($Scenario -eq 'Coop'){$retryLog=(Read-Log $serverEntry)+[Environment]::NewLine+$retryLog}
     $result.ownershipRetryEvidence=Get-SkirmishOwnershipRetryEvidence -Log $retryLog -RequireSemanticEvidence:$RefineryMinerEvidence
     $result.passed=$true
+    }
 } catch { $result.error=$_.Exception.Message }
 finally {
     Stop-OwnedProcesses

@@ -37,6 +37,9 @@ AProofGameMode::AProofGameMode()
 void AProofGameMode::BeginPlay()
 {
     Super::BeginPlay();
+    if (AutoGatherEvidence.Enabled() && (!bSkirmish || !bSkirmishFixtureHost || GetNetMode() != NM_DedicatedServer
+        || RefineryEvidence.Enabled() || bAutomation || bControlsAutomation || bLifecycleFixtureHost || AttackMoveRuntime.bEnabled))
+    { AutoGatherEvidence.Fail(TEXT("incompatible-host-flags")); return; }
     if (bTypeSelectionControls && (!bControlsAutomation || bSkirmish || FParse::Param(FCommandLine::Get(), TEXT("ProofStopControls"))))
     {
         UE_LOG(LogTemp, Error, TEXT("PROOF_TYPE_SELECTION_ERROR incompatible_fixture_flags"));
@@ -265,6 +268,7 @@ void AProofGameMode::ResetSkirmishFixtureState()
 
 FProofCommandResult AProofGameMode::SubmitForOwner(int32 TrustedOwnerId, const FProofCommand& Command)
 {
+    const FProofSnapshot AutoBefore = AutoGatherEvidence.Enabled() ? Model.GetSnapshot() : FProofSnapshot();
     if (bTypeSelectionControls && TrustedOwnerId == 1) ++TypeSelectionOwnerSubmissions;
     if (bSkirmish && Command.MatchEpoch != MatchEpoch)
     {
@@ -272,6 +276,7 @@ FProofCommandResult AProofGameMode::SubmitForOwner(int32 TrustedOwnerId, const F
         Result.Sequence = Command.Sequence;
         Result.MatchEpoch = Command.MatchEpoch;
         Result.Reason = TEXT("stale-epoch");
+        if (AutoGatherEvidence.Enabled()) AutoGatherEvidence.ObserveCommand(MatchEpoch, TrustedOwnerId, Command, Result, AutoBefore, Model);
         if (StopEvidence.WantsCommand(Command.Type))
         {
             const FProofSnapshot RejectedSnapshot = Model.GetSnapshot();
@@ -293,6 +298,7 @@ FProofCommandResult AProofGameMode::SubmitForOwner(int32 TrustedOwnerId, const F
     if (AttackMoveEvidence.Enabled()) AttackMoveBefore.Emplace(Model.GetSnapshot());
     const FProofSnapshot ReturnCargoBefore = bReturnCargoEvidence && TrustedOwnerId == 1 ? Model.GetSnapshot() : FProofSnapshot();
     FProofCommandResult Result = Model.Submit(TrustedOwnerId, Command);
+    if (AutoGatherEvidence.Enabled()) AutoGatherEvidence.ObserveCommand(MatchEpoch, TrustedOwnerId, Command, Result, AutoBefore, Model);
     if (bReturnCargoEvidence && TrustedOwnerId == 1)
         ObserveReturnCargoCommand(TrustedOwnerId, Command, Result, ReturnCargoBefore, Model.GetSnapshot());
     if (TrustedOwnerId == 1 && Command.Type == EProofCommandType::Gather
@@ -464,6 +470,7 @@ void AProofGameMode::Publish()
         FProofSnapshot Snapshot = Model.GetSnapshot();
         Snapshot.MatchEpoch = MatchEpoch;
         State->Publish(Snapshot);
+        AutoGatherEvidence.LogSnapshot(Snapshot, TEXT("host"), 0);
         RefineryEvidence.LogSnapshot(Snapshot, TEXT("host"), 0);
         AttackMoveEvidence.LogClock(MatchEpoch, Snapshot, AttackMoveRuntime.SimulatedSeconds);
         if (StopEvidence.Enabled()) { StopEvidence.LogSnapshot(Snapshot, TEXT("host"), 0); }
@@ -560,11 +567,12 @@ void AProofGameMode::Tick(float DeltaSeconds)
                     Command.MatchEpoch = MatchEpoch;
                     SubmitForOwner(ProofOwnerIds::Bot, Command);
                 }
-                const FProofSnapshot EvidenceBeforeAdvance = RefineryEvidence.Enabled() || bReturnCargoEvidence ? Model.GetSnapshot() : FProofSnapshot();
+                const FProofSnapshot EvidenceBeforeAdvance = RefineryEvidence.Enabled() || bReturnCargoEvidence || AutoGatherEvidence.Enabled() ? Model.GetSnapshot() : FProofSnapshot();
                 Model.Advance(0.1f);
                 if (StopEvidence.Enabled()) { StopEvidence.ObserveAdvance(MatchEpoch, 0.1f); }
                 SkirmishSeconds += 0.1;
                 const FProofSnapshot After = Model.GetSnapshot();
+                if (AutoGatherEvidence.Enabled()) AutoGatherEvidence.ObserveAdvance(MatchEpoch, EvidenceBeforeAdvance, After);
                 if (RefineryEvidence.Enabled()) RefineryEvidence.ObserveAdvance(MatchEpoch, EvidenceBeforeAdvance, After);
                 if (FParse::Param(FCommandLine::Get(), TEXT("ProofGroupGatherEvidence")))
                     ObserveGroupGatherDeposits(EvidenceBeforeAdvance, After);
@@ -594,6 +602,17 @@ void AProofGameMode::Tick(float DeltaSeconds)
     }
     if (bSkirmish)
     {
+        if (AutoGatherEvidence.Enabled())
+        {
+            if (Lifetime >= 220.f && !bSkirmishTerminalPublished) AutoGatherEvidence.Fail(TEXT("host-deadline"));
+            if (bSkirmishTerminalPublished)
+            {
+                AutoGatherEvidence.Finish(MatchEpoch, TEXT("host"), 0);
+                // Preserve a replication grace window; no new simulation gate.
+                if (Lifetime - SkirmishTerminalAt >= 2.f) FPlatformMisc::RequestExitWithStatus(false, AutoGatherEvidence.Failed() ? 1 : 0);
+            }
+            return;
+        }
         if (bSkirmishFixtureHost && !bSkirmishFixtureFinished &&
             (SkirmishTerminalAt >= 0.f && Lifetime - SkirmishTerminalAt >= 5.f || Lifetime >= 240.f))
         {

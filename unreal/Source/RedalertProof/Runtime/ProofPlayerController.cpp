@@ -203,11 +203,17 @@ void AProofPlayerController::Tick(float DeltaSeconds)
     AProofGameState* State = GetWorld()->GetGameState<AProofGameState>();
     SynchronizeMatchEpoch();
     if (State && OwnerId != INDEX_NONE) RefineryEvidence.LogSnapshot(State->Snapshot, TEXT("client"), OwnerId);
+    if (State && OwnerId > 0 && IsLocalController()) AutoGatherEvidence.LogSnapshot(State->Snapshot, TEXT("client"), OwnerId);
     if (State && OwnerId != INDEX_NONE && StopEvidence.Enabled()) { StopEvidence.LogSnapshot(State->Snapshot, TEXT("client"), OwnerId); }
     if (State && OwnerId != INDEX_NONE && LastLoggedRevision != State->Snapshot.Revision)
     {
         State->LogSnapshot(TEXT("client"), OwnerId);
         LastLoggedRevision = State->Snapshot.Revision;
+    }
+    if (AutoGatherEvidence.Enabled())
+    {
+        if (IsLocalController()) TickAutoGatherFixture(State);
+        return;
     }
     if (AttackMoveRuntime.bEnabled) { TickAttackMoveRuntime(DeltaSeconds); return; }
     if (bLifecycleFixture) { TickLifecycleFixture(State); return; }
@@ -426,6 +432,47 @@ void AProofPlayerController::TickSkirmishObserver(AProofGameState* State)
     ServerSubmitCommand(Command);
     UE_LOG(LogTemp, Display, TEXT("PROOF_SKIRMISH_OBSERVER_SEND owner=2 step=%d sequence=%d revision=%d"),
         SkirmishObserverStep, Command.Sequence, Snapshot.Revision);
+}
+
+void AProofPlayerController::TickAutoGatherFixture(AProofGameState* State)
+{
+    if (bFinished) return;
+    if (Lifetime >= 220.f) { AutoGatherEvidence.Fail(TEXT("client-deadline")); return; }
+    if (!State || (OwnerId != 1 && OwnerId != 2) || State->Snapshot.MatchEpoch <= 0) return;
+    const auto& S = State->Snapshot;
+    if (bSkirmishObserver || bLifecycleFixture || bAutomation || bControlsAutomation || RefineryEvidence.Enabled()
+        || FParse::Param(FCommandLine::Get(), TEXT("ProofInteractive")))
+    { AutoGatherEvidence.Fail(TEXT("incompatible-client-flags")); return; }
+    const auto* HQ = S.Units.FindByPredicate([this](const FProofUnitRecord& U)
+        { return U.OwnerId == OwnerId && U.Kind == EProofUnitKind::HQ && U.HitPoints > 0.f; });
+    if (AutoGatherBuildSequence == 0 && HQ && S.MatchPhase == EProofMatchPhase::Playing
+        && S.Players.ContainsByPredicate([](const FProofPlayerRecord& P) { return P.OwnerId == 1; })
+        && S.Players.ContainsByPredicate([](const FProofPlayerRecord& P) { return P.OwnerId == 2; }))
+    {
+        FProofCommand C; C.Type = EProofCommandType::BuildRefinery;
+        C.MatchEpoch = S.MatchEpoch; C.Sequence = NextLocalCommandSequence();
+        C.Destination = HQ->Position + FVector(0.f, 350.f, 0.f);
+        AutoGatherBuildSequence = C.Sequence;
+        UE_LOG(LogTemp, Display, TEXT("PROOF_AUTO_GATHER_SEND owner=%d epoch=%d sequence=%d type=%d"), OwnerId, C.MatchEpoch, C.Sequence, static_cast<int32>(C.Type));
+        ServerSubmitCommand(C);
+    }
+    if (AutoGatherBuildSequence > 0 && !bAutoGatherReceiptLogged)
+    {
+        FProofCommandResult Receipt;
+        if (FindReceipt(AutoGatherBuildSequence, Receipt))
+        {
+            if (!Receipt.bAccepted || Receipt.MatchEpoch != S.MatchEpoch) { AutoGatherEvidence.Fail(TEXT("build-receipt")); return; }
+            bAutoGatherReceiptLogged = true;
+            UE_LOG(LogTemp, Display, TEXT("PROOF_AUTO_GATHER_RECEIPT owner=%d epoch=%d sequence=%d accepted=1"), OwnerId, Receipt.MatchEpoch, Receipt.Sequence);
+        }
+    }
+    if (S.MatchPhase == EProofMatchPhase::Finished)
+    {
+        if (!bAutoGatherReceiptLogged) { AutoGatherEvidence.Fail(TEXT("missing-build-receipt")); return; }
+        AutoGatherEvidence.Finish(S.MatchEpoch, TEXT("client"), OwnerId);
+        bFinished = true;
+        FPlatformMisc::RequestExitWithStatus(false, AutoGatherEvidence.Failed() ? 1 : 0);
+    }
 }
 
 // The lifecycle runner only creates gate files. Every action here still travels

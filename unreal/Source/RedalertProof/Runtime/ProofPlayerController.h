@@ -6,6 +6,7 @@
 #include "Commands/ProofCommandModel.h"
 #include "Commands/ProofIngressBudget.h"
 #include "Runtime/ProofRefineryMinerEvidence.h"
+#include "Runtime/ProofRefineryAutoGatherEvidence.h"
 #include "Runtime/ProofStopEvidence.h"
 #include "ProofPlayerController.generated.h"
 
@@ -50,6 +51,10 @@ private:
     uint64 StopInputProcessedFrame = 0;
     FProofIngressBudget IngressBudget;
     FProofRefineryMinerEvidence RefineryEvidence;
+    FProofRefineryAutoGatherEvidence AutoGatherEvidence;
+    int32 AutoGatherBuildSequence = 0;
+    bool bAutoGatherReceiptLogged = false;
+    void TickAutoGatherFixture(AProofGameState* State);
     FProofStopEvidence StopEvidence;
     bool AdmitIngress();
     bool bIngressFixture = false;

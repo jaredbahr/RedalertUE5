@@ -152,6 +152,8 @@ public:
     void Reset();
 
 private:
+    // Isolated diagnostic composition only: const-reader, no public API or schema.
+    friend class FProofRefineryAutoGatherEvidence;
 #if WITH_DEV_AUTOMATION_TESTS
     // Bounded exhaustion coverage without exposing a production ID setter.
     friend class FProofRefineryMinerIdBoundaryTest;

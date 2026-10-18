@@ -6,6 +6,7 @@
 #include "Commands/ProofOwnerIds.h"
 #include "Skirmish/ProofSkirmishBot.h"
 #include "Runtime/ProofRefineryMinerEvidence.h"
+#include "Runtime/ProofRefineryAutoGatherEvidence.h"
 #include "Runtime/ProofStopEvidence.h"
 #include "Runtime/ProofFactoryRallyEvidence.h"
 #include "Runtime/ProofFactoryProductionEvidence.h"
@@ -36,6 +37,7 @@ private:
     FProofAttackMoveEvidence AttackMoveEvidence;
     void TickAttackMoveRuntime(float DeltaSeconds);
     FProofRefineryMinerEvidence RefineryEvidence;
+    FProofRefineryAutoGatherEvidence AutoGatherEvidence;
     FProofStopEvidence StopEvidence;
     FProofFactoryRallyEvidence FactoryRallyEvidence;
     FProofFactoryProductionEvidence FactoryProductionEvidence;
