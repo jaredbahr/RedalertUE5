@@ -5,6 +5,7 @@
 #include "Presentation/ProofFactoryProductionRuntimeState.h"
 #include "Presentation/ProofCoopContextRuntimeState.h"
 #include "Presentation/ProofReturnCargoRuntimeState.h"
+#include "Presentation/ProofVisualGeometryRuntimeState.h"
 #include "GameFramework/Pawn.h"
 #include "Presentation/ProofSelectionState.h"
 #include "Presentation/ProofTypeSelectGesture.h"
@@ -35,11 +36,17 @@ public:
     FString GetManualInputStatus() const;
     bool IsInteractiveSession() const { return bInteractiveExitEnabled; }
     bool IsUsingBlockoutMesh() const { return bUsingBlockoutMesh; }
+    bool IsVisualGeometryCapture() const { return VisualGeometry.bCapturing; }
 
 protected:
     virtual void BeginPlay() override;
 
 private:
+    FProofVisualGeometryRuntimeState VisualGeometry;
+    bool TickVisualGeometryFixture();
+    bool BeginVisualGeometryCapture(int32 UnitId, const TCHAR* Name);
+    void RestoreVisualGeometryView();
+    bool LogVisualGeometryObservation() const;
     FProofReturnCargoRuntimeState ReturnCargoRuntime;
     bool TickReturnCargoFixture();
     bool ReturnCargoCheck(bool bCondition, const TCHAR* Reason);

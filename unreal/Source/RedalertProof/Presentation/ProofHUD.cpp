@@ -23,6 +23,7 @@ void AProofHUD::DrawHUD()
     AProofPlayerController* PC = Cast<AProofPlayerController>(PlayerOwner);
     const AProofGameState* GS = GetWorld() ? GetWorld()->GetGameState<AProofGameState>() : nullptr;
     const AProofRTSPawn* Pawn = PC ? Cast<AProofRTSPawn>(PC->GetPawn()) : nullptr;
+    if (Pawn && Pawn->IsVisualGeometryCapture()) return;
     if (!Canvas || !PC)
     {
         return;

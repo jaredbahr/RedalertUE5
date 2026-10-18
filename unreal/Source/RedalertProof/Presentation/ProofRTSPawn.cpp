@@ -78,6 +78,21 @@ void AProofRTSPawn::BeginPlay()
     FParse::Value(FCommandLine::Get(), TEXT("ProofSkirmishOutput="), SkirmishOutput);
     bHUDReadabilityCaptures = FParse::Param(FCommandLine::Get(), TEXT("ProofHUDReadabilityCaptures"));
     bCameraEdgeCaptures = FParse::Param(FCommandLine::Get(), TEXT("ProofCameraEdgeCaptures"));
+    VisualGeometry.bEnabled = FParse::Param(FCommandLine::Get(), TEXT("ProofVisualGeometryEvidence"));
+    if (VisualGeometry.bEnabled && (SkirmishScenario != TEXT("Victory") || GetNetMode() != NM_Standalone
+        || !FParse::Param(FCommandLine::Get(), TEXT("ProofSkirmish"))
+        || SkirmishOutput.IsEmpty() || FParse::Param(FCommandLine::Get(), TEXT("ProofRefineryMinerEvidence"))
+        || ReturnCargoRuntime.bEnabled || FactoryProduction.bEnabled || bGroupGatherEvidence
+        || bFactoryRallyEvidence || CoopContext.bEnabled || bHUDReadabilityCaptures || bCameraEdgeCaptures
+        || bGraphicsWarmup || bTypeSelectionControls || bStopControls || AttackMoveRuntime.bEnabled
+        || FParse::Param(FCommandLine::Get(), TEXT("ProofControlsAutomation"))
+        || FParse::Param(FCommandLine::Get(), TEXT("ProofAutomation"))
+        || FParse::Param(FCommandLine::Get(), TEXT("ProofControlsObserver"))
+        || FParse::Param(FCommandLine::Get(), TEXT("ProofSkirmishObserver"))
+        || FParse::Param(FCommandLine::Get(), TEXT("ProofLifecycleFixtureHost"))
+        || FParse::Param(FCommandLine::Get(), TEXT("ProofSkirmishFixtureHost"))
+        || FParse::Param(FCommandLine::Get(), TEXT("ProofAttackMoveFixtureHost"))))
+    { UE_LOG(LogTemp, Error, TEXT("PROOF_VISUAL_GEOMETRY_ERROR incompatible_fixture_flags")); FPlatformMisc::RequestExitWithStatus(false, 1); return; }
     if (ReturnCargoRuntime.bEnabled && (SkirmishScenario != TEXT("Victory") || GetNetMode() != NM_Standalone
         || !FParse::Param(FCommandLine::Get(), TEXT("ProofSkirmish"))
         || !FParse::Param(FCommandLine::Get(), TEXT("ProofRefineryMinerEvidence"))
@@ -1503,6 +1518,7 @@ void AProofRTSPawn::TickSkirmishScenario(float DeltaSeconds)
         UE_LOG(LogTemp, Display, TEXT("PROOF_SKIRMISH_READY owner=%d width=%d height=%d maxFPS=%.3f shadersOptimize=%d"),
             PC->OwnerId, Width, Height, FPS->GetFloat(), Optimize->GetInt());
     }
+    if (VisualGeometry.bEnabled && TickVisualGeometryFixture()) return;
     if (Snapshot.MatchPhase == EProofMatchPhase::Finished)
     {
         if (SkirmishTerminalSeen < 0.f) SkirmishTerminalSeen = SkirmishElapsed;
@@ -1524,7 +1540,8 @@ void AProofRTSPawn::TickSkirmishScenario(float DeltaSeconds)
                 && (!CoopContext.bEnabled || CoopContext.Stage == 8)
                 && (!bGroupGatherEvidence || GroupGatherStage == 3)
                 && (!ReturnCargoRuntime.bEnabled || ReturnCargoRuntime.Stage == 15)
-                && (!FactoryProduction.bEnabled || FactoryProduction.Complete());
+                && (!FactoryProduction.bEnabled || FactoryProduction.Complete())
+                && (!VisualGeometry.bEnabled || VisualGeometry.Stage == 5);
             if (bPass && bHUDReadabilityCaptures && !TickHUDReadabilityCaptures()) return;
             FinishSkirmishScenario(bPass, bPass ? TEXT("complete_loop") : TEXT("outcome_or_evidence"));
         }
