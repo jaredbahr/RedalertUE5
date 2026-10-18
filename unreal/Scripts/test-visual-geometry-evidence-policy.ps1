@@ -9,7 +9,7 @@ function Mesh($Location,$Floor=$false,$Rhino=$false) {
 function Fixture {
     @(for($i=0;$i-lt5;$i++){$position=@(($i*200),0,0);[pscustomobject]@{capture=$names[$i];stage=$i;unit=$(if($i-lt3){2}else{7});owner=1;kind=$(if($i-lt3){1}else{0});epoch=1;revision=(10+$i);frame=(20+$i);elapsed=(1+$i);modelPosition=$position;component=(Mesh $position -Rhino:($i-ge3));floor=(Mesh @(0,0,-15) -Floor:$true);floorActorLocation=@(0,0,-15);floorActorScale=@(60,60,.3);floorActorRotationPYR=@(0,0,0);cameraLocation=@(-650,0,220);cameraRotationPYR=@(-18.7,0,0);width=1280;height=720;orthoWidth=400;projectedMin=@(400,200);projectedMax=@(880,520);rhinoLoaded=$true;visibleUnitViews=1;otherUnitViewsHidden=$true;hudHidden=$true;modelModified=$false;physicalInputVerified=$false}})
 }
-function Log($Rows){(@(foreach($r in $Rows){'PROOF_VISUAL_GEOMETRY '+($r|ConvertTo-Json -Depth 8 -Compress);'PROOF_VISUAL_GEOMETRY_RESTORED stage='+$r.stage+' verified=1';'PROOF_VISUAL_GEOMETRY_WRITTEN stage='+($r.stage+1)})-join"`n")}
+function Log($Rows){(@(foreach($r in $Rows){'PROOF_VISUAL_GEOMETRY '+($r|ConvertTo-Json -Depth 8 -Compress);'PROOF_VISUAL_GEOMETRY_RESTORED stage='+$r.stage+' verified=1';'PROOF_VISUAL_GEOMETRY_WRITTEN stage='+($r.stage+1);if($r.stage-eq0){'PROOF_SKIRMISH_REQUEST owner=1 sequence=3 type=Gather unit=2 target=1'};if($r.stage-eq3){'PROOF_SKIRMISH_REQUEST owner=1 sequence=5 type=Attack unit=7 target=8'}})-join"`n")}
 $script:checks=0
 function Check($Pass,$Name){$script:checks++;if(-not$Pass){throw ('Policy check failed: '+$Name)}}
 function Reject($Name,[scriptblock]$Mutation){$rows=Fixture;&$Mutation $rows;$rejected=$false;try{Get-VisualGeometryEvidence -Log (Log $rows)|Out-Null}catch{$rejected=$true};Check $rejected $Name}
@@ -51,6 +51,9 @@ foreach($case in @(
     @{name='cross-kind order';text=($text-replace'RESTORED stage=0 verified=1\nPROOF_VISUAL_GEOMETRY_WRITTEN stage=1',('WRITTEN stage=1'+"`n"+'PROOF_VISUAL_GEOMETRY_RESTORED stage=0 verified=1'))},
     @{name='explicit geometry error';text=($text+"`nPROOF_VISUAL_GEOMETRY_ERROR failed")},
     @{name='explicit scenario failure';text=($text+"`nPROOF_SKIRMISH_COMPLETE role=client status=fail")},
-    @{name='oversized log';text=('x'*(24MB+1))}
+    @{name='oversized log';text=('x'*(24MB+1))},
+    @{name='different actual Gather miner';text=($text-replace'type=Gather unit=2','type=Gather unit=11')},
+    @{name='missing Gather identity';text=($text-replace'type=Gather','type=Other')},
+    @{name='different actual attacker';text=($text-replace'type=Attack unit=7','type=Attack unit=9')}
 )){$rejected=$false;try{Get-VisualGeometryEvidence -Log $case.text|Out-Null}catch{$rejected=$true};Check $rejected $case.name}
 "visual geometry policy checks=$script:checks failures=0 (synthetic policy only; no UE/pixel evidence)"
