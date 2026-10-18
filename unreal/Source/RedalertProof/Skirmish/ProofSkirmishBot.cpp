@@ -102,6 +102,7 @@ TArray<FProofCommand> FProofSkirmishBot::Decide(const FProofSnapshot& Snapshot, 
     const FProofUnitRecord* Refinery = nullptr;
     const FProofUnitRecord* Factory = nullptr;
     bool bHasHarvester = false;
+    bool bHasLoadedHarvester = false;
     for (const FProofUnitRecord& Unit : Snapshot.Units)
     {
         if (Unit.OwnerId != OwnerId || Unit.HitPoints <= 0.f) { continue; }
@@ -110,6 +111,7 @@ TArray<FProofCommand> FProofSkirmishBot::Decide(const FProofSnapshot& Snapshot, 
         if (Unit.Kind == EProofUnitKind::Refinery && (!Refinery || Unit.UnitId < Refinery->UnitId)) { Refinery = &Unit; }
         if (Unit.Kind == EProofUnitKind::Factory && (!Factory || Unit.UnitId < Factory->UnitId)) { Factory = &Unit; }
         bHasHarvester |= Unit.Kind == EProofUnitKind::Harvester;
+        bHasLoadedHarvester |= Unit.Kind == EProofUnitKind::Harvester && Unit.Cargo > 0;
     }
     OwnUnits.Sort([](const FProofUnitRecord& A, const FProofUnitRecord& B) { return A.UnitId < B.UnitId; });
     for (auto It = IssuedOrders.CreateIterator(); It; ++It)
@@ -145,9 +147,13 @@ TArray<FProofCommand> FProofSkirmishBot::Decide(const FProofSnapshot& Snapshot, 
     // authoritative refinery-plus-miner grant only when every own miner is
     // gone and ore remains. A surviving miner suppresses extra construction;
     // the usual funds, two-record capacity and spawn checks still apply.
-    const bool bNeedsReplacementMiner = !bHasHarvester && Snapshot.Resources.ContainsByPredicate(
+    const bool bHasUsableOre = Snapshot.Resources.ContainsByPredicate(
         [](const FProofResourceRecord& Resource) { return Resource.ResourceId > 0 && Resource.Remaining > 0; });
-    if (HQ && (!Refinery || bNeedsReplacementMiner) && SpendableCredits >= RefineryCost
+    const bool bNeedsReplacementMiner = !bHasHarvester && bHasUsableOre;
+    // Rebuilding after depletion cannot restore income unless a surviving own
+    // miner still has cargo to unload. Leave those credits for other commands.
+    const bool bNeedsRefinery = !Refinery && (bHasUsableOre || bHasLoadedHarvester);
+    if (HQ && (bNeedsRefinery || bNeedsReplacementMiner) && SpendableCredits >= RefineryCost
         && PlannedLiveCount <= MaxLiveUnitsPerOwner - 2)
     {
         FVector Site, MinerPosition;
