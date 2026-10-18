@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Runtime/ProofAttackMoveRuntimeState.h"
 #include "Presentation/ProofCoopContextRuntimeState.h"
+#include "Presentation/ProofReturnCargoRuntimeState.h"
 #include "GameFramework/Pawn.h"
 #include "Presentation/ProofSelectionState.h"
 #include "Presentation/ProofTypeSelectGesture.h"
@@ -13,6 +14,7 @@ class UCameraComponent;
 class UStaticMesh;
 class UStaticMeshComponent;
 struct FProofCommand;
+struct FProofSnapshot;
 enum class EProofCommandType : uint8;
 
 /** Camera and snapshot-only views. This pawn never simulates commands or damage. */
@@ -37,6 +39,11 @@ protected:
     virtual void BeginPlay() override;
 
 private:
+    FProofReturnCargoRuntimeState ReturnCargoRuntime;
+    bool TickReturnCargoFixture();
+    bool ReturnCargoCheck(bool bCondition, const TCHAR* Reason);
+    bool ReturnCargoReceiptsReady(const FProofSnapshot& Snapshot, int32 Count);
+    void LogReturnCargoPhase(const TCHAR* Phase, const FProofSnapshot& Snapshot) const;
     FProofCoopContextRuntimeState CoopContext;
     bool CoopContextCheck(bool bCondition, const TCHAR* Reason);
     bool ProjectCoopContextTarget(int32 TargetId, FVector& Ground);

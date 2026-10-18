@@ -23,6 +23,7 @@ AProofGameMode::AProofGameMode()
     bAutomation = FParse::Param(FCommandLine::Get(), TEXT("ProofAutomation"));
     bControlsAutomation = FParse::Param(FCommandLine::Get(), TEXT("ProofControlsAutomation"));
     bTypeSelectionControls = FParse::Param(FCommandLine::Get(), TEXT("ProofTypeSelectionControls"));
+    bReturnCargoEvidence = FParse::Param(FCommandLine::Get(), TEXT("ProofReturnCargoEvidence"));
     bSkirmish = FParse::Param(FCommandLine::Get(), TEXT("ProofSkirmish"));
     AttackMoveRuntime.bEnabled = FParse::Param(FCommandLine::Get(), TEXT("ProofAttackMoveFixtureHost"));
     bLifecycleFixtureHost = bSkirmish && FParse::Param(FCommandLine::Get(), TEXT("ProofLifecycleFixtureHost"));
@@ -45,6 +46,24 @@ void AProofGameMode::BeginPlay()
     if (AttackMoveRuntime.bEnabled && (!bSkirmish || GetNetMode() != NM_DedicatedServer || bAutomation || bControlsAutomation
         || bLifecycleFixtureHost || bSkirmishFixtureHost || !RefineryEvidence.Enabled()))
     { UE_LOG(LogTemp, Error, TEXT("PROOF_ATTACK_MOVE_ERROR role=host reason=incompatible_flags")); FPlatformMisc::RequestExitWithStatus(false, 1); return; }
+    FString ReturnCargoScenario;
+    if (bReturnCargoEvidence) FParse::Value(FCommandLine::Get(), TEXT("ProofSkirmishScenario="), ReturnCargoScenario);
+    if (bReturnCargoEvidence && (!bSkirmish || ReturnCargoScenario != TEXT("Victory") || GetNetMode() != NM_Standalone
+        || !RefineryEvidence.Enabled() || bAutomation || bControlsAutomation || bTypeSelectionControls
+        || bLifecycleFixtureHost || bSkirmishFixtureHost || AttackMoveRuntime.bEnabled
+        || FParse::Param(FCommandLine::Get(), TEXT("ProofGroupGatherEvidence"))
+        || FParse::Param(FCommandLine::Get(), TEXT("ProofFactoryRallyEvidence"))
+        || FParse::Param(FCommandLine::Get(), TEXT("ProofCoopContextEvidence"))
+        || FParse::Param(FCommandLine::Get(), TEXT("ProofHUDReadabilityCaptures"))
+        || FParse::Param(FCommandLine::Get(), TEXT("ProofCameraEdgeCaptures"))
+        || FParse::Param(FCommandLine::Get(), TEXT("ProofGraphicsWarmup"))
+        || FParse::Param(FCommandLine::Get(), TEXT("ProofAttackMoveFixture"))
+        || FParse::Param(FCommandLine::Get(), TEXT("ProofStopControls"))
+        || FParse::Param(FCommandLine::Get(), TEXT("ProofStopInputBinding"))
+        || FParse::Param(FCommandLine::Get(), TEXT("ProofMapTypeSelectionControls"))
+        || FParse::Param(FCommandLine::Get(), TEXT("ProofControlsObserver"))
+        || FParse::Param(FCommandLine::Get(), TEXT("ProofSkirmishObserver"))))
+    { UE_LOG(LogTemp, Error, TEXT("PROOF_RETURN_CARGO_ERROR incompatible_fixture_flags")); FPlatformMisc::RequestExitWithStatus(false, 1); return; }
     if (bSkirmish)
     {
         if (!Model.SeedSkirmishPlayer(ProofOwnerIds::Bot, 1, FVector(1400.f, 0.f, 0.f)))
@@ -270,7 +289,10 @@ FProofCommandResult AProofGameMode::SubmitForOwner(int32 TrustedOwnerId, const F
     if (FactoryRallyEvidence.WantsCommand(TrustedOwnerId, Command.Type)) { RallyBefore.Emplace(Model.GetSnapshot()); }
     TOptional<FProofSnapshot> AttackMoveBefore;
     if (AttackMoveEvidence.Enabled()) AttackMoveBefore.Emplace(Model.GetSnapshot());
+    const FProofSnapshot ReturnCargoBefore = bReturnCargoEvidence && TrustedOwnerId == 1 ? Model.GetSnapshot() : FProofSnapshot();
     FProofCommandResult Result = Model.Submit(TrustedOwnerId, Command);
+    if (bReturnCargoEvidence && TrustedOwnerId == 1)
+        ObserveReturnCargoCommand(TrustedOwnerId, Command, Result, ReturnCargoBefore, Model.GetSnapshot());
     if (TrustedOwnerId == 1 && Command.Type == EProofCommandType::Gather
         && FParse::Param(FCommandLine::Get(), TEXT("ProofGroupGatherEvidence")))
         UE_LOG(LogTemp, Display, TEXT("PROOF_GROUP_GATHER_COMMAND {\"owner\":%d,\"epoch\":%d,\"sequence\":%d,\"unit\":%d,\"resource\":%d,\"accepted\":%d,\"revision\":%d}"),
@@ -535,7 +557,7 @@ void AProofGameMode::Tick(float DeltaSeconds)
                     Command.MatchEpoch = MatchEpoch;
                     SubmitForOwner(ProofOwnerIds::Bot, Command);
                 }
-                const FProofSnapshot EvidenceBeforeAdvance = RefineryEvidence.Enabled() ? Model.GetSnapshot() : FProofSnapshot();
+                const FProofSnapshot EvidenceBeforeAdvance = RefineryEvidence.Enabled() || bReturnCargoEvidence ? Model.GetSnapshot() : FProofSnapshot();
                 Model.Advance(0.1f);
                 if (StopEvidence.Enabled()) { StopEvidence.ObserveAdvance(MatchEpoch, 0.1f); }
                 SkirmishSeconds += 0.1;
@@ -543,6 +565,7 @@ void AProofGameMode::Tick(float DeltaSeconds)
                 if (RefineryEvidence.Enabled()) RefineryEvidence.ObserveAdvance(MatchEpoch, EvidenceBeforeAdvance, After);
                 if (FParse::Param(FCommandLine::Get(), TEXT("ProofGroupGatherEvidence")))
                     ObserveGroupGatherDeposits(EvidenceBeforeAdvance, After);
+                if (bReturnCargoEvidence) ObserveReturnCargoAdvance(EvidenceBeforeAdvance, After);
                 ObserveSkirmish(After);
                 if (After.MatchPhase == EProofMatchPhase::Finished && !bSkirmishTerminalPublished)
                 {
