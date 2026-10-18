@@ -67,10 +67,10 @@ try {
     $index=Join-Path $report 'index.json'
     if (-not (Test-Path -LiteralPath $index)) { throw 'No fresh Automation index.json report.' }
     $data=Get-Content -LiteralPath $index -Raw | ConvertFrom-Json
-    $expected=@('RedalertProof.HUD.MarkerLayout.DenseAndReserved','RedalertProof.HUD.MarkerLayout.EdgesAndDistance','RedalertProof.HUD.MarkerLayout.InvalidInputs','RedalertProof.HUD.MarkerLayout.DeterministicHistory','RedalertProof.HUD.MarkerLayout.PriorityAndFailure','RedalertProof.HUD.MarkerLayout.LinkedObstacles','RedalertProof.HUD.MarkerLayout.LinkedPriorityAndCrossings','RedalertProof.HUD.MarkerLayout.LinkedSourceIdentity')
+    $expected=@('RedalertProof.HUD.MarkerLayout.LegacyLabelsCluster','RedalertProof.HUD.MarkerLayout.LegacyLabelsFailure','RedalertProof.HUD.MarkerLayout.DenseAndReserved','RedalertProof.HUD.MarkerLayout.EdgesAndDistance','RedalertProof.HUD.MarkerLayout.InvalidInputs','RedalertProof.HUD.MarkerLayout.DeterministicHistory','RedalertProof.HUD.MarkerLayout.PriorityAndFailure','RedalertProof.HUD.MarkerLayout.LinkedObstacles','RedalertProof.HUD.MarkerLayout.LinkedPriorityAndCrossings','RedalertProof.HUD.MarkerLayout.LinkedSourceIdentity')
     $tests=@($data.tests)
     $result.testCount=$tests.Count; $result.succeeded=[int]$data.succeeded; $result.failed=[int]$data.failed
-    if ($tests.Count -ne 8 -or [int]$data.succeeded -ne 8 -or [int]$data.failed -ne 0) { throw 'Expected exactly eight successful tests and zero failures.' }
+    if ($tests.Count -ne $expected.Count -or [int]$data.succeeded -ne $expected.Count -or [int]$data.failed -ne 0) { throw 'Expected the exact ten successful HUD layout tests and zero failures.' }
     foreach($name in $expected){
         $matching=@($tests | Where-Object {$_.fullTestPath -eq $name})
         if ($matching.Count -ne 1 -or $matching[0].state -ne 'Success') { throw "Missing successful exact test $name." }

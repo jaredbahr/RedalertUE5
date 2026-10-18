@@ -1,6 +1,8 @@
 #if WITH_DEV_AUTOMATION_TESTS
 #include "Misc/AutomationTest.h"
 #include "Presentation/ProofMarkerLayout.h"
+#include "Presentation/ProofLegacyLabelLayout.h"
+#include "Presentation/ProofHUDPanelLayout.h"
 
 #include <limits>
 
@@ -248,6 +250,96 @@ bool FProofMarkerLinkedIdentityTest::RunTest(const FString&)
     const int32 Offscreen = Layout.Reserve(FBox2D(FVector2D(-1.0, 20.0), FVector2D(10.0, 30.0)));
     TestFalse(TEXT("Offscreen source cannot produce a border ghost"),
         Layout.TryPlaceLinked(FVector2D(15.0, 20.0), FVector2D(20.0, 9.0), Offscreen, Bounds, Start, End));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FProofLegacyLabelClusterTest, "RedalertProof.HUD.MarkerLayout.LegacyLabelsCluster",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FProofLegacyLabelClusterTest::RunTest(const FString&)
+{
+    for (float Scale : {1.f, 0.75f})
+    {
+        const FVector2D Viewport(1280.0 * Scale, 720.0 * Scale);
+        const FProofHUDPanelLayout Panel(static_cast<float>(Viewport.X), false);
+        FProofMarkerLayout Layout(Viewport, 4.f * Scale, 2.f * Scale, 64.f * Scale);
+        FProofMarkerLayout Repeat(Viewport, 4.f * Scale, 2.f * Scale, 64.f * Scale);
+        Layout.Reserve(Panel.Bounds()); Repeat.Reserve(Panel.Bounds());
+        // Captured proof cluster: #5 and #3's old right-side text overlapped.
+        const FVector2D Centers[] = {{554.0 * Scale, 359.0 * Scale},
+            {640.0 * Scale, 359.0 * Scale}, {726.0 * Scale, 359.0 * Scale}};
+        const float Radii[] = {10.f, 10.f, 18.f};
+        const FVector2D TextSize(96.0 * Scale, 14.0 * Scale);
+        const FBox2D OldFive(Centers[0] + FVector2D(14.0, -10.0),
+            Centers[0] + FVector2D(14.0, -10.0) + TextSize);
+        const FBox2D OldThree(Centers[1] + FVector2D(14.0, -10.0),
+            Centers[1] + FVector2D(14.0, -10.0) + TextSize);
+        TestTrue(TEXT("Regression reproduces the old #5/#3 label overlap"), OldFive.Intersect(OldThree));
+        TArray<FBox2D> Glyphs;
+        TArray<int32> Sources, RepeatedSources;
+        for (int32 Index = 0; Index < 3; ++Index)
+        {
+            const FVector2D Half(Radii[Index] + 1.f, Radii[Index] + 1.f);
+            Glyphs.Add(FBox2D(Centers[Index] - Half, Centers[Index] + Half));
+            Sources.Add(Layout.Reserve(Glyphs.Last()));
+            RepeatedSources.Add(Repeat.Reserve(Glyphs.Last()));
+        }
+        TArray<FBox2D> Accepted;
+        // Primary #4 first, then stable-ID #3 and #5; same as the legacy caller.
+        for (int32 Index : {2, 1, 0})
+        {
+            FBox2D Bounds, Repeated;
+            FVector2D Start, End, RepeatedStart, RepeatedEnd;
+            const bool bPlaced = FProofLegacyLabelLayout::TryPlace(Layout, Centers[Index], Radii[Index],
+                TextSize, Scale, Sources[Index], Bounds, Start, End);
+            const bool bRepeated = FProofLegacyLabelLayout::TryPlace(Repeat, Centers[Index], Radii[Index],
+                TextSize, Scale, RepeatedSources[Index], Repeated, RepeatedStart, RepeatedEnd);
+            TestTrue(TEXT("Primary and both formerly overlapping ID/HP labels fit"), bPlaced);
+            TestEqual(TEXT("Same inputs repeat success"), bRepeated, bPlaced);
+            if (!bPlaced || !bRepeated) continue;
+            TestTrue(TEXT("Full measured text plus padding is retained"),
+                Bounds.GetSize().Equals(TextSize + FVector2D(6.0 * Scale, 6.0 * Scale), 1.e-6));
+            TestTrue(TEXT("Legacy label remains inset"), IsInside(Bounds, Viewport, 4.0 * Scale));
+            TestTrue(TEXT("Legacy label avoids the whole panel"), HasGap(Bounds, Panel.Bounds(), 2.0 * Scale));
+            for (const FBox2D& Glyph : Glyphs)
+                TestTrue(TEXT("No label covers a reserved bracket"), HasGap(Bounds, Glyph, 2.0 * Scale));
+            for (const FBox2D& Other : Accepted)
+                TestTrue(TEXT("Accepted legacy labels cannot overlap"), HasGap(Bounds, Other, 2.0 * Scale));
+            TestTrue(TEXT("Legacy label and leader repeat exactly"), Bounds.Min.Equals(Repeated.Min, 0.0)
+                && Start.Equals(RepeatedStart, 0.0) && End.Equals(RepeatedEnd, 0.0));
+            Accepted.Add(Bounds);
+        }
+        TestEqual(TEXT("All three cluster labels retained"), Accepted.Num(), 3);
+    }
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FProofLegacyLabelFailureTest, "RedalertProof.HUD.MarkerLayout.LegacyLabelsFailure",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FProofLegacyLabelFailureTest::RunTest(const FString&)
+{
+    FProofMarkerLayout Layout(FVector2D(200.0, 160.0));
+    const FVector2D Center(100.0, 100.0);
+    const int32 Source = Layout.Reserve(FBox2D(Center - FVector2D(11.0, 11.0), Center + FVector2D(11.0, 11.0)));
+    FBox2D Bounds(FVector2D(1.0, 1.0), FVector2D(2.0, 2.0));
+    FVector2D Start(1.0, 1.0), End(2.0, 2.0);
+    const double NaN = std::numeric_limits<double>::quiet_NaN();
+    TestFalse(TEXT("Invalid full-text width cannot reserve a label"), FProofLegacyLabelLayout::TryPlace(
+        Layout, Center, 10.f, FVector2D(NaN, 14.0), 1.f, Source, Bounds, Start, End));
+    TestTrue(TEXT("Failure clears stale geometry"), !Bounds.bIsValid && Start.IsZero() && End.IsZero());
+    TestFalse(TEXT("Negative text width cannot be made valid by padding"), FProofLegacyLabelLayout::TryPlace(
+        Layout, Center, 10.f, FVector2D(-1.0, 14.0), 1.f, Source, Bounds, Start, End));
+    TestFalse(TEXT("Zero-height text cannot be shown"), FProofLegacyLabelLayout::TryPlace(
+        Layout, Center, 10.f, FVector2D(50.0, 0.0), 1.f, Source, Bounds, Start, End));
+    TestFalse(TEXT("Invalid scale fails closed"), FProofLegacyLabelLayout::TryPlace(
+        Layout, Center, 10.f, FVector2D(50.0, 14.0), 0.f, Source, Bounds, Start, End));
+    TestFalse(TEXT("Oversized text is omitted whole"), FProofLegacyLabelLayout::TryPlace(
+        Layout, Center, 10.f, FVector2D(500.0, 14.0), 1.f, Source, Bounds, Start, End));
+    TestTrue(TEXT("Failed labels leave other space available"),
+        Layout.TryPlace(FVector2D(140.0, 135.0), FVector2D(30.0, 10.0), Bounds));
+    const int32 Offscreen = Layout.Reserve(FBox2D(FVector2D(-9.0, 40.0), FVector2D(13.0, 62.0)));
+    TestFalse(TEXT("Partly clipped glyph cannot create a border identity label"), FProofLegacyLabelLayout::TryPlace(
+        Layout, FVector2D(2.0, 51.0), 10.f, FVector2D(50.0, 14.0), 1.f, Offscreen, Bounds, Start, End));
+    TestTrue(TEXT("Clipped failure clears geometry"), !Bounds.bIsValid && Start.IsZero() && End.IsZero());
     return true;
 }
 #endif
