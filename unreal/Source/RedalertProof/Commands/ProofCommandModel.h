@@ -151,6 +151,7 @@ private:
 #if WITH_DEV_AUTOMATION_TESTS
     // Bounded exhaustion coverage without exposing a production ID setter.
     friend class FProofRefineryMinerIdBoundaryTest;
+    friend struct FProofOreReselectionFixture;
 #endif
     struct FOrder
     {
@@ -176,5 +177,6 @@ private:
     int32 TeamForOwner(int32 OwnerId) const;
     const FProofUnitRecord* FindAttackMoveTarget(const TArray<FProofUnitRecord>& Units,
         const FProofUnitRecord& Unit, int32 PreferredTargetId) const;
+    FProofResourceRecord* ResolveGatherResource(FOrder& Order, const FVector& From);
     const FProofUnitRecord* FindLiveRefinery(int32 OwnerId, const FVector& From) const;
 };

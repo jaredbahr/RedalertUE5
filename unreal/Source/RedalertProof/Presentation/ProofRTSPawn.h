@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Runtime/ProofAttackMoveRuntimeState.h"
+#include "Presentation/ProofCoopContextRuntimeState.h"
 #include "GameFramework/Pawn.h"
 #include "Presentation/ProofSelectionState.h"
 #include "Presentation/ProofGroupOrderQueue.h"
@@ -35,6 +36,13 @@ protected:
     virtual void BeginPlay() override;
 
 private:
+    FProofCoopContextRuntimeState CoopContext;
+    bool CoopContextCheck(bool bCondition, const TCHAR* Reason);
+    bool ProjectCoopContextTarget(int32 TargetId, FVector& Ground);
+    void LogCoopContextPhase(const TCHAR* Phase, int32 BeforeSequence, int32 Unit,
+        int32 Secondary, int32 Target, const FVector& Destination) const;
+    bool PrepareCoopContextFactoryClick();
+    bool TickCoopContextFixture();
     FProofAttackMoveRuntimeState AttackMoveRuntime;
     void TickAttackMoveRuntime(float DeltaSeconds);
     UPROPERTY(VisibleAnywhere) TObjectPtr<UCameraComponent> Camera;
@@ -100,6 +108,19 @@ private:
     float ControlsStageTime = 0.f;
     bool bControlsFinished = false;
     bool bStopControls = false;
+    bool bStopInputBinding = false;
+    int32 StopInputStage = 0;
+    int32 StopInputEdges = 0;
+    int32 StopInputDevice = INDEX_NONE;
+    int32 StopInputUser = INDEX_NONE;
+    uint64 StopInputPressFrame = 0;
+    uint64 StopInputReleaseFrame = 0;
+    bool bStopInputLastHandled = false;
+    bool IsStopInputReady() const;
+    bool SendStopInputEdge(bool bPressed);
+    bool BeginStopInputBinding();
+    bool TickStopInputBinding();
+    void LogStopInputBinding(const TCHAR* Phase) const;
     int32 ControlsStopNativeBaseline = 0;
     int32 ControlsStopReceiptRevision = INDEX_NONE;
     TSet<int32> ControlsStopObservedRevisions;

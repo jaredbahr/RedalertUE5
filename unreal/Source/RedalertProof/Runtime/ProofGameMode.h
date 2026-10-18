@@ -47,6 +47,7 @@ private:
     int32 BotAttacker = INDEX_NONE;
     int32 BotSequence = 0;
     int32 BotTarget = INDEX_NONE;
+    int32 CoopContextCommandRows = 0;
     int32 HumanAccepted = 0;
     int32 RejectedOwnership = 0;
     int32 SkirmishOwnershipDiagnosticRows = 0;

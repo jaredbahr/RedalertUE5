@@ -1,6 +1,7 @@
 #include "Presentation/ProofHUD.h"
 #include "Presentation/ProofHUDPanelLayout.h"
 #include "Presentation/ProofMarkerLayout.h"
+#include "Presentation/ProofLegacyLabelLayout.h"
 #include "Presentation/ProofRTSPawn.h"
 #include "Engine/Canvas.h"
 #include "Engine/Engine.h"
@@ -175,6 +176,10 @@ void AProofHUD::DrawHUD()
             ? TEXT("Functional proof only; generic proxies, no approved art or final scale.")
             : TEXT("Functional proof only; engine cubes are generic proxies, no approved art."),
             FLinearColor(0.72f, 0.77f, 0.84f), Top + Pad + Row * 6.f);
+        // Primary ID and health stay inspectable when its world label cannot fit.
+        DrawHudLine(SelectedUnit ? FString::Printf(TEXT("Primary #%d  HP %.0f"),
+            SelectedUnit->UnitId, SelectedUnit->HitPoints) : TEXT("Primary: none"),
+            FLinearColor(0.8f, 1.f, 0.8f), Top + Pad + Row * 8.f);
     }
 
     DrawHudLine(Pawn && Pawn->IsCameraPanEnabled()
@@ -397,60 +402,65 @@ void AProofHUD::DrawHUD()
         for (const FUnitMarker& Marker : Units)
             if (Marker.Priority == 2) DrawUnitGroup(Marker);
     }
-    // Retain legacy command-proof marker behavior.
+    // Legacy proof labels share bounded placement, retaining full ID and HP text.
     if (!bSkirmish)
     {
+        FProofMarkerLayout Layout(FVector2D(Canvas->ClipX, Canvas->ClipY),
+            4.f * UiScale, 2.f * UiScale, 64.f * UiScale);
+        const FBox2D PanelBounds = Panel.Bounds();
+        Layout.Reserve(PanelBounds);
+        struct FLegacyMarker
+        {
+            const FProofUnitRecord* Unit;
+            FVector2D Screen;
+            FLinearColor Color;
+            float Radius;
+            int32 Priority;
+            int32 SourceReservation;
+        };
+        TArray<FLegacyMarker> Markers;
+        // Reserve every eligible bracket before any label can cover a later glyph.
         for (const FProofUnitRecord& Unit : GS->Snapshot.Units)
         {
-            if (Unit.HitPoints <= 0.f)
-            {
-                continue;
-            }
+            if (Unit.HitPoints <= 0.f) continue;
             FVector2D Screen;
-            if (!PC->ProjectWorldLocationToScreen(Unit.Position, Screen))
-            {
-                continue;
-            }
+            if (!PC->ProjectWorldLocationToScreen(Unit.Position, Screen)) continue;
             const bool bOwn = Unit.OwnerId == PC->OwnerId;
             const bool bSelected = bOwn && Pawn && Pawn->GetSelectedUnitIds().Contains(Unit.UnitId);
+            const bool bPrimary = bSelected && Unit.UnitId == Pawn->GetSelectedUnitId();
             const FLinearColor Color = bSelected ? FLinearColor::Yellow :
                 (bOwn ? FLinearColor::Green : FLinearColor(1.f, 0.4f, 0.3f));
             const float Radius = bSelected ? 18.f : 10.f;
-            // Screen-space brackets make ownership legible without changing art.
+            const FBox2D Glyph(Screen - FVector2D(Radius + 1.f, Radius + 1.f),
+                Screen + FVector2D(Radius + 1.f, Radius + 1.f));
+            if (!Layout.IsAnchorVisible(Glyph.Min) || !Layout.IsAnchorVisible(Glyph.Max)
+                || Glyph.Intersect(PanelBounds)) continue;
+            const int32 Source = Layout.Reserve(Glyph);
+            if (Source == INDEX_NONE) continue;
+            Markers.Add({&Unit, Screen, Color, Radius, bPrimary ? 0 : (bSelected ? 1 : 2), Source});
             DrawLine(Screen.X - Radius, Screen.Y - Radius, Screen.X + Radius, Screen.Y - Radius, Color, 2.f);
             DrawLine(Screen.X - Radius, Screen.Y - Radius, Screen.X - Radius, Screen.Y + Radius, Color, 2.f);
             DrawLine(Screen.X + Radius, Screen.Y - Radius, Screen.X + Radius, Screen.Y + Radius, Color, 2.f);
             DrawLine(Screen.X - Radius, Screen.Y + Radius, Screen.X + Radius, Screen.Y + Radius, Color, 2.f);
-
-            const FString Label = FString::Printf(TEXT("#%d  HP %.0f"), Unit.UnitId, Unit.HitPoints);
-            const float MaxLabelX = FMath::Max(0.f, Canvas->ClipX - 4.f);
-            const float LabelX = FMath::Clamp(Screen.X + Radius + 4.f, 0.f, MaxLabelX);
-            const float MaxLabelY = FMath::Max(0.f, Canvas->ClipY - 24.f);
-            const float MinLabelY = FMath::Min(PanelHeight + Top + 2.f, MaxLabelY);
-            const float LabelY = FMath::Clamp(Screen.Y - 10.f, MinLabelY, MaxLabelY);
-            float LabelWidth = 0.f;
-            float LabelHeight = 0.f;
-            GetTextSize(Label, LabelWidth, LabelHeight, Font, FontScale);
-            const float AvailableLabelWidth = FMath::Max(0.f, Canvas->ClipX - LabelX - 4.f);
-            if (LabelWidth > AvailableLabelWidth)
-            {
-                FString FittedLabel = Label;
-                while (!FittedLabel.IsEmpty())
-                {
-                    FittedLabel.LeftChopInline(1, EAllowShrinking::No);
-                    const FString Candidate = FittedLabel + TEXT("…");
-                    GetTextSize(Candidate, LabelWidth, LabelHeight, Font, FontScale);
-                    if (LabelWidth <= AvailableLabelWidth)
-                    {
-                        DrawText(Candidate, Color, LabelX, LabelY, Font, FontScale, false);
-                        break;
-                    }
-                }
-            }
-            else
-            {
-                DrawText(Label, Color, LabelX, LabelY, Font, FontScale, false);
-            }
+        }
+        Markers.Sort([](const FLegacyMarker& A, const FLegacyMarker& B)
+        {
+            return A.Priority != B.Priority ? A.Priority < B.Priority : A.Unit->UnitId < B.Unit->UnitId;
+        });
+        for (const FLegacyMarker& Marker : Markers)
+        {
+            const FString Label = FString::Printf(TEXT("#%d  HP %.0f"), Marker.Unit->UnitId, Marker.Unit->HitPoints);
+            float TextWidth = 0.f, TextHeight = 0.f;
+            GetTextSize(Label, TextWidth, TextHeight, Font, FontScale);
+            FBox2D Bounds;
+            FVector2D Start, End;
+            if (!FProofLegacyLabelLayout::TryPlace(Layout, Marker.Screen, Marker.Radius,
+                FVector2D(TextWidth, TextHeight), UiScale, Marker.SourceReservation, Bounds, Start, End)) continue;
+            DrawLine(Start.X, Start.Y, End.X, End.Y, Marker.Color, 1.f);
+            DrawRect(FLinearColor(0.015f, 0.025f, 0.035f, 0.9f), Bounds.Min.X, Bounds.Min.Y,
+                Bounds.GetSize().X, Bounds.GetSize().Y);
+            const float Padding = 3.f * UiScale;
+            DrawText(Label, Marker.Color, Bounds.Min.X + Padding, Bounds.Min.Y + Padding, Font, FontScale, false);
         }
     }
 

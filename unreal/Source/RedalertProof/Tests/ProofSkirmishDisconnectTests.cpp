@@ -220,6 +220,18 @@ bool FProofSkirmishLoadedOreDisconnectTest::RunTest(const FString&)
     if (!TestNotNull(TEXT("Teammate remains"), AfterSecondPlayer)) return false;
     TestEqual(TEXT("Removed ore cannot pay twice"), AfterSecondPlayer->Credits, ReturnedPlayer->Credits);
     TestEqual(TEXT("Harvest total remains stable"), AfterSecondPlayer->TotalGathered, ReturnedPlayer->TotalGathered);
+    const FProofUnitRecord* Stopped = AfterSecondAdvance.Units.FindByPredicate([HarvesterId]
+        (const FProofUnitRecord& Unit) { return Unit.UnitId == HarvesterId; });
+    if (!TestNotNull(TEXT("Former Gather source remains stopped"), Stopped)) return false;
+    TestEqual(TEXT("Removed patch does not retarget surviving ore"), Stopped->Position, ReturnedHarvester->Position);
+    TestEqual(TEXT("No replacement cargo after source removal"), Stopped->Cargo, 0);
+    for (const FProofResourceRecord& Ore : Returned.Resources)
+    {
+        const FProofResourceRecord* After = AfterSecondAdvance.Resources.FindByPredicate([&Ore]
+            (const FProofResourceRecord& Candidate) { return Candidate.ResourceId == Ore.ResourceId; });
+        if (!TestNotNull(TEXT("Surviving ore retained"), After)) return false;
+        TestEqual(TEXT("Surviving ore stays untouched by cancelled Gather"), After->Remaining, Ore.Remaining);
+    }
     return true;
 }
 

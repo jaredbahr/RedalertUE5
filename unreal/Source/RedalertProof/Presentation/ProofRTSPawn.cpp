@@ -54,7 +54,19 @@ void AProofRTSPawn::BeginPlay()
     AttackMoveRuntime.bEnabled = FParse::Param(FCommandLine::Get(), TEXT("ProofAttackMoveFixture"));
     bGraphicsWarmup = FParse::Param(FCommandLine::Get(), TEXT("ProofGraphicsWarmup"));
     bStopControls = FParse::Param(FCommandLine::Get(), TEXT("ProofStopControls"));
+    bStopInputBinding = FParse::Param(FCommandLine::Get(), TEXT("ProofStopInputBinding"));
+    if (bStopInputBinding && (!bStopControls || bTypeSelectionControls
+        || !FParse::Param(FCommandLine::Get(), TEXT("ProofControlsAutomation"))
+        || FParse::Param(FCommandLine::Get(), TEXT("ProofControlsObserver"))
+        || FParse::Param(FCommandLine::Get(), TEXT("ProofAutomation"))
+        || FParse::Param(FCommandLine::Get(), TEXT("ProofSkirmish")) || bGraphicsWarmup))
+    {
+        UE_LOG(LogTemp, Error, TEXT("PROOF_STOP_INPUT_ERROR incompatible_fixture_flags"));
+        FPlatformMisc::RequestExitWithStatus(false, 1);
+        return;
+    }
     bFactoryRallyEvidence = FParse::Param(FCommandLine::Get(), TEXT("ProofFactoryRallyEvidence"));
+    CoopContext.bEnabled = FParse::Param(FCommandLine::Get(), TEXT("ProofCoopContextEvidence"));
     FParse::Value(FCommandLine::Get(), TEXT("ProofSkirmishScenario="), SkirmishScenario);
     FParse::Value(FCommandLine::Get(), TEXT("ProofSkirmishOutput="), SkirmishOutput);
     bHUDReadabilityCaptures = FParse::Param(FCommandLine::Get(), TEXT("ProofHUDReadabilityCaptures"));
@@ -90,8 +102,8 @@ void AProofRTSPawn::BeginPlay()
 void AProofRTSPawn::SetupPlayerInputComponent(UInputComponent* Input)
 {
     Super::SetupPlayerInputComponent(Input);
-    // Bound callbacks are the native input path. Controls automation calls the
-    // shared action handlers below directly, so it cannot inflate these counts.
+    // Bound callbacks are the native input path. Default controls automation calls the
+    // shared handlers directly; the opt-in Stop input fixture labels its engine edges.
     Input->BindKey(EKeys::LeftMouseButton, IE_Pressed, this, &AProofRTSPawn::OnManualSelect);
     Input->BindKey(EKeys::RightMouseButton, IE_Pressed, this, &AProofRTSPawn::OnManualOrder);
     Input->BindKey(EKeys::P, IE_Pressed, this, &AProofRTSPawn::OnManualProduce);
@@ -206,6 +218,9 @@ void AProofRTSPawn::Tick(float DeltaSeconds)
         FactoryRallySeenAt = FactoryRallySpawnSeenAt = FactoryRallyCaptureAt = -1.f;
         FactoryRallyBeforeIds.Reset();
         FactoryRallyProgressRevisions.Reset();
+        const bool bCoopContextEnabled = CoopContext.bEnabled;
+        CoopContext = FProofCoopContextRuntimeState();
+        CoopContext.bEnabled = bCoopContextEnabled;
         RequestStatus = TEXT("Match state refreshed. Select an owned live unit.");
         LastSeenMatchEpoch = GS->Snapshot.MatchEpoch;
     }
@@ -591,10 +606,8 @@ void AProofRTSPawn::OrderUnderCursor()
     {
         if (PC->IsProofAutomation()) { RequestStatus = TEXT("Manual orders disabled during automation."); return; }
         const int32 TargetId = FindUnitUnderCursor(false);
-        const FProofUnitRecord* Target = GS->Snapshot.Units.FindByPredicate(
-            [TargetId](const FProofUnitRecord& Unit) { return Unit.UnitId == TargetId; });
         TArray<FProofCommand> Commands;
-        if (Target && Target->OwnerId != PC->OwnerId)
+        if (FProofSelectionState::IsHostileTarget(GS->Snapshot, PC->OwnerId, TargetId))
             Commands = Selection.PlanAttack(GS->Snapshot, PC->OwnerId, TargetId);
         else
         {
@@ -615,9 +628,7 @@ void AProofRTSPawn::OrderUnderCursor()
     if (GS->Snapshot.bSkirmish && Selected && Selected->Kind == EProofUnitKind::Factory)
     {
         const int32 PointedId = FindUnitUnderCursor(false);
-        const FProofUnitRecord* Pointed = GS->Snapshot.Units.FindByPredicate(
-            [PointedId](const FProofUnitRecord& Unit) { return Unit.UnitId == PointedId; });
-        if (Pointed && Pointed->OwnerId != PC->OwnerId)
+        if (FProofSelectionState::IsHostileTarget(GS->Snapshot, PC->OwnerId, PointedId))
         {
             RequestStatus = TEXT("Factory rally requires ground; right-click away from enemy units.");
             return;
@@ -653,9 +664,7 @@ void AProofRTSPawn::OrderUnderCursor()
         }
     }
     const int32 TargetId = FindUnitUnderCursor(false);
-    const FProofUnitRecord* Target = GS->Snapshot.Units.FindByPredicate(
-        [TargetId](const FProofUnitRecord& Unit) { return Unit.UnitId == TargetId; });
-    if (Target && Target->OwnerId != PC->OwnerId)
+    if (FProofSelectionState::IsHostileTarget(GS->Snapshot, PC->OwnerId, TargetId))
     {
         Command.Type = EProofCommandType::Attack;
         Command.TargetUnitId = TargetId;
@@ -1069,13 +1078,23 @@ void AProofRTSPawn::TickControlsAutomation(float DeltaSeconds)
         if (FVector::Dist(Own->Position, ControlsStopMoveStart) <= 50.f) return;
         if (!ControlsCheck(FVector::Dist(Own->Position, FVector(-1400.f, -700.f, 0.f)) > 100.f,
             TEXT("stop_move_observed_before_destination"))) return;
+        // Native mode waits for an actually processed, bound input stack, not a delay.
+        if (bStopInputBinding && !IsStopInputReady()) return;
         LogStopFixture(TEXT("moving"), Snapshot, *Own, FVector(-1400.f, -700.f, 0.f));
-        StopSelected();
-        if (!ControlsCheck(GroupOrders.NumPending() == 1, TEXT("stop_shared_handler_queued_one_intent"))) return;
+        if (bStopInputBinding)
+        {
+            if (!BeginStopInputBinding()) return;
+        }
+        else
+        {
+            StopSelected();
+            if (!ControlsCheck(GroupOrders.NumPending() == 1, TEXT("stop_shared_handler_queued_one_intent"))) return;
+        }
         ControlsStep = 8;
     }
     else if (bStopControls && ControlsStep == 8)
     {
+        if (bStopInputBinding && !TickStopInputBinding()) return;
         if (LastRequestedSequence < 6) return;
         if (!ControlsCheck(LastRequestedSequence == 6 && LastRequestedType == TEXT("Stop"), TEXT("stop_queue_dispatch_sequence6"))) return;
         if (!bHasReceipt) return;
@@ -1099,7 +1118,7 @@ void AProofRTSPawn::TickControlsAutomation(float DeltaSeconds)
             TEXT("stop_stationary_before_move_destination"))) return;
         if (!ControlsCheck(SelectedUnitId == ControlsOwnUnit && Selection.GetSelectedUnitIds().Num() == 1
             && Selection.GetSelectedUnitIds().Contains(ControlsOwnUnit), TEXT("stop_preserves_selection"))) return;
-        if (!ControlsCheck(ManualStopPresses == ControlsStopNativeBaseline, TEXT("stop_shared_handler_native_count_unchanged"))) return;
+        if (!ControlsCheck(ManualStopPresses == ControlsStopNativeBaseline + (bStopInputBinding ? 1 : 0), TEXT("stop_expected_native_callback_count"))) return;
         ControlsStopObservedRevisions.Add(Snapshot.Revision);
         if (ControlsStopObservedRevisions.Num() < 3 || ControlsElapsed - ControlsStopStationaryAt < 1.5f) return;
         if (!ControlsCheck(true, TEXT("stop_three_later_revisions_and_1_5s_local_window"))) return;
@@ -1121,7 +1140,7 @@ void AProofRTSPawn::TickControlsAutomation(float DeltaSeconds)
         if (!ControlsCheck(Receipt.bAccepted, TEXT("stop_resume_host_receipt_accepted"))) return;
         if (FVector::Dist(Own->Position, ControlsStopResumeStart) <= 50.f) return;
         if (!ControlsCheck(SelectedUnitId == ControlsOwnUnit && Selection.GetSelectedUnitIds().Num() == 1
-            && ManualStopPresses == ControlsStopNativeBaseline, TEXT("stop_resume_selection_and_native_count_unchanged"))) return;
+            && ManualStopPresses == ControlsStopNativeBaseline + (bStopInputBinding ? 1 : 0), TEXT("stop_resume_selection_and_expected_native_count"))) return;
         LogStopFixture(TEXT("resumed"), Snapshot, *Own, FVector(-700.f, -450.f, 0.f));
         CaptureControls(TEXT("04-stop-resumed"));
         ControlsStep = 12;
@@ -1131,14 +1150,15 @@ void AProofRTSPawn::TickControlsAutomation(float DeltaSeconds)
         for (const TCHAR* Name : { TEXT("01-selected.png"), TEXT("02-moved-combat-produced.png"), TEXT("03-stop.png"), TEXT("04-stop-resumed.png") })
             if (IFileManager::Get().FileSize(*FPaths::Combine(ControlsOutput, Name)) <= 1024) return;
         if (!ControlsCheck(true, TEXT("stop_all_four_engine_captures_written"))) return;
-        FinishControls(true, TEXT("existing_controls_plus_shared_stop_stationary_resume_receipts_snapshots_capture"));
+        FinishControls(true, bStopInputBinding ? TEXT("existing_controls_plus_engine_injected_stop_stationary_resume")
+            : TEXT("existing_controls_plus_shared_stop_stationary_resume_receipts_snapshots_capture"));
     }
 }
 
 void AProofRTSPawn::LogStopFixture(const TCHAR* Phase, const FProofSnapshot& Snapshot,
     const FProofUnitRecord& Unit, const FVector& Destination)
 {
-    // Three milestones at most. This path calls shared handlers, never native S.
+    // Three milestones at most. The opt-in native mode labels injected S edges separately.
     UE_LOG(LogTemp, Display, TEXT("PROOF_STOP_FIXTURE {\"phase\":\"%s\",\"owner\":%d,\"unit\":%d,\"epoch\":%d,\"revision\":%d,\"sequence\":%d,\"x\":%.6f,\"y\":%.6f,\"z\":%.6f,\"elapsed\":%.6f,\"destinationX\":%.6f,\"destinationY\":%.6f,\"destinationZ\":%.6f,\"nativeStopCount\":%d}"),
         Phase, Unit.OwnerId, Unit.UnitId, Snapshot.MatchEpoch, Snapshot.Revision, LastRequestedSequence,
         Unit.Position.X, Unit.Position.Y, Unit.Position.Z, ControlsElapsed,
@@ -1332,6 +1352,8 @@ void AProofRTSPawn::TickSkirmishScenario(float DeltaSeconds)
     { FinishSkirmishScenario(false, TEXT("camera_edge_requires_victory_readability")); return; }
     if (bHUDReadabilityCaptures && SkirmishScenario != TEXT("Victory"))
     { FinishSkirmishScenario(false, TEXT("readability_requires_victory")); return; }
+    if (CoopContext.bEnabled && (!bFactoryRallyEvidence || SkirmishScenario != TEXT("Coop")))
+    { FinishSkirmishScenario(false, TEXT("context_requires_cooperative_rally")); return; }
     SkirmishElapsed += DeltaSeconds;
     if (SkirmishElapsed > 220.f) { FinishSkirmishScenario(false, TEXT("scenario_timeout")); return; }
     AProofPlayerController* PC = Cast<AProofPlayerController>(GetController());
@@ -1411,7 +1433,8 @@ void AProofRTSPawn::TickSkirmishScenario(float DeltaSeconds)
             const int32 ExpectedWinner = SkirmishScenario == TEXT("Defeat") ? 1 : 0;
             const bool bPass = Snapshot.WinnerTeam == ExpectedWinner && bSkirmishBuilt && bSkirmishGathered
                 && bSkirmishProduced && bSkirmishBotRefinery && bSkirmishBotFactory && bSkirmishBotProduced
-                && bSkirmishBotAttacked && bSkirmishBaseCaptured && (!bFactoryRallyEvidence || FactoryRallyStage == 4);
+                && bSkirmishBotAttacked && bSkirmishBaseCaptured && (!bFactoryRallyEvidence || FactoryRallyStage == 4)
+                && (!CoopContext.bEnabled || CoopContext.Stage == 8);
             if (bPass && bHUDReadabilityCaptures && !TickHUDReadabilityCaptures()) return;
             FinishSkirmishScenario(bPass, bPass ? TEXT("complete_loop") : TEXT("outcome_or_evidence"));
         }
@@ -1506,6 +1529,7 @@ void AProofRTSPawn::TickSkirmishScenario(float DeltaSeconds)
     }
     if (SkirmishStage < 3) return;
     if (bFactoryRallyEvidence && !TickFactoryRallyFixture()) return;
+    if (CoopContext.bEnabled && !TickCoopContextFixture()) return;
     if (bSkirmishBuilt && bSkirmishGathered && !bSkirmishBaseCaptureRequested)
     {
         IFileManager::Get().MakeDirectory(*SkirmishOutput, true);
@@ -1620,7 +1644,11 @@ bool AProofRTSPawn::TickFactoryRallyFixture()
         FactoryRallyNativeRight = ManualRightPresses;
         FactoryRallyDestination = Factory->Position + FVector(-600, -350, 0);
         // Synthetic shared-handler invocation, not native physical input.
-        if (!SetFactoryRally(FactoryRallyDestination)) { FinishSkirmishScenario(false, TEXT("factory_rally_not_sent")); return false; }
+        if (CoopContext.bEnabled)
+        {
+            if (!PrepareCoopContextFactoryClick()) return false;
+        }
+        else if (!SetFactoryRally(FactoryRallyDestination)) { FinishSkirmishScenario(false, TEXT("factory_rally_not_sent")); return false; }
         FactoryRallySetSequence = LastRequestedSequence;
         FactoryRallyStage = 1;
         return false;
