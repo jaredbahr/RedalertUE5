@@ -266,6 +266,8 @@ FProofCommandResult AProofGameMode::SubmitForOwner(int32 TrustedOwnerId, const F
     const FProofSnapshot EvidenceBefore = bRefineryEvidence ? Model.GetSnapshot() : FProofSnapshot();
     TOptional<FProofSnapshot> StopBefore;
     if (StopEvidence.WantsCommand(Command.Type)) { StopBefore.Emplace(Model.GetSnapshot()); }
+    TOptional<FProofSnapshot> ProductionBefore;
+    if (FactoryProductionEvidence.WantsCommand(TrustedOwnerId, Command.Type)) ProductionBefore.Emplace(Model.GetSnapshot());
     TOptional<FProofSnapshot> RallyBefore;
     if (FactoryRallyEvidence.WantsCommand(TrustedOwnerId, Command.Type)) { RallyBefore.Emplace(Model.GetSnapshot()); }
     TOptional<FProofSnapshot> AttackMoveBefore;
@@ -292,6 +294,7 @@ FProofCommandResult AProofGameMode::SubmitForOwner(int32 TrustedOwnerId, const F
         if (Command.Type == EProofCommandType::Stop && Command.UnitId == AttackMoveRuntime.Unit)
         { AttackMoveRuntime.StopAt = AttackMoveRuntime.SimulatedSeconds; AttackMoveRuntime.StopPosition = Model.GetSnapshot().Units.FindByPredicate([&Command](const FProofUnitRecord& U) { return U.UnitId == Command.UnitId; })->Position; }
     }
+    if (ProductionBefore.IsSet()) FactoryProductionEvidence.ObserveCommand(MatchEpoch, TrustedOwnerId, Command, Result, ProductionBefore.GetValue(), Model.GetSnapshot());
     if (RallyBefore.IsSet()) FactoryRallyEvidence.ObserveCommand(MatchEpoch, TrustedOwnerId, Command, Result, RallyBefore.GetValue(), Model.GetSnapshot());
     if (bSkirmish && !bLifecycleFixtureHost && Command.Type == EProofCommandType::Attack
         && !Result.bAccepted && Result.Reason == TEXT("ownership"))

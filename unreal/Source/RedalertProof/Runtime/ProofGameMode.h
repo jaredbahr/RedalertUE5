@@ -8,6 +8,7 @@
 #include "Runtime/ProofRefineryMinerEvidence.h"
 #include "Runtime/ProofStopEvidence.h"
 #include "Runtime/ProofFactoryRallyEvidence.h"
+#include "Runtime/ProofFactoryProductionEvidence.h"
 #include "Runtime/ProofAttackMoveEvidence.h"
 #include "Runtime/ProofAttackMoveRuntimeState.h"
 #include "ProofGameMode.generated.h"
@@ -37,6 +38,7 @@ private:
     FProofRefineryMinerEvidence RefineryEvidence;
     FProofStopEvidence StopEvidence;
     FProofFactoryRallyEvidence FactoryRallyEvidence;
+    FProofFactoryProductionEvidence FactoryProductionEvidence;
     FProofSkirmishBot SkirmishBot;
     FProofHumanOwnerAllocator HumanOwnerIds;
     TWeakObjectPtr<AProofPlayerController> SkirmishOwner1;

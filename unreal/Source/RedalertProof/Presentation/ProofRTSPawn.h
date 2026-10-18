@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Runtime/ProofAttackMoveRuntimeState.h"
+#include "Presentation/ProofFactoryProductionRuntimeState.h"
 #include "Presentation/ProofCoopContextRuntimeState.h"
 #include "GameFramework/Pawn.h"
 #include "Presentation/ProofSelectionState.h"
@@ -37,6 +38,9 @@ protected:
     virtual void BeginPlay() override;
 
 private:
+    FProofFactoryProductionRuntimeState FactoryProduction;
+    bool TickFactoryProductionFixture();
+    void LogFactoryProductionPhase(const TCHAR* Phase) const;
     FProofCoopContextRuntimeState CoopContext;
     bool CoopContextCheck(bool bCondition, const TCHAR* Reason);
     bool ProjectCoopContextTarget(int32 TargetId, FVector& Ground);

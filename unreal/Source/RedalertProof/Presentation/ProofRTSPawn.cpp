@@ -70,6 +70,7 @@ void AProofRTSPawn::BeginPlay()
     }
     bGroupGatherEvidence = FParse::Param(FCommandLine::Get(), TEXT("ProofGroupGatherEvidence"));
     bFactoryRallyEvidence = FParse::Param(FCommandLine::Get(), TEXT("ProofFactoryRallyEvidence"));
+    FactoryProduction.bEnabled = FParse::Param(FCommandLine::Get(), TEXT("ProofFactoryProductionEvidence"));
     CoopContext.bEnabled = FParse::Param(FCommandLine::Get(), TEXT("ProofCoopContextEvidence"));
     FParse::Value(FCommandLine::Get(), TEXT("ProofSkirmishScenario="), SkirmishScenario);
     FParse::Value(FCommandLine::Get(), TEXT("ProofSkirmishOutput="), SkirmishOutput);
@@ -800,7 +801,8 @@ void AProofRTSPawn::Produce()
         {
             if (Unit.OwnerId == PC->OwnerId && Unit.HitPoints > 0.f && Unit.Kind == EProofUnitKind::Factory)
             {
-                Command.UnitId = Unit.UnitId;
+                if (Command.UnitId == INDEX_NONE || Unit.UnitId == SelectedUnitId)
+                    Command.UnitId = Unit.UnitId;
                 if (Unit.UnitId == SelectedUnitId) break;
             }
         }
@@ -1397,6 +1399,8 @@ void AProofRTSPawn::TickSkirmishScenario(float DeltaSeconds)
     { FinishSkirmishScenario(false, TEXT("group_gather_requires_plain_victory")); return; }
     if (CoopContext.bEnabled && (!bFactoryRallyEvidence || SkirmishScenario != TEXT("Coop")))
     { FinishSkirmishScenario(false, TEXT("context_requires_cooperative_rally")); return; }
+    if (FactoryProduction.bEnabled && (SkirmishScenario != TEXT("Coop") || bFactoryRallyEvidence || CoopContext.bEnabled || bGroupGatherEvidence || bHUDReadabilityCaptures))
+    { FinishSkirmishScenario(false, TEXT("factory_production_requires_plain_coop")); return; }
     SkirmishElapsed += DeltaSeconds;
     if (SkirmishElapsed > 220.f) { FinishSkirmishScenario(false, TEXT("scenario_timeout")); return; }
     AProofPlayerController* PC = Cast<AProofPlayerController>(GetController());
@@ -1478,7 +1482,8 @@ void AProofRTSPawn::TickSkirmishScenario(float DeltaSeconds)
                 && bSkirmishProduced && bSkirmishBotRefinery && bSkirmishBotFactory && bSkirmishBotProduced
                 && bSkirmishBotAttacked && bSkirmishBaseCaptured && (!bFactoryRallyEvidence || FactoryRallyStage == 4)
                 && (!CoopContext.bEnabled || CoopContext.Stage == 8)
-                && (!bGroupGatherEvidence || GroupGatherStage == 3);
+                && (!bGroupGatherEvidence || GroupGatherStage == 3)
+                && (!FactoryProduction.bEnabled || FactoryProduction.Complete());
             if (bPass && bHUDReadabilityCaptures && !TickHUDReadabilityCaptures()) return;
             FinishSkirmishScenario(bPass, bPass ? TEXT("complete_loop") : TEXT("outcome_or_evidence"));
         }
@@ -1585,6 +1590,8 @@ void AProofRTSPawn::TickSkirmishScenario(float DeltaSeconds)
         return;
     }
     if (SkirmishStage < 3) return;
+    if (FactoryProduction.bEnabled && !FactoryProduction.Complete() && TickFactoryProductionFixture()) return;
+    if (bSkirmishFinished) return;
     if (bFactoryRallyEvidence && !TickFactoryRallyFixture()) return;
     if (CoopContext.bEnabled && !TickCoopContextFixture()) return;
     if (bSkirmishBuilt && bSkirmishGathered && !bSkirmishBaseCaptureRequested)
@@ -1594,7 +1601,8 @@ void AProofRTSPawn::TickSkirmishScenario(float DeltaSeconds)
         bSkirmishBaseCaptureRequested = true;
     }
     const bool bDefeat = SkirmishScenario == TEXT("Defeat");
-    const bool bShouldProduce = Factory && LocalRecord->Credits >= FProofCommandModel::ProductionCost
+    const bool bShouldProduce = (!FactoryProduction.bEnabled || FactoryProduction.Complete())
+        && Factory && LocalRecord->Credits >= FProofCommandModel::ProductionCost
         && LiveCount < FProofCommandModel::SkirmishRecordCap && (!bDefeat || !bSkirmishProduced);
     if (bDefeat || !bSkirmishGathered)
     {
@@ -1639,6 +1647,7 @@ void AProofRTSPawn::TickSkirmishScenario(float DeltaSeconds)
     {
         if (Unit.OwnerId != PC->OwnerId || Unit.Kind != EProofUnitKind::Combat) continue;
         const int32 Ordinal = CombatOrdinal++;
+        if (FactoryProduction.Protects(Unit.UnitId)) continue;
         if (Unit.HitPoints <= 0.f) continue;
         const int32 WantedTarget = Target ? Target->UnitId : 0;
         const int32* Issued = SkirmishIssuedTargets.Find(Unit.UnitId);
