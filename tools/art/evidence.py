@@ -2,6 +2,7 @@
 import hashlib
 import json
 import math
+from numbers import Real
 from pathlib import Path
 import shutil
 import uuid
@@ -53,6 +54,8 @@ def begin_run(output, root):
 def verify_inputs(output, manifest, root):
     if manifest['source_sha256'] != source_hash(root):
         raise ValueError('Generator/validator source changed; regenerate before validating')
+    if not isinstance(manifest.get('assets'), list) or not manifest['assets']:
+        raise ValueError('Manifest must contain a non-empty assets list')
     for asset in manifest['assets']:
         if sha256(Path(output) / asset['file']) != asset['sha256']:
             raise ValueError('Export hash changed: ' + asset['file'])
@@ -61,8 +64,37 @@ def verify_inputs(output, manifest, root):
 def validate_geometry(asset, lower, upper, pivot, placement=(0, 0, 0),
                       actor_minus_y=(0, -1, 0), actor_plus_z=(0, 0, 1), factor=100, flip_y=True):
     """Validate actual world bounds and basis; tolerances are 0.5cm or 0.1%."""
+    def finite(value, label):
+        if isinstance(value, bool) or not isinstance(value, Real) or not math.isfinite(value):
+            raise ValueError(f'{label}: expected a finite number, got {value!r}')
+
+    def vector(value, label):
+        if not isinstance(value, (list, tuple)) or len(value) != 3:
+            raise ValueError(f'{label}: expected exactly three components')
+        for component in value:
+            finite(component, label)
+
+    for key in ('dimensions_m', 'bounds_min_m', 'bounds_max_m'):
+        vector(asset.get(key), key)
+    for label, value in (('lower', lower), ('upper', upper), ('pivot', pivot),
+                         ('placement', placement), ('actor_minus_y', actor_minus_y),
+                         ('actor_plus_z', actor_plus_z)):
+        vector(value, label)
+    finite(factor, 'factor')
+    if factor <= 0:
+        raise ValueError('factor must be positive')
+    for axis in range(3):
+        if asset['dimensions_m'][axis] < 0:
+            raise ValueError('dimensions_m must be non-negative')
+        if asset['bounds_min_m'][axis] > asset['bounds_max_m'][axis] or lower[axis] > upper[axis]:
+            raise ValueError('Bounds must be ordered from lower to upper')
+
     def close(actual, expected, tolerance, label):
-        if not math.isfinite(actual) or abs(actual - expected) > tolerance:
+        # Validate derived values too: finite inputs can overflow when scaled.
+        finite(actual, label + ' actual')
+        finite(expected, label + ' expected')
+        finite(tolerance, label + ' tolerance')
+        if abs(actual - expected) > tolerance:
             raise ValueError(f'{label}: actual {actual}, expected {expected}, tolerance {tolerance}')
     for axis in range(3):
         expected = asset['dimensions_m'][axis] * factor
