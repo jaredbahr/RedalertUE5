@@ -3,6 +3,9 @@
 #include "Commands/ProofCommandModel.h"
 #include <cmath>
 #include <limits>
+#if PLATFORM_CPU_X86_FAMILY
+#include <xmmintrin.h>
+#endif
 
 // Synthetic numeric and saturation boundaries only. Travel, orders, damage,
 // economy, production and lifecycle cases execute the production model.
@@ -320,24 +323,39 @@ bool FProofLastTravelDirectionTest::RunTest(const FString&)
         const FVector Inputs[] = { FVector(Huge, Huge, 0), FVector(-Huge, Huge, 0),
             FVector(Tiny, Tiny, 0), FVector(-Tiny, 0, 0), FVector(0, -Tiny, 0),
             FVector(Huge, Tiny, 0), FVector(-0.0, Tiny, 0) };
+        int32 NumericCase = 0;
         for (const FVector& Position : Inputs)
         {
             FProofUnitRecord Unit;
             Unit.Position = Position;
             Unit.LastTravelDirection = Prior;
+            const auto Bits = [](double Value) { uint64 Out; FMemory::Memcpy(&Out, &Value, sizeof(Out)); return static_cast<unsigned long long>(Out); };
+            unsigned int BeforeControl = 0, AfterControl = 0;
+#if PLATFORM_CPU_X86_FAMILY
+            BeforeControl = _mm_getcsr();
+#endif
             FProofLastTravelDirectionFixture::Record(Unit, FVector::ZeroVector);
+#if PLATFORM_CPU_X86_FAMILY
+            AfterControl = _mm_getcsr();
+#endif
             const FVector Direction = Unit.LastTravelDirection;
+            AddInfo(FString::Printf(TEXT("TRAVEL_NUMERIC case=%d input=(%.17g,%.17g,%.17g) inputBits=(%016llx,%016llx,%016llx) prior=(%.17g,%.17g,%.17g) output=(%.17g,%.17g,%.17g) outputBits=(%016llx,%016llx,%016llx) mxcsrBefore=0x%08x mxcsrAfter=0x%08x DAZ=%u FTZ=%u"),
+                NumericCase, Position.X, Position.Y, Position.Z, Bits(Position.X), Bits(Position.Y), Bits(Position.Z),
+                Prior.X, Prior.Y, Prior.Z, Direction.X, Direction.Y, Direction.Z,
+                Bits(Direction.X), Bits(Direction.Y), Bits(Direction.Z), BeforeControl, AfterControl,
+                (BeforeControl >> 6) & 1u, (BeforeControl >> 15) & 1u));
             TestTrue(TEXT("extreme and subnormal output is finite normalized XY"), std::isfinite(Direction.X)
                 && std::isfinite(Direction.Y) && Direction.Z == 0.0 && std::abs(std::hypot(Direction.X, Direction.Y) - 1.0) < 1.e-12);
             TestTrue(TEXT("numeric update preserves source position"), Unit.Position == Position);
-            TestTrue(TEXT("numeric direction preserves nonzero component signs"),
+            TestTrue(FString::Printf(TEXT("numeric direction preserves nonzero component signs [case=%d]"), NumericCase),
                 (Position.X == 0.0 || Direction.X == 0.0 || std::signbit(Direction.X) == std::signbit(Position.X))
                 && (Position.Y == 0.0 || Direction.Y == 0.0 || std::signbit(Direction.Y) == std::signbit(Position.Y)));
             TestTrue(TEXT("zero output components are canonical positive zero"),
                 (Direction.X != 0.0 || !std::signbit(Direction.X)) && (Direction.Y != 0.0 || !std::signbit(Direction.Y)) && !std::signbit(Direction.Z));
             if (std::abs(Position.X) == std::abs(Position.Y))
-                TestTrue(TEXT("equal extreme components stay diagonal"), std::abs(std::abs(Direction.X) - std::sqrt(0.5)) < 1.e-12
+                TestTrue(FString::Printf(TEXT("equal extreme components stay diagonal [case=%d]"), NumericCase), std::abs(std::abs(Direction.X) - std::sqrt(0.5)) < 1.e-12
                     && std::abs(std::abs(Direction.Y) - std::sqrt(0.5)) < 1.e-12);
+            ++NumericCase;
         }
         const double NaN = std::numeric_limits<double>::quiet_NaN();
         const double Inf = std::numeric_limits<double>::infinity();
