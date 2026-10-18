@@ -800,7 +800,8 @@ void AProofRTSPawn::Produce()
         {
             if (Unit.OwnerId == PC->OwnerId && Unit.HitPoints > 0.f && Unit.Kind == EProofUnitKind::Factory)
             {
-                Command.UnitId = Unit.UnitId;
+                if (Command.UnitId == INDEX_NONE || Unit.UnitId == SelectedUnitId)
+                    Command.UnitId = Unit.UnitId;
                 if (Unit.UnitId == SelectedUnitId) break;
             }
         }
