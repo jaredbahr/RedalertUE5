@@ -3,7 +3,7 @@
 ## What is implemented
 
 - Original Blender primitive blockouts: Tesla Reactor, Rhino Tank, and Conscript together, with a repeatable RTS camera, a genuinely wider view, and a short placeholder motion review.
-- Source-only content pipeline: editable Blender scene, individual FBX exports, mesh manifest, round-trip validation, and offline review player regenerated on D:. No third-party content or Python packages are required.
+- Source-only content pipeline: editable Blender scene, individual FBX exports, mesh manifest, round-trip validation, and offline review player regenerated on the designated non-system drive. No third-party content or Python packages are required.
 - Content-only UE 5.7.4 project: explicit FBX factory import, centimeter-scale bounds checks, generated map, lighting, ground and two cameras. Generated assets are local; the importer rebuilds only its own tagged actors and namespace.
 - Separate Node command-contract experiment: host validation shared by human/bot command drivers, two actual loopback TCP clients, and exactly matching host/client snapshots.
 
@@ -27,11 +27,11 @@ All six Node tests passed independently. The combined smoke used 12 initial toy 
 
 ## Storage and housekeeping
 
-The UE log confirmed writable derived-data cache at `generated/ue-cache` and shader working data under `generated/ue-temp` / project `Intermediate`, all on D:. The launcher sets process-local TEMP/TMP and a filesystem-only DDC graph. This is limited path evidence; engine/OS/plugin activity outside those paths has not been exhaustively audited, and zero C: writes are not claimed.
+The UE log confirmed writable derived-data cache at `generated/ue-cache` and shader working data under `generated/ue-temp` / project `Intermediate`, all on the designated non-system drive. The launcher sets process-local TEMP/TMP and a filesystem-only DDC graph. This is limited path evidence; engine/OS/plugin activity outside those paths has not been exhaustively audited, and zero system-drive writes are not claimed.
 
 Source/configuration is tracked; `generated/`, Unreal Content/Saved/Intermediate/DDC and editor files are ignored. Local generated `.blend`, FBXs and captures are retained for review, not deleted or uploaded. Binary/LFS budget review is still required before any binary upload. Raw engine logs are not committed because they can contain machine/session identifiers and generated settings.
 
-Read-only inspection verified installed UE 5.7.4, Blender 4.5.10 LTS, Node 24.19.0, VS 2022/MSVC and a Windows SDK. UE logs identify a Ryzen 7 7800X3D and approximately 64 GB physical RAM. Installed tools and machine observations do not establish a target hardware budget. No new tools, dependencies, assets, purchases, agreements or security changes were needed.
+Read-only inspection verified installed UE 5.7.4, Blender 4.5.10 LTS, Node 24.19.0, VS 2022/MSVC and a Windows SDK. UE logs identify a private host hardware (details withheld). Installed tools and machine observations do not establish a target hardware budget. No new tools, dependencies, assets, purchases, agreements or security changes were needed.
 
 ## Review gates and next work
 

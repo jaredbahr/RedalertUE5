@@ -3,7 +3,7 @@
   "testedCommit": "e6728863a2c1f24e92c09eceff560444eec357fd",
   "sourceClean": true,
   "build": {
-    "path": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\stop-build-e672886.log",
+    "path": ".\\generated\\stop-build-e672886.log",
     "passed": true,
     "sha256": "661337B01500F06C318BCBE223A692EFDD860A0B380E49265414AAAFF8CB307F",
     "elapsedSeconds": 137.64
@@ -11,11 +11,11 @@
   "modelCasesPassed": 60,
   "runs": [
     {
-      "name": "controls-20261017-033644-768",
+      "name": "controls-<local-run>",
       "head": "e6728863a2c1f24e92c09eceff560444eec357fd",
       "dirtyWorkingTree": false,
       "passed": true,
-      "resultPath": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\controls-20261017-033644-768\\result.json",
+      "resultPath": ".\\generated\\controls-<local-run>\\result.json",
       "resultSha256": "3E9ACC92E495B02459F5FCC73E3E140A0EE79E727C438E9A715E3EF420FD9F2F",
       "elapsedSeconds": 56.851,
       "scenarioElapsedSeconds": 45.438,
@@ -70,28 +70,28 @@
         {
           "bytes": 793848,
           "height": 720,
-          "path": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\controls-20261017-033644-768\\screenshots\\01-selected.png",
+          "path": ".\\generated\\controls-<local-run>\\screenshots\\01-selected.png",
           "sha256": "A6814F1054E263239B4BCC210D55686DA610ED67F74C5A07A7AA884E426BBA90",
           "width": 1280
         },
         {
           "bytes": 799193,
           "height": 720,
-          "path": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\controls-20261017-033644-768\\screenshots\\02-moved-combat-produced.png",
+          "path": ".\\generated\\controls-<local-run>\\screenshots\\02-moved-combat-produced.png",
           "sha256": "D30BA5119A26D98910DE7B3673CFD3291D3F3D3E7D13695224BF482CD24D57C4",
           "width": 1280
         },
         {
           "bytes": 801366,
           "height": 720,
-          "path": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\controls-20261017-033644-768\\screenshots\\03-stop.png",
+          "path": ".\\generated\\controls-<local-run>\\screenshots\\03-stop.png",
           "sha256": "1F51E78FBB1F219B4BF9F82701EF5BB75B44E749A32145FE7E0AB28A20843780",
           "width": 1280
         },
         {
           "bytes": 795959,
           "height": 720,
-          "path": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\controls-20261017-033644-768\\screenshots\\04-stop-resumed.png",
+          "path": ".\\generated\\controls-<local-run>\\screenshots\\04-stop-resumed.png",
           "sha256": "9A2C15108CCD7B31946C8D1C1B8B95294247AB083253CA7B8AC62850988EA3CF",
           "width": 1280
         }
@@ -127,35 +127,35 @@
         {
           "name": "01-selected.png",
           "bytes": 793848,
-          "lastWriteUtc": "2026-10-17T03:37:17.6058631Z",
+          "lastWriteUtc": "<private-runtime-time>",
           "sha256": "A6814F1054E263239B4BCC210D55686DA610ED67F74C5A07A7AA884E426BBA90"
         },
         {
           "name": "02-moved-combat-produced.png",
           "bytes": 799193,
-          "lastWriteUtc": "2026-10-17T03:37:26.1736725Z",
+          "lastWriteUtc": "<private-runtime-time>",
           "sha256": "D30BA5119A26D98910DE7B3673CFD3291D3F3D3E7D13695224BF482CD24D57C4"
         },
         {
           "name": "03-stop.png",
           "bytes": 801366,
-          "lastWriteUtc": "2026-10-17T03:37:29.2926548Z",
+          "lastWriteUtc": "<private-runtime-time>",
           "sha256": "1F51E78FBB1F219B4BF9F82701EF5BB75B44E749A32145FE7E0AB28A20843780"
         },
         {
           "name": "04-stop-resumed.png",
           "bytes": 795959,
-          "lastWriteUtc": "2026-10-17T03:37:29.7735455Z",
+          "lastWriteUtc": "<private-runtime-time>",
           "sha256": "9A2C15108CCD7B31946C8D1C1B8B95294247AB083253CA7B8AC62850988EA3CF"
         }
       ]
     },
     {
-      "name": "controls-20261017-033756-817",
+      "name": "controls-<local-run>",
       "head": "e6728863a2c1f24e92c09eceff560444eec357fd",
       "dirtyWorkingTree": false,
       "passed": true,
-      "resultPath": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\controls-20261017-033756-817\\result.json",
+      "resultPath": ".\\generated\\controls-<local-run>\\result.json",
       "resultSha256": "3C81651836948A7F967BB15C28FF10824C24095B3E6952CFBAF307EAB736AE0C",
       "elapsedSeconds": 52.971,
       "scenarioElapsedSeconds": 42.268,
@@ -173,14 +173,14 @@
           "width": 1280,
           "height": 720,
           "sha256": "CA035E74CB2B88CD2C7E4805FA136A24567199B210C5A14A02A71BFF95328E14",
-          "path": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\controls-20261017-033756-817\\screenshots\\01-selected.png"
+          "path": ".\\generated\\controls-<local-run>\\screenshots\\01-selected.png"
         },
         {
           "bytes": 799480,
           "width": 1280,
           "height": 720,
           "sha256": "E67E6748989035FE70E34C8BFFC668FFAA4F839E7AA5AC75078416B0840E7011",
-          "path": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\controls-20261017-033756-817\\screenshots\\02-moved-combat-produced.png"
+          "path": ".\\generated\\controls-<local-run>\\screenshots\\02-moved-combat-produced.png"
         }
       ],
       "rawFiles": [
@@ -214,23 +214,23 @@
         {
           "name": "01-selected.png",
           "bytes": 794037,
-          "lastWriteUtc": "2026-10-17T03:38:27.2019987Z",
+          "lastWriteUtc": "<private-runtime-time>",
           "sha256": "CA035E74CB2B88CD2C7E4805FA136A24567199B210C5A14A02A71BFF95328E14"
         },
         {
           "name": "02-moved-combat-produced.png",
           "bytes": 799480,
-          "lastWriteUtc": "2026-10-17T03:38:35.7640929Z",
+          "lastWriteUtc": "<private-runtime-time>",
           "sha256": "E67E6748989035FE70E34C8BFFC668FFAA4F839E7AA5AC75078416B0840E7011"
         }
       ]
     },
     {
-      "name": "fidelity-model-20261017-033604-480",
+      "name": "fidelity-model-<local-run>",
       "head": "e6728863a2c1f24e92c09eceff560444eec357fd",
       "dirtyWorkingTree": false,
       "passed": true,
-      "resultPath": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\fidelity-model-20261017-033604-480\\result.json",
+      "resultPath": ".\\generated\\fidelity-model-<local-run>\\result.json",
       "resultSha256": "77525C5F9B43950DDF6547D399034A3516352FE1556535B624139C5E5B5F6641",
       "elapsedSeconds": 13.406,
       "testCount": 4,
@@ -252,11 +252,11 @@
       "reportIndexSha256": "B6027EF844E5F6823C377F60CF3FBD0468F5B6DAECAFE3BB34089816F4BB9390"
     },
     {
-      "name": "group-controls-model-20261017-033549-689",
+      "name": "group-controls-model-<local-run>",
       "head": "e6728863a2c1f24e92c09eceff560444eec357fd",
       "dirtyWorkingTree": false,
       "passed": true,
-      "resultPath": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\group-controls-model-20261017-033549-689\\result.json",
+      "resultPath": ".\\generated\\group-controls-model-<local-run>\\result.json",
       "resultSha256": "B42D742F66A36803B85F531EBC781E022A2D162C281A9F5E7DC2FE6568C8A17A",
       "elapsedSeconds": 14.686,
       "testCount": 11,
@@ -278,11 +278,11 @@
       "reportIndexSha256": "A39D470D13F42FB62E9081558C26C3FB6082F3C023C8F0A091AF79EC0A4BB001"
     },
     {
-      "name": "hud-layout-model-20261017-033618-017",
+      "name": "hud-layout-model-<local-run>",
       "head": "e6728863a2c1f24e92c09eceff560444eec357fd",
       "dirtyWorkingTree": false,
       "passed": true,
-      "resultPath": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\hud-layout-model-20261017-033618-017\\result.json",
+      "resultPath": ".\\generated\\hud-layout-model-<local-run>\\result.json",
       "resultSha256": "759AC00C4C3868A798ED81C60A086F0D72F967A012CD159AB1910DCB9399E1CB",
       "elapsedSeconds": 13.302,
       "testCount": 5,
@@ -291,7 +291,7 @@
       "error": null,
       "cleanup": {
         "launched": true,
-        "pid": 24496,
+        "pid": null,
         "verifiedExited": true,
         "terminationRequested": false,
         "error": null
@@ -311,11 +311,11 @@
       "reportIndexSha256": "62777D6C495A3191BC7C21A9279D1815B086D1CC6EC4C616AAECCF4AA4E437F8"
     },
     {
-      "name": "native-model-20261017-033534-884",
+      "name": "native-model-<local-run>",
       "head": "e6728863a2c1f24e92c09eceff560444eec357fd",
       "dirtyWorkingTree": false,
       "passed": true,
-      "resultPath": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\native-model-20261017-033534-884\\result.json",
+      "resultPath": ".\\generated\\native-model-<local-run>\\result.json",
       "resultSha256": "5A412CDE640B197FBAA15853DF198B9B836CDAB5FCB293FC3D8C8DC58EB0AF2B",
       "elapsedSeconds": 14.689,
       "testCount": 7,
@@ -337,11 +337,11 @@
       "reportIndexSha256": "0A0EC823745383C8CEE8AE741BCB1F4AC6A30F8A9D5C3261DC3BFD9EEBFF3CBD"
     },
     {
-      "name": "skirmish-model-20261017-033518-841",
+      "name": "skirmish-model-<local-run>",
       "head": "e6728863a2c1f24e92c09eceff560444eec357fd",
       "dirtyWorkingTree": false,
       "passed": true,
-      "resultPath": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\skirmish-model-20261017-033518-841\\result.json",
+      "resultPath": ".\\generated\\skirmish-model-<local-run>\\result.json",
       "resultSha256": "2D82BDEDF0296DBD56CD31D984C7FAE4C5EBDE8A497181DC780E6FEA7A3B20CD",
       "elapsedSeconds": 15.838,
       "testCount": 22,
@@ -363,11 +363,11 @@
       "reportIndexSha256": "B393FB587D3704E384A48D44C516C1852A992672F08373597532076451378C45"
     },
     {
-      "name": "small-match-victory-20261017-033912-350",
+      "name": "small-match-victory-<local-run>",
       "head": "e6728863a2c1f24e92c09eceff560444eec357fd",
       "dirtyWorkingTree": false,
       "passed": false,
-      "resultPath": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\small-match-victory-20261017-033912-350\\result.json",
+      "resultPath": ".\\generated\\small-match-victory-<local-run>\\result.json",
       "resultSha256": "2AAA65061F1999D34DE420F410DB18F932EC791E93AEE4D790A16C440A24ADBC",
       "elapsedSeconds": 51.144,
       "scenarioElapsedSeconds": 50.912,
@@ -391,17 +391,17 @@
         {
           "name": "01-base.png",
           "bytes": 812142,
-          "lastWriteUtc": "2026-10-17T03:39:23.1624263Z",
+          "lastWriteUtc": "<private-runtime-time>",
           "sha256": "F90F13AA9C22A9004CD44983B93C6EC80B12DE3B9E23E2CD84C2BFD552F122B9"
         }
       ]
     },
     {
-      "name": "stop-model-20261017-033503-436",
+      "name": "stop-model-<local-run>",
       "head": "e6728863a2c1f24e92c09eceff560444eec357fd",
       "dirtyWorkingTree": false,
       "passed": true,
-      "resultPath": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\stop-model-20261017-033503-436\\result.json",
+      "resultPath": ".\\generated\\stop-model-<local-run>\\result.json",
       "resultSha256": "C462E94DDF848C7D0EE006DDCFAC48F92F0B567E61D8EDCFCF7C5762D83BCB2B",
       "elapsedSeconds": 15.26,
       "testCount": 11,
@@ -410,7 +410,7 @@
       "error": null,
       "cleanup": {
         "launched": true,
-        "pid": 27208,
+        "pid": null,
         "verifiedExited": true,
         "terminationRequested": false,
         "error": null
@@ -448,13 +448,13 @@
     "scenario": "Victory",
     "sequence": 96,
     "lastPublishedUnitOwner": 1,
-    "rejectedUtc": "2026-10-17T03:40:02.663Z",
+    "rejectedUtc": "<private-runtime-time>",
     "phaseFlagsAllSet": true,
     "unit": 20,
     "interpretation": "Consistent with owned attacker dying between published snapshot and validation; source-supported inference, not direct validation-time death evidence. Stop unused in this scenario; no causal link to Stop established.",
     "type": "Attack",
     "lastPublishedUnitHP": 2.5,
-    "lastPublishedUtc": "2026-10-17T03:40:02.563Z",
+    "lastPublishedUtc": "<private-runtime-time>",
     "target": 30,
     "teardown": "Later missing-unit/terminal snapshot follows failure teardown and cannot establish pre-validation death.",
     "reason": "ownership",
@@ -471,7 +471,7 @@
   "processExit": {
     "remainingOwnedIntegrationEngineBuildProcesses": 0,
     "noFurtherEngineJobsLaunched": true,
-    "checkedUtc": "2026-10-17T03:46:55.7252984Z",
+    "checkedUtc": "<private-runtime-time>",
     "heavySlotReleased": true
   },
   "limitations": [
@@ -479,5 +479,6 @@
     "Stop shared-handler runtime does not prove native/physical S input.",
     "Generic art, dense HUD, Internet, performance and startup-cause gates remain separate.",
     "No installs, purchases, hosted Actions or binary uploads."
-  ]
+  ],
+  "privacyNote": "Sanitized public summary: local paths, runtime identifiers/times and machine-specific masks are withheld; original evidence is retained privately. Pass/fail, durations, counts and source/hash bindings are unchanged."
 }

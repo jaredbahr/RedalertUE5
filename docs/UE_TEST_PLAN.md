@@ -9,7 +9,7 @@ connectivity, eight-player readiness, army budgets, or performance.
 After building the editor module, run `unreal/Scripts/test-native-model.ps1`.
 It runs `Automation RunTests RedalertProof.Commands` in UE 5.7.4
 `UnrealEditor-Cmd.exe` with `-unattended -nullrhi`, four-core limit and a maximum
-90-second deadline. Fresh logs, report, cache and temporary files stay on D:.
+90-second deadline. Fresh logs, report, cache and temporary files stay on the designated non-system drive.
 It requires the JSON report to contain exactly the four named tests with state
 `Success`, four successes and zero failures, in addition to a clean exit code.
 
@@ -28,7 +28,7 @@ generating `/Game/CommandProofGenerated/Maps/CommandProof`. The separate
 `VisualProof` map remains the art review scene. The runner starts one
 headless UE server and two UE game clients, each limited to two cores. Its
 default 60-second deadline includes startup. Logs, temporary files, cache and
-machine-readable `result.json` stay under ignored `generated/` on D:.
+machine-readable `result.json` stay under ignored `generated/` on the designated non-system drive.
 
 The runner probes UDP port availability on loopback and explicitly binds the
 server to `127.0.0.1`, waits for readiness, and requires:

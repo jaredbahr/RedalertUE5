@@ -128,5 +128,6 @@
   "ownershipRetryPolicySyntheticCases": 22,
   "correctionIndependentReview": "build, 62 models including two actual-model shared-policy cases, Stop/default controls, Victory/Defeat/Co-op and lifecycle passed; live ownership timing was not reproduced",
   "testedCommit": "b10e1ffb41ec4826e4e7755da292ac36c6c1af59",
-  "acceptedLedger": "stop-accepted-batch.json"
+  "acceptedLedger": "stop-accepted-batch.json",
+  "privacyNote": "Sanitized public summary: local paths, runtime identifiers/times and machine-specific masks are withheld; original evidence is retained privately. Pass/fail, durations, counts and source/hash bindings are unchanged."
 }

@@ -6,7 +6,7 @@ Source inspection found that `GetPointerScreenPosition` accepted any successful 
 
 The follow-up rejects nonfinite/outside viewport points for both real and projected synthetic input, rejects ground rays outside the constrained view rectangle, and preserves selection when pointer lookup is unavailable or outside the viewport. Valid empty-ground selection still clears; valid world orders retain their existing shared command path. It does not change HUD hit regions, focus rules, bindings, camera defaults, authority, queues or simulation.
 
-Run `cmd /d /c tests\run-pointer-bounds-tests.cmd` from this D: checkout. The script uses the existing installed Visual Studio environment (or the existing D: installation), compiles the actual production header with warnings as errors, and runs 28 boundary cases. Root and independent review each passed all 28. Tests cover finite fractional interior points, all viewport edges, nonfinite inputs/bounds, empty/reversed rectangles, 960x540 and offset constrained rectangles. Outputs stay under ignored `generated/`; this focused runner launches no UE process.
+Run `cmd /d /c tests\run-pointer-bounds-tests.cmd` from this the designated non-system drive checkout. The script uses the existing installed Visual Studio environment (or the existing the designated non-system drive installation), compiles the actual production header with warnings as errors, and runs 28 boundary cases. Root and independent review each passed all 28. Tests cover finite fractional interior points, all viewport edges, nonfinite inputs/bounds, empty/reversed rectangles, 960x540 and offset constrained rectangles. Outputs stay under ignored `generated/`; this focused runner launches no UE process.
 
 ## Scoped engine compatibility
 
@@ -16,12 +16,12 @@ Six serial runtime checks passed at that source with unchanged runner deadlines 
 
 | Gate | Local directory under generated/ | Scenario seconds / unchanged limit | PNGs |
 | --- | --- | ---: | ---: |
-| Default controls | controls-20261017-140103-721 | 44.220 / 90 | 2 |
-| Stop controls | controls-20261017-140228-721 | 45.403 / 90 | 4 |
-| Type selection | controls-type-selection-20261017-140329-638 | 44.530 / 90 | 4 |
-| Victory, HUD/camera 960x540 | small-match-victory-20261017-140429-206 | 95.977 / 240 | 7 |
-| Cooperative factory rally | small-match-coop-20261017-140608-480 | 130.370 / 240 | 3 |
-| Attack Move | attack-move-proof-20261017-140822-224 | 53.022 / 90 | 3 |
+| Default controls | controls-<local-run> | 44.220 / 90 | 2 |
+| Stop controls | controls-<local-run> | 45.403 / 90 | 4 |
+| Type selection | controls-type-selection-<local-run> | 44.530 / 90 | 4 |
+| Victory, HUD/camera 960x540 | small-match-victory-<local-run> | 95.977 / 240 | 7 |
+| Cooperative factory rally | small-match-coop-<local-run> | 130.370 / 240 | 3 |
+| Attack Move | attack-move-proof-<local-run> | 53.022 / 90 | 3 |
 
 Controls and Attack Move graphics warmup remained separately bounded at 300 seconds. Exact invocations, clean source/config/project/DLL bindings, asset hashes and per-row result hashes are in local `generated/pointer-runtime-invocations.json`, `pointer-build-binding.json` and `pointer-runtime-batch.json`. Root raw/image review and independent receipts remain beside them. The heavy allocation was released with no UE/build processes remaining.
 
