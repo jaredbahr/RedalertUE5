@@ -24,7 +24,7 @@ Local lane owns ProofHUD.cpp wiring, candidate content and applicable engine/nat
 
 1. Independent source review confirms critical full/compact variants retain identical values and current marker/panel/input invariants.
 2. Portable production-header cases pass on the cloud worker; report exact counts and no engine acceptance claim.
-3. After explicit confirmation that Imagination's smoke allocation released, obtain a fresh bounded host allocation/capacity check before any UE build/native/runtime process. Do not infer release from idle-looking host samples.
+3. After explicit confirmation that the competing heavy-work allocation released, obtain a fresh bounded host allocation/capacity check before any UE build/native/runtime process. Do not infer release from idle-looking host samples.
 4. Build the final frozen clean source. Run focused HUD native cases and targeted1280x720/960x540 skirmish captures with existing original deadlines/assertions, plus representative controls/Stop compatibility only where wiring changes justify it. Verify actual Canvas measurements and independently inspect native-size PNGs: critical fields contained and complete, no panel/world overlap, primary information stays inspectable in the tested dense case. Targeted cases include large IDs/economy/cargo/group counts, factory rally set/unset, no selection and explicit no-choice behavior; a no-choice critical-field result does not pass that viewport.
 5. Retain all failures; no automatic retries or deadline widening. Do not close issue18 based only on a helper test or one viewport. Physical input, army-scale, final art and arbitrary-edge acceptance remain separate.
 
@@ -34,10 +34,10 @@ Preserve the existing known-working trial checkout, DLL and14 assets as rollback
 
 ## Historical preparation state
 
-Prepared source now includes the reviewed cloud helper, complete local formatting/Canvas wiring and fail-closed critical-text capture checks. Cloud supplied23 portable checks, passing normal and optimized builds with independent review. Local production-parser44 synthetic checks pass in PowerShell7 and5.1. Three native formatter groups are prepared alongside the original ten HUD cases. No UE compile/runtime or trial refresh has run at this checkpoint. Imagination release at04:28UTC is confirmed; fresh admission is still required.
+Prepared source now includes the reviewed cloud helper, complete local formatting/Canvas wiring and fail-closed critical-text capture checks. Cloud supplied23 portable checks, passing normal and optimized builds with independent review. Local production-parser44 synthetic checks pass in PowerShell7 and5.1. Three native formatter groups are prepared alongside the original ten HUD cases. No UE compile/runtime or trial refresh has run at this checkpoint. The competing allocation release is confirmed; fresh admission is still required.
 ## Exact cloud assignment contract
 
-Baseline: public main618ac23f5669cd0ef2783c589cc37b2eea0fdcfa, rechecked unchanged before this assignment. Local reviewed plan checkpoint4b90b927e489426f607ba15618895c7606efe953 is not a public baseline. Cloud owns only the following production header and portable test file:
+Baseline: public main618ac23f5669cd0ef2783c589cc37b2eea0fdcfa, rechecked unchanged before this assignment. The cloud assignment used the pinned main baseline, rather than the later plan commits. Cloud owns only the following production header and portable test file:
 
 - unreal/Source/RedalertProof/Presentation/ProofHUDTextChoice.h
 - tests/hud_text_choice_tests.cpp
