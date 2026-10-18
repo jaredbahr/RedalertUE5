@@ -47,3 +47,11 @@ The corrected receipt reports 270.804 scenario seconds and 271.147 total seconds
 The first `8d11e03` run remains a failed receipt (`B1E92BF9F3F0FD7211655D6967EC900981DAD81507CBEE4BA4DEAE81BC6A1D9B`). Corrected diagnostic parsing does not relabel it. Local root/independent reviews, build binding, corrected invocation, asset manifest and release receipt remain under ignored `generated/`. The heavy allocation was released at 15:17:16.2963695 UTC with zero UE/build processes.
 
 This branch starts at main `f1a106ad8be722ce31bc4cc568c043b4b398d857`. Jared subsequently authorized routine publication of validated follow-ups. A combined candidate with pointer-bounds and native Stop needs its own applicable engine checks and independent review before readiness and merge; these standalone results do not validate that combination.
+
+## Combined acceptance checkpoint
+
+The combined candidate at `9b9403f51417fcce3de159b779943c49bae31023` was subsequently built and checked after pointer-bounds reconciliation. Source tree `7592f7c0e3fcd30fc9b9002855acb8c7c7e8690d`, Config and project inputs bind the fresh DLL `82269BA43E6E2EDE4E82734C6C82D1242265C7142D68A8BCDA516311FC3BFB3E`.
+
+The unchanged exact 12-case native suite, default controls, native S-key Stop binding and cooperative context-routing scenarios passed. All 11 fresh captures were inspected at native size by root and independent review. Cooperative checks recorded 324 matching revisions, ten context phases and 126 commands. The initial combined native timeout remains a failed attempt; a separate readiness diagnostic passed before the new unchanged acceptance run. No startup cause is declared fixed.
+
+This supersedes the earlier pending-combination statement for that exact checkpoint. Original standalone and failed evidence is retained privately; later documentation-only publication changes do not change the bound engine inputs. Physical keyboard/mouse, OS focus, internet play, army-scale performance, art and broader HUD acceptance remain unverified. Issues #17/#18 remain open. No paid Actions or raw private logs are needed for publication.

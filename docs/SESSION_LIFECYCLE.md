@@ -13,26 +13,26 @@ This batch extends draft PR25's engineering foundation. It does not establish RA
 Prepared local playtest command (files and scripts verified; no visible game was opened for this batch):
 
 ```powershell
-& 'D:\UserTemp\RedalertUE5-lifecycle\unreal\Scripts\start-small-match.ps1' -EngineRoot 'D:\Epic Games\UE_5.7' -SessionSeconds 900
+& '.\unreal\Scripts\start-small-match.ps1' -EngineRoot $env:UE_ENGINE_ROOT -SessionSeconds 900
 ```
 
-Use the existing select/right-click/R/F/P/wheel controls. Owner1 presses **N** after victory/defeat/draw to request a rematch; **Escape** exits. The launcher gives a five-second warning and defaults to a 15-minute guard. Native physical input, focus behavior and the new N callback still require a human playtest; automated tests do not establish them. Prior manual game PID11560 and helper PID23448 were confirmed absent; their retained session ended normally at 17:59:21 UTC, not by timeout.
+Use the existing select/right-click/R/F/P/wheel controls. Owner1 presses **N** after victory/defeat/draw to request a rematch; **Escape** exits. The launcher gives a five-second warning and defaults to a 15-minute guard. Native physical input, focus behavior and the new N callback still require a human playtest; automated tests do not establish them. Prior manual game process (local identifier withheld) and helper process (local identifier withheld) were confirmed absent; their retained session ended normally at 17:59:21 UTC, not by timeout.
 
 ## Final validation
 
-Validated compiled source: `649515a22b7822e180d8e7c7accaf6f23179b8e3`, clean at each listed final test's start. The fixture-only terminal evidence repair `aa208666d197ee03038d955f35248999e59556b4` was then rebuilt and verified at clean head `9f2d5626f4b40e1d2ae1ca935a625bd3d9dcedb9` after the resource handoff returned. That build succeeded in six actions / 8.39 seconds total (4.96 seconds in the parallel executor). No model or gameplay rules changed in that repair. Installed UE5.7.4 built the final cargo fix in five actions / 4.22 seconds. All jobs were serialized with two available logical CPUs, Normal-priority/polling policies, D: cache/temp paths and bounded test deadlines. Policy polling is not hard confinement. Result paths below are under ignored `D:/UserTemp/RedalertUE5-lifecycle/generated/`.
+Validated compiled source: `649515a22b7822e180d8e7c7accaf6f23179b8e3`, clean at each listed final test's start. The fixture-only terminal evidence repair `aa208666d197ee03038d955f35248999e59556b4` was then rebuilt and verified at clean head `9f2d5626f4b40e1d2ae1ca935a625bd3d9dcedb9` after the resource handoff returned. That build succeeded in six actions / 8.39 seconds total (4.96 seconds in the parallel executor). No model or gameplay rules changed in that repair. Installed UE5.7.4 built the final cargo fix in five actions / 4.22 seconds. All jobs were serialized with two available logical CPUs, Normal-priority/polling policies, the designated non-system drive cache/temp paths and bounded test deadlines. Policy polling is not hard confinement. Result paths below are under ignored `./generated/`.
 
 | Gate | Result | Evidence directory |
 | --- | --- | --- |
-| Skirmish economy/bot/rules/reset/disconnect groups | 14/14, zero failures, 12.253s | `skirmish-model-20261016-212446-725` |
-| Existing native command/owner/ingress groups | 7/7, zero failures, 12.058s | `native-model-20261016-212459-004` |
-| Active model stress baseline | Pass, three cohorts, repeated digest matches, 11.962s total editor wall time | `stress-baseline-20261016-212511-082` |
-| Actual loopback lifecycle | Pass, 96.701s, 320 matching common epoch/revision digests | `session-lifecycle-20261016-212523-083` |
-| Existing native host/two-client proof | Pass, 60 matching revisions | `native-network-20261016-212721-174` |
-| RPC flood close and healthy-client isolation | Pass, 17.483s | `rpc-ingress-20261016-212752-291` |
-| Offscreen rendered controls | Pass, 53.206s, 55 matching revisions | `controls-20261016-212809-839` |
-| Existing cooperative rendered match | Failed overall, 90.739s; both clients passed and winner0, delayed host roster assertion failed after normal client cleanup | `small-match-coop-20261016-212903-083` |
-| Terminal-roster fixture repair and Coop rerun | Pass, 91.058s, 332 matching common revisions, winner0, no cleanup errors; clean head `9f2d562` | `small-match-coop-20261016-214424-482` |
+| Skirmish economy/bot/rules/reset/disconnect groups | 14/14, zero failures, 12.253s | `skirmish-model-<local-run>` |
+| Existing native command/owner/ingress groups | 7/7, zero failures, 12.058s | `native-model-<local-run>` |
+| Active model stress baseline | Pass, three cohorts, repeated digest matches, 11.962s total editor wall time | `stress-baseline-<local-run>` |
+| Actual loopback lifecycle | Pass, 96.701s, 320 matching common epoch/revision digests | `session-lifecycle-<local-run>` |
+| Existing native host/two-client proof | Pass, 60 matching revisions | `native-network-<local-run>` |
+| RPC flood close and healthy-client isolation | Pass, 17.483s | `rpc-ingress-<local-run>` |
+| Offscreen rendered controls | Pass, 53.206s, 55 matching revisions | `controls-<local-run>` |
+| Existing cooperative rendered match | Failed overall, 90.739s; both clients passed and winner0, delayed host roster assertion failed after normal client cleanup | `small-match-coop-<local-run>` |
+| Terminal-roster fixture repair and Coop rerun | Pass, 91.058s, 332 matching common revisions, winner0, no cleanup errors; clean head `9f2d562` | `small-match-coop-<local-run>` |
 
 The lifecycle fixture uses a dedicated NullRHI host and sequential local client processes. Both initial clients receive matching state before owner 2 is terminated. The host cleans slot2, the rejoin binds slot2 without a grant, and a third connection is rejected. Epoch1 naturally ends in human defeat (winner1), epoch2 in human victory (winner0); both exact terminal snapshots agree across host and clients. Owner1 requests two rematches through the actual ingress-limited RPC, and both participants receive accepted sequence1 commands in epochs2 and3. A deliberately old epoch1 command is rejected in epoch2 without consuming its new sequence, and its receipt is ignored by the client. A requested finish ends the fixture after epoch3's fresh commands; shutdown forfeits are not an extra completed gameplay match. The scenario retains a 240-second deadline and verifies owner 1 stays connected before that finish gate.
 
@@ -40,7 +40,7 @@ The fixture pauses simulation while the runner arranges the roster/control gates
 
 ## Measured model baseline
 
-Hardware context in `validation-host.json`: Ryzen 7 7800X3D, eight visible logical processors, approximately 63.2 GiB OS-visible RAM, Windows 11 Pro; the fixture used two logical CPUs at Normal priority on a shared PC. This is a legacy command-model workload, outside the small-skirmish cap, not a change to that provisional cap of 12 live owner records.
+Hardware context in `validation-host.json`: private host hardware (details withheld); the fixture used two logical CPUs at Normal priority on a shared PC. This is a legacy command-model workload, outside the small-skirmish cap, not a change to that provisional cap of 12 live owner records.
 
 Each cohort has two owners and64 / 128 / 256 total Combat records with paired attack orders. It runs 100 advances of 0.1 simulated seconds, checks that every unit actually moved and took damage while remaining live, and repeats from a fresh model to verify the final digest. Per-step model advance is timed separately from snapshot copy plus canonical digest. The table reports median / p95 / maximum in milliseconds from the clean final run; startup and setup are outside those timers.
 
@@ -55,10 +55,10 @@ The whole editor process recorded 12.25 CPU seconds and a sampled peak working s
 ## Retained attempts and repairs
 
 - `build-session-lifecycle.log`: first build at `01f547f` failed (79.66s) because a fixture local `Player` hid the inherited controller member. The rename rebuilt at `531793e` successfully (4.45s). Review also replaced TArray capacity `.Max()` with the actual largest timing sample before the reported measurements.
-- `native-model-20261016-211622-840`: startup identity check failed before tests (0.291s). A subsequent query found no owned engine process. The combined original check did not establish which identity field was unavailable; automation now retries only an empty executable path for up to two seconds, keeping the exact start-time/path guards. It fails explicitly if identity remains unverifiable. The successful native retry is retained separately.
-- `session-lifecycle-20261016-211718-869`: failed at16.002s before disconnect because PowerShell treated a numeric epoch plus wildcard string as integer addition. Explicit string formatting fixed it.
-- `session-lifecycle-20261016-211759-190`: all lifecycle gates completed, but the final assertion counted requested normal shutdown as an unexpected owner 1 disconnect (96.418s). The runner now checks the active window before the finish gate, parses UE log prefixes as UTC, and classifies later teardown separately. This report remains failed; it is not counted as a passing run.
-- `session-lifecycle-20261016-212151-363`: passed at `1dd5f6f` (95.552s, 322 matching digests) before the final loaded-cargo teardown fix. Its following stress run passed but recorded a dirty source tree while that fix was being prepared; it is preliminary and superseded by the clean measurements above. No failed reports or captures were deleted or overwritten.
+- `native-model-<local-run>`: startup identity check failed before tests (0.291s). A subsequent query found no owned engine process. The combined original check did not establish which identity field was unavailable; automation now retries only an empty executable path for up to two seconds, keeping the exact start-time/path guards. It fails explicitly if identity remains unverifiable. The successful native retry is retained separately.
+- `session-lifecycle-<local-run>`: failed at16.002s before disconnect because PowerShell treated a numeric epoch plus wildcard string as integer addition. Explicit string formatting fixed it.
+- `session-lifecycle-<local-run>`: all lifecycle gates completed, but the final assertion counted requested normal shutdown as an unexpected owner 1 disconnect (96.418s). The runner now checks the active window before the finish gate, parses UE log prefixes as UTC, and classifies later teardown separately. This report remains failed; it is not counted as a passing run.
+- `session-lifecycle-<local-run>`: passed at `1dd5f6f` (95.552s, 322 matching digests) before the final loaded-cargo teardown fix. Its following stress run passed but recorded a dirty source tree while that fix was being prepared; it is preliminary and superseded by the clean measurements above. No failed reports or captures were deleted or overwritten.
 
 The retained cooperative failure at `649515a` reached human victory with every phase flag and both client completion checks passing. Observer and rendered clients exited normally before the host's five-second delayed assertion. Correct new Logout cleanup removed their player records, causing the legacy host roster check to fail. The reviewed repair latches the first terminal snapshot, clears it on rematch, and uses it only for that delayed evidence check. Live cleanup remains enabled; a match that never reaches terminal still fails on timeout. The clean rerun passed the unchanged cooperative phase flags, both client completion checks, winner0 and host delayed evidence check. Its victory/HUD capture was visually inspected; the earlier overall failure remains retained.
 The native/controls/small-match parsers accept the new noncapturing epoch log field while keeping their prior digest comparisons. Multi-match comparisons explicitly key by epoch and revision, since revisions restart on rematch. Local binaries, caches, reports and captures remain ignored and are not uploaded as Git assets. Fourteen previously generated assets were reused with matching hashes; no new assets, installations or tools were introduced.
@@ -71,6 +71,6 @@ The native/controls/small-match parsers accept the new noncapturing epoch log fi
 
 Issue 11 remains broader than this local two-slot lifecycle: authentication, identity restoration, host migration and real Internet reconnect are still open. Existing cost, asset-rights, no-merge and security constraints remain. Newly filed issues should be checked again before the next batch.
 
-At the resource handoff, the eight-root C: audit found UE5.7 Saved +18 bytes and the other seven monitored roots unchanged (`c-drive-before-lifecycle.json`, `c-drive-handoff-lifecycle.json`). This is a shared-PC observation, not exhaustive attribution or a zero-C-write promise. The controls captures and cooperative victory capture were visually inspected locally; binaries and PNGs remain on D: and ignored.
+At the resource handoff, the eight-root the system drive audit found UE5.7 Saved +18 bytes and the other seven monitored roots unchanged (`c-drive-before-lifecycle.json`, `c-drive-handoff-lifecycle.json`). This is a shared-PC observation, not exhaustive attribution or a zero-C-write promise. The controls captures and cooperative victory capture were visually inspected locally; binaries and PNGs remain on the designated non-system drive and ignored.
 
 After the fixture rebuild and passing Coop rerun, a repeat eight-root audit found no byte-count change from that handoff observation (c-drive-after-coop.json). The controls branch was compiling during this audit; the shared-PC and attribution limits above still apply.

@@ -6,21 +6,21 @@ The selected chain remains #3 -> #9 -> #14 -> #19 -> #25 -> #26 -> #27 -> #28 ->
 
 ## Exact retained results
 
-All directories below are under ignored `D:/UserTemp/RedalertUE5-integration-candidate/generated/`; each result records the tested SHA above and a clean worktree.
+All directories below are under ignored `./generated/`; each result records the tested SHA above and a clean worktree.
 
 | Gate / directory | Outcome |
 | --- | --- |
-| `group-controls-model-20261017-001437-918` | 11/11, zero failures, 18.958 seconds |
-| `native-model-20261017-001456-900` | 7/7, zero failures, 12.531 seconds |
-| `skirmish-model-20261017-001509-444` | 14/14, zero failures, 12.315 seconds |
-| `fidelity-model-20261017-001521-770` | 4/4, zero failures, 12.121 seconds |
-| `controls-20261017-001533-950` | Pass, 60.970 seconds, 55 matching shared revisions; two fresh captures; cleanup errors 0 |
-| `native-network-20261017-001634-951` | Pass, 59 matching shared revisions; runner does not record elapsed time |
-| `rpc-ingress-20261017-001706-036` | Pass, 18.162 seconds; flood connection closed while healthy client continued moving/producing |
-| `small-match-victory-20261017-001724-230` | Pass, 81.830 seconds; actual log winnerTeam 0; all required economy/production/bot phases |
-| `small-match-defeat-20261017-001846-069` | Pass, 51.294 seconds; actual log winnerTeam 1; all required phases |
-| `small-match-coop-20261017-001937-374` | Pass, 85.333 seconds; winnerTeam 0, 307 matching shared revisions; cleanup errors 0 |
-| `session-lifecycle-20261017-002102-766` | Pass, 123.899 seconds; 420 matching epoch/revision digests; cleanup errors 0 |
+| `group-controls-model-<local-run>` | 11/11, zero failures, 18.958 seconds |
+| `native-model-<local-run>` | 7/7, zero failures, 12.531 seconds |
+| `skirmish-model-<local-run>` | 14/14, zero failures, 12.315 seconds |
+| `fidelity-model-<local-run>` | 4/4, zero failures, 12.121 seconds |
+| `controls-<local-run>` | Pass, 60.970 seconds, 55 matching shared revisions; two fresh captures; cleanup errors 0 |
+| `native-network-<local-run>` | Pass, 59 matching shared revisions; runner does not record elapsed time |
+| `rpc-ingress-<local-run>` | Pass, 18.162 seconds; flood connection closed while healthy client continued moving/producing |
+| `small-match-victory-<local-run>` | Pass, 81.830 seconds; actual log winnerTeam 0; all required economy/production/bot phases |
+| `small-match-defeat-<local-run>` | Pass, 51.294 seconds; actual log winnerTeam 1; all required phases |
+| `small-match-coop-<local-run>` | Pass, 85.333 seconds; winnerTeam 0, 307 matching shared revisions; cleanup errors 0 |
+| `session-lifecycle-<local-run>` | Pass, 123.899 seconds; 420 matching epoch/revision digests; cleanup errors 0 |
 
 The four model suites total **36 successful cases**. Lifecycle verified owner-2 disconnect cleanup and slot-2 rejoin without a fresh grant, deferred reseeding until rematch, third-connection rejection when full, stale-epoch rejection, and accepted fresh sequence-1 receipts for both humans in epochs 2 and 3. Two exact terminal snapshot agreements both recorded winnerTeam 1 (epochs 1 and 2), followed by normal rematches into epochs 2/3. Those are two human defeats, not extra victory evidence; Victory and Coop retain their separate explicit winnerTeam-0 passes.
 
@@ -28,7 +28,7 @@ Controls and ordinary match captures were fresh 1280x720 PNGs with recorded SHA2
 
 ## Resource handoff and limits
 
-All jobs were serialized with existing deadlines, normal priority, CPU-affinity assignment/repair and explicit D: build/temp/cache paths. Rendered controls recorded t.MaxFPS 30 and optimized shaders; that is configuration evidence, not measured frame-time or army performance. Warmup CoreLimit is 4, shared affinity policy uses two logical CPUs, worker inheritance is unverified and polling is not hard confinement. Fourteen existing ignored asset copies matched their source SHA256 hashes; no art/import/build assets were generated anew beyond ordinary compilation. Logs, assets, binaries, caches and captures remain ignored and were not uploaded. No zero-C:-writes claim is made.
+All jobs were serialized with existing deadlines, normal priority, CPU-affinity assignment/repair and explicit the designated non-system drive build/temp/cache paths. Rendered controls recorded t.MaxFPS 30 and optimized shaders; that is configuration evidence, not measured frame-time or army performance. Warmup CoreLimit is 4, shared affinity policy uses two logical CPUs, worker inheritance is unverified and polling is not hard confinement. Fourteen existing ignored asset copies matched their source SHA256 hashes; no art/import/build assets were generated anew beyond ordinary compilation. Logs, assets, binaries, caches and captures remain ignored and were not uploaded. No zero-the system drive-writes claim is made.
 
 `generated/resource-handoff.json` records all owned UE/build processes exited and releases the shared heavy-test slot. Independent read-only review confirmed the result metadata, positive and negative gates and scope limits. No additional test run is requested by this publication.
 

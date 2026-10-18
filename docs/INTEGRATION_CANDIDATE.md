@@ -26,6 +26,6 @@ The following plan was executed once at clean 4fdc7e2 with the pinned source/run
 2. Rendered controls with fresh inspected captures; native host/two-client consistency and ingress isolation.
 3. Small-match Victory, Defeat and Coop; disconnect/rejoin/rematch lifecycle.
 
-Stop on the first failed gate, preserve its exact phase/source/evidence and diagnose before proceeding. No automatic retry, timeout relaxation, startup retry matrix or overlapping heavy work. Verify owned-process exit and release the slot afterward. No art generation, installation, hosted workflow, binary upload, security change or zero-C:-writes promise is part of this queue.
+Stop on the first failed gate, preserve its exact phase/source/evidence and diagnose before proceeding. No automatic retry, timeout relaxation, startup retry matrix or overlapping heavy work. Verify owned-process exit and release the slot afterward. No art generation, installation, hosted workflow, binary upload, security change or zero-the system drive-writes promise is part of this queue.
 
 The scoped candidate has passed this queue; request approval for its exact tested content before main promotion. Physical input/real focus, final art/scale, internet behavior and combined army-performance budgets remain separate acceptance gates. Issues #11/#12/#17/#18/#21–24 stay open; no release or milestone completion is implied.

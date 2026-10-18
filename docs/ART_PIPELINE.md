@@ -4,25 +4,25 @@
 
 These are **unapproved blockouts**, not finished art or a verified likeness. Their provenance is the project brief and an authored interpretation of the requested identities; exact in-game proportions have not yet been checked against Jared's private references. Review tower arrangement, tank proportions, infantry readability, and relative scales with Jared. Do not finish meshes, textures, rigs, or effects before approval.
 
-## Run locally on D:
+## Run locally on the designated non-system drive
 
-From the repository root, using the verified installed Blender executable:
+From the repository root, set the process-local `BLENDER_EXE` environment variable to the installed Blender executable. Then run:
 
 ```powershell
-& 'C:\Program Files\Blender Foundation\Blender 4.5\blender.exe' --background --factory-startup --threads 4 --python tools/art/build_blockout.py -- --output 'D:\UserTemp\Codex-RedalertUE5-docs-20261016\generated' --render-stills --motion --motion-frames 16
+& $env:BLENDER_EXE --background --factory-startup --threads 4 --python tools/art/build_blockout.py -- --output (Join-Path $PWD 'generated') --render-stills --motion --motion-frames 16
 ```
 
-The script has no Python dependencies beyond Blender's bundled `bpy` and standard library. Omit `--render-stills --motion` to produce assets and the editable scene without rendering; omit `--motion` for stills only. The output drive must be D:. Motion length accepts 2–48 frames, default 16. Rendering uses Workbench with material colors, studio lighting, cavity and shadows; stills are 960 × 640, motion is approximately 643 × 429 at 8 frames per second. The process is configured for at most four render threads. No physics, combat, bots, engine runtime, or network simulation runs here.
+The script has no Python dependencies beyond Blender's bundled `bpy` and standard library. Omit `--render-stills --motion` to produce assets and the editable scene without rendering; omit `--motion` for stills only. The output drive must be the designated non-system drive. Motion length accepts 2–48 frames, default 16. Rendering uses Workbench with material colors, studio lighting, cavity and shadows; stills are 960 × 640, motion is approximately 643 × 429 at 8 frames per second. The process is configured for at most four render threads. No physics, combat, bots, engine runtime, or network simulation runs here.
 
 After generation, verify each FBX by reimporting it in a fresh Blender scene:
 
 ```powershell
-& 'C:\Program Files\Blender Foundation\Blender 4.5\blender.exe' --background --factory-startup --threads 4 --python tools/art/validate_exports.py -- --output 'D:\UserTemp\Codex-RedalertUE5-docs-20261016\generated'
+& $env:BLENDER_EXE --background --factory-startup --threads 4 --python tools/art/validate_exports.py -- --output (Join-Path $PWD 'generated')
 ```
 
 This checks one mesh per file, round-trip dimensions, ground contact and zero origin, and writes `export_validation.json`. It does not replace a real Unreal import check.
 
-Only run against the ignored `generated/` directory or a separately ignored folder on D:. Re-running replaces matching generated filenames. The source script is the reproducible deliverable; generated binaries remain local pending the Git LFS/storage budget review. Blender configuration, operating-system temporary files and driver caches may still use C:; this script alone does not verify or relocate them.
+Only run against the ignored `generated/` directory or a separately ignored folder on the designated non-system drive. Re-running replaces matching generated filenames. The source script is the reproducible deliverable; generated binaries remain local pending the Git LFS/storage budget review. Blender configuration, operating-system temporary files and driver caches may still use the system drive; this script alone does not verify or relocate them.
 
 ## Outputs and import contract
 
@@ -52,10 +52,10 @@ New runs assign a UUID `run_id`, SHA-256 of the pipeline Python sources, and SHA
 
 Before generation, only pipeline-owned `previews/`, the old manifest, and the export/import/probe reports move into `generated/evidence_history/<superseding-run-id>/`, marked historical by `ARCHIVED.json`. This preserves prior review captures rather than presenting them as captures of new geometry. Separate user baseline/delivery folders are untouched. The current reports begin as `passed: false`, `status: not_run`. Each validator invalidates its current success report **before** reading/checking inputs; an exception leaves `checking_or_failed`, never a stale current pass. Every UE import also invalidates prior probe success, including same-run attempts. Validation refuses source or FBX hash mismatches and incomplete generation. Old manifests require regeneration, not compatibility guessing.
 
-Run the inexpensive numerical/provenance regressions without Blender:
+Set the process-local `PYTHON_EXE` environment variable to a compatible installed Python interpreter. Run the inexpensive numerical/provenance regressions without Blender:
 
 ```powershell
-& 'C:\Program Files\Blender Foundation\Blender 4.5\4.5\python\bin\python.exe' -m unittest discover -s tools/art -p test_evidence.py -v
+& $env:PYTHON_EXE -m unittest discover -s tools/art -p test_evidence.py -v
 ```
 
 The three tests independently encode asymmetric bounds and reject 10x uniform scale, X-only scale, 100 cm mesh displacement, displaced pivot, reversed facing and incorrect actor basis. A temporary-output regression preserves an old capture and successful reports, changes source/geometry, omits new captures, then forces an export-hash failure; current reports must remain false while archived evidence remains readable. Another executes the actual validator/importer entrypoints with malformed manifests and inert engine modules, requiring previous success reports to become false before parsing fails. These are pure Python gates; the engine probe below is separate evidence.

@@ -1,6 +1,6 @@
 # Refinery miner validation
 
-The bounded slice passed at clean commit `8ab9b55c00daf6dd46f807cd3eec5e17f03a4ad3`. [The accepted batch ledger](evidence/refinery-miner-accepted-batch.json) records result/log hashes, exact source, screenshots and granted-miner checkpoints. Raw logs and captures remain locally ignored under `D:\UserTemp\RedalertUE5-integration-candidate\generated`.
+The bounded slice passed at clean commit `8ab9b55c00daf6dd46f807cd3eec5e17f03a4ad3`. [The accepted batch ledger](evidence/refinery-miner-accepted-batch.json) records result/log hashes, exact source, screenshots and granted-miner checkpoints. Raw logs and captures remain locally ignored under `.\generated`.
 
 | Gate | Result |
 |---|---|

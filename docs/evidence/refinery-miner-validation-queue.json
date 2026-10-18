@@ -89,5 +89,6 @@
   "testedCommit": "8ab9b55c00daf6dd46f807cd3eec5e17f03a4ad3",
   "acceptedEvidence": "refinery-miner-accepted-batch.json",
   "heavySlotReleased": true,
-  "executionOrderNote": "Four model suites, then Victory/Coop/Defeat identity evidence, then native/controls/lifecycle; sequential jobs and unchanged bounds."
+  "executionOrderNote": "Four model suites, then Victory/Coop/Defeat identity evidence, then native/controls/lifecycle; sequential jobs and unchanged bounds.",
+  "privacyNote": "Sanitized public summary: local paths, runtime identifiers/times and machine-specific masks are withheld; original evidence is retained privately. Pass/fail, durations, counts and source/hash bindings are unchanged."
 }

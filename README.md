@@ -24,6 +24,8 @@ At 960x540, four reviewed frames omit the selected unit's world ID/HP annotation
 
 ## Run and review
 
+- [Try the prepared local bot skirmish](docs/PLAYABLE_TRIAL.md): exact PC launch, controls, full-match/rematch checklist and remaining physical-input acceptance.
+
 - [Art pipeline](docs/ART_PIPELINE.md): generate original blockouts and local still/motion previews with the installed Blender; no downloads required.
 - [UE setup](docs/UE_SETUP.md): regenerate the engine scene with installed UE 5.7.4 and inspect import/cache evidence.
 - [Command experiment](docs/COMMAND_PROTOTYPE.md): run `node --test prototype/simulation.test.mjs` and `node prototype/smoke.mjs`; no packages to install.
@@ -40,6 +42,8 @@ At 960x540, four reviewed frames omit the selected unit's world ID/HP annotation
 
 ## Working rules
 
-Keep project files, source art, caches, and builds on D: using explicit project-specific paths. Verify actual cache and temporary-file locations; this is not a promise of zero writes to C:. Generated output is ignored by Git. Review Git LFS storage/bandwidth before uploading binary assets; this branch tracks source/configuration only.
+Keep project files, source art, caches, and builds on the designated non-system drive using explicit project-specific paths. Verify actual cache and temporary-file locations; this is not a promise of zero writes to the system drive. Generated output is ignored by Git. Review Git LFS storage/bandwidth before uploading binary assets; this branch tracks source/configuration only.
 
 Use newly created reference-based art. Do not upload raw EA assets or music. Ownership of the original games is recorded as reference availability, not redistribution permission. No license or permission grant is asserted by these documents.
+
+See [public-content privacy rules](docs/PUBLIC_CONTENT_POLICY.md) before publishing documentation, evidence or images.

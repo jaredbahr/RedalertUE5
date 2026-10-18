@@ -4,7 +4,7 @@ This engineering slice adds bounded HUD annotation placement, optional edge scro
 
 ## Try the controls
 
-From a prepared, clean D: checkout with the existing local DLL and generated map:
+From a prepared, clean the designated non-system drive checkout with the existing local DLL and generated map:
 
 ```powershell
 & .\unreal\Scripts\start-small-match.ps1 -CameraEdgePan
@@ -34,19 +34,19 @@ All **13 required runtime rows passed**, with **36 fresh engine PNGs** checked f
 
 | Runtime gate | Tested head | Local run directory | PNGs |
 | --- | --- | --- | ---: |
-| attack-move-proof | `c54f503` | `attack-move-proof-20261017-121629-323` | 3 |
-| lifecycle-compatibility | `c54f503` | `session-lifecycle-20261017-121741-344` | 0 |
-| factory-rally-coop | `c54f503` | `small-match-coop-20261017-121958-645` | 3 |
-| ordinary-victory-flags-off | `c54f503` | `small-match-victory-20261017-122226-090` | 2 |
-| native-command-transport | `42ef9e9` | `native-network-20261017-132306-879` | 0 |
-| rpc-ingress | `42ef9e9` | `rpc-ingress-20261017-132352-297` | 0 |
-| controls-default | `42ef9e9` | `controls-20261017-132424-194` | 2 |
-| controls-stop | `42ef9e9` | `controls-20261017-132531-066` | 4 |
-| controls-type | `42ef9e9` | `controls-type-selection-20261017-132638-981` | 4 |
-| victory-hud-camera-1280x720 | `42ef9e9` | `small-match-victory-20261017-132746-488` | 7 |
-| victory-hud-camera-960x540 | `42ef9e9` | `small-match-victory-20261017-132929-939` | 7 |
-| defeat-compatibility | `42ef9e9` | `small-match-defeat-20261017-133112-868` | 2 |
-| coop-compatibility | `42ef9e9` | `small-match-coop-20261017-133226-435` | 2 |
+| attack-move-proof | `c54f503` | `attack-move-proof-<local-run>` | 3 |
+| lifecycle-compatibility | `c54f503` | `session-lifecycle-<local-run>` | 0 |
+| factory-rally-coop | `c54f503` | `small-match-coop-<local-run>` | 3 |
+| ordinary-victory-flags-off | `c54f503` | `small-match-victory-<local-run>` | 2 |
+| native-command-transport | `42ef9e9` | `native-network-<local-run>` | 0 |
+| rpc-ingress | `42ef9e9` | `rpc-ingress-<local-run>` | 0 |
+| controls-default | `42ef9e9` | `controls-<local-run>` | 2 |
+| controls-stop | `42ef9e9` | `controls-<local-run>` | 4 |
+| controls-type | `42ef9e9` | `controls-type-selection-<local-run>` | 4 |
+| victory-hud-camera-1280x720 | `42ef9e9` | `small-match-victory-<local-run>` | 7 |
+| victory-hud-camera-960x540 | `42ef9e9` | `small-match-victory-<local-run>` | 7 |
+| defeat-compatibility | `42ef9e9` | `small-match-defeat-<local-run>` | 2 |
+| coop-compatibility | `42ef9e9` | `small-match-coop-<local-run>` | 2 |
 
 The local hash index is `generated/player-features-acceptance.json`; raw and image reviews are retained beside it. Source-only documentation descendants keep the tested engine inputs unchanged. Individual runners under `unreal/Scripts/` retain their original assertions and deadlines; there was no automatic retry or deadline extension of a failed functional run.
 
