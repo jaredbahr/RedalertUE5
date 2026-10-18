@@ -18,7 +18,7 @@ The Victory-only `-ReadabilityCaptures` runner switch adds three camera-only ter
 
 ## Queued validation after slot handoff
 
-Use one clean D: candidate checkout with the existing generated proof assets available locally; do not generate replacements or upload binaries. Build the exact candidate source once before tests. Preserve each command's output, result JSON, cleanup evidence and screenshot hashes. Run sequentially, with the existing two-CPU/normal-priority policies and D: cache/temp paths. Polling limits are not hard confinement and do not imply zero C: writes.
+Use one clean the designated non-system drive candidate checkout with the existing generated proof assets available locally; do not generate replacements or upload binaries. Build the exact candidate source once before tests. Preserve each command's output, result JSON, cleanup evidence and screenshot hashes. Run sequentially, with the existing two-CPU/normal-priority policies and the designated non-system drive cache/temp paths. Polling limits are not hard confinement and do not imply zero system-drive writes.
 
 ```powershell
 & .\unreal\Scripts\build-native-proof.ps1

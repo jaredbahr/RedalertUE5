@@ -10,13 +10,13 @@
     "scenario": "Victory",
     "head": "ae098ec8fd855a96a1be24a754c26cc888e24f6c",
     "dirtyWorkingTree": false,
-    "startedUtc": "2026-10-17T02:40:13.9315317Z",
-    "finishedUtc": "2026-10-17T02:41:20.2460914Z",
+    "startedUtc": "<private-runtime-time>",
+    "finishedUtc": "<private-runtime-time>",
     "elapsedSeconds": 66.391,
     "scenarioElapsedSeconds": 66.172,
     "scenarioTimeoutSeconds": 240,
     "scenarioCoreLimit": 2,
-    "runDirectory": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\small-match-victory-20261017-024013-846",
+    "runDirectory": ".\\generated\\small-match-victory-<local-run>",
     "map": "/Game/CommandProofGenerated/Maps/CommandProof",
     "topology": "one rendered standalone match client",
     "transport": "UE native UDP loopback",
@@ -50,16 +50,16 @@
         {
           "priority": "Normal",
           "role": "rendered",
-          "path": "D:\\Epic Games\\UE_5.7\\Engine\\Binaries\\Win64\\UnrealEditor.exe",
-          "startUtc": "2026-10-17T02:40:14.1252454Z",
-          "affinityMask": "0x3",
-          "pid": 6176
+          "path": "<private-local-path>",
+          "startUtc": "<private-runtime-time>",
+          "affinityMask": null,
+          "pid": null
         }
       ],
       "lastPollElapsedSeconds": 65.873
     },
     "literalClientSetup": {
-      "startupFile": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\small-match-victory-20261017-024013-846\\literal-client-cvars.ini",
+      "startupFile": ".\\generated\\small-match-victory-<local-run>\\literal-client-cvars.ini",
       "expectedResolverDisabled": 1,
       "startupConfirmedByRole": {},
       "hostnameOrInternetTest": false,
@@ -80,10 +80,10 @@
       {
         "priority": "Normal",
         "role": "rendered",
-        "path": "D:\\Epic Games\\UE_5.7\\Engine\\Binaries\\Win64\\UnrealEditor.exe",
-        "startUtc": "2026-10-17T02:40:14.1252454Z",
-        "affinityMask": "0x3",
-        "pid": 6176
+        "path": "<private-local-path>",
+        "startUtc": "<private-runtime-time>",
+        "affinityMask": null,
+        "pid": null
       }
     ],
     "screenshots": [],
@@ -99,25 +99,26 @@
       "sha256": "0fb1cfb8ef8b1ccf03053d662ff9cf6ff4099ae1a59b8137c42bab44b082f343"
     },
     {
-      "path": "generated/hud-layout-model-20261017-023949-785/result.json",
+      "path": "generated/hud-layout-model-<local-run>/result.json",
       "bytes": 1497,
       "sha256": "1be46669184a0579760a44c274c83662a2f209ba893292e743c473afebb574f1"
     },
     {
-      "path": "generated/small-match-victory-20261017-024013-846/result.json",
+      "path": "generated/small-match-victory-<local-run>/result.json",
       "bytes": 2794,
       "sha256": "8f73d6c749731fe369589040e4151582e3bb76fb15635246a9e5e3c98fed3f66"
     },
     {
-      "path": "generated/small-match-victory-20261017-024013-846/rendered.log",
+      "path": "generated/small-match-victory-<local-run>/rendered.log",
       "bytes": 454498,
       "sha256": "0fd58d87a867156bb3fc8f2b0c7326a0461896b216710a8475dfc59476869715"
     },
     {
-      "path": "generated/small-match-victory-20261017-024013-846/screenshots/03-left-edge.png",
+      "path": "generated/small-match-victory-<local-run>/screenshots/03-left-edge.png",
       "bytes": 499620,
       "sha256": "e5145164396564ca7f8155fbb63a5e65c21b395bf34b86b0846351f612c8d689"
     }
   ],
-  "correction": "Compare equal whole-second timestamp precision; retain absent-before-request, byte-size, settle and native runner freshness/PNG guards."
+  "correction": "Compare equal whole-second timestamp precision; retain absent-before-request, byte-size, settle and native runner freshness/PNG guards.",
+  "privacyNote": "Sanitized public summary: local paths, runtime identifiers/times and machine-specific masks are withheld; original evidence is retained privately. Pass/fail, durations, counts and source/hash bindings are unchanged."
 }

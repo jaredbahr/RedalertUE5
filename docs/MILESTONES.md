@@ -4,9 +4,9 @@ These are ordered gates, not scheduled dates or claims of completed work. Use pl
 
 ## 0. Confirm setup and test budgets
 
-Deliver: selected UE5 version, target hardware, an initial test range toward the large-army ambition (exact per-player and total unit budgets remain undetermined), hosting/connectivity choices for provisionally intended internet play and any LAN requirement, permanent D: paths, cache verification plan, and proposed performance/network thresholds.
+Deliver: selected UE5 version, target hardware, an initial test range toward the large-army ambition (exact per-player and total unit budgets remain undetermined), hosting/connectivity choices for provisionally intended internet play and any LAN requirement, permanent the designated non-system drive paths, cache verification plan, and proposed performance/network thresholds.
 
-Pass: Jared confirms the unresolved choices; required tools are available without unapproved installs; source/generated-file rules and binary/LFS budget review are ready before content uploads. During the first separately authorized smoke run, record actual cache/temp/output paths and any C: use. Do not mark storage behavior verified from folder names alone.
+Pass: Jared confirms the unresolved choices; required tools are available without unapproved installs; source/generated-file rules and binary/LFS budget review are ready before content uploads. During the first separately authorized smoke run, record actual cache/temp/output paths and any the system drive use. Do not mark storage behavior verified from folder names alone.
 
 ## 1. Approve the visual blockout
 

@@ -2,7 +2,7 @@
   "status": "static-checks-only",
   "baseCommit": "49bd2e080b07476d17889f00687ffa4081ad5a60",
   "branch": "feat/hud-readability",
-  "checkedUtc": "2026-10-17T01:47:42.5606082Z",
+  "checkedUtc": "<private-runtime-time>",
   "independentSourceReview": "No static blockers; runtime/visual acceptance pending.",
   "checks": {
     "powerShellParseErrors": 0,
@@ -24,5 +24,6 @@
   "visualAcceptance": "not run",
   "heavyJobsLaunched": 0,
   "startupIssue33": "open/unresolved",
-  "readabilityIssue18": "open/acceptance pending"
+  "readabilityIssue18": "open/acceptance pending",
+  "privacyNote": "Sanitized public summary: local paths, runtime identifiers/times and machine-specific masks are withheld; original evidence is retained privately. Pass/fail, durations, counts and source/hash bindings are unchanged."
 }

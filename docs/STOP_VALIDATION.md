@@ -1,6 +1,6 @@
 # Stop validation
 
-The bounded slice passed at clean b10e1ffb41ec4826e4e7755da292ac36c6c1af59. The [accepted batch ledger](evidence/stop-accepted-batch.json) records all 13 result files, raw log/report/capture hashes and compiled-module hash. Raw evidence remains locally ignored on D:.
+The bounded slice passed at clean b10e1ffb41ec4826e4e7755da292ac36c6c1af59. The [accepted batch ledger](evidence/stop-accepted-batch.json) records all 13 result files, raw log/report/capture hashes and compiled-module hash. Raw evidence remains locally ignored on the designated non-system drive.
 
 | Gate | Result |
 |---|---|

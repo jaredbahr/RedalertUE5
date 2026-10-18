@@ -6,20 +6,20 @@
     "elapsedSeconds": 10.97,
     "passed": true,
     "sha256": "BEE6FA9037C502902C243FEBB09CEB2B85C972D43D0349FC074ABC59D26EC2C4",
-    "path": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\refinery-miner-build-fixturefix.log"
+    "path": ".\\generated\\refinery-miner-build-fixturefix.log"
   },
   "retainedFailure": "refinery-miner-first-model-attempt.json",
   "failureCorrection": "400cm no-space fixture left legal centers; only the test blocker grid and explicit preconditions changed to 300cm coverage. The final assertion and gameplay code were preserved.",
   "runs": [
     {
-      "name": "skirmish-model-20261017-025809-970",
-      "resultPath": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\skirmish-model-20261017-025809-970\\result.json",
+      "name": "skirmish-model-<local-run>",
+      "resultPath": ".\\generated\\skirmish-model-<local-run>\\result.json",
       "resultSha256": "32943F7365AD50F851C0D64C627AF17BA6EC305A0C9EF2F4643B109577F8E21E",
       "passed": true,
       "head": "8ab9b55c00daf6dd46f807cd3eec5e17f03a4ad3",
       "dirtyWorkingTree": false,
-      "startedUtc": "2026-10-17T02:58:10.0470964Z",
-      "finishedUtc": "2026-10-17T02:58:22.8356115Z",
+      "startedUtc": "<private-runtime-time>",
+      "finishedUtc": "<private-runtime-time>",
       "elapsedSeconds": 12.861,
       "testCount": 22,
       "succeeded": 22,
@@ -38,14 +38,14 @@
       ]
     },
     {
-      "name": "native-model-20261017-025822-981",
-      "resultPath": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\native-model-20261017-025822-981\\result.json",
+      "name": "native-model-<local-run>",
+      "resultPath": ".\\generated\\native-model-<local-run>\\result.json",
       "resultSha256": "187B9D859657A8F4C271D71872B5F8A7CC8C6917834E2A0E2B486418B0018F81",
       "passed": true,
       "head": "8ab9b55c00daf6dd46f807cd3eec5e17f03a4ad3",
       "dirtyWorkingTree": false,
-      "startedUtc": "2026-10-17T02:58:23.0327358Z",
-      "finishedUtc": "2026-10-17T02:58:34.888446Z",
+      "startedUtc": "<private-runtime-time>",
+      "finishedUtc": "<private-runtime-time>",
       "elapsedSeconds": 11.905,
       "testCount": 7,
       "succeeded": 7,
@@ -64,14 +64,14 @@
       ]
     },
     {
-      "name": "group-controls-model-20261017-025834-984",
-      "resultPath": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\group-controls-model-20261017-025834-984\\result.json",
+      "name": "group-controls-model-<local-run>",
+      "resultPath": ".\\generated\\group-controls-model-<local-run>\\result.json",
       "resultSha256": "9BA1DF88E0692708E7B2F49BE24677D75FCE4135DFD827B6FDD5DF2F076F03C8",
       "passed": true,
       "head": "8ab9b55c00daf6dd46f807cd3eec5e17f03a4ad3",
       "dirtyWorkingTree": false,
-      "startedUtc": "2026-10-17T02:58:35.0375978Z",
-      "finishedUtc": "2026-10-17T02:58:47.3947985Z",
+      "startedUtc": "<private-runtime-time>",
+      "finishedUtc": "<private-runtime-time>",
       "elapsedSeconds": 12.409,
       "testCount": 11,
       "succeeded": 11,
@@ -90,14 +90,14 @@
       ]
     },
     {
-      "name": "fidelity-model-20261017-025847-495",
-      "resultPath": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\fidelity-model-20261017-025847-495\\result.json",
+      "name": "fidelity-model-<local-run>",
+      "resultPath": ".\\generated\\fidelity-model-<local-run>\\result.json",
       "resultSha256": "B579E48ABB9EEF5B8AC19FB051D6A8CCCFAFC2F239F91EBA3BC83AE56A07B6F7",
       "passed": true,
       "head": "8ab9b55c00daf6dd46f807cd3eec5e17f03a4ad3",
       "dirtyWorkingTree": false,
-      "startedUtc": "2026-10-17T02:58:47.5559389Z",
-      "finishedUtc": "2026-10-17T02:58:59.7555579Z",
+      "startedUtc": "<private-runtime-time>",
+      "finishedUtc": "<private-runtime-time>",
       "elapsedSeconds": 12.258,
       "testCount": 4,
       "succeeded": 4,
@@ -116,14 +116,14 @@
       ]
     },
     {
-      "name": "small-match-victory-20261017-025916-166",
-      "resultPath": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\small-match-victory-20261017-025916-166\\result.json",
+      "name": "small-match-victory-<local-run>",
+      "resultPath": ".\\generated\\small-match-victory-<local-run>\\result.json",
       "resultSha256": "9125C63F5600CBCC41A3222818FBF488934456A8B2BAF3C0165C3C32611CDDE3",
       "passed": true,
       "head": "8ab9b55c00daf6dd46f807cd3eec5e17f03a4ad3",
       "dirtyWorkingTree": false,
-      "startedUtc": "2026-10-17T02:59:16.2420641Z",
-      "finishedUtc": "2026-10-17T03:00:39.6011196Z",
+      "startedUtc": "<private-runtime-time>",
+      "finishedUtc": "<private-runtime-time>",
       "elapsedSeconds": 83.427,
       "scenarioElapsedSeconds": 83.221,
       "scenario": "Victory",
@@ -133,7 +133,7 @@
       "screenshots": [
         {
           "name": "01-base.png",
-          "path": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\small-match-victory-20261017-025916-166\\screenshots\\01-base.png",
+          "path": ".\\generated\\small-match-victory-<local-run>\\screenshots\\01-base.png",
           "height": 720,
           "bytes": 808639,
           "width": 1280,
@@ -141,7 +141,7 @@
         },
         {
           "name": "02-result.png",
-          "path": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\small-match-victory-20261017-025916-166\\screenshots\\02-result.png",
+          "path": ".\\generated\\small-match-victory-<local-run>\\screenshots\\02-result.png",
           "height": 720,
           "bytes": 808513,
           "width": 1280,
@@ -237,14 +237,14 @@
       ]
     },
     {
-      "name": "small-match-coop-20261017-030212-758",
-      "resultPath": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\small-match-coop-20261017-030212-758\\result.json",
+      "name": "small-match-coop-<local-run>",
+      "resultPath": ".\\generated\\small-match-coop-<local-run>\\result.json",
       "resultSha256": "8E865619957D0F60268E55D91DE08BCF33D1C3C19920D189FC89CB5C2255E5F4",
       "passed": true,
       "head": "8ab9b55c00daf6dd46f807cd3eec5e17f03a4ad3",
       "dirtyWorkingTree": false,
-      "startedUtc": "2026-10-17T03:02:12.8552672Z",
-      "finishedUtc": "2026-10-17T03:03:56.2123964Z",
+      "startedUtc": "<private-runtime-time>",
+      "finishedUtc": "<private-runtime-time>",
       "elapsedSeconds": 103.439,
       "scenarioElapsedSeconds": 103.159,
       "scenario": "Coop",
@@ -255,7 +255,7 @@
         {
           "bytes": 816742,
           "sha256": "81432A40F350E512138EC4A251CEF5147EEA7683FA956DFEF75EA545BC14A071",
-          "path": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\small-match-coop-20261017-030212-758\\screenshots\\01-base.png",
+          "path": ".\\generated\\small-match-coop-<local-run>\\screenshots\\01-base.png",
           "width": 1280,
           "name": "01-base.png",
           "height": 720
@@ -263,7 +263,7 @@
         {
           "bytes": 806651,
           "sha256": "67452A8895C4021CEC582D05C15B92C373F059A7A5ADE317FFD2BF51151C6F5D",
-          "path": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\small-match-coop-20261017-030212-758\\screenshots\\02-result.png",
+          "path": ".\\generated\\small-match-coop-<local-run>\\screenshots\\02-result.png",
           "width": 1280,
           "name": "02-result.png",
           "height": 720
@@ -399,14 +399,14 @@
       ]
     },
     {
-      "name": "small-match-defeat-20261017-030414-450",
-      "resultPath": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\small-match-defeat-20261017-030414-450\\result.json",
+      "name": "small-match-defeat-<local-run>",
+      "resultPath": ".\\generated\\small-match-defeat-<local-run>\\result.json",
       "resultSha256": "A579ED7D53210DBA36B138F7CE815D03B681D5992C7B68199E4DAD35E61BCB36",
       "passed": true,
       "head": "8ab9b55c00daf6dd46f807cd3eec5e17f03a4ad3",
       "dirtyWorkingTree": false,
-      "startedUtc": "2026-10-17T03:04:14.5325913Z",
-      "finishedUtc": "2026-10-17T03:05:11.9260306Z",
+      "startedUtc": "<private-runtime-time>",
+      "finishedUtc": "<private-runtime-time>",
       "elapsedSeconds": 57.465,
       "scenarioElapsedSeconds": 57.241,
       "scenario": "Defeat",
@@ -415,7 +415,7 @@
       "commonRevisionCount": 0,
       "screenshots": [
         {
-          "path": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\small-match-defeat-20261017-030414-450\\screenshots\\01-base.png",
+          "path": ".\\generated\\small-match-defeat-<local-run>\\screenshots\\01-base.png",
           "bytes": 809660,
           "sha256": "F3E8F3607E177FF1B733B469A9259D71818015FCB72C1C55431159285211CA30",
           "name": "01-base.png",
@@ -423,7 +423,7 @@
           "height": 720
         },
         {
-          "path": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\small-match-defeat-20261017-030414-450\\screenshots\\02-result.png",
+          "path": ".\\generated\\small-match-defeat-<local-run>\\screenshots\\02-result.png",
           "bytes": 800749,
           "sha256": "B46935E4B49E83820E7D036A615A75A18D34828F3F969B73EF9D029E34463902",
           "name": "02-result.png",
@@ -520,8 +520,8 @@
       ]
     },
     {
-      "name": "native-network-20261017-030537-383",
-      "resultPath": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\native-network-20261017-030537-383\\result.json",
+      "name": "native-network-<local-run>",
+      "resultPath": ".\\generated\\native-network-<local-run>\\result.json",
       "resultSha256": "C2F0D89D592AF93C37E726F258897CE449186B43193D1EB50F4A0E26F2B6111F",
       "passed": true,
       "head": "8ab9b55c00daf6dd46f807cd3eec5e17f03a4ad3",
@@ -551,14 +551,14 @@
       ]
     },
     {
-      "name": "controls-20261017-030626-805",
-      "resultPath": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\controls-20261017-030626-805\\result.json",
+      "name": "controls-<local-run>",
+      "resultPath": ".\\generated\\controls-<local-run>\\result.json",
       "resultSha256": "726F5FECAD3C2AF23B587C765D3156050570798A8DF57C4C24BE6D382EE09F58",
       "passed": true,
       "head": "8ab9b55c00daf6dd46f807cd3eec5e17f03a4ad3",
       "dirtyWorkingTree": false,
-      "startedUtc": "2026-10-17T03:06:26.8832891Z",
-      "finishedUtc": "2026-10-17T03:07:22.8116733Z",
+      "startedUtc": "<private-runtime-time>",
+      "finishedUtc": "<private-runtime-time>",
       "elapsedSeconds": 55.996,
       "scenarioElapsedSeconds": 44.973,
       "cleanup": {
@@ -570,14 +570,14 @@
       "screenshots": [
         {
           "bytes": 794799,
-          "path": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\controls-20261017-030626-805\\screenshots\\01-selected.png",
+          "path": ".\\generated\\controls-<local-run>\\screenshots\\01-selected.png",
           "height": 720,
           "width": 1280,
           "sha256": "5CE0CB27C67E655C4DDC949129BC8FC00CF62FA084781E1BC1612E49BF75407D"
         },
         {
           "bytes": 797597,
-          "path": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\controls-20261017-030626-805\\screenshots\\02-moved-combat-produced.png",
+          "path": ".\\generated\\controls-<local-run>\\screenshots\\02-moved-combat-produced.png",
           "height": 720,
           "width": 1280,
           "sha256": "2A22488C6961C06496F2C532EB23BA67FC4B8F629D8D5AB3A2AB041D81B2D1D2"
@@ -612,14 +612,14 @@
       ]
     },
     {
-      "name": "session-lifecycle-20261017-030736-860",
-      "resultPath": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\session-lifecycle-20261017-030736-860\\result.json",
+      "name": "session-lifecycle-<local-run>",
+      "resultPath": ".\\generated\\session-lifecycle-<local-run>\\result.json",
       "resultSha256": "8DC2D4C08F8AC694814CE30C1CAF58550BC4EF04D657678C6EA942320C8C2089",
       "passed": true,
       "head": "8ab9b55c00daf6dd46f807cd3eec5e17f03a4ad3",
       "dirtyWorkingTree": false,
-      "startedUtc": "2026-10-17T03:07:36.943286Z",
-      "finishedUtc": "2026-10-17T03:09:41.5540163Z",
+      "startedUtc": "<private-runtime-time>",
+      "finishedUtc": "<private-runtime-time>",
       "elapsedSeconds": 124.684,
       "scenarioElapsedSeconds": 124.567,
       "cleanupErrors": [],
@@ -1133,13 +1133,14 @@
   "sequenceNote": "After four model suites, Victory and Coop identity gates were prioritized before Defeat and existing native/controls/lifecycle regressions. Jobs were sequential and stopped on the earlier retained model failure.",
   "processExit": {
     "remainingEngineBuildProcesses": 0,
-    "checkedUtc": "2026-10-17T03:10:10.5482893Z"
+    "checkedUtc": "<private-runtime-time>"
   },
   "limitations": [
     "Generic unarmed Harvester proxy and existing instant-construction prototype prices/caps remain.",
     "No human physical-input verification, Internet test, performance claim, new art approval or calibrated RA2 balance.",
     "Issues #2, #17, #18 and #33 retain unsatisfied scope.",
-    "D: cache/temp policies are polling guards; no zero-C:-writes or hard CPU confinement claim."
+    "designated storage cache/temp policies are polling guards; no zero-designated storage-writes or hard CPU confinement claim."
   ],
-  "independentLifecycleReview": "clear: 75 events, zero drops, 443 digest rows; epoch1/2 terminal agreements winner1, rematches2/3, rejoin without duplicate seed, reseed350, full/stale rejection, four fresh seq1 receipts. Epoch3 terminal occurs during intentional final teardown."
+  "independentLifecycleReview": "clear: 75 events, zero drops, 443 digest rows; epoch1/2 terminal agreements winner1, rematches2/3, rejoin without duplicate seed, reseed350, full/stale rejection, four fresh seq1 receipts. Epoch3 terminal occurs during intentional final teardown.",
+  "privacyNote": "Sanitized public summary: local paths, runtime identifiers/times and machine-specific masks are withheld; original evidence is retained privately. Pass/fail, durations, counts and source/hash bindings are unchanged."
 }

@@ -30,7 +30,7 @@ After that gate, evaluate one building, one vehicle and one infantry through the
 
 Show the trio in UE5 at actual RTS camera distance and zoom range. Check silhouette, relative scale, team-color readability, pivots, collision and selection footprint, LOD transitions, material slots/textures and animation behavior. Follow with many repeated moving/animated units alongside combat, bots, production and replication. Measure frame time, simulation/animation cost, memory and rendering/material cost on declared hardware before setting budgets; no army count or asset budget is accepted yet.
 
-For each candidate record route/version, permitted reference source, generation/edit settings, attempts and authorized credit cost, cleanup/rigging/export time, accepted quality, remaining defects and UE results. Compare time to an accepted asset with Blender-only authoring before broader use. Save editable work, caches, exports and captures on D:; review binary/LFS size and budget before uploads.
+For each candidate record route/version, permitted reference source, generation/edit settings, attempts and authorized credit cost, cleanup/rigging/export time, accepted quality, remaining defects and UE results. Compare time to an accepted asset with Blender-only authoring before broader use. Save editable work, caches, exports and captures on the designated non-system drive; review binary/LFS size and budget before uploads.
 
 ## Reusable workflow and trial records
 

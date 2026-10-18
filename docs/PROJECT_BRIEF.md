@@ -41,20 +41,18 @@ Keep general command/simulation boundaries, human/bot adapters, import/validatio
 
 Document the practical [asset workflow](ASSET_PIPELINE_EVALUATION.md#reusable-workflow-and-trial-records), including failed attempts, cleanup time and accepted results. Extract reusable lessons from working trials. The playable RA2-style trial comes first; speculative framework work or a large architecture rewrite is outside this goal.
 
-## D: storage and repository hygiene
+## Storage and repository hygiene
 
-The documentation checkout was created at `D:\UserTemp\Codex-RedalertUE5-docs-20261016`. It is an isolated preparation workspace, not a verified permanent project/cache location.
+Use isolated project, source-art, cache and build directories on the designated non-system storage. Keep their exact machine locations private. The current scripts enforce a locally configured drive constraint; confirm the prepared workspace with the maintainer rather than guessing from a public example.
 
-Proposed permanent layout, to confirm before creating an engine project:
-
-| Purpose | Proposed location |
+| Purpose | Public path convention |
 | --- | --- |
-| Repository and Unreal project | `D:\Projects\RedalertUE5` |
-| Blender/source art | `D:\Projects\RedalertUE5-Art` |
-| Derived-data, shader, and tool caches | `D:\Caches\RedalertUE5` |
-| Packaged builds and captures | `D:\Builds\RedalertUE5` |
+| Repository and Unreal project | `<PROJECT_ROOT>/unreal` |
+| Blender/source art | `<ART_ROOT>` |
+| Derived-data, shader and tool caches | `<CACHE_ROOT>` |
+| Packaged builds and captures | `<BUILD_ROOT>` |
 
-Before engine/art work, verify free space and resolved paths for Unreal derived data (including the configured backend), shader/compiler work, project intermediate/saved output, Blender temporary/autosave output, logs, crash reports, and packaging/staging output. Inspect settings and actual file creation during an authorized smoke run. Record any remaining C: use and adjust supported settings where practical. D: placement alone does not establish cache behavior; consult [First-proof evidence](FIRST_PROOF.md) for the paths observed during this batch; other paths remain unverified.
+Before engine/art work, verify free space and resolved paths for Unreal derived data (including the configured backend), shader/compiler work, project intermediate/saved output, Blender temporary/autosave output, logs, crash reports, and packaging/staging output. Inspect settings and actual file creation during an authorized smoke run. Record any remaining system-drive use and adjust supported settings where practical. Designated storage placement alone does not establish cache behavior; consult [First-proof evidence](FIRST_PROOF.md) for the paths observed during this batch; other paths remain unverified.
 
 Before importing or generating content, add and verify appropriate ignore rules for generated output such as `Binaries/`, `DerivedDataCache/`, `Intermediate/`, `Saved/`, editor/IDE caches, staged builds, and renders. Keep source/configuration files and authored assets distinct from generated data. The implementation branch now includes ignore rules for generated proof output and Unreal content/caches; verify them again before extending the pipeline.
 

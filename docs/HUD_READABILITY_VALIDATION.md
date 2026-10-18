@@ -5,10 +5,10 @@ Scoped acceptance passed at clean **2f3e5947b9907db023a9c27079ca43166fccf84f**. 
 | Final gate | Retained run | Result |
 |---|---|---|
 | Build | hud-readability-build-timeprecision.log | Passed11.16s |
-| Actual helper cases | hud-layout-model-20261017-024302-244 |5/5,0failed,12.516s,verifiedexit |
-| Victory1280x720 | small-match-victory-20261017-024342-373 |68.701scenario/68.918total,5freshPNG,cleanup[] |
-| Victory960x540 | small-match-victory-20261017-024528-792 |68.958scenario/69.210total,5freshPNG,cleanup[] |
-| Legacy controls | controls-20261017-024649-118 |41.422scenario/51.466total,55sharedrevisions,2freshPNG,cleanup.errors[] |
+| Actual helper cases | hud-layout-model-<local-run> |5/5,0failed,12.516s,verifiedexit |
+| Victory1280x720 | small-match-victory-<local-run> |68.701scenario/68.918total,5freshPNG,cleanup[] |
+| Victory960x540 | small-match-victory-<local-run> |68.958scenario/69.210total,5freshPNG,cleanup[] |
+| Legacy controls | controls-<local-run> |41.422scenario/51.466total,55sharedrevisions,2freshPNG,cleanup.errors[] |
 
 Root and independent review inspected all twelve images at native size. Both viewports retain primaryidentifier/panelHP100/Cargo0, ore text and contained left/right/panel-edge annotations. All six targets logged0.000pixelerror for the same selected unit32 perrun; actual meshes and frozen snapshot guards passed. All eligible groups were placed, with zero omissions. Eligible unit counts were12/14/5/10/11 at1280 and12/15/5/11/3 at960. Corresponding culls were0/0/9/4/3 and0/0/10/4/12; these include deliberate offscreen/UI occlusion, not unreadable groups hidden from the count.
 

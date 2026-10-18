@@ -6,55 +6,55 @@
   "models": {
     "head": "e40c59be0fff9efc7b6b556a124003e0f63c211a",
     "dirtyWorkingTree": false,
-    "startedUtc": "2026-10-17T02:55:07.4636782Z",
-    "finishedUtc": "2026-10-17T02:55:20.2841188Z",
+    "startedUtc": "<private-runtime-time>",
+    "finishedUtc": "<private-runtime-time>",
     "elapsedSeconds": 12.893,
     "passed": false,
     "testCount": 22,
     "succeeded": 21,
     "failed": 1,
-    "runDirectory": "D:\\UserTemp\\RedalertUE5-integration-candidate\\generated\\skirmish-model-20261017-025507-383",
+    "runDirectory": ".\\generated\\skirmish-model-<local-run>",
     "error": "Expected all exact named skirmish tests successful and zero failures.",
     "cpuPolicy": {
-      "affinityMask": 3,
+      "affinityMask": null,
       "priority": "Normal",
       "polls": 60,
       "repairs": 7,
       "events": [
         {
-          "utc": "2026-10-17T02:55:07.5650269Z",
+          "utc": "<private-runtime-time>",
           "beforePriority": "Normal",
-          "beforeMask": 255
+          "beforeMask": null
         },
         {
-          "utc": "2026-10-17T02:55:07.9854102Z",
+          "utc": "<private-runtime-time>",
           "beforePriority": "Normal",
-          "beforeMask": 255
+          "beforeMask": null
         },
         {
-          "utc": "2026-10-17T02:55:08.2033526Z",
+          "utc": "<private-runtime-time>",
           "beforePriority": "Normal",
-          "beforeMask": 255
+          "beforeMask": null
         },
         {
-          "utc": "2026-10-17T02:55:08.424763Z",
+          "utc": "<private-runtime-time>",
           "beforePriority": "Normal",
-          "beforeMask": 255
+          "beforeMask": null
         },
         {
-          "utc": "2026-10-17T02:55:09.252153Z",
+          "utc": "<private-runtime-time>",
           "beforePriority": "Normal",
-          "beforeMask": 255
+          "beforeMask": null
         },
         {
-          "utc": "2026-10-17T02:55:12.8426532Z",
+          "utc": "<private-runtime-time>",
           "beforePriority": "Normal",
-          "beforeMask": 255
+          "beforeMask": null
         },
         {
-          "utc": "2026-10-17T02:55:13.0512518Z",
+          "utc": "<private-runtime-time>",
           "beforePriority": "Normal",
-          "beforeMask": 255
+          "beforeMask": null
         }
       ],
       "peakObservedWorkingSetBytes": 2255122432,
@@ -81,7 +81,7 @@
             "context": "",
             "artifact": "00000000000000000000000000000000"
           },
-          "filename": "D:\\UserTemp\\RedalertUE5-integration-candidate\\unreal\\Source\\RedalertProof\\Tests\\ProofSkirmishBotTests.cpp",
+          "filename": ".\\unreal\\Source\\RedalertProof\\Tests\\ProofSkirmishBotTests.cpp",
           "lineNumber": 290,
           "timestamp": "2026.10.17-02.55.20"
         }
@@ -92,5 +92,6 @@
     }
   ],
   "reportSha256": "0384ef71d09a3836ca0a5729eed45e0c4202dd3dff9bfdc801388909cf693f74",
-  "remainingQueue": "Stopped after first model gate; native/group/fidelity/runtime not run at this source."
+  "remainingQueue": "Stopped after first model gate; native/group/fidelity/runtime not run at this source.",
+  "privacyNote": "Sanitized public summary: local paths, runtime identifiers/times and machine-specific masks are withheld; original evidence is retained privately. Pass/fail, durations, counts and source/hash bindings are unchanged."
 }

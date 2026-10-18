@@ -1,7 +1,7 @@
 {
   "testedHead": "8dc1f9ffca54fb64bf75eefc525b66bdd7c23b5a",
   "dirtyWorkingTree": false,
-  "runDirectory": "generated/small-match-victory-20261017-010406-277",
+  "runDirectory": "generated/small-match-victory-<local-run>",
   "rawResultSha256": "E0215C83C8FA91F38B3E448BF2360BCBC1CBE7A22C7485121E412986B8CF3AB0",
   "build": {
     "passed": true,
@@ -76,5 +76,6 @@
     "No acceptance of broader HUD readability or other viewport sizes",
     "CleanPresentation uses existing diagnostic-overlay suppression; engine diagnostics remain in logs",
     "No raw captures or generated binaries uploaded"
-  ]
+  ],
+  "privacyNote": "Sanitized public summary: local paths, runtime identifiers/times and machine-specific masks are withheld; original evidence is retained privately. Pass/fail, durations, counts and source/hash bindings are unchanged."
 }

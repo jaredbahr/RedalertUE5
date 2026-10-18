@@ -63,5 +63,6 @@
     33
   ],
   "noIssueClosureFromSourceReview": true,
-  "rerunPending": false
+  "rerunPending": false,
+  "privacyNote": "Sanitized public summary: local paths, runtime identifiers/times and machine-specific masks are withheld; original evidence is retained privately. Pass/fail, durations, counts and source/hash bindings are unchanged."
 }

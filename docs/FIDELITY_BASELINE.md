@@ -48,30 +48,30 @@ Automatic acquisition scans candidates for each eligible unit. Its cost is unmea
 
 ## Historical idle-fire validation and retained failure
 
-The historical idle-fire batch compiled/tested source is `3cc410c8125004207e9ea2e8164c8eed3b87e605`. Its last build passed in four actions / 9.40 seconds total with installed UE5.7.4. Gameplay model source is unchanged from `1f91ea79f623bf5a9c7a8eee470427cacd071eb3`; the later commit changes only stale-target handling inside the scripted match fixture. All tests started with clean source. Model/scenario jobs used two logical CPUs; the existing graphics warmup used four. Jobs were serialized, with existing deadlines, D: cache/temp settings and owned-process cleanup. Polling policies are not hard confinement.
+The historical idle-fire batch compiled/tested source is `3cc410c8125004207e9ea2e8164c8eed3b87e605`. Its last build passed in four actions / 9.40 seconds total with installed UE5.7.4. Gameplay model source is unchanged from `1f91ea79f623bf5a9c7a8eee470427cacd071eb3`; the later commit changes only stale-target handling inside the scripted match fixture. All tests started with clean source. Model/scenario jobs used two logical CPUs; the existing graphics warmup used four. Jobs were serialized, with existing deadlines, the designated non-system drive cache/temp settings and owned-process cleanup. Polling policies are not hard confinement.
 
-Evidence below is under ignored `D:/UserTemp/RedalertUE5-fidelity-baseline/generated/`. Short revision labels identify the exact full hashes above. Current refinery-miner validation is recorded separately in [its validation ledger](REFINERY_MINER_VALIDATION.md).
+Evidence below is under ignored `./generated/`. Short revision labels identify the exact full hashes above. Current refinery-miner validation is recorded separately in [its validation ledger](REFINERY_MINER_VALIDATION.md).
 
 | Gate | Tested revision | Result | Directory |
 | --- | --- | --- | --- |
-| Focused idle combat | `3cc410c` | 4/4, zero failures, 13.161s | `fidelity-model-20261016-220835-543` |
-| Existing command model | `3cc410c` | 7/7, zero failures, 12.652s | `native-model-20261016-220848-729` |
-| Existing skirmish/bot model | `3cc410c` | 14/14, zero failures, 12.213s | `skirmish-model-20261016-220901-394` |
-| Existing selection/group/camera | `3cc410c` | 10/10, zero failures, 12.507s | `group-controls-model-20261016-220913-621` |
-| Native two-client consistency | `1f91ea7` | Pass, 59 matching revisions | `native-network-20261016-220417-901` |
-| RPC flood/healthy-client isolation | `1f91ea7` | Pass, 17.633s | `rpc-ingress-20261016-220449-041` |
-| Offscreen controls compatibility | `1f91ea7` | Pass, 58.495s, 55 matching revisions | `controls-20261016-220506-712` |
-| Victory | `3cc410c` | Pass, winner0, 65.563s | `small-match-victory-20261016-220926-160` |
-| Defeat | `3cc410c` | Pass, winner1, 50.857s | `small-match-defeat-20261016-221031-736` |
-| Cooperative match | `3cc410c` | Pass, winner0, 85.204s, 308 matching revisions | `small-match-coop-20261016-221122-603` |
-| Disconnect/rejoin/rematch lifecycle | `3cc410c` | Pass, 115.362s, 422 matching epoch/revision digests, two exact terminal agreements | `session-lifecycle-20261016-221247-839` |
+| Focused idle combat | `3cc410c` | 4/4, zero failures, 13.161s | `fidelity-model-<local-run>` |
+| Existing command model | `3cc410c` | 7/7, zero failures, 12.652s | `native-model-<local-run>` |
+| Existing skirmish/bot model | `3cc410c` | 14/14, zero failures, 12.213s | `skirmish-model-<local-run>` |
+| Existing selection/group/camera | `3cc410c` | 10/10, zero failures, 12.507s | `group-controls-model-<local-run>` |
+| Native two-client consistency | `1f91ea7` | Pass, 59 matching revisions | `native-network-<local-run>` |
+| RPC flood/healthy-client isolation | `1f91ea7` | Pass, 17.633s | `rpc-ingress-<local-run>` |
+| Offscreen controls compatibility | `1f91ea7` | Pass, 58.495s, 55 matching revisions | `controls-<local-run>` |
+| Victory | `3cc410c` | Pass, winner0, 65.563s | `small-match-victory-<local-run>` |
+| Defeat | `3cc410c` | Pass, winner1, 50.857s | `small-match-defeat-<local-run>` |
+| Cooperative match | `3cc410c` | Pass, winner0, 85.204s, 308 matching revisions | `small-match-coop-<local-run>` |
+| Disconnect/rejoin/rematch lifecycle | `3cc410c` | Pass, 115.362s, 422 matching epoch/revision digests, two exact terminal agreements | `session-lifecycle-<local-run>` |
 
 The lifecycle run ended both epochs in human defeat (winner1), then accepted rematches into epochs2/3 and fresh sequence1 commands. Its unchanged runner requires valid terminal agreement, not a particular winner; it also verified deferred rejoin, full-slot rejection and stale-epoch rejection. The different epoch2 outcome versus earlier historical runs is a real combat-behavior observation, not a human-victory claim. Separate Victory and Coop tests retain their explicit winner0 requirements and passed. No terminal state, health or economy was forced to obtain these results.
 
-Retained failed attempt: `small-match-victory-20261016-220605-239` at clean `1f91ea7` failed in 51.121s when an Attack was rejected with `target` after the selected enemy ceased to be valid. Every phase flag was set, but the fixture exited before a terminal result (winner -1); winner1 logged afterward belongs to teardown, not a completed defeat scenario. The narrow repair waits for the latest replicated target to be dead/missing, logs the observed state and clears only that target's fixture bookkeeping/receipt latch. It never resets controller sequences, ignores other rejection reasons, grants resources, changes gameplay damage or weakens the 220-second scenario deadline, phase flags, screenshots or winner assertions. The successful Victory rerun exercised `PROOF_SKIRMISH_RETRY ... replicatedTarget=dead` before completing normally. The failed report/logs remain retained.
+Retained failed attempt: `small-match-victory-<local-run>` at clean `1f91ea7` failed in 51.121s when an Attack was rejected with `target` after the selected enemy ceased to be valid. Every phase flag was set, but the fixture exited before a terminal result (winner -1); winner1 logged afterward belongs to teardown, not a completed defeat scenario. The narrow repair waits for the latest replicated target to be dead/missing, logs the observed state and clears only that target's fixture bookkeeping/receipt latch. It never resets controller sequences, ignores other rejection reasons, grants resources, changes gameplay damage or weakens the 220-second scenario deadline, phase flags, screenshots or winner assertions. The successful Victory rerun exercised `PROOF_SKIRMISH_RETRY ... replicatedTarget=dead` before completing normally. The failed report/logs remain retained.
 
 The first build at `319dd9c` passed in 43.89s; independent review then found that a sub-epsilon accepted Move could prevent exact completion. `1f91ea7` added an endpoint fix/regression and rebuilt in 9.09s before tests. No failed builds or failed model tests occurred in this batch. Earlier model passes at `1f91ea7` remain retained separately from the final model reruns above. Victory/HUD capture was visually inspected. No visible game or engine input-injection fixture was launched; physical input, focus, Internet and performance remain unverified.
 
-Fourteen existing ignored content files were reused with matching SHA256. No proprietary assets or binaries were uploaded. The eight-root C: audit since the previous controls observation found UE5.7 Saved -2 bytes, D3DSCache -32768 bytes, and six roots unchanged; this shared-PC byte-count observation is neither exhaustive nor exclusive attribution (`c-drive-after-fidelity.json`). It does not establish zero C: writes. The earlier legacy model stress measurements are not new idle-acquisition or combined-scale evidence.
+Fourteen existing ignored content files were reused with matching SHA256. No proprietary assets or binaries were uploaded. The eight-root the system drive audit since the previous controls observation found UE5.7 Saved -2 bytes, D3DSCache -32768 bytes, and six roots unchanged; this shared-PC byte-count observation is neither exhaustive nor exclusive attribution (`c-drive-after-fidelity.json`). It does not establish zero system-drive writes. The earlier legacy model stress measurements are not new idle-acquisition or combined-scale evidence.
 
 Next, measure original production and economy under declared version, map, faction and game-speed conditions before replacing instant jobs or assigning role-specific balance values. Keep the Allied/Soviet loop and bots ahead of Yuri expansion. [Input automation planning](INPUT_AUTOMATION_PLAN.md) addresses the separate remaining controls acceptance gap.
