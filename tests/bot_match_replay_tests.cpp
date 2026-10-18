@@ -48,7 +48,8 @@ std::string Visible(const FProofSnapshot& Snapshot)
         Out << 'U' << Unit.UnitId << ',' << Unit.OwnerId << ',' << int(Unit.Kind) << ','
             << Unit.HitPoints << ',' << Unit.Cargo << ',' << Unit.Position.X << ','
             << Unit.Position.Y << ',' << Unit.Position.Z << ',' << Unit.bHasRallyPoint << ','
-            << Unit.RallyPoint.X << ',' << Unit.RallyPoint.Y << ',' << Unit.RallyPoint.Z << ';';
+            << Unit.RallyPoint.X << ',' << Unit.RallyPoint.Y << ',' << Unit.RallyPoint.Z << ','
+            << Unit.LastTravelDirection.X << ',' << Unit.LastTravelDirection.Y << ',' << Unit.LastTravelDirection.Z << ';';
     }
     for (const auto& Resource : Snapshot.Resources)
     {

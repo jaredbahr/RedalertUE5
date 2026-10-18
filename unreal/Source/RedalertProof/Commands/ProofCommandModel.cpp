@@ -37,6 +37,11 @@ FString FProofSnapshot::ComputeDigest() const
         if (Unit.bHasRallyPoint || Unit.RallyPoint != FVector::ZeroVector)
             Canonical += FString::Printf(TEXT("q:%d,%d,%.17g,%.17g,%.17g;"), Unit.UnitId,
                 Unit.bHasRallyPoint ? 1 : 0, Unit.RallyPoint.X, Unit.RallyPoint.Y, Unit.RallyPoint.Z);
+        // The zero/unset default preserves legacy unmoved snapshot digests.
+        // Commit every component, including an unexpected nonzero Z.
+        if (Unit.LastTravelDirection != FVector::ZeroVector)
+            Canonical += FString::Printf(TEXT("d:%d,%.17g,%.17g,%.17g;"), Unit.UnitId,
+                Unit.LastTravelDirection.X, Unit.LastTravelDirection.Y, Unit.LastTravelDirection.Z);
     }
     for (const FProofResourceRecord& Resource : SortedResources)
     {
@@ -55,6 +60,34 @@ bool FProofCommandModel::IsFinitePosition(const FVector& Position)
 {
     return FMath::IsFinite(Position.X) && FMath::IsFinite(Position.Y) && FMath::IsFinite(Position.Z);
 }
+
+// MSVC /fp:fast otherwise rewrites the two Scale divisions into a shared
+// reciprocal, which overflows for a nonzero subnormal displacement. Keep this
+// presentation-only helper precise without changing surrounding gameplay code.
+#if defined(_MSC_VER)
+#pragma float_control(precise, on, push)
+#endif
+void FProofCommandModel::RecordLastTravelDirection(FProofUnitRecord& Unit, const FVector& PreviousPosition)
+{
+    if (Unit.HitPoints <= 0.f || !IsFinitePosition(PreviousPosition) || !IsFinitePosition(Unit.Position)) { return; }
+    const double X = Unit.Position.X - PreviousPosition.X;
+    const double Y = Unit.Position.Y - PreviousPosition.Y;
+    if (!FMath::IsFinite(X) || !FMath::IsFinite(Y) || (X == 0.0 && Y == 0.0)) { return; }
+    // Divide by the largest component rather than its reciprocal: this keeps
+    // both subnormal and very large finite displacements normalizable.
+    const double Scale = FMath::Max(FMath::Abs(X), FMath::Abs(Y));
+    const double ScaledX = X / Scale;
+    const double ScaledY = Y / Scale;
+    const double Length = std::sqrt(ScaledX * ScaledX + ScaledY * ScaledY);
+    const double DirectionX = ScaledX / Length;
+    const double DirectionY = ScaledY / Length;
+    if (!FMath::IsFinite(DirectionX) || !FMath::IsFinite(DirectionY)) { return; }
+    Unit.LastTravelDirection = FVector(DirectionX == 0.0 ? 0.0 : DirectionX,
+        DirectionY == 0.0 ? 0.0 : DirectionY, 0.0);
+}
+#if defined(_MSC_VER)
+#pragma float_control(pop)
+#endif
 
 bool FProofCommandModel::IsInWorld(const FVector& Position)
 {
@@ -596,6 +629,16 @@ void FProofCommandModel::Advance(float DeltaSeconds)
             }
             State.Units[Index].Position = Landing;
         }
+    }
+
+    // This movement phase cannot insert, erase or reorder records. Assert the
+    // correspondence before recording actual final displacement, before damage.
+    // No gameplay path reads this presentation-only state.
+    check(State.Units.Num() == BeforeMove.Num());
+    for (int32 Index = 0; Index < BeforeMove.Num(); ++Index)
+    {
+        check(State.Units[Index].UnitId == BeforeMove[Index].UnitId);
+        RecordLastTravelDirection(State.Units[Index], BeforeMove[Index].Position);
     }
 
     // All combat observes post-move positions and pre-damage HP. Damage is
