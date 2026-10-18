@@ -86,5 +86,3 @@ foreach($fault in @('matching-wrong-consumers','wrong-trace-sequence','chain-gap
 }
 $results|ConvertTo-Json -Depth 4|Set-Content (Join-Path ([IO.Path]::GetTempPath()) 'rhino-direction-parser-checks.json') -Encoding utf8
 $results|ConvertTo-Json -Depth 4
-
-

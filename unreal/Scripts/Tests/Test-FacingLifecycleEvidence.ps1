@@ -66,4 +66,3 @@ foreach($fault in @('tiny-reset-host','tiny-reset-lead','tiny-reset-rejoin','fre
 }
 $out|ConvertTo-Json -Depth 4|Set-Content (Join-Path ([IO.Path]::GetTempPath()) 'facing-lifecycle-parser-checks.json') -Encoding utf8
 $out|ConvertTo-Json -Depth 4
-

@@ -52,4 +52,3 @@ function Get-FacingDisplacementAt {
     if($null-eq$direction){throw 'No nonzero actual displacement'}
     return [ordered]@{direction=$direction;lastNonzeroAdvance=$pair;lastAdvance=$last;actualTravelCm=$travel}
 }
-
