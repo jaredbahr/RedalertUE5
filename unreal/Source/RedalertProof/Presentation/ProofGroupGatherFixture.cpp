@@ -75,6 +75,15 @@ bool AProofRTSPawn::TickGroupGatherFixture()
             || Receipts[1].MatchEpoch != GroupGatherEpoch || GroupOrders.NumPending() != 0
             || PC->PeekNextLocalCommandSequence() != GroupGatherNextBefore + 2 || LastRequestedSequence != GroupGatherNextBefore + 1)
         { FinishSkirmishScenario(false, TEXT("group_gather_receipts")); return false; }
+        // Receipts acknowledge validation before its snapshot necessarily
+        // replicates. Bind acceptance to a later published snapshot, not a
+        // guessed revision increment or a timing delay.
+        if (GroupGatherReceiptSnapshotRevision == INDEX_NONE)
+        {
+            GroupGatherReceiptSnapshotRevision = Snapshot.Revision;
+            return false;
+        }
+        if (Snapshot.Revision <= GroupGatherReceiptSnapshotRevision) return false;
         LogGroupGatherPhase(TEXT("accepted"));
         GroupGatherStage = 2;
     }
@@ -87,11 +96,11 @@ bool AProofRTSPawn::TickGroupGatherFixture()
         { FinishSkirmishScenario(false, TEXT("group_gather_source_lost")); return false; }
         GroupGatherMoved[Index] |= FVector::DistSquared(Miner->Position, GroupGatherInitial[Index]) > 1.0;
         GroupGatherLoaded[Index] |= Miner->Cargo > 0;
-        const bool bAtOwnRefinery = Snapshot.Units.ContainsByPredicate([PC, Miner](const FProofUnitRecord& Unit)
-            { return Unit.OwnerId == PC->OwnerId && Unit.Kind == EProofUnitKind::Refinery && Unit.HitPoints > 0.f
-                && FVector::DistSquared(Miner->Position, Unit.Position) <= 1.0; });
+        // Replication can skip the exact depot frame. This is the observed
+        // empty-cargo/delivery transition; the strict parser separately demands
+        // the actual authoritative <=1cm deposit boundary and attribution.
         GroupGatherDeposited[Index] |= GroupGatherLoaded[Index] && GroupGatherPriorCargo[Index] > 0 && Miner->Cargo == 0
-            && bAtOwnRefinery && Player->TotalGathered > GroupGatherPriorDelivered;
+            && Player->TotalGathered > GroupGatherPriorDelivered;
         GroupGatherPriorCargo[Index] = Miner->Cargo;
         bComplete &= GroupGatherMoved[Index] && GroupGatherLoaded[Index] && GroupGatherDeposited[Index];
     }
@@ -102,6 +111,14 @@ bool AProofRTSPawn::TickGroupGatherFixture()
     {
         if (IFileManager::Get().FileExists(*Path))
         { FinishSkirmishScenario(false, TEXT("group_gather_stale_capture")); return false; }
+        // Normal combat decisions can select other units after acceptance.
+        // Restore the two verified live miners through existing selection APIs;
+        // do not rely on an ambiguous projected click at the refinery center.
+        Selection.SelectSingle(Snapshot, PC->OwnerId, GroupGatherMiners[0]);
+        Selection.Toggle(Snapshot, PC->OwnerId, GroupGatherMiners[1]);
+        SelectedUnitId = Selection.GetPrimaryUnitId();
+        if (Selection.GetSelectedUnitIds().Num() != 2 || !Selection.IsAllHarvesters(Snapshot, PC->OwnerId))
+        { FinishSkirmishScenario(false, TEXT("group_gather_capture_selection")); return false; }
         IFileManager::Get().MakeDirectory(*SkirmishOutput, true);
         GroupGatherCaptureRequestedAt = FDateTime::UtcNow();
         FScreenshotRequest::RequestScreenshot(Path, true, false);

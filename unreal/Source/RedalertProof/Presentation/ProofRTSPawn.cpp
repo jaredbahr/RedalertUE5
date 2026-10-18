@@ -1532,9 +1532,17 @@ void AProofRTSPawn::TickSkirmishScenario(float DeltaSeconds)
         else FinishSkirmishScenario(false, TEXT("build_factory_not_sent"));
         return;
     }
+    if (bGroupGatherEvidence && SkirmishStage >= 3 && GroupGatherStage == 2)
+    {
+        TickGroupGatherFixture();
+        // Progress observation must not starve ordinary production/defense.
+        // Hold selection only while the requested group PNG is being written.
+        if (bSkirmishFinished || (bGroupGatherCaptureRequested && GroupGatherStage != 3)) return;
+    }
     if (SkirmishStage == 2 && bGroupGatherEvidence && Harvester && Refinery && Factory)
     {
-        if (TickGroupGatherFixture()) ++SkirmishStage;
+        TickGroupGatherFixture();
+        if (GroupGatherStage >= 2) ++SkirmishStage;
         return;
     }
     if (SkirmishStage == 2 && Harvester && Refinery && Factory)

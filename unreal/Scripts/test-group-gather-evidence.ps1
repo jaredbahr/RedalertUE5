@@ -10,6 +10,7 @@ function New-Fixture {
     foreach($p in $phases){foreach($pair in @{owner=1;epoch=1;a=2;b=4;resource=1;beforeSequence=2;nextBefore=3;count=2}.GetEnumerator()){$p[$pair.Key]=$pair.Value};$lines+='PROOF_GROUP_GATHER_PHASE '+($p|ConvertTo-Json -Compress)}
     foreach($i in 0..1){$lines+='PROOF_GROUP_GATHER_COMMAND '+(@{owner=1;epoch=1;sequence=3+$i;unit=2+2*$i;resource=1;accepted=1;revision=11+$i}|ConvertTo-Json -Compress);$lines+="PROOF_SKIRMISH_REQUEST owner=1 sequence=$([int](3+$i)) type=Gather unit=$([int](2+2*$i)) target=1"}
     $lines+='PROOF_REFINERY_EVENT '+(@{event='grant';owner=1;epoch=1;beforeIds=@(1,2);miner=4}|ConvertTo-Json -Compress)
+    foreach($miner in 2,4){$lines+='PROOF_GROUP_GATHER_DEPOSIT '+(@{owner=1;epoch=1;revision=14;miner=$miner;depot=3;before=50;after=0;sum=100;creditsBefore=50;creditsAfter=150;gatheredBefore=0;gatheredAfter=100;x=350;y=0;z=0;depotX=350;depotY=0;depotZ=0;conservedBefore=1000;conservedAfter=1000;contributors=@(@{miner=2;depot=3;before=50;after=0},@{miner=4;depot=3;before=50;after=0})}|ConvertTo-Json -Depth 5 -Compress)}
     $lines+='PROOF_GROUP_GATHER_CAPTURE name=03-group-gather.png selectedCount=2 written=1 physicalInputVerified=0'
     $maps=@{host=@{};rendered=@{}}
     foreach($revision in 10,12,13,14){
@@ -18,7 +19,7 @@ function New-Fixture {
             [pscustomobject]@{id=2;owner=1;kind=1;hp=100;cargo=$(if($loaded){50}else{0});x=$(if($loaded){550}elseif($deposited){350}else{100});y=0;z=0},
             [pscustomobject]@{id=4;owner=1;kind=1;hp=100;cargo=$(if($loaded){50}else{0});x=$(if($loaded){550}elseif($deposited){350}else{650});y=0;z=0},
             [pscustomobject]@{id=3;owner=1;kind=3;hp=200;cargo=0;x=350;y=0;z=0});
-            resources=@([pscustomobject]@{id=1;remaining=400});players=@([pscustomobject]@{id=1;gathered=$(if($deposited){100}else{0})})}
+            resources=@([pscustomobject]@{id=1;remaining=$(if($loaded -or $deposited){400}else{500})},[pscustomobject]@{id=2;remaining=500});players=@([pscustomobject]@{id=1;gathered=$(if($deposited){100}else{0})})}
         $maps.host["1:$revision"]=$state;$maps.rendered["1:$revision"]=$state
     }
     return [pscustomobject]@{Log=($lines -join "`r`n");Context=@{maps=$maps;common=@('1:10','1:12','1:13','1:14')};Refinery=@{passed=$true;grants=@(@{owner=1;epoch=1;miner=4;resource=1;gatherSequence=4})}}
@@ -26,7 +27,9 @@ function New-Fixture {
 $checks=0
 function Check([string]$Name,[scriptblock]$Mutate,[bool]$Expected){
     $fixture=New-Fixture
+    $before=$fixture|ConvertTo-Json -Depth 16 -Compress
     & $Mutate $fixture
+    if(-not $Expected -and ($fixture|ConvertTo-Json -Depth 16 -Compress) -ceq $before){throw "$Name mutation was a no-op"}
     $passed=$true
     try {$null=Get-GroupGatherEvidence -Log $fixture.Log -ValidatedStateContext $fixture.Context -RefineryEvidence $fixture.Refinery} catch {$passed=$false;$reason=$_.Exception.Message}
     if($passed -ne $Expected){throw "$Name expected=$Expected actual=$passed $reason"}
@@ -40,7 +43,7 @@ Check 'wrong phase order' {param($f)$f.Log=$f.Log.Replace('"phase":"queued"','"p
 Check 'invalid elapsed' {param($f)$f.Log=$f.Log -replace '"elapsed":1\.0','"elapsed":"NaN"'} $false
 Check 'overflow elapsed' {param($f)$f.Log=$f.Log.Replace('"elapsed":3.0','"elapsed":221')} $false
 Check 'duplicate JSON key' {param($f)$f.Log=$f.Log.Replace('"phase":"selected"','"phase":"selected","phase":"selected"')} $false
-Check 'string sequence' {param($f)$f.Log=$f.Log.Replace('"sequence":3,','"sequence":"3",')} $false
+Check 'string sequence' {param($f)$f.Log=$f.Log.Replace('"sequence":3','"sequence":"3"')} $false
 Check 'boolean accepted' {param($f)$f.Log=$f.Log.Replace('"accepted":1','"accepted":true')} $false
 Check 'wrong queued size' {param($f)$f.Log=$f.Log.Replace('"queue":2','"queue":1')} $false
 Check 'early allocation' {param($f)$f.Log=$f.Log.Replace('"nextNow":3','"nextNow":4')} $false
@@ -59,7 +62,7 @@ Check 'dead miner' {param($f)$f.Context.maps.host['1:13'].units[0].hp=0} $false
 Check 'one miner never loads' {param($f)$f.Context.maps.host['1:13'].units[0].cargo=0} $false
 Check 'one miner never moves' {param($f)foreach($s in $f.Context.maps.host.Values){$s.units[0].x=100}} $false
 Check 'no delivery increase' {param($f)$f.Context.maps.host['1:14'].players[0].gathered=0} $false
-Check 'wrong deposit location' {param($f)$f.Context.maps.host['1:14'].units[0].x=800} $false
+Check 'rendered skipped exact deposit frame' {param($f)$f.Context.maps.host['1:14'].units[0].x=365} $true
 Check 'foreign refinery' {param($f)$f.Context.maps.host['1:14'].units[2].owner=2} $false
 Check 'wrong grant' {param($f)$f.Refinery.grants[0].miner=2} $false
 Check 'starter absent before grant' {param($f)$f.Log=$f.Log.Replace('"beforeIds":[1,2]','"beforeIds":[1]')} $false
@@ -70,4 +73,33 @@ Check 'extra malformed capture' {param($f)$f.Log+="`r`nPROOF_GROUP_GATHER_CAPTUR
 Check 'capture trailing fields' {param($f)$f.Log=$f.Log.Replace('physicalInputVerified=0','physicalInputVerified=0 extra=1')} $false
 Check 'contradictory same sequence Request' {param($f)$f.Log+="`r`nPROOF_SKIRMISH_REQUEST owner=1 sequence=3 type=Move unit=999 target=1"} $false
 Check 'preloaded starter' {param($f)$f.Context.maps.host['1:10'].units[0].cargo=50} $false
+function Change-Complete($Fixture,[int]$Next,[int]$Last) {
+    $Fixture.Log=[regex]::Replace($Fixture.Log,'PROOF_GROUP_GATHER_PHASE([^\r\n]*)',{
+        param($m)
+        $row=$m.Groups[1].Value|ConvertFrom-Json
+        if($row.phase -eq 'complete'){$row.nextNow=$Next;$row.lastSequence=$Last}
+        return 'PROOF_GROUP_GATHER_PHASE '+($row|ConvertTo-Json -Compress)
+    })
+}
+Check 'normal production and defense after acceptance' {param($f)Change-Complete $f 12 11} $true
+Check 'complete allocator rollback' {param($f)Change-Complete $f 4 3} $false
+Check 'complete inconsistent last request' {param($f)Change-Complete $f 12 10} $false
+function Change-Deposit($Fixture,[scriptblock]$Mutation) {
+    $Fixture.Log=[regex]::Replace($Fixture.Log,'PROOF_GROUP_GATHER_DEPOSIT([^\r\n]*)',{
+        param($m)
+        $row=$m.Groups[1].Value|ConvertFrom-Json
+        & $Mutation $row
+        return 'PROOF_GROUP_GATHER_DEPOSIT '+($row|ConvertTo-Json -Depth 5 -Compress)
+    })
+}
+Check 'missing deposit boundary' {param($f)$f.Log=$f.Log.Replace('PROOF_GROUP_GATHER_DEPOSIT','OTHER_DEPOSIT')} $false
+Check 'deposit boundary too far' {param($f)Change-Deposit $f {param($d)$d.x=365}} $false
+Check 'deposit not conserved' {param($f)Change-Deposit $f {param($d)$d.conservedAfter=1001}} $false
+Check 'wrong deposit credit attribution' {param($f)Change-Deposit $f {param($d)$d.creditsAfter=151}} $false
+Check 'wrong simultaneous contribution sum' {param($f)Change-Deposit $f {param($d)$d.contributors[0].before=49}} $false
+Check 'duplicate deposit source' {param($f)Change-Deposit $f {param($d)$d.miner=2}} $false
+Check 'deposit before Gather' {param($f)Change-Deposit $f {param($d)$d.revision=11}} $false
+Check 'wrong depot coordinates' {param($f)Change-Deposit $f {param($d)$d.x=351;$d.depotX=351}} $false
+Check 'phantom simultaneous contributor' {param($f)Change-Deposit $f {param($d)$d.contributors[1].miner=999}} $false
+Check 'phantom contributor depot' {param($f)Change-Deposit $f {param($d)$d.contributors[1].depot=999}} $false
 Write-Output "$checks parser checks passed; synthetic policy fixtures only, no engine execution."

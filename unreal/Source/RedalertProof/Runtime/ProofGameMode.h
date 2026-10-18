@@ -92,6 +92,8 @@ private:
     int32 StepsSincePublish = 0;
     TMap<int32, FVector> InitialPositions;
     TSet<int32> HumanAttackTargets;
+    TSet<int32> GroupGatherDepositMiners;
+    void ObserveGroupGatherDeposits(const FProofSnapshot& Before, const FProofSnapshot& After);
     void Publish();
     void ResetSkirmishFixtureState();
     void StartBotIfReady();

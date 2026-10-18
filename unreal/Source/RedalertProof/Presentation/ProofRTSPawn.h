@@ -189,6 +189,7 @@ private:
     int32 GroupGatherEpoch = INDEX_NONE;
     int32 GroupGatherNextBefore = 0;
     int32 GroupGatherBeforeSequence = 0;
+    int32 GroupGatherReceiptSnapshotRevision = INDEX_NONE;
     FVector GroupGatherInitial[2];
     int32 GroupGatherPriorCargo[2] = { 0, 0 };
     int32 GroupGatherPriorDelivered = 0;

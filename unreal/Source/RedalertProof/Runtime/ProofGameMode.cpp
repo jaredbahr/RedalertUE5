@@ -541,6 +541,8 @@ void AProofGameMode::Tick(float DeltaSeconds)
                 SkirmishSeconds += 0.1;
                 const FProofSnapshot After = Model.GetSnapshot();
                 if (RefineryEvidence.Enabled()) RefineryEvidence.ObserveAdvance(MatchEpoch, EvidenceBeforeAdvance, After);
+                if (FParse::Param(FCommandLine::Get(), TEXT("ProofGroupGatherEvidence")))
+                    ObserveGroupGatherDeposits(EvidenceBeforeAdvance, After);
                 ObserveSkirmish(After);
                 if (After.MatchPhase == EProofMatchPhase::Finished && !bSkirmishTerminalPublished)
                 {

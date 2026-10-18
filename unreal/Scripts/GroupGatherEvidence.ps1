@@ -41,7 +41,8 @@ function Get-GroupGatherEvidence {
         foreach($id in @($p.a,$p.b)){$u=Unit $state $id;Require ($u.Count -eq 1 -and $u[0].owner -eq 1 -and $u[0].kind -eq 1 -and $u[0].hp -gt 0) 'phase miner identity'}
         Require (@($state.resources|Where-Object id -eq $p.resource).Count -eq 1) 'phase missing resource'
         if($i -lt 2){Require ($p.nextNow -eq $p.nextBefore -and $p.lastSequence -eq $p.beforeSequence -and $p.queue -eq $(if($i -eq 0){0}else{2})) 'enqueue stamped commands or queue mismatch'}
-        else {Require ($p.nextNow -eq $p.nextBefore+2 -and $p.lastSequence -eq $p.nextBefore+1 -and $p.queue -eq 0) 'accepted/drained sequence mismatch'}
+        elseif($i -eq 2) {Require ($p.nextNow -eq $p.nextBefore+2 -and $p.lastSequence -eq $p.nextBefore+1 -and $p.queue -eq 0) 'accepted/drained sequence mismatch'}
+        else {Require ($p.nextNow -ge $phases[2].nextNow -and $p.lastSequence -eq $p.nextNow-1 -and $p.queue -eq 0) 'complete/normal-command sequence mismatch'}
         $previousTime=[double]$p.elapsed;$previousRevision=[long]$p.revision
     }
     # Queued count is exactly two, distinct from phase index one.
@@ -61,8 +62,30 @@ function Get-GroupGatherEvidence {
     $grantRows=@([regex]::Matches($Log,'PROOF_REFINERY_EVENT([^\r\n]*)')|ForEach-Object{Row $_.Groups[1].Value}|Where-Object {$_.event -eq 'grant' -and $_.owner -eq 1 -and $_.epoch -eq $anchor.epoch})
     Require ($grantRows.Count -eq 1 -and $anchor.a -in $grantRows[0].beforeIds -and $anchor.b -notin $grantRows[0].beforeIds) 'starter/granted provenance'
     $start=$ValidatedStateContext.maps.rendered["$($anchor.epoch):$($anchor.revision)"]
+    $accounted=[long]0
+    foreach($r in $start.resources){$accounted+=$r.remaining};foreach($u in $start.units){$accounted+=$u.cargo};foreach($p in $start.players){$accounted+=$p.gathered}
+    $deposits=@([regex]::Matches($Log,'PROOF_GROUP_GATHER_DEPOSIT([^\r\n]*)')|ForEach-Object{Row $_.Groups[1].Value})
+    Require ($deposits.Count -eq 2) 'exactly two authoritative deposit boundaries required'
+    $depositByMiner=@{}
+    foreach($d in $deposits) {
+        foreach($n in @('owner','epoch','revision','miner','depot','before','after','sum','creditsBefore','creditsAfter','gatheredBefore','gatheredAfter','conservedBefore','conservedAfter')){Require (Integer $d.$n) "invalid deposit integer $n"}
+        Require ($d.owner -eq 1 -and $d.epoch -eq $anchor.epoch -and $d.miner -in @($anchor.a,$anchor.b) -and -not $depositByMiner.ContainsKey([string]$d.miner) -and $d.depot -gt 0 -and $d.before -ge 1 -and $d.before -le 50 -and $d.after -eq 0 -and $d.sum -ge $d.before -and $d.creditsAfter-$d.creditsBefore -eq $d.sum -and $d.gatheredAfter-$d.gatheredBefore -eq $d.sum -and $d.conservedBefore -eq $d.conservedAfter -and $d.conservedBefore -eq $accounted) 'deposit identity/attribution/conservation'
+        Require ($d.revision -gt $commands[1].revision -and $d.revision -le $phases[3].revision) 'deposit chronology'
+        foreach($n in @('x','y','z','depotX','depotY','depotZ')){Require ($null -ne $d.$n -and $d.$n -isnot [string] -and $d.$n -isnot [bool] -and $d.$n -isnot [array] -and [double]::IsFinite([double]$d.$n) -and [math]::Abs([double]$d.$n) -le 10000) 'deposit coordinate'}
+        $point=[pscustomobject]@{x=$d.depotX;y=$d.depotY;z=$d.depotZ}
+        Require ((DistanceSquared $d $point) -le 1) 'deposit not at exact authoritative refinery boundary'
+        Require ($d.contributors -is [array] -and $d.contributors.Count -ge 1 -and $d.contributors.Count -le 12) 'bounded contributors required'
+        $contributors=@{};$sum=0
+        foreach($c in $d.contributors){foreach($n in @('miner','depot','before','after')){Require (Integer $c.$n) 'invalid contributor integer'};Require ($c.miner -in @($anchor.a,$anchor.b) -and $c.depot -gt 0 -and $c.before -ge 1 -and $c.before -le 50 -and $c.after -ge 0 -and $c.after -lt $c.before -and -not $contributors.ContainsKey([string]$c.miner)) 'invalid/duplicate contributor';$contributors[[string]$c.miner]=$c;$sum+=$c.before-$c.after}
+        foreach($c in $d.contributors){$cm=Unit $start $c.miner;$cd=Unit $start $c.depot;Require ($cm.Count -eq 1 -and $cm[0].owner -eq 1 -and $cm[0].kind -eq 1 -and $cm[0].hp -gt 0 -and $cd.Count -eq 1 -and $cd[0].owner -eq 1 -and $cd[0].kind -eq 3 -and $cd[0].hp -gt 0) 'contributor lacks validated own miner/depot identity'}
+        Require ($sum -eq $d.sum -and $contributors.ContainsKey([string]$d.miner)) 'contributor attribution sum'
+        $mine=$contributors[[string]$d.miner];Require ($mine.depot -eq $d.depot -and $mine.before -eq $d.before -and $mine.after -eq 0) 'tracked contributor mismatch'
+        $depositByMiner[[string]$d.miner]=$d
+    }
+    $start=$ValidatedStateContext.maps.rendered["$($anchor.epoch):$($anchor.revision)"]
     $proofs=@()
     foreach($id in @($anchor.a,$anchor.b)) {
+        $depositEvent=$depositByMiner[[string]$id]
         $initial=(Unit $start $id)[0];Require ($initial.cargo -eq 0) 'miner started preloaded';$moved=$null;$loaded=$null;$deposited=$null;$prior=$null;$priorPlayer=$null
         foreach($key in $ValidatedStateContext.common) {
             $state=$ValidatedStateContext.maps.host[$key]
@@ -71,9 +94,10 @@ function Get-GroupGatherEvidence {
             if($units.Count -ne 1 -or $players.Count -ne 1){continue};$u=$units[0];$player=$players[0]
             Require ($u.owner -eq 1 -and $u.kind -eq 1 -and $u.hp -gt 0) 'progress source changed'
             if(-not $moved -and (DistanceSquared $initial $u) -gt 1){$moved=$key}
-            if(-not $loaded -and $u.cargo -gt 0){$loaded=$key}
-            $depots=@($state.units|Where-Object {$_.owner -eq 1 -and $_.kind -eq 3 -and $_.hp -gt 0 -and (DistanceSquared $_ $u) -le 1})
-            if($loaded -and -not $deposited -and $prior -and $prior.cargo -gt 0 -and $u.cargo -eq 0 -and $player.gathered -gt $priorPlayer.gathered -and $depots.Count -ge 1){$deposited=$key}
+            if(-not $loaded -and $u.cargo -gt 0 -and $state.revision -lt $depositEvent.revision){$loaded=$key}
+            $depots=@($state.units|Where-Object {$_.id -eq $depositEvent.depot -and $_.owner -eq 1 -and $_.kind -eq 3 -and $_.hp -gt 0})
+            if($depots.Count -eq 1){$point=[pscustomobject]@{x=$depositEvent.depotX;y=$depositEvent.depotY;z=$depositEvent.depotZ};Require ((DistanceSquared $depots[0] $point) -le 0.00000001) 'event depot disagrees with validated state'}
+            if($loaded -and -not $deposited -and $state.revision -ge $depositEvent.revision -and $u.cargo -eq 0 -and $player.gathered -ge $depositEvent.gatheredAfter -and $depots.Count -eq 1){$deposited=$key}
             $prior=$u;$priorPlayer=$player
         }
         Require ($moved -and $loaded -and $deposited) "missing real movement/load/deposit for miner $id"
