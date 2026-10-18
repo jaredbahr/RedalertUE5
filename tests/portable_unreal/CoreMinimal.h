@@ -3,6 +3,7 @@
 // Test-only UE subset. This permits the unmodified production model/planner and
 // native regression bodies to run under a portable compiler. It is not Unreal.
 #include <algorithm>
+#include <cassert>
 #include <cmath>
 #include <cstdarg>
 #include <cstdint>
@@ -29,6 +30,7 @@ constexpr double UE_SMALL_NUMBER = 1.e-8;
 #define UPROPERTY(...)
 #define GENERATED_BODY(...)
 #define REDALERTPROOF_API
+#define check(Expression) assert(Expression)
 
 class FString
 {

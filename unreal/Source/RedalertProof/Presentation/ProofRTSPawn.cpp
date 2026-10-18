@@ -6,6 +6,7 @@
 #include "Presentation/ProofSkirmishOwnershipRecovery.h"
 #include "Presentation/ProofHUDPanelLayout.h"
 #include "Presentation/ProofUnitViewGrounding.h"
+#include "Presentation/ProofUnitViewFacing.h"
 #include "Camera/CameraComponent.h"
 #include "Components/InputComponent.h"
 #include "Components/SceneComponent.h"
@@ -286,6 +287,22 @@ void AProofRTSPawn::Tick(float DeltaSeconds)
         }
         if (View && View->GetStaticMesh())
         {
+            // This current imported Rhino's visual front is local +Y. Bind the
+            // contract to the actual mesh and live Combat kind, including when
+            // a structure or miner falls back to the same proxy mesh.
+            if (Unit.Kind == EProofUnitKind::Combat && bUsingBlockoutMesh
+                && View->GetStaticMesh() == ProxyMesh)
+            {
+                const FVector WorldForward = View->GetComponentTransform().GetScaledAxis(EAxis::Y);
+                double DeltaYaw = 0.0;
+                if (FProofUnitViewFacing::TryYawDelta(
+                    {WorldForward.X, WorldForward.Y, WorldForward.Z},
+                    {Unit.LastTravelDirection.X, Unit.LastTravelDirection.Y, Unit.LastTravelDirection.Z}, DeltaYaw)
+                    && DeltaYaw != 0.0)
+                {
+                    View->SetWorldRotation(FQuat(FVector(0.0, 0.0, 1.0), DeltaYaw) * View->GetComponentQuat());
+                }
+            }
             // Each selected mesh has its own pivot and scaled/rotated lower bound.
             // Unit.Position remains the authoritative ground-plane position.
             const FBox LocalBounds = View->GetStaticMesh()->GetBoundingBox();
