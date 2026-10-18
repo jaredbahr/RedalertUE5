@@ -3,6 +3,7 @@
 #include "Runtime/ProofPlayerController.h"
 #include "Engine/World.h"
 #include "Camera/CameraComponent.h"
+#include "Components/StaticMeshComponent.h"
 #include "HAL/PlatformTime.h"
 #include "HAL/FileManager.h"
 #include "Misc/Paths.h"
@@ -129,7 +130,15 @@ void AProofRTSPawn::TickMapTypeSelectionControls()
         if (!bMapTypeCameraPrepared)
         {
             Camera->SetOrthoWidth(200.f);
-            Camera->SetWorldLocation(Anchor->Position+FVector(0,-3200,3200));
+            // Automatic ortho planes use the owning pawn as their view target.
+            // Move the rig together, as in the existing readability fixture,
+            // while keeping snapshot-backed rendered units at their world positions.
+            TMap<int32,FTransform> ViewTransforms;
+            for(const auto& Entry:UnitViews)
+                if(Entry.Value) ViewTransforms.Add(Entry.Key,Entry.Value->GetComponentTransform());
+            if(!ControlsCheck(SetActorLocation(Anchor->Position),TEXT("map_type_camera_rig_move"))) return;
+            for(const auto& Entry:ViewTransforms)
+                if(UnitViews.Contains(Entry.Key) && UnitViews[Entry.Key]) UnitViews[Entry.Key]->SetWorldTransform(Entry.Value);
             bMapTypeCameraPrepared=true;TypeSelectionStarted=ControlsElapsed;return;
         }
         if (ControlsElapsed-TypeSelectionStarted<0.25f) return;
@@ -138,9 +147,16 @@ void AProofRTSPawn::TickMapTypeSelectionControls()
         {
             FVector2D Screen;
             const FVector& Position=TypeSelectionPositions.FindChecked(Id);
+            const TObjectPtr<UStaticMeshComponent>* View=UnitViews.Find(Id);
+            const FVector ExpectedWorld=Position+(bUsingBlockoutMesh?FVector::ZeroVector:FVector(0.f,0.f,30.f));
+            if(!ControlsCheck(View && *View && (*View)->GetComponentLocation().Equals(ExpectedWorld,0.01),TEXT("map_type_rendered_units_stationary"))) return;
             if (PC->ProjectWorldLocationToScreen(Position,Screen) && FProofSelectionState::IsViewportCenterVisible(Screen,FIntPoint(W,H))) ++Visible;
         }
-        if (!ControlsCheck(Visible==1 && SetControlsCursorFromWorld(Anchor->Position) && FindUnitUnderCursor(true)==ControlsOwnUnit, TEXT("map_type_actual_visible_and_offscreen"))) return;
+        UE_LOG(LogTemp,Display,TEXT("PROOF_MAP_TYPE_CAMERA pawn=%s camera=%s ortho=%.1f viewport=%dx%d visible=%d expected=%d"),
+            *GetActorLocation().ToString(),*Camera->GetComponentLocation().ToString(),Camera->OrthoWidth,W,H,Visible,TypeSelectionExpected.Num());
+        if (!ControlsCheck(Visible==1,TEXT("map_type_actual_visible_and_offscreen"))) return;
+        if (!ControlsCheck(SetControlsCursorFromWorld(Anchor->Position),TEXT("map_type_anchor_cursor_in_viewport"))) return;
+        if (!ControlsCheck(FindUnitUnderCursor(true)==ControlsOwnUnit,TEXT("map_type_anchor_cursor_pick"))) return;
         SelectUnderCursor();Selection.AssignGroup(9,Snapshot,PC->OwnerId);TypeGesture.Cancel();
         if (!LogTypeSelectionFrame(TEXT("before"))) return;
         CaptureControls(TEXT("03-type-before"));TypeSelectionStarted=ControlsElapsed;TypeSelectionStage=1;return;
