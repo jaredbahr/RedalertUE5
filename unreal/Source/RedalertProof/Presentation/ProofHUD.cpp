@@ -62,6 +62,15 @@ void AProofHUD::DrawHUD()
     const float FontScale = 1.05f * UiScale;
     UFont* Font = GEngine ? GEngine->GetMediumFont() : nullptr;
 
+    FBox2D DragBounds;
+    if (Pawn && Pawn->GetSelectionDragBounds(DragBounds))
+    {
+        // Same yellow, two-pixel outline as existing selected-unit brackets.
+        DrawLine(DragBounds.Min.X, DragBounds.Min.Y, DragBounds.Max.X, DragBounds.Min.Y, FLinearColor::Yellow, 2.f);
+        DrawLine(DragBounds.Min.X, DragBounds.Min.Y, DragBounds.Min.X, DragBounds.Max.Y, FLinearColor::Yellow, 2.f);
+        DrawLine(DragBounds.Max.X, DragBounds.Min.Y, DragBounds.Max.X, DragBounds.Max.Y, FLinearColor::Yellow, 2.f);
+        DrawLine(DragBounds.Min.X, DragBounds.Max.Y, DragBounds.Max.X, DragBounds.Max.Y, FLinearColor::Yellow, 2.f);
+    }
     DrawRect(FLinearColor(0.015f, 0.025f, 0.045f, 0.88f), Left, Top, PanelWidth, PanelHeight);
 
     int32 Credits = 0;

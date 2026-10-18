@@ -128,6 +128,7 @@ void AProofRTSPawn::SetupPlayerInputComponent(UInputComponent* Input)
     // Bound callbacks are the native input path. Default controls automation calls the
     // shared handlers directly; the opt-in Stop input fixture labels its engine edges.
     Input->BindKey(EKeys::LeftMouseButton, IE_Pressed, this, &AProofRTSPawn::OnManualSelect);
+    Input->BindKey(EKeys::LeftMouseButton, IE_Released, this, &AProofRTSPawn::OnManualSelectRelease);
     Input->BindKey(EKeys::RightMouseButton, IE_Pressed, this, &AProofRTSPawn::OnManualOrder);
     Input->BindKey(EKeys::P, IE_Pressed, this, &AProofRTSPawn::OnManualProduce);
     Input->BindKey(EKeys::S, IE_Pressed, this, &AProofRTSPawn::OnManualStop);
@@ -159,6 +160,7 @@ void AProofRTSPawn::Tick(float DeltaSeconds)
     AProofPlayerController* PC = Cast<AProofPlayerController>(GetController());
     if (!PC || !PC->IsLocalController() || GetNetMode() == NM_DedicatedServer)
     {
+        BoxGesture.Cancel();
         return;
     }
     if (!bConfiguredLocalInput && PC->GetLocalPlayer() && GetWorld()->GetGameViewport()
@@ -221,6 +223,7 @@ void AProofRTSPawn::Tick(float DeltaSeconds)
     const AProofGameState* GS = GetWorld()->GetGameState<AProofGameState>();
     if (!GS)
     {
+        BoxGesture.Cancel();
         return;
     }
     if (LastSeenMatchEpoch != GS->Snapshot.MatchEpoch)
@@ -250,6 +253,7 @@ void AProofRTSPawn::Tick(float DeltaSeconds)
     }
     Selection.Synchronize(GS->Snapshot, PC->OwnerId);
     SelectedUnitId = Selection.GetPrimaryUnitId();
+    TickBoxSelection();
     TSet<int32> LiveIds;
     bool bSelectionAliveAndOwned = false;
     for (const FProofUnitRecord& Unit : GS->Snapshot.Units)
@@ -356,19 +360,19 @@ FString AProofRTSPawn::GetManualInputStatus() const
     const TCHAR* Focus = !bFocusObserved ? TEXT("pending")
         : !bViewportForeground ? TEXT("background")
         : bViewportFocused ? TEXT("focused") : TEXT("unfocused");
-    return FString::Printf(TEXT("Native L%d R%d S%d P%d W+%d/-%d | focus %s | last %s | human unverified"),
+    return FString::Printf(TEXT("Native L%d R%d S%d P%d W+%d/-%d LU%d | focus %s | last %s | human unverified"),
         ManualLeftPresses, ManualRightPresses, ManualStopPresses, ManualProducePresses,
-        ManualWheelUpPresses, ManualWheelDownPresses, Focus, *LastManualAction);
+        ManualWheelUpPresses, ManualWheelDownPresses, ManualLeftReleases, Focus, *LastManualAction);
 }
 
 void AProofRTSPawn::ObserveViewportFocus()
 {
     const UGameViewportClient* GameViewport = GetWorld() ? GetWorld()->GetGameViewport() : nullptr;
     const FViewport* Viewport = GameViewport ? GameViewport->Viewport : nullptr;
-    if (!Viewport) { TypeGesture.Cancel(); bViewportFocused = bViewportForeground = false; bFocusObserved = false; return; }
+    if (!Viewport) { TypeGesture.Cancel(); BoxGesture.Cancel(); bViewportFocused = bViewportForeground = false; bFocusObserved = false; return; }
     const bool bFocused = Viewport->HasFocus();
     const bool bForeground = Viewport->IsForegroundWindow();
-    if (!bFocused || !bForeground) TypeGesture.Cancel();
+    if (!bFocused || !bForeground) { TypeGesture.Cancel(); BoxGesture.Cancel(); }
     if (!bFocusObserved || bFocused != bViewportFocused || bForeground != bViewportForeground)
     {
         bFocusObserved = true;
@@ -408,6 +412,13 @@ void AProofRTSPawn::OnManualSelect()
 {
     const AProofPlayerController* PC = Cast<AProofPlayerController>(GetController());
     const AProofGameState* GS = GetWorld()->GetGameState<AProofGameState>();
+    if (GS && GS->Snapshot.bSkirmish)
+    {
+        const bool bArmed = BeginBoxSelection();
+        RecordManualInput(TEXT("LMB"), ManualLeftPresses, bArmed ? TEXT("selection pending release") : TEXT("selection gesture ignored"));
+        return;
+    }
+    BoxGesture.Cancel();
     if (PC && GS && (PC->IsInputKeyDown(EKeys::LeftShift) || PC->IsInputKeyDown(EKeys::RightShift)))
     {
         Selection.Toggle(GS->Snapshot, PC->OwnerId, FindUnitUnderCursor(true));
@@ -432,6 +443,7 @@ void AProofRTSPawn::OnManualTypeRelease() { TypeGesture.Release(); }
 
 void AProofRTSPawn::SelectTypeByGesture(double WallSeconds, bool bFocused)
 {
+    BoxGesture.Cancel();
     const AProofPlayerController* PC = Cast<AProofPlayerController>(GetController());
     const AProofGameState* GS = GetWorld() ? GetWorld()->GetGameState<AProofGameState>() : nullptr;
     if (!PC || !GS || !PC->IsLocalController()) { TypeGesture.Cancel(); return; }
@@ -446,6 +458,7 @@ void AProofRTSPawn::SelectTypeByGesture(double WallSeconds, bool bFocused)
 
 bool AProofRTSPawn::SelectVisibleType()
 {
+    BoxGesture.Cancel();
     const AProofPlayerController* PC = Cast<AProofPlayerController>(GetController());
     const AProofGameState* GS = GetWorld() ? GetWorld()->GetGameState<AProofGameState>() : nullptr;
     if (!PC || !GS || !PC->IsLocalController()) return false;
@@ -478,6 +491,7 @@ void AProofRTSPawn::OnManualGroupNine() { HandleManualGroup(9); }
 
 void AProofRTSPawn::HandleManualGroup(int32 Slot)
 {
+    BoxGesture.Cancel();
     const AProofPlayerController* PC = Cast<AProofPlayerController>(GetController());
     const AProofGameState* GS = GetWorld()->GetGameState<AProofGameState>();
     if (!PC || !GS) return;
@@ -492,6 +506,7 @@ void AProofRTSPawn::HandleManualGroup(int32 Slot)
 
 void AProofRTSPawn::OnManualOrder()
 {
+    BoxGesture.Cancel();
     const int32 BeforeSequence = LastRequestedSequence;
     const AProofPlayerController* PC = Cast<AProofPlayerController>(GetController());
     const bool bControl = PC && (PC->IsInputKeyDown(EKeys::LeftControl) || PC->IsInputKeyDown(EKeys::RightControl));
@@ -506,6 +521,7 @@ void AProofRTSPawn::OnManualOrder()
 
 void AProofRTSPawn::OnManualProduce()
 {
+    BoxGesture.Cancel();
     const int32 BeforeSequence = LastRequestedSequence;
     Produce();
     RecordManualInput(TEXT("P"), ManualProducePresses,
@@ -516,12 +532,14 @@ void AProofRTSPawn::OnManualProduce()
 
 void AProofRTSPawn::OnManualStop()
 {
+    BoxGesture.Cancel();
     StopSelected();
     RecordManualInput(TEXT("S"), ManualStopPresses, RequestStatus);
 }
 
 void AProofRTSPawn::OnManualZoomIn()
 {
+    BoxGesture.Cancel();
     ZoomIn();
     RecordManualInput(TEXT("WheelUp"), ManualWheelUpPresses,
         FString::Printf(TEXT("ortho %.0f"), Camera->OrthoWidth));
@@ -529,6 +547,7 @@ void AProofRTSPawn::OnManualZoomIn()
 
 void AProofRTSPawn::OnManualZoomOut()
 {
+    BoxGesture.Cancel();
     ZoomOut();
     RecordManualInput(TEXT("WheelDown"), ManualWheelDownPresses,
         FString::Printf(TEXT("ortho %.0f"), Camera->OrthoWidth));
@@ -536,6 +555,7 @@ void AProofRTSPawn::OnManualZoomOut()
 
 void AProofRTSPawn::OnInteractiveEscape()
 {
+    BoxGesture.Cancel();
     if (!bInteractiveExitEnabled) return;
     UE_LOG(LogTemp, Display, TEXT("PROOF_MANUAL_EXIT key=Escape physicalInput=unverified"));
     FPlatformMisc::RequestExit(false);
@@ -543,6 +563,7 @@ void AProofRTSPawn::OnInteractiveEscape()
 
 void AProofRTSPawn::OnManualRematch()
 {
+    BoxGesture.Cancel();
     AProofPlayerController* PC = Cast<AProofPlayerController>(GetController());
     const AProofGameState* GS = GetWorld()->GetGameState<AProofGameState>();
     if (!PC || !GS || !GS->Snapshot.bSkirmish || PC->OwnerId != 1
@@ -659,6 +680,7 @@ bool AProofRTSPawn::CursorGroundPoint(FVector& OutPoint) const
 
 void AProofRTSPawn::SelectUnderCursor()
 {
+    BoxGesture.Cancel();
     const AProofPlayerController* PC = Cast<AProofPlayerController>(GetController());
     const AProofGameState* GS = GetWorld()->GetGameState<AProofGameState>();
     if (!PC || !GS) return;
@@ -1287,12 +1309,14 @@ void AProofRTSPawn::BuildUnderCursor(EProofCommandType Type)
 
 void AProofRTSPawn::OnManualRefinery()
 {
+    BoxGesture.Cancel();
     BuildUnderCursor(EProofCommandType::BuildRefinery);
     RecordManualInput(TEXT("R"), ManualBuildPresses, RequestStatus);
 }
 
 void AProofRTSPawn::OnManualFactory()
 {
+    BoxGesture.Cancel();
     BuildUnderCursor(EProofCommandType::BuildFactory);
     RecordManualInput(TEXT("F"), ManualBuildPresses, RequestStatus);
 }
