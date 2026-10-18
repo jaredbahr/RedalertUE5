@@ -1,6 +1,7 @@
 #include "Runtime/ProofGameMode.h"
 #include "Runtime/ProofGameState.h"
 #include "Runtime/ProofPlayerController.h"
+#include "Runtime/ProofFacingEvidence.h"
 #include "Presentation/ProofRTSPawn.h"
 #include "Presentation/ProofHUD.h"
 #include "Engine/World.h"
@@ -293,6 +294,7 @@ FProofCommandResult AProofGameMode::SubmitForOwner(int32 TrustedOwnerId, const F
     if (AttackMoveEvidence.Enabled()) AttackMoveBefore.Emplace(Model.GetSnapshot());
     const FProofSnapshot ReturnCargoBefore = bReturnCargoEvidence && TrustedOwnerId == 1 ? Model.GetSnapshot() : FProofSnapshot();
     FProofCommandResult Result = Model.Submit(TrustedOwnerId, Command);
+    if (ProofFacingDisplacementEnabled()) ObserveProofFacingCommand(TrustedOwnerId, Command, Result, Model.GetSnapshot());
     if (bReturnCargoEvidence && TrustedOwnerId == 1)
         ObserveReturnCargoCommand(TrustedOwnerId, Command, Result, ReturnCargoBefore, Model.GetSnapshot());
     if (TrustedOwnerId == 1 && Command.Type == EProofCommandType::Gather
@@ -568,11 +570,12 @@ void AProofGameMode::Tick(float DeltaSeconds)
                     Command.MatchEpoch = MatchEpoch;
                     SubmitForOwner(ProofOwnerIds::Bot, Command);
                 }
-                const FProofSnapshot EvidenceBeforeAdvance = RefineryEvidence.Enabled() || bReturnCargoEvidence ? Model.GetSnapshot() : FProofSnapshot();
+                const FProofSnapshot EvidenceBeforeAdvance = RefineryEvidence.Enabled() || bReturnCargoEvidence || ProofFacingDisplacementEnabled() ? Model.GetSnapshot() : FProofSnapshot();
                 Model.Advance(0.1f);
                 if (StopEvidence.Enabled()) { StopEvidence.ObserveAdvance(MatchEpoch, 0.1f); }
                 SkirmishSeconds += 0.1;
                 const FProofSnapshot After = Model.GetSnapshot();
+                if (ProofFacingDisplacementEnabled()) ObserveProofFacingAdvance(EvidenceBeforeAdvance, After);
                 if (RefineryEvidence.Enabled()) RefineryEvidence.ObserveAdvance(MatchEpoch, EvidenceBeforeAdvance, After);
                 if (FParse::Param(FCommandLine::Get(), TEXT("ProofGroupGatherEvidence")))
                     ObserveGroupGatherDeposits(EvidenceBeforeAdvance, After);

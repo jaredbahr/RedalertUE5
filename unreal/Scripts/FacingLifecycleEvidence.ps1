@@ -1,3 +1,4 @@
+. (Join-Path $PSScriptRoot 'FacingDisplacementEvidence.ps1')
 function Get-FacingStateRows([string]$Log) {
     if($Log.Length-gt24MB){throw 'Facing state log exceeds bound'}
     function Number($V){return $null-ne$V-and$V-isnot[string]-and$V-isnot[bool]-and$V-isnot[array]-and[double]::IsFinite([double]$V)}
@@ -50,6 +51,7 @@ function Get-FacingLateObserverEvidence {
     $pass=[regex]::Match($Logs.lead,'PROOF_FACING_PREFLIGHT status=pass unit=(\d+) epoch=1 stationarySeconds=([\d.]+)')
     if(-not$pass.Success-or[double]$pass.Groups[2].Value-lt1.2){throw 'Facing ordinary movement/stationary preflight missing'}
     $unit=[int]$pass.Groups[1].Value
+    $trace=@(Get-FacingDisplacementTrace $Logs.host)
     if($Logs.host-notmatch'PROOF_LIFECYCLE_JOIN owner=2 epoch=1 seeded=0'-or$Logs.host-match'PROOF_LIFECYCLE_RESEED owner=2 epoch=1\b'){throw 'Late observer must use deferred rejoin seat'}
     $moves=[regex]::Matches($Logs.lead,'PROOF_FACING_PREFLIGHT_MOVE step=(0|2) unit=(\d+) sequence=(\d+) x=([-\d.]+) y=([-\d.]+)')
     if($moves.Count-ne2){throw 'Two preflight movement requests required'}
@@ -57,19 +59,35 @@ function Get-FacingLateObserverEvidence {
         if([int]$moves[$i].Groups[1].Value-ne2*$i-or[int]$moves[$i].Groups[2].Value-ne$unit-or$Logs.host-notmatch('PROOF_HOST_RESULT owner=1 sequence='+$moves[$i].Groups[3].Value+' accepted=1 reason=accepted\b')){throw 'Preflight request/host receipt binding missing'}
     }
     $first=$rows.rejoin[0]
-    if($first.unit-ne$unit-or-not(Test-FacingVec $first.lastTravelDirection @(0,-1,0))){throw 'Fresh late observer first content lost stationary direction'}
-    if(-not@($rows.host|Where-Object {$_.unit-eq$unit-and(Test-FacingVec $_.lastTravelDirection @(1,0,0))}).Count){throw 'Host first travel direction content missing'}
+    $seq0=[int]$moves[0].Groups[3].Value;$seq1=[int]$moves[1].Groups[3].Value
+    if($seq1-le$seq0){throw 'Preflight sequence order'}
+    $leg0=@($trace|Where-Object {$_.epoch-eq1-and$_.unit-eq$unit-and$_.sequence-eq$seq0})
+    if(-not$leg0.Count){throw 'First actual travel trace missing'}
+    $firstLegProof=@(foreach($r in $rows.host){
+        if($r.unit-ne$unit-or$r.revision-lt$leg0[0].afterRevision-or$r.revision-gt$leg0[-1].afterRevision){continue}
+        $o=Get-FacingDisplacementAt $trace 1 $unit $seq0 $r.revision $r.position
+        if(-not(Test-FacingVec $r.lastTravelDirection $o.direction)){throw 'Host first actual travel direction mismatch'}
+        if($o.actualTravelCm-ge120){[ordered]@{snapshot=$r;oracle=$o}}
+    })
+    if(-not$firstLegProof.Count){throw 'Host first actual travel content missing'}
+    $stationaryOracle=Get-FacingDisplacementAt $trace 1 $unit $seq1 $first.revision $first.position
+    if($first.unit-ne$unit-or$stationaryOracle.actualTravelCm-lt120-or-not(Test-FacingVec $first.lastTravelDirection $stationaryOracle.direction)){throw 'Fresh late observer first content lost stationary direction'}
+    $goal=@([double]$moves[1].Groups[4].Value,[double]$moves[1].Groups[5].Value,0.0)
+    if(-not(Test-FacingVec $first.position $goal 0.01)-or-not(Test-FacingVec $stationaryOracle.lastAdvance.before $stationaryOracle.lastAdvance.after 0)){throw 'Fresh observer is not stationary at actual arrival'}
+    $d0=$firstLegProof[-1].oracle.direction;$d1=$stationaryOracle.direction
+    if(($d0[0]*$d1[0]+$d0[1]*$d1[1])-ge0.25){throw 'Distinct actual preflight turn missing'}
     $common=@($maps.host.Keys|Where-Object {$maps.lead.ContainsKey($_)-and$maps.rejoin.ContainsKey($_)}|Sort-Object {[int]$_})
     if($common.Count-lt3){return $null}
     $proof=@(foreach($key in $common){
         $a=$maps.host[$key]
         foreach($role in @('host','lead','rejoin')){
             $b=$maps[$role][$key]
-            if($b.unit-ne$unit-or$b.digest-cne$a.digest-or-not(Test-FacingVec $b.position $first.position)-or-not(Test-FacingVec $b.lastTravelDirection @(0,-1,0))){throw 'Facing late observer actual content mismatch'}
+            $o=Get-FacingDisplacementAt $trace 1 $unit $seq1 $b.revision $b.position
+            if($b.unit-ne$unit-or$b.digest-cne$a.digest-or-not(Test-FacingVec $b.position $first.position)-or-not(Test-FacingVec $b.lastTravelDirection $o.direction)){throw 'Facing late observer actual content mismatch'}
         }
         [ordered]@{epoch=1;revision=$a.revision;unit=$unit;position=$a.position;lastTravelDirection=$a.lastTravelDirection;digest=$a.digest}
     })
-    return [ordered]@{passed=$true;survivorOwner=1;freshObserverOwner=2;firstObserverRow=$first;commonActualContent=$proof;stationarySeconds=[double]$pass.Groups[2].Value;clientHistoryRequired=$false;owner2ReseededBeforeRematch=$false}
+    return [ordered]@{passed=$true;survivorOwner=1;freshObserverOwner=2;firstObserverRow=$first;commonActualContent=$proof;firstLegActualDisplacement=$firstLegProof[-1];stationaryActualDisplacement=$stationaryOracle;stationarySeconds=[double]$pass.Groups[2].Value;clientHistoryRequired=$false;owner2ReseededBeforeRematch=$false}
 }
 function Get-FacingResetEvidence {
     param([hashtable]$Logs)

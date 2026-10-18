@@ -352,6 +352,7 @@ bool AProofRTSPawn::TickRhinoDirectionObservation()
         if (LastRequestedSequence <= Before || LastRequestedType != TEXT("Move") || LastRequestedUnitId != Unit->UnitId)
         { FinishSkirmishScenario(false, TEXT("direction_move_handler")); return true; }
         VisualGeometry.DirectionSequence = LastRequestedSequence;
+        VisualGeometry.bDirectionReceiptObserved = false;
         UE_LOG(LogTemp, Display, TEXT("PROOF_RHINO_DIRECTION_MOVE stage=%d unit=%d sequence=%d destinationX=%.9f destinationY=%.9f"),
             VisualGeometry.DirectionStage, Unit->UnitId, LastRequestedSequence,
             VisualGeometry.DirectionGoal.X, VisualGeometry.DirectionGoal.Y);
@@ -361,9 +362,14 @@ bool AProofRTSPawn::TickRhinoDirectionObservation()
     FProofCommandResult Receipt;
     if (!PC->FindReceipt(VisualGeometry.DirectionSequence, Receipt)) return true;
     if (!Receipt.bAccepted) { FinishSkirmishScenario(false, TEXT("direction_move_receipt")); return true; }
+    if (!VisualGeometry.bDirectionReceiptObserved)
+    {
+        VisualGeometry.DirectionTravelOrigin = Unit->Position;
+        VisualGeometry.bDirectionReceiptObserved = true;
+    }
     if (VisualGeometry.DirectionStage == 1 || VisualGeometry.DirectionStage == 3)
     {
-        if (FVector::DistSquared(Unit->Position, VisualGeometry.DirectionOrigin) >= FMath::Square(100.f))
+        if (FVector::DistSquared(Unit->Position, VisualGeometry.DirectionTravelOrigin) >= FMath::Square(100.f))
             BeginVisualGeometryCapture(Unit->UnitId, VisualGeometry.DirectionStage == 1
                 ? TEXT("08-rhino-direction-first.png") : TEXT("09-rhino-direction-turn.png"));
         return true;

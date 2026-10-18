@@ -27,6 +27,8 @@ struct FProofVisualGeometryRuntimeState
     int32 DirectionSequence = 0;
     FVector DirectionOrigin = FVector::ZeroVector;
     FVector DirectionGoal = FVector::ZeroVector;
+    bool bDirectionReceiptObserved = false;
+    FVector DirectionTravelOrigin = FVector::ZeroVector;
     FVector StationaryPosition = FVector::ZeroVector;
     float StationaryElapsed = 0.f;
 };

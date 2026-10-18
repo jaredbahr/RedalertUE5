@@ -1,3 +1,4 @@
+. (Join-Path $PSScriptRoot 'FacingDisplacementEvidence.ps1')
 function Get-RhinoDirectionEvidence {
     param([string]$Log)
     function Need($Pass,[string]$Reason){if(-not $Pass){throw ('Rhino direction: '+$Reason)}}
@@ -13,6 +14,8 @@ function Get-RhinoDirectionEvidence {
     $m=[regex]::Matches($Log,'(?m)^.*PROOF_RHINO_DIRECTION (\{[^\r\n]*\})\r?$')
     Need ($m.Count-eq4-and[regex]::Matches($Log,'PROOF_RHINO_DIRECTION(?=\s|$)').Count-eq4) 'four complete observations'
     $rows=@($m|ForEach-Object {$json=$_.Groups[1].Value;$doc=[Text.Json.JsonDocument]::Parse($json);try{Keys $doc.RootElement}finally{$doc.Dispose()};$json|ConvertFrom-Json -ErrorAction Stop})
+    $trace=@(Get-FacingDisplacementTrace $Log)
+    $oracles=@()
     $names=@('08-rhino-direction-first.png','09-rhino-direction-turn.png','10-rhino-stationary-a.png','11-rhino-stationary-b.png')
     $stages=@(1,3,4,5)
     $restored=[regex]::Matches($Log,'(?m)^.*PROOF_RHINO_DIRECTION_RESTORED stage=(\d+) verified=1\r?$')
@@ -32,7 +35,10 @@ function Get-RhinoDirectionEvidence {
         Need ($r.component.asset-ceq'/Game/BlockoutGenerated/Meshes/SM_RhinoTank_Blockout.SM_RhinoTank_Blockout'-and$r.rhinoLoaded-and$r.moveReceiptAccepted-and$r.moveSequence-gt0) 'loaded Rhino and accepted Move'
         Need ($r.width-eq1280-and$r.height-eq720-and$r.visibleUnitViews-eq1-and$r.otherUnitViewsHidden-and$r.hudHidden-and-not$r.modelModified-and-not$r.physicalInputVerified) 'capture scope'
         Need ((Dist $r.component.location $r.modelPosition)-lt0.01-and[math]::Abs($r.component.worldMin[2]-$r.floor.worldMax[2])-lt0.01) 'placement and grounding'
-        $expectedDirection=if($i-eq0){@(1,0,0)}else{@(0,-1,0)}
+        $oracle=Get-FacingDisplacementAt $trace $r.epoch $r.unit $r.moveSequence $r.revision $r.modelPosition
+        $oracles+=,$oracle
+        $expectedDirection=$oracle.direction
+        Need ($oracle.actualTravelCm-ge100) 'actual post-acceptance travel'
         Need ((Dist $r.authoritativeLastTravelDirection $expectedDirection)-lt0.001) 'actual authoritative last travel content'
         Need ((Dist $r.component.axisY $expectedDirection)-lt0.001) 'current Rhino local +Y maps to authoritative travel direction'
         $minimum=@([double]::PositiveInfinity,[double]::PositiveInfinity,[double]::PositiveInfinity)
@@ -54,13 +60,13 @@ function Get-RhinoDirectionEvidence {
         $r=$rows[$i];$seq=[int]$moves[$i].Groups[3].Value
         Need ($seq-eq$r.moveSequence-and[int]$moves[$i].Groups[2].Value-eq$r.unit-and[int]$moves[$i].Groups[1].Value-eq2*$i) 'command identity'
         Need ([regex]::IsMatch($Log,('PROOF_SKIRMISH_REQUEST owner=1 sequence='+$seq+' type=Move unit='+$r.unit+' target=-1\b'))) 'ordinary Move request'
-        Need ((Dist $r.modelPosition $r.moveOrigin)-ge100) 'observed travel'
+        Need ($oracles[$i].actualTravelCm-ge100) 'observed actual travel'
         Need ([math]::Abs($r.moveGoal[0]-[double]$moves[$i].Groups[4].Value)-lt0.01-and[math]::Abs($r.moveGoal[1]-[double]$moves[$i].Groups[5].Value)-lt0.01) 'bound destination'
     }
-    $dx0=$rows[0].modelPosition[0]-$rows[0].moveOrigin[0];$dy0=$rows[0].modelPosition[1]-$rows[0].moveOrigin[1]
-    $dx1=$rows[1].modelPosition[0]-$rows[1].moveOrigin[0];$dy1=$rows[1].modelPosition[1]-$rows[1].moveOrigin[1]
+    $dx0=$oracles[0].direction[0];$dy0=$oracles[0].direction[1]
+    $dx1=$oracles[1].direction[0];$dy1=$oracles[1].direction[1]
     $h0=[math]::Atan2($dy0,$dx0)*180/[math]::PI;$h1=[math]::Atan2($dy1,$dx1)*180/[math]::PI
-    Need ([math]::Abs($h0)-lt3-and[math]::Abs($h1+90)-lt3-and$rows[1].moveSequence-gt$rows[0].moveSequence) 'observed right-angle direction change'
+    Need (($dx0*$dx1+$dy0*$dy1)-lt0.25-and$rows[1].moveSequence-gt$rows[0].moveSequence) 'distinct actual turn headings'
     Need ($rows[2].moveSequence-eq$rows[1].moveSequence-and$rows[3].moveSequence-eq$rows[1].moveSequence-and(Dist $rows[2].modelPosition $rows[2].moveGoal)-lt0.01-and(Dist $rows[3].modelPosition $rows[2].modelPosition)-lt0.01-and$rows[3].elapsed-$rows[2].elapsed-ge1.2) 'arrival and stationary interval'
-    return [ordered]@{passed=$true;measurements=$rows;firstTravelHeadingDegrees=$h0;secondTravelHeadingDegrees=$h1;stationaryIntervalSeconds=($rows[3].elapsed-$rows[2].elapsed);stationaryDisplacementCm=(Dist $rows[3].modelPosition $rows[2].modelPosition);observedRotationPYR=@($rows|ForEach-Object {,@($_.component.rotationPYR)});acceptedCurrentMeshFront='+Y';physicalInputVerified=$false;scope='Two ordinary shared-handler Move requests; actual authoritative last travel content, local +Y mapping and transformed bounds through arrival; diagnostic only'}
+    return [ordered]@{passed=$true;measurements=$rows;independentDisplacementOracles=$oracles;firstTravelHeadingDegrees=$h0;secondTravelHeadingDegrees=$h1;stationaryIntervalSeconds=($rows[3].elapsed-$rows[2].elapsed);stationaryDisplacementCm=(Dist $rows[3].modelPosition $rows[2].modelPosition);observedRotationPYR=@($rows|ForEach-Object {,@($_.component.rotationPYR)});acceptedCurrentMeshFront='+Y';physicalInputVerified=$false;scope='Two ordinary shared-handler Move requests; expected direction from actual authoritative before/after Advance positions; local +Y and transformed bounds through arrival; diagnostic only'}
 }
