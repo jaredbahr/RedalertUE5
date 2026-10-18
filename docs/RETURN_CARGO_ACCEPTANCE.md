@@ -54,12 +54,24 @@ acceptance. PowerShell is not installed in the cloud preparation environment;
 these cases were authored and statically reviewed there, not executed. No
 translated implementation is presented as a PowerShell test result.
 
+## Offline Windows preflight
+
+The first actual PowerShell run at original source `837e9a4` rejected its first
+valid synthetic case: `invalid command identity target`. The test generator's
+untyped negative positional arguments (`-1`, `-500`) became strings in
+PowerShell argument mode, so its JSON contradicted the strict numeric schema.
+Typing the generator's integer fields and position argument fixes that test
+representation without changing the production evidence policy or gameplay.
+The same 86 authored cases then passed in actual PowerShell. Original failure
+and corrected output are retained privately; these remain synthetic policy
+checks, not the prerequisite semantic parser, native UE or rendered acceptance.
+
 ## Opt-in rendered invocation
 
 After the native pre-gate passes, use the existing generated CommandProof map:
 
 ```powershell
-& './unreal/Scripts/test-small-match.ps1' -EngineRoot $env:UE_ENGINE_ROOT -Scenario Victory -ReturnCargoEvidence -TimeoutSeconds 240
+& './unreal/Scripts/test-small-match.ps1' -EngineRoot $env:UE_ENGINE_ROOT -Scenario Victory -ReturnCargoEvidence -TimeoutSeconds 220
 ```
 
 `-ReturnCargoEvidence` requires plain Victory and is mutually exclusive with
@@ -145,7 +157,7 @@ A log marker alone is not screenshot validation.
 ## Status and remaining scope
 
 This is an executable acceptance candidate, not a native or rendered pass.
-Actual UHT/build, PowerShell execution, native groups, engine screenshots and
+Actual UHT/build, native groups, engine screenshots and
 bounded ordinary Victory still require recorded results from the approved
 execution environment. Keep failures and raw evidence private until reviewed
 under the repository's public-content policy.

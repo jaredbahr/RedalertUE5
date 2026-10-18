@@ -40,7 +40,9 @@ function New-SyntheticCase {
     Add-Phase group-resumed 91 7 8 10 9 0 1 0 50 200 0 1000
     Add-Phase restore-a 91 9 10 11 10 0 1 0 50 200 0 1000
     Add-Phase complete 94 9 10 11 10 0 2 0 50 200 0 1000
-    function Add-Command($Sequence,$Type,$Unit,$Target,$Before,$Rev,$Cargo,$Gathered,$X,$Saved) {
+    # Untyped negative command arguments are strings in PowerShell argument mode.
+    # Bind numeric fields before JSON serialization; keep the policy strict.
+    function Add-Command([int]$Sequence,[int]$Type,[int]$Unit,[int]$Target,[int]$Before,[int]$Rev,[int]$Cargo,[int]$Gathered,[double]$X,[int]$Saved) {
         $case.commands.Add([pscustomobject][ordered]@{owner=1;epoch=1;sequence=$Sequence;type=$Type;unit=$Unit;target=$Target;accepted=1;revisionBefore=$Before;revision=$Rev;cargoBefore=$Cargo;cargoAfter=$Cargo;creditsBefore=100+$Gathered;creditsAfter=100+$Gathered;gatheredBefore=$Gathered;gatheredAfter=$Gathered;xBefore=$X;yBefore=0;zBefore=0;x=$X;y=0;z=0;resumeResource=$Saved;conservedBefore=1000;conservedAfter=1000})
     }
     Add-Command 1 3 4 -1 1 2 0 0 -500 -1
@@ -57,7 +59,7 @@ function New-SyntheticCase {
         $case.travels.Add([pscustomobject][ordered]@{owner=1;epoch=1;revision=$s[2];sequence=$s[0];miner=$s[1];depot=3;cargoBefore=50;cargoAfter=50;xBefore=1000;yBefore=0;zBefore=0;x=990;y=0;z=0;depotX=0;depotY=0;depotZ=0})
     }
     function Contributor($Miner,$Sequence) { return [pscustomobject][ordered]@{miner=$Miner;before=50;after=0;depot=3;sequence=$Sequence} }
-    function Add-Deposit($Sequence,$Miner,$Rev,$Gathered,$Saved,$Contributors) {
+    function Add-Deposit([int]$Sequence,[int]$Miner,[int]$Rev,[int]$Gathered,[int]$Saved,$Contributors) {
         $sum=50*$Contributors.Count
         $case.deposits.Add([pscustomobject][ordered]@{owner=1;epoch=1;revision=$Rev;sequence=$Sequence;resumeResource=$Saved;miner=$Miner;depot=3;before=50;after=0;sum=$sum;creditsBefore=100+$Gathered;creditsAfter=100+$Gathered+$sum;gatheredBefore=$Gathered;gatheredAfter=$Gathered+$sum;x=0;y=0;z=0;depotX=0;depotY=0;depotZ=0;conservedBefore=1000;conservedAfter=1000;contributors=@($Contributors)})
     }
