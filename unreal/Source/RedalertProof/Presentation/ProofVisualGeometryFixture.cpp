@@ -257,7 +257,11 @@ bool AProofRTSPawn::TickVisualGeometryFixture(int32 FixtureHarvesterId)
         const FProofUnitRecord* Unit = Find(VisualGeometry.HarvesterId);
         if (!Unit) { FinishSkirmishScenario(false, TEXT("geometry_harvester_lost")); return true; }
         const FVector Before = VisualGeometry.Stage == 1 ? VisualGeometry.HarvesterContact : VisualGeometry.HarvesterMotionA;
-        if (FVector::DistSquared(Unit->Position, Before) >= FMath::Square(150.f))
+        // Capture A near the first ordinary Gather movement. Waiting 150 cm
+        // placed A midway along the short ore/refinery loop, so another
+        // 150 cm displacement could never occur. B still requires 150 cm.
+        const float RequiredDistance = VisualGeometry.Stage == 1 ? 1.f : 150.f;
+        if (FVector::DistSquared(Unit->Position, Before) >= FMath::Square(RequiredDistance))
             return BeginVisualGeometryCapture(Unit->UnitId, VisualGeometry.Stage == 1
                 ? TEXT("04-geometry-harvester-motion-a.png") : TEXT("05-geometry-harvester-motion-b.png"));
     }
