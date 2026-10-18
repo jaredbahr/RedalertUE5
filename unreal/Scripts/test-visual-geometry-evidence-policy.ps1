@@ -56,4 +56,15 @@ foreach($case in @(
     @{name='missing Gather identity';text=($text-replace'type=Gather','type=Other')},
     @{name='different actual attacker';text=($text-replace'type=Attack unit=7','type=Attack unit=9')}
 )){$rejected=$false;try{Get-VisualGeometryEvidence -Log $case.text|Out-Null}catch{$rejected=$true};Check $rejected $case.name}
+$moveText=$text-replace'type=Attack unit=7 target=8','type=Move unit=7 target=-1'
+Check (Get-VisualGeometryEvidence -Log $moveText).passed 'ordinary Move supports observed Combat motion'
+foreach($case in @(
+    @{name='different actual mover';text=($moveText-replace'type=Move unit=7','type=Move unit=9')},
+    @{name='missing movement command';text=($moveText-replace'type=Move','type=Other')},
+    @{name='movement command after motionB';text=(($moveText-replace'PROOF_SKIRMISH_REQUEST owner=1 sequence=5 type=Move unit=7 target=-1','')+"`nPROOF_SKIRMISH_REQUEST owner=1 sequence=5 type=Move unit=7 target=-1")},
+    @{name='Move invalid positive target';text=($moveText-replace'target=-1','target=8')},
+    @{name='Attack invalid negative target';text=($text-replace'type=Attack unit=7 target=8','type=Attack unit=7 target=-1')},
+    @{name='movement wrong owner';text=($moveText-replace'owner=1 sequence=5','owner=2 sequence=5')},
+    @{name='movement target suffix';text=($moveText-replace'target=-1','target=-10')}
+)){$rejected=$false;try{Get-VisualGeometryEvidence -Log $case.text|Out-Null}catch{$rejected=$true};Check $rejected $case.name}
 "visual geometry policy checks=$script:checks failures=0 (synthetic policy only; no UE/pixel evidence)"
