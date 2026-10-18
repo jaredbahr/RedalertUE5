@@ -135,6 +135,7 @@ void AProofBoxInputFixture::Baseline()
     Pawn->Selection.SelectSingle(S, 1, Case == 30 ? 1 : 17);
     if (Case == 7) Pawn->Selection.Toggle(S, 1, 16);
     Pawn->SelectedUnitId = Pawn->Selection.GetPrimaryUnitId();
+    Pawn->RequestStatus = TEXT("diagnostic-baseline");
     PressBefore = Pawn->ManualLeftPresses; ReleaseBefore = Pawn->ManualLeftReleases;
     RevisionBefore = Pawn->Selection.GetSelectionRevision(); SequenceBefore = Pawn->LastRequestedSequence;
     GroupBefore = Pawn->ManualGroupPresses; TypeBefore = Pawn->ManualTypeSelectPresses; RightBefore = Pawn->ManualRightPresses;
@@ -152,12 +153,15 @@ void AProofBoxInputFixture::Observe(const TCHAR* Phase) const
     const auto& S = GetWorld()->GetGameState<AProofGameState>()->Snapshot;
     int32 Width = 0, Height = 0; PC->GetViewportSize(Width, Height);
     const FViewport* V = GetWorld()->GetGameViewport()->Viewport;
-    UE_LOG(LogTemp, Display, TEXT("PROOF_BOX_OBSERVE case=%d name=%s phase=%s frame=%llu processedFrame=%llu owner=%d epoch=%d matchPhase=%d width=%d height=%d x=%.9f y=%.9f ids=[%s] primary=%d revision=%llu nativePress=%d nativeRelease=%d nativeGroup=%d nativeType=%d nativeRight=%d leftDown=%d shiftDown=%d armed=%d dragging=%d focus=%d foreground=%d sequence=%d queue=%d digest=%s capture=%s physicalInput=false osFocusVerified=false"),
+    const TCHAR* TypeScope = Pawn->RequestStatus.Contains(TEXT("battlefield")) ? TEXT("battlefield")
+        : Pawn->RequestStatus.Contains(TEXT("visible")) ? TEXT("visible") : TEXT("none");
+    UE_LOG(LogTemp, Display, TEXT("PROOF_BOX_OBSERVE case=%d name=%s phase=%s frame=%llu processedFrame=%llu owner=%d epoch=%d matchPhase=%d width=%d height=%d x=%.9f y=%.9f ids=[%s] primary=%d revision=%llu nativePress=%d nativeRelease=%d nativeGroup=%d nativeType=%d nativeRight=%d leftDown=%d shiftDown=%d typeDown=%d armed=%d dragging=%d focus=%d foreground=%d sequence=%d queue=%d digest=%s capture=%s typeScope=%s orderType=%s physicalInput=false osFocusVerified=false"),
         Case, Names[Case], Phase, GFrameCounter, PC->GetStopInputProcessedFrame(Pawn->InputComponent.Get()), PC->OwnerId, S.MatchEpoch, static_cast<int32>(S.MatchPhase),
         Width, Height, Pawn->ControlsCursor.X, Pawn->ControlsCursor.Y, *IdText(Pawn->GetSelectedUnitIds()), Pawn->GetSelectedUnitId(), Pawn->Selection.GetSelectionRevision(),
         Pawn->ManualLeftPresses, Pawn->ManualLeftReleases, Pawn->ManualGroupPresses, Pawn->ManualTypeSelectPresses, Pawn->ManualRightPresses,
-        PC->IsInputKeyDown(EKeys::LeftMouseButton), PC->IsInputKeyDown(EKeys::LeftShift),
-        Pawn->BoxGesture.IsArmed(), Pawn->BoxGesture.IsDragging(), V->HasFocus(), V->IsForegroundWindow(), Pawn->LastRequestedSequence, Pawn->GroupOrders.NumPending(), *S.ComputeDigest(), CaptureRequested ? *CapturePath : TEXT("none"));
+        PC->IsInputKeyDown(EKeys::LeftMouseButton), PC->IsInputKeyDown(EKeys::LeftShift), PC->IsInputKeyDown(EKeys::T),
+        Pawn->BoxGesture.IsArmed(), Pawn->BoxGesture.IsDragging(), V->HasFocus(), V->IsForegroundWindow(), Pawn->LastRequestedSequence, Pawn->GroupOrders.NumPending(), *S.ComputeDigest(), CaptureRequested ? *CapturePath : TEXT("none"), TypeScope,
+        Pawn->LastRequestedType.IsEmpty() ? TEXT("none") : *Pawn->LastRequestedType);
 }
 bool AProofBoxInputFixture::Verify()
 {
@@ -222,6 +226,7 @@ void AProofBoxInputFixture::TickKeyRegression()
     else if (Case == 28 || Case == 29)
     {
         if (Step == 1 || (Step == 3 && Case == 29)) Sent = Edge(EKeys::T, true);
+        if (Step == 2) Observe(TEXT("type-first"));
         if (Step == 2 || (Step == 4 && Case == 29)) Sent = Edge(EKeys::T, false);
         if ((Step == 3 && Case == 28) || Step == 5)
         {
@@ -348,6 +353,7 @@ void AProofBoxInputFixture::Tick(float DeltaSeconds)
     if (Step == 4)
     {
         if (Case == 14) { int32 W = 0, H = 0; PC->GetViewportSize(W, H); if (W != 1280 || H != 720) return; }
+        Observe(TEXT("before-release"));
         if (!Edge(EKeys::LeftMouseButton, false)) { Finish(false, TEXT("release")); return; }
         Step = 5; return;
     }
