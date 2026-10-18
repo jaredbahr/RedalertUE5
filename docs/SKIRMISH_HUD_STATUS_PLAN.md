@@ -35,3 +35,43 @@ Preserve the existing known-working trial checkout, DLL and14 assets as rollback
 ## Preparation state
 
 This lane contains a plan only. No helper, HUD implementation, engine compile, runtime process or human-trial refresh has run. Host allocation release is pending. Dot cloud ownership must be confirmed by the coordinating task before duplicate work begins.
+## Exact cloud assignment contract
+
+Baseline: public main618ac23f5669cd0ef2783c589cc37b2eea0fdcfa, rechecked unchanged before this assignment. Local reviewed plan checkpoint4b90b927e489426f607ba15618895c7606efe953 is not a public baseline. Cloud owns only the following production header and portable test file:
+
+- unreal/Source/RedalertProof/Presentation/ProofHUDTextChoice.h
+- tests/hud_text_choice_tests.cpp
+
+Required public API (header-only definitions; C++17):
+
+```cpp
+#include <cstddef>
+#include <limits>
+namespace ProofHUDTextChoice {
+inline constexpr std::size_t NoChoice = (std::numeric_limits<std::size_t>::max)();
+inline std::size_t ChooseFirstFitting(const double* CandidateWidths,
+    std::size_t CandidateCount, double AvailableWidth) noexcept;
+}
+```
+
+CandidateWidths points to CandidateCount readable doubles in preference order; the caller owns that buffer. Return the first index whose finite nonnegative width is <= finite nonnegative AvailableWidth, otherwise NoChoice. Invalid available width returns NoChoice for the entire call. Null pointer or zero count returns NoChoice without dereference. Skip negative, NaN and either-infinite candidate widths, preserving later valid candidates. Zero and signed negative zero are valid widths/available widths; a zero candidate fits zero available width. Closed exact boundary, no epsilon, rounding, allocation, global state, mutation or dependency on text/font/Unreal/platform/filesystem. Caller supplies valid readable storage for non-null positive count; this function cannot validate pointer extent. No text/label generation belongs in this helper.
+
+Tests must use the actual production header, plain standard C++17 and explicit failure checks that survive NDEBUG (no assert-only suite). Include: earliest preference even if later candidate is narrower; later valid candidate after malformed/overwide entries; all invalid/all overwide; exact fit; std::nextafter one representable value below/above the available width; zero/-zero; negative/NaN/+infinity/-infinity available widths and candidates; null with zero and positive counts; non-null zero count; deterministic repeated results and unmodified input. Test max finite value and matching boundary without adding widths (no overflow-prone sums). Report exact test/check counts and normal plus optimized/NDEBUG commands. No compiler installation, Actions or UE/Blender invocation. Deliver reviewed patch, baseline, byte count and SHA256 for local consumer verification.
+
+## Local Canvas preparation and fixed semantic variants
+
+Only skirmish row2 economy and row8 primary selection will use the helper initially. Existing title, controls, request, manual-input/focus counters, receipts, build hints, group hints and their diagnostic routes stay intact. Preserve all current row coordinates, font/scale, panel/camera exclusion and world markers. This avoids relocating the manual counters whose log correctly says countersRemainVisible=1 after bounded log suppression.
+
+Create complete strings first, then measure every candidate using GetTextSize with the exact Font/FontScale passed to DrawText. Convert those measured widths to double and pass the current MaxTextWidth. A chosen critical string is drawn directly, never through FitToWidth. Generic hint clipping remains separate. Record selected variant/no-choice and measured widths in explicit capture-mode diagnostics. On NoChoice show a measured overflow indicator only if it fits; always mark critical-field acceptance false, even if the indicator itself cannot be drawn. No original critical text or numeric prefix may be displayed as a successful truncated value.
+
+Root-owned variants, first preferred (cloud must not implement/change strings):
+
+| Group | Full | Compact |
+|---|---|---|
+| Economy | Credits: {credits}   Delivered ore: {ore} | Credits {credits}  Ore {ore} |
+| Selected primary | Selected: {count}   Primary #{id} {kind}   HP {hp}   Cargo {cargo}{rallyFull} | {count} selected  #{id} {kind}  HP {hp}  Cargo {cargo}{rallyCompact} |
+| No selection | Selected: none   Primary: none | No selection |
+
+Non-factory rally suffix is empty in both. Factory set suffix: full = '   Rally {x},{y}', compact = '  Rally {x},{y}'. Factory unset suffix: full = '   Rally none: right-click ground', compact = '  Rally none'. All numeric strings and kind names are identical across variants; retain the current integer formatting and rounded HP/rally display convention. Every selected-primary variant keeps selection count, ID, full generic kind, HP, cargo and applicable rally state; no-selection variants emit no invented zero values. Economy contains no selection suffix. Control hints already occupy separate rows; keep current input behavior and bounded manual/focus logging intact.
+
+Local formatting/native capture cases must check identical underlying values across candidates, large values, no selection, single/group selection, each generic kind, factory rally set/unset and explicit NoChoice. Width tests alone are not proof that these strings fit the real Canvas; rendered1280/960 acceptance remains gated on a fresh allocated build and native-size inspection. Any later label/row changes need source review before accepting this scope.
