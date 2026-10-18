@@ -339,6 +339,7 @@ void AProofRTSPawn::ObserveViewportFocus()
 
 void AProofRTSPawn::RecordManualInput(const TCHAR* Key, int32& Count, const FString& Outcome)
 {
+    ObserveViewportFocus();
     if (Count < MAX_int32) ++Count;
     LastManualAction = FString::Printf(TEXT("%s %s"), Key, *Outcome.Left(56));
     if (ManualInputLogs < 24)
