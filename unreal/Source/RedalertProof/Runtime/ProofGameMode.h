@@ -94,6 +94,23 @@ private:
     int32 StepsSincePublish = 0;
     TMap<int32, FVector> InitialPositions;
     TSet<int32> HumanAttackTargets;
+    // Accepted-command provenance only; no access to the model's private orders.
+    struct FReturnCargoEvidenceOrder
+    {
+        int32 Sequence = 0;
+        int32 Depot = INDEX_NONE;
+        int32 ResumeResource = INDEX_NONE;
+        bool bTravelLogged = false;
+    };
+    bool bReturnCargoEvidence = false;
+    int32 ReturnCargoEvidenceRows = 0;
+    TMap<int32, int32> ReturnCargoGatherSources;
+    TMap<int32, FReturnCargoEvidenceOrder> ReturnCargoActive;
+    TMap<int32, FReturnCargoEvidenceOrder> ReturnCargoAwaitingResume;
+    bool ReturnCargoEvidenceRow();
+    void ObserveReturnCargoCommand(int32 TrustedOwnerId, const FProofCommand& Command, const FProofCommandResult& Result,
+        const FProofSnapshot& Before, const FProofSnapshot& After);
+    void ObserveReturnCargoAdvance(const FProofSnapshot& Before, const FProofSnapshot& After);
     TSet<int32> GroupGatherDepositMiners;
     void ObserveGroupGatherDeposits(const FProofSnapshot& Before, const FProofSnapshot& After);
     void Publish();

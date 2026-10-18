@@ -1,5 +1,6 @@
 #include "Presentation/ProofGroupOrderQueue.h"
 #include "Presentation/ProofSelectionState.h"
+#include "Presentation/ProofReturnCargoSelection.h"
 
 namespace
 {
@@ -57,6 +58,10 @@ bool FProofGroupOrderQueue::IsValidIntent(const FProofSnapshot& Snapshot, int32 
     }
     const FProofUnitRecord* Unit = FindQueueUnit(Snapshot, Command.UnitId);
     if (!Unit || Unit->OwnerId != CurrentOwnerId || !(Unit->HitPoints > 0.f)) { return false; }
+    if (Command.Type == EProofCommandType::ReturnCargo)
+    {
+        return FProofReturnCargoSelection::CanReturn(Snapshot, CurrentOwnerId, Command.UnitId, Command.TargetUnitId);
+    }
     if (Command.Type == EProofCommandType::Gather)
     {
         return FProofSelectionState::CanGather(Snapshot, CurrentOwnerId, Command.UnitId, Command.TargetUnitId);
@@ -102,15 +107,16 @@ bool FProofGroupOrderQueue::Enqueue(const FProofSnapshot& Snapshot, int32 Curren
     {
         if ((Command.Type != EProofCommandType::Move && Command.Type != EProofCommandType::Attack
             && Command.Type != EProofCommandType::Stop && Command.Type != EProofCommandType::AttackMove
-            && Command.Type != EProofCommandType::Gather)
-            || Command.UnitId <= 0 || ((Command.Type == EProofCommandType::Attack || Command.Type == EProofCommandType::Gather) && Command.TargetUnitId <= 0))
+            && Command.Type != EProofCommandType::Gather && Command.Type != EProofCommandType::ReturnCargo)
+            || Command.UnitId <= 0 || ((Command.Type == EProofCommandType::Attack || Command.Type == EProofCommandType::Gather
+                || Command.Type == EProofCommandType::ReturnCargo) && Command.TargetUnitId <= 0))
         {
             return false;
         }
         FProofCommand Intent = Command;
         Intent.Sequence = 0;
         Intent.MatchEpoch = 0;
-        if (Intent.Type == EProofCommandType::Gather)
+        if (Intent.Type == EProofCommandType::Gather || Intent.Type == EProofCommandType::ReturnCargo)
         {
             if (!IsValidIntent(Snapshot, CurrentOwnerId, Intent)) { return false; }
             Intent.Destination = FVector::ZeroVector;

@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <limits>
+#include <initializer_list>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -15,10 +16,12 @@
 
 using int32 = std::int32_t;
 using int64 = std::int64_t;
+using uint64 = std::uint64_t;
 using uint8 = std::uint8_t;
 using TCHAR = char;
 constexpr int32 INDEX_NONE = -1;
 constexpr int32 MAX_int32 = std::numeric_limits<int32>::max();
+constexpr uint64 MAX_uint64 = std::numeric_limits<uint64>::max();
 constexpr double UE_SMALL_NUMBER = 1.e-8;
 #define TEXT(Value) Value
 #define UENUM(...)
@@ -37,6 +40,7 @@ public:
     const char* operator*() const { return Value.c_str(); }
     FString& operator+=(const FString& Other) { Value += Other.Value; return *this; }
     bool operator==(const FString& Other) const { return Value == Other.Value; }
+    bool operator!=(const FString& Other) const { return !(*this == Other); }
     static FString Printf(const char* Format, ...)
     {
         va_list Args, Copy;
@@ -60,6 +64,8 @@ struct FVector
     FVector operator+(const FVector& B) const { return {X + B.X, Y + B.Y, Z + B.Z}; }
     FVector operator-(const FVector& B) const { return {X - B.X, Y - B.Y, Z - B.Z}; }
     FVector operator*(double Scale) const { return {X * Scale, Y * Scale, Z * Scale}; }
+    FVector& operator+=(const FVector& B) { X += B.X; Y += B.Y; Z += B.Z; return *this; }
+    FVector& operator/=(double Scale) { X /= Scale; Y /= Scale; Z /= Scale; return *this; }
     bool operator==(const FVector& B) const { return X == B.X && Y == B.Y && Z == B.Z; }
     bool operator!=(const FVector& B) const { return !(*this == B); }
     double& operator[](int32 Axis) { return Axis == 0 ? X : (Axis == 1 ? Y : Z); }
@@ -73,6 +79,17 @@ struct FVector
 };
 inline const FVector FVector::ZeroVector{};
 
+struct FVector2D
+{
+    double X = 0, Y = 0;
+    FVector2D() = default;
+    FVector2D(double InX, double InY) : X(InX), Y(InY) {}
+};
+struct FIntPoint { int32 X, Y; FIntPoint(int32 InX, int32 InY) : X(InX), Y(InY) {} };
+enum class EAllowShrinking { No, Yes };
+template<int32 Size> struct TInlineAllocator {};
+template<typename T> T&& MoveTemp(T& Value) { return std::move(Value); }
+
 struct FMath
 {
     template<typename T> static bool IsFinite(T Value) { return std::isfinite(Value); }
@@ -80,14 +97,32 @@ struct FMath
     template<typename T> static T Min(T A, T B) { return std::min(A, B); }
     template<typename T> static T Max(T A, T B) { return std::max(A, B); }
     template<typename T> static T Square(T Value) { return Value * Value; }
+    template<typename T> static T Clamp(T Value, T Low, T High) { return std::min(std::max(Value, Low), High); }
 };
 
-template<typename T> class TArray
+template<typename T, typename Allocator = void> class TArray
 {
     std::vector<T> Data;
 public:
+    TArray() = default;
+    TArray(std::initializer_list<T> Values) : Data(Values) {}
+    bool operator==(const TArray& Other) const { return Data == Other.Data; }
+    bool operator!=(const TArray& Other) const { return !(*this == Other); }
     int32 Num() const { return static_cast<int32>(Data.size()); }
-    void Add(const T& Item) { Data.push_back(Item); }
+    bool IsEmpty() const { return Data.empty(); }
+    int32 Add(const T& Item) { Data.push_back(Item); return Num() - 1; }
+    void Reserve(int32 Count) { Data.reserve(static_cast<std::size_t>(Count)); }
+    bool Contains(const T& Item) const { return std::find(Data.begin(), Data.end(), Item) != Data.end(); }
+    void AddUnique(const T& Item) { if (!Contains(Item)) Add(Item); }
+    int32 IndexOfByKey(const T& Item) const
+    { const auto It = std::find(Data.begin(), Data.end(), Item); return It == Data.end() ? INDEX_NONE : static_cast<int32>(It - Data.begin()); }
+    template<typename P> int32 IndexOfByPredicate(P Pred) const
+    { for (int32 I = 0; I < Num(); ++I) if (Pred((*this)[I])) return I; return INDEX_NONE; }
+    void RemoveAt(int32 Index, int32 Count = 1, EAllowShrinking = EAllowShrinking::Yes)
+    { Data.erase(Data.begin() + Index, Data.begin() + Index + Count); }
+    void SetNum(int32 Count, EAllowShrinking = EAllowShrinking::Yes) { Data.resize(static_cast<std::size_t>(Count)); }
+    void Remove(const T& Item) { RemoveAll([&Item](const T& Other) { return Other == Item; }); }
+    void Sort() { std::sort(Data.begin(), Data.end()); }
     void Reset() { Data.clear(); }
     T& operator[](int32 Index) { return Data.at(static_cast<std::size_t>(Index)); }
     const T& operator[](int32 Index) const { return Data.at(static_cast<std::size_t>(Index)); }
