@@ -30,7 +30,7 @@ The allocation was released at 2026-10-17 14:38:03 UTC with zero UE/build proces
 
 The accepted run reports `inputSource=engineInjection`, `pointerSource=projectedSynthetic`, `physicalInputVerified=false` and `osWindowFocusVerified=false`. Physical S, other bindings/modifiers, Alt-Tab and OS focus remain open under issue #17. The old broad input/higher-digit fixture evidence is not transferred. Dense legacy labels and the clipped native-status suffix remain visible; issue #18 remains open.
 
-This candidate is local and unpublished. Jared's specific approval covered PR43; it does not authorize publication or merge of this branch or the pointer-bounds follow-up.
+Historical preparation status (superseded by the later publication and combined-acceptance checkpoints below): the candidate was then local and unpublished, with publication authorization pending.
 
 ## Combined acceptance checkpoint
 
