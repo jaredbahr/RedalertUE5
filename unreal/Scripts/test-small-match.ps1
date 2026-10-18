@@ -310,7 +310,7 @@ try {
         # Serial preparation, inside the same scenario stopwatch and budget.
         # Do not let a fresh workspace's render-data compilation give the bot
         # a head start before the local match fixture can issue any commands.
-        $warmup=Start-Role 'geometry-warmup' '/Game/CommandProofGenerated/Maps/CommandProof' @('-game','-RenderOffscreen','-windowed','-ResX=1280','-ResY=720','-ProofGraphicsWarmup')
+        $warmup=Start-Role 'geometry-warmup' '/Game/CommandProofGenerated/Maps/CommandProof' @('-game','-RenderOffscreen','-windowed','-ResX=1280','-ResY=720','-ProofSkirmish','-ProofGraphicsWarmup')
         Wait-Marker $warmup 'PROOF_GRAPHICS_WARMUP_COMPLETE status=pass remaining=0 idleSeconds=[\d.]+ frames=\d+ width=1280 height=720 maxFPS=30\.000'
         while (-not $warmup.Process.HasExited) {
             Check-StorageBudget; Maintain-OwnedCpuPolicy
