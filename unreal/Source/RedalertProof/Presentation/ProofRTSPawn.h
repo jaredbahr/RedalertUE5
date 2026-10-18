@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Runtime/ProofAttackMoveRuntimeState.h"
+#include "Presentation/ProofFactoryProductionRuntimeState.h"
 #include "Presentation/ProofCoopContextRuntimeState.h"
 #include "Presentation/ProofReturnCargoRuntimeState.h"
 #include "GameFramework/Pawn.h"
@@ -44,6 +45,9 @@ private:
     bool ReturnCargoCheck(bool bCondition, const TCHAR* Reason);
     bool ReturnCargoReceiptsReady(const FProofSnapshot& Snapshot, int32 Count);
     void LogReturnCargoPhase(const TCHAR* Phase, const FProofSnapshot& Snapshot) const;
+    FProofFactoryProductionRuntimeState FactoryProduction;
+    bool TickFactoryProductionFixture();
+    void LogFactoryProductionPhase(const TCHAR* Phase) const;
     FProofCoopContextRuntimeState CoopContext;
     bool CoopContextCheck(bool bCondition, const TCHAR* Reason);
     bool ProjectCoopContextTarget(int32 TargetId, FVector& Ground);

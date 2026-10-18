@@ -62,7 +62,9 @@ untyped negative positional arguments (`-1`, `-500`) became strings in
 PowerShell argument mode, so its JSON contradicted the strict numeric schema.
 Typing the generator's integer fields and position argument fixes that test
 representation without changing the production evidence policy or gameplay.
-The same 86 authored cases then passed in actual PowerShell. Original failure
+The same 86 authored cases then passed in actual PowerShell. Three explicit
+negative-string target, saved-resource and coordinate cases bring the suite to
+89 checks while retaining string rejection. Original failure
 and corrected output are retained privately; these remain synthetic policy
 checks, not the prerequisite semantic parser, native UE or rendered acceptance.
 

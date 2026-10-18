@@ -136,6 +136,9 @@ Case 'rendered checkpoint missing' $false { param($c) $c.context.maps.rendered.R
 Case 'phase cargo contradicts snapshot' $false { param($c) $c.phases[3].cargoA=49 }
 Case 'phase ownership wrong' $false { param($c) $c.context.maps.host['1:22'].units[0].owner=100 }
 Case 'numeric string rejected' $false { param($c) $c.phases[3].revision='22' }
+Case 'string negative target rejected' $false { param($c) $c.commands[0].target='-1' }
+Case 'string negative saved resource rejected' $false { param($c) $c.commands[0].resumeResource='-1' }
+Case 'string negative coordinate rejected' $false { param($c) $c.commands[0].xBefore='-500' }
 Case 'boolean integer rejected' $false { param($c) $c.phases[3].sharedHandlers=$true }
 Case 'nonfinite time rejected' $false { param($c) $c.phases[18].elapsed=[double]::NaN }
 Case 'unchanged 220-second fixture limit' $false { param($c) $c.phases[18].elapsed=220.000001 }
