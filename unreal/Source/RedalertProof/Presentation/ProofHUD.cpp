@@ -1,5 +1,7 @@
 #include "Presentation/ProofHUD.h"
 #include "Presentation/ProofHUDPanelLayout.h"
+#include "Presentation/ProofHUDStatusText.h"
+#include "Presentation/ProofHUDTextChoice.h"
 #include "Presentation/ProofMarkerLayout.h"
 #include "Presentation/ProofLegacyLabelLayout.h"
 #include "Presentation/ProofRTSPawn.h"
@@ -12,6 +14,8 @@
 #include "Runtime/ProofGameState.h"
 #include "Runtime/ProofPlayerController.h"
 #include "UnrealClient.h"
+
+#include <limits>
 
 void AProofHUD::DrawHUD()
 {
@@ -117,28 +121,57 @@ void AProofHUD::DrawHUD()
         DrawText(FitToWidth(Text), Color, TextX, Y, Font, FontScale, false);
     };
 
+    // Critical text is selected as a complete measured variant, never ellipsized.
+    // The dependency-free selector is owned by the coordinated cloud lane.
+    const auto DrawCriticalHudLine = [this, Font, FontScale, TextX, MaxTextWidth,
+        Row, Top, PanelHeight, Pad, bCaptureLayout, &CaptureFilename](
+        const TCHAR* Group, const TArray<FString>& Variants, const FLinearColor& Color, float Y)
+    {
+        TArray<double> Widths;
+        TArray<float> Heights;
+        const float MaxHeight = FMath::Min(Row, Top + PanelHeight - Pad - Y);
+        for (const FString& Variant : Variants)
+        {
+            float Width = 0.f, Height = 0.f;
+            GetTextSize(Variant, Width, Height, Font, FontScale);
+            const bool bMeasured = Font && !Variant.IsEmpty() && FMath::IsFinite(Width) && Width > 0.f
+                && FMath::IsFinite(Height) && Height > 0.f && Height <= MaxHeight;
+            Widths.Add(bMeasured ? static_cast<double>(Width) : std::numeric_limits<double>::quiet_NaN());
+            Heights.Add(Height);
+        }
+        const std::size_t Choice = ProofHUDTextChoice::ChooseFirstFitting(
+            Widths.GetData(), static_cast<std::size_t>(Widths.Num()), static_cast<double>(MaxTextWidth));
+        const bool bComplete = Choice != ProofHUDTextChoice::NoChoice
+            && Choice < static_cast<std::size_t>(Variants.Num());
+        const int32 Index = bComplete ? static_cast<int32>(Choice) : INDEX_NONE;
+        if (bComplete)
+        {
+            DrawText(Variants[Index], Color, TextX, Y, Font, FontScale, false);
+        }
+        else
+        {
+            const FString Overflow = TEXT("Status overflow");
+            float Width = 0.f, Height = 0.f;
+            GetTextSize(Overflow, Width, Height, Font, FontScale);
+            if (Font && FMath::IsFinite(Width) && Width > 0.f && Width <= MaxTextWidth
+                && FMath::IsFinite(Height) && Height > 0.f && Height <= MaxHeight)
+                DrawText(Overflow, FLinearColor(1.f, 0.45f, 0.3f), TextX, Y, Font, FontScale, false);
+        }
+        if (bCaptureLayout)
+        {
+            UE_LOG(LogTemp, Display, TEXT("PROOF_HUD_CRITICAL_CAPTURE name=%s group=%s variant=%d complete=%d width=%.9g available=%.9g height=%.9g maxheight=%.9g"),
+                *FPaths::GetCleanFilename(CaptureFilename), Group, Index, bComplete ? 1 : 0,
+                bComplete ? Widths[Index] : -1.0, static_cast<double>(MaxTextWidth),
+                bComplete ? static_cast<double>(Heights[Index]) : -1.0, static_cast<double>(MaxHeight));
+        }
+    };
+
     if (bSkirmish)
     {
-        FString SelectedDescription = TEXT("none");
-        if (SelectedUnit)
-        {
-            const TCHAR* KindName = TEXT("Combat");
-            switch (SelectedUnit->Kind)
-            {
-            case EProofUnitKind::Harvester: KindName = TEXT("Harvester"); break;
-            case EProofUnitKind::HQ: KindName = TEXT("HQ"); break;
-            case EProofUnitKind::Refinery: KindName = TEXT("Refinery"); break;
-            case EProofUnitKind::Factory: KindName = TEXT("Factory"); break;
-            default: break;
-            }
-            SelectedDescription = FString::Printf(TEXT("#%d %s  Cargo %d"), SelectedUnit->UnitId, KindName, SelectedUnit->Cargo);
-        }
-        if (Pawn && Pawn->GetSelectedUnitIds().Num() > 1)
-            SelectedDescription = FString::Printf(TEXT("%d units (primary #%d)"), Pawn->GetSelectedUnitIds().Num(), Pawn->GetSelectedUnitId());
         DrawHudLine(TEXT("SMALL SKIRMISH  |  Destroy the opposing team's live HQ"), FLinearColor::White, Top + Pad);
         DrawHudLine(TEXT("Select: left-click   Order/gather: right-click   Zoom: wheel   Exit: Esc"),
             FLinearColor(0.85f, 0.9f, 1.f), Top + Pad + Row);
-        DrawHudLine(FString::Printf(TEXT("Credits: %d   Delivered ore: %d   Selected: %s"), Credits, TotalGathered, *SelectedDescription),
+        DrawCriticalHudLine(TEXT("economy"), ProofHUDStatusText::Economy(Credits, TotalGathered),
             FLinearColor(0.8f, 1.f, 0.8f), Top + Pad + Row * 2.f);
         DrawHudLine(Pawn ? Pawn->GetRequestStatus() : TEXT("Waiting for camera pawn."),
             FLinearColor(1.f, 0.88f, 0.45f), Top + Pad + Row * 3.f);
@@ -147,12 +180,10 @@ void AProofHUD::DrawHUD()
         DrawHudLine(PC->GetReceiptStatus(), FLinearColor(0.65f, 0.88f, 1.f), Top + Pad + Row * 5.f);
         DrawHudLine(TEXT("Build: R refinery 100   F factory 150   P combat unit 50   Ore markers show remaining resources"),
             FLinearColor(0.72f, 0.88f, 0.96f), Top + Pad + Row * 6.f);
-        // Keep primary health inspectable even when its world marker is occluded.
-        const FString RallyDetail = SelectedUnit && SelectedUnit->Kind == EProofUnitKind::Factory
-            ? (SelectedUnit->bHasRallyPoint ? FString::Printf(TEXT("  Rally %.0f,%.0f"), SelectedUnit->RallyPoint.X, SelectedUnit->RallyPoint.Y)
-                : TEXT("  Rally none: right-click ground")) : FString();
-        DrawHudLine(SelectedUnit ? FString::Printf(TEXT("Primary #%d  HP %.0f  Cargo %d%s"),
-            SelectedUnit->UnitId, SelectedUnit->HitPoints, SelectedUnit->Cargo, *RallyDetail) : TEXT("Primary: none"),
+        // Full/compact variants retain primary identity, role, health, cargo,
+        // group count and factory rally even when its world label is occluded.
+        DrawCriticalHudLine(TEXT("selection"), ProofHUDStatusText::Selection(SelectedUnit,
+            Pawn ? Pawn->GetSelectedUnitIds().Num() : 0),
             FLinearColor(0.8f, 1.f, 0.8f), Top + Pad + Row * 8.f);
     }
     else
