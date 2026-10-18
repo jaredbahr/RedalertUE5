@@ -156,6 +156,72 @@ bool FProofBotMinerRecoveryPlannerTest::RunTest(const FString&)
     TestEqual(TEXT("No spawn space prevents a recovery build"), CountRecoveryCommands(BlockedBot.Decide(Blocked, 100, 0.0)), 0);
     TestEqual(TEXT("Blocked planner preserves credits"), Blocked.Players[0].Credits, 100);
 
+    // A destroyed last refinery is not by itself an income opportunity. Keep
+    // the existing replacement-miner policy, but avoid a purposeless rebuild.
+    FProofSnapshot Exhausted = MinerLossSnapshot();
+    Exhausted.Units[1].HitPoints = 0.f;
+    Exhausted.Units[3].HitPoints = 100.f;
+    Exhausted.Resources[0].Remaining = 0;
+    for (int32 OreCase = 0; OreCase < 4; ++OreCase)
+    {
+        FProofSnapshot NoIncome = Exhausted;
+        if (OreCase == 1) { NoIncome.Resources.Reset(); }
+        if (OreCase == 2) { NoIncome.Resources[0].Remaining = -1; }
+        if (OreCase == 3) { NoIncome.Resources[0].Remaining = 500; NoIncome.Resources[0].ResourceId = 0; }
+        FProofSkirmishBot NoIncomeBot;
+        const TArray<FProofCommand> Batch = NoIncomeBot.Decide(NoIncome, 100, 0.0);
+        TestEqual(TEXT("Missing refinery without usable ore or cargo is not rebuilt"), CountRecoveryCommands(Batch), 0);
+        TestTrue(TEXT("Skipped refinery leaves the existing production choice and first sequence available"),
+            Batch.Num() == 1 && Batch[0].Type == EProofCommandType::Produce
+            && Batch[0].UnitId == 3 && Batch[0].Sequence == 1);
+        TestEqual(TEXT("No-income planning preserves the last refinery-cost credits"), NoIncome.Players[0].Credits, 100);
+        const TArray<FProofCommand> Later = NoIncomeBot.Decide(NoIncome, 100, 1.0);
+        TestTrue(TEXT("Repeated no-income decisions do not add rebuilds or sequence gaps"),
+            Later.Num() == 1 && Later[0].Type == EProofCommandType::Produce && Later[0].Sequence == 2);
+    }
+    FProofSnapshot OreAvailable = Exhausted;
+    OreAvailable.Resources[0].Remaining = 1;
+    FProofSkirmishBot OreAvailableBot;
+    TestEqual(TEXT("One remaining usable ore still permits missing-refinery recovery"),
+        CountRecoveryCommands(OreAvailableBot.Decide(OreAvailable, 100, 0.0)), 1);
+
+    for (int32 Cargo : {1, FProofCommandModel::CargoCapacity})
+    {
+        FProofSnapshot Loaded = Exhausted;
+        Loaded.Resources.Reset();
+        Loaded.Units[3].Cargo = Cargo;
+        FProofSkirmishBot LoadedBot;
+        const TArray<FProofCommand> Batch = LoadedBot.Decide(Loaded, 100, 0.0);
+        TestTrue(TEXT("A surviving own loaded miner keeps refinery recovery ahead of production"),
+            Batch.Num() == 1 && Batch[0].Type == EProofCommandType::BuildRefinery && Batch[0].Sequence == 1);
+        TestEqual(TEXT("Loaded planning does not spend or unload itself"), Loaded.Units[3].Cargo, Cargo);
+        Loaded.Units.Swap(0, 3);
+        Loaded.Units.Swap(1, 2);
+        FProofSkirmishBot LoadedPermutationBot;
+        const TArray<FProofCommand> ReorderedLoaded = LoadedPermutationBot.Decide(Loaded, 100, 0.0);
+        TestTrue(TEXT("Loaded recovery site is independent of unit record order"),
+            Batch.Num() == 1 && ReorderedLoaded.Num() == 1
+            && Batch[0].Destination == ReorderedLoaded[0].Destination);
+    }
+    for (int32 InvalidCargoCase = 0; InvalidCargoCase < 3; ++InvalidCargoCase)
+    {
+        FProofSnapshot Ineligible = Exhausted;
+        Ineligible.Units[3].Cargo = FProofCommandModel::CargoCapacity;
+        if (InvalidCargoCase == 0) { Ineligible.Units[3].HitPoints = 0.f; }
+        if (InvalidCargoCase == 1) { Ineligible.Units[3].OwnerId = 1; }
+        if (InvalidCargoCase == 2) { Ineligible.Units[3].Kind = EProofUnitKind::Combat; }
+        FProofSkirmishBot IneligibleBot;
+        TestEqual(TEXT("Dead, foreign or non-miner cargo cannot justify a refinery rebuild"),
+            CountRecoveryCommands(IneligibleBot.Decide(Ineligible, 100, 0.0)), 0);
+    }
+    FProofSnapshot NoFactory = Exhausted;
+    NoFactory.Units[2].HitPoints = 0.f;
+    NoFactory.Players[0].Credits = FProofCommandModel::FactoryCost;
+    FProofSkirmishBot NoFactoryBot;
+    const TArray<FProofCommand> FactoryOnly = NoFactoryBot.Decide(NoFactory, 100, 0.0);
+    TestTrue(TEXT("Skipping a futile refinery does not suppress affordable factory construction"),
+        FactoryOnly.Num() == 1 && FactoryOnly[0].Type == EProofCommandType::BuildFactory && FactoryOnly[0].Sequence == 1);
+
     // Applying the returned grant to the next visible snapshot is sufficient
     // to suppress further recovery. No hidden planner flag blocks future loss.
     Snapshot.Units[3].HitPoints = 100.f;
@@ -251,6 +317,122 @@ bool FProofBotMinerRecoveryModelTest::RunTest(const FString&)
     TestTrue(TEXT("Replacement travels, extracts and deposits earned credits"), bDeposited);
     TestEqual(TEXT("No repeated refinery construction after recovery"), LaterRefineries, 0);
     TestTrue(TEXT("Recovery fixture remains a playing match"), Model.GetSnapshot().MatchPhase == EProofMatchPhase::Playing);
+    // Reach both policy states through public setup/commands/combat only. This
+    // is a snapshot-to-planner intent test, not an autonomous bot-match trace:
+    // setup has its own sequence history, so accepted intents below receive
+    // that model owner's next sequence rather than the fresh planner's one.
+    for (bool bKeepLoadedCargo : {false, true})
+    {
+        FProofCommandModel DepletedModel;
+        DepletedModel.StartSkirmish();
+        TestTrue(TEXT("Depletion trace seeds bot owner"), DepletedModel.SeedSkirmishPlayer(100, 1, FVector::ZeroVector));
+        TestTrue(TEXT("Depletion trace seeds opposing owner"), DepletedModel.SeedSkirmishPlayer(1, 0, FVector(6000, 0, 0)));
+        int32 BotSequence = 0, OpponentSequence = 0;
+        const auto DepletedSubmit = [&](int32 OwnerId, EProofCommandType Type, int32 UnitId,
+            int32 TargetId, const FVector& Destination)
+        {
+            FProofCommand Command;
+            Command.Sequence = OwnerId == 100 ? ++BotSequence : ++OpponentSequence;
+            Command.Type = Type; Command.UnitId = UnitId; Command.TargetUnitId = TargetId; Command.Destination = Destination;
+            return TestTrue(TEXT("Public depletion trace command is accepted"), DepletedModel.Submit(OwnerId, Command).bAccepted);
+        };
+        const auto LiveKindId = [&](int32 OwnerId, EProofUnitKind Kind) -> int32
+        {
+            for (const FProofUnitRecord& Record : DepletedModel.GetSnapshot().Units)
+                if (Record.OwnerId == OwnerId && Record.Kind == Kind && Record.HitPoints > 0.f) return Record.UnitId;
+            return INDEX_NONE;
+        };
+        if (!DepletedSubmit(100, EProofCommandType::BuildRefinery, INDEX_NONE, INDEX_NONE, FVector(350, 0, 0))) return false;
+        const int32 LostRefineryId = LiveKindId(100, EProofUnitKind::Refinery);
+        if (!DepletedSubmit(100, EProofCommandType::BuildFactory, INDEX_NONE, INDEX_NONE, FVector(-350, 0, 0))
+            || !DepletedSubmit(1, EProofCommandType::BuildRefinery, INDEX_NONE, INDEX_NONE, FVector(6350, 0, 0))
+            || !DepletedSubmit(1, EProofCommandType::BuildFactory, INDEX_NONE, INDEX_NONE, FVector(5650, 0, 0))
+            || !DepletedSubmit(1, EProofCommandType::Produce, LiveKindId(1, EProofUnitKind::Factory), INDEX_NONE, FVector::ZeroVector)) return false;
+        const int32 DepletionAttackerId = LiveKindId(1, EProofUnitKind::Combat);
+        for (const FProofUnitRecord& Record : DepletedModel.GetSnapshot().Units)
+            if (Record.Kind == EProofUnitKind::Harvester
+                && !DepletedSubmit(Record.OwnerId, EProofCommandType::Gather, Record.UnitId,
+                    Record.OwnerId == 100 ? 1 : 2, FVector::ZeroVector)) return false;
+        int32 OreRemaining = 1;
+        for (int32 Tick = 0; Tick < 200 && OreRemaining > 0; ++Tick)
+        {
+            DepletedModel.Advance(1.f);
+            OreRemaining = 0;
+            for (const FProofResourceRecord& Resource : DepletedModel.GetSnapshot().Resources) OreRemaining += Resource.Remaining;
+        }
+        TestEqual(TEXT("Public harvesting exhausts every real ore patch"), OreRemaining, 0);
+        if (OreRemaining != 0) return false;
+        if (!bKeepLoadedCargo)
+        {
+            DepletedModel.Advance(20.f); // Existing Gather unloads the final cargo.
+            for (int32 Index = 0; Index < 7; ++Index)
+                if (!DepletedSubmit(100, EProofCommandType::Produce, LiveKindId(100, EProofUnitKind::Factory),
+                    INDEX_NONE, FVector::ZeroVector)) return false;
+        }
+        if (!DepletedSubmit(1, EProofCommandType::Attack, DepletionAttackerId, LostRefineryId, FVector::ZeroVector)) return false;
+        // Movement then combat precede deposit: a loaded Gather survives the
+        // refinery loss with undelivered cargo, without any direct state edit.
+        DepletedModel.Advance(40.f);
+        TestEqual(TEXT("Actual enemy combat destroys the last own refinery"),
+            CountLiveKind(DepletedModel.GetSnapshot(), 100, EProofUnitKind::Refinery), 0);
+        if (!bKeepLoadedCargo)
+        {
+            if (!DepletedSubmit(1, EProofCommandType::Attack, DepletionAttackerId,
+                LiveKindId(100, EProofUnitKind::Harvester), FVector::ZeroVector)) return false;
+            DepletedModel.Advance(4.f); // Free exactly the second required grant slot.
+        }
+        if (!DepletedSubmit(1, EProofCommandType::Move, DepletionAttackerId, INDEX_NONE, FVector(6000, 0, 0))) return false;
+        DepletedModel.Advance(40.f);
+        const FProofSnapshot BeforeIntent = DepletedModel.GetSnapshot();
+        const FProofPlayerRecord* BeforeOwner = BeforeIntent.Players.FindByPredicate(
+            [](const FProofPlayerRecord& P) { return P.OwnerId == 100; });
+        int32 OwnCargoBefore = 0, LiveBefore = 0;
+        for (const FProofUnitRecord& Record : BeforeIntent.Units)
+            if (Record.OwnerId == 100 && Record.HitPoints > 0.f)
+            {
+                ++LiveBefore;
+                if (Record.Kind == EProofUnitKind::Harvester) OwnCargoBefore += Record.Cargo;
+            }
+        TestTrue(TEXT("Public depletion trace remains live and affordable"), BeforeOwner
+            && BeforeOwner->Credits >= FProofCommandModel::RefineryCost && BeforeIntent.MatchPhase == EProofMatchPhase::Playing);
+        if (!BeforeOwner) return false;
+        TestTrue(TEXT("Public trace distinguishes loaded versus empty surviving miners"),
+            bKeepLoadedCargo ? OwnCargoBefore > 0 : OwnCargoBefore == 0);
+        if (!bKeepLoadedCargo) TestEqual(TEXT("Empty public loss leaves exactly two grant slots"), LiveBefore, 10);
+        FProofSkirmishBot IntentPlanner;
+        const TArray<FProofCommand> Intents = IntentPlanner.Decide(BeforeIntent, 100, 0.0);
+        TestEqual(TEXT("Public no-ore refinery recovery depends on surviving own cargo"),
+            CountRecoveryCommands(Intents), bKeepLoadedCargo ? 1 : 0);
+        TestTrue(TEXT("Public depletion intent remains bounded"), Intents.Num() <= 4);
+        if (!bKeepLoadedCargo)
+            TestTrue(TEXT("Exhausted empty public trace uses ordinary production instead of a refinery"),
+                Intents.Num() == 1 && Intents[0].Type == EProofCommandType::Produce);
+        int32 ExpectedSpend = 0;
+        for (const FProofCommand& Intent : Intents)
+        {
+            if (Intent.Type == EProofCommandType::BuildRefinery) ExpectedSpend += FProofCommandModel::RefineryCost;
+            else if (Intent.Type == EProofCommandType::Produce) ExpectedSpend += FProofCommandModel::ProductionCost;
+            else { TestTrue(TEXT("Unexpected public depletion planner intent"), false); return false; }
+            if (!DepletedSubmit(100, Intent.Type, Intent.UnitId, Intent.TargetUnitId, Intent.Destination)) return false;
+        }
+        DepletedModel.Advance(1.f);
+        const FProofSnapshot AfterIntent = DepletedModel.GetSnapshot();
+        const FProofPlayerRecord* AfterOwner = AfterIntent.Players.FindByPredicate(
+            [](const FProofPlayerRecord& P) { return P.OwnerId == 100; });
+        TestTrue(TEXT("Actual intents charge only their costs and conserve recovered cargo"), AfterOwner
+            && AfterOwner->Credits == BeforeOwner->Credits - ExpectedSpend + OwnCargoBefore
+            && AfterOwner->TotalGathered == BeforeOwner->TotalGathered + OwnCargoBefore);
+        TestEqual(TEXT("Public trace creates a new refinery only for loaded recovery"),
+            CountLiveKind(AfterIntent, 100, EProofUnitKind::Refinery), bKeepLoadedCargo ? 1 : 0);
+        int32 OwnCargoAfter = 0;
+        for (const FProofUnitRecord& Record : AfterIntent.Units)
+            if (Record.OwnerId == 100 && Record.HitPoints > 0.f && Record.Kind == EProofUnitKind::Harvester)
+                OwnCargoAfter += Record.Cargo;
+        TestEqual(TEXT("Surviving Gather actually unloads all recovered cargo"), OwnCargoAfter, 0);
+        TestTrue(TEXT("Recovery does not mint any new ore"), !AfterIntent.Resources.ContainsByPredicate(
+            [](const FProofResourceRecord& Resource) { return Resource.Remaining > 0; }));
+        TestTrue(TEXT("Public recovery does not force a terminal outcome"), AfterIntent.MatchPhase == EProofMatchPhase::Playing);
+    }
     return true;
 }
 #endif
