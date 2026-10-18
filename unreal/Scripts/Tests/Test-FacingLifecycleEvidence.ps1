@@ -39,6 +39,9 @@ function Fixture([string]$Fault=''){
         foreach($epoch in @(2,3)){
             $r=Row $role $epoch 4 @(0,0,0) @(-750,-400,0)
             if($Fault-eq'stale-reset'-and$role-eq'rejoin'-and$epoch-eq2){$r.lastTravelDirection=@(0,-1,0)}
+            if($Fault-eq'tiny-reset-host'-and$role-eq'host'-and$epoch-eq2){$r.lastTravelDirection=@(0.000001,0,0)}
+            if($Fault-eq'tiny-reset-lead'-and$role-eq'lead'-and$epoch-eq2){$r.lastTravelDirection=@(0,-0.000000000001,0)}
+            if($Fault-eq'tiny-reset-rejoin'-and$role-eq'rejoin'-and$epoch-eq3){$r.lastTravelDirection=@(0,0,0.000000000001)}
             if($Fault-eq'wrong-reset-role'-and$role-eq'rejoin'-and$epoch-eq2){$r.role='host'}
             if($Fault-eq'wrong-reset-viewer'-and$role-eq'rejoin'-and$epoch-eq2){$r.viewer=0}
             if($Fault-eq'string-reset-viewer'-and$role-eq'rejoin'-and$epoch-eq2){$r.viewer='2'}
@@ -55,7 +58,7 @@ $out=[Collections.Generic.List[object]]::new()
 $logs=Fixture
 if(-not(Get-FacingLateObserverEvidence $logs).passed-or-not(Get-FacingResetEvidence $logs).passed){throw 'Positive fixture failed'}
 $out.Add(@{case='positive-late-and-reset';passed=$true})
-foreach($fault in @('fresh-lost-direction','content-disagrees','drift','wrong-owner','nonunit-direction','conflicting-duplicate','stale-reset','wrong-reset-role','wrong-reset-viewer','string-reset-viewer','bool-reset-revision','duplicate-reset-key')){
+foreach($fault in @('tiny-reset-host','tiny-reset-lead','tiny-reset-rejoin','fresh-lost-direction','content-disagrees','drift','wrong-owner','nonunit-direction','conflicting-duplicate','stale-reset','wrong-reset-role','wrong-reset-viewer','string-reset-viewer','bool-reset-revision','duplicate-reset-key')){
     $logs=Fixture $fault;$caught=$false;$reason=$null
     try{$null=Get-FacingLateObserverEvidence $logs;$null=Get-FacingResetEvidence $logs}catch{$caught=$true;$reason=$_.Exception.Message}
     if(-not$caught){throw ('Guard missed '+$fault)}

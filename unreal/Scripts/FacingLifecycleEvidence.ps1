@@ -95,12 +95,14 @@ function Get-FacingResetEvidence {
         $first=@{}
         foreach($role in @('host','lead','rejoin')){
             $r=@(Get-FacingStateRows $Logs[$role]|Where-Object {$_.epoch-eq$epoch})|Select-Object -First 1
-            if(-not$r-or-not(Test-FacingVec $r.lastTravelDirection @(0,0,0))){throw 'Fresh rematch content retained old direction'}
+            # Reset is an exact numerical zero contract (signed zero allowed),
+            # separate from tolerance-based comparisons of nonzero headings.
+            if(-not$r-or$r.lastTravelDirection[0]-ne0-or$r.lastTravelDirection[1]-ne0-or$r.lastTravelDirection[2]-ne0){throw 'Fresh rematch content retained old direction'}
             if(($role-eq'host'-and($r.role-cne'host'-or$r.viewer-ne0))-or($role-eq'lead'-and($r.role-cne'client'-or$r.viewer-ne1))-or($role-eq'rejoin'-and($r.role-cne'client'-or$r.viewer-ne2))){throw 'Facing reset role/viewer mismatch'}
             $first[$role]=$r
         }
         if($first.host.unit-ne$first.lead.unit-or$first.host.unit-ne$first.rejoin.unit-or-not(Test-FacingVec $first.host.position $first.lead.position)-or-not(Test-FacingVec $first.host.position $first.rejoin.position)){throw 'Rematch fresh unit content disagrees'}
-        [ordered]@{epoch=$epoch;unit=$first.host.unit;position=$first.host.position;lastTravelDirection=$first.host.lastTravelDirection;allThreeRolesFreshZero=$true}
+        [ordered]@{epoch=$epoch;unit=$first.host.unit;position=$first.host.position;lastTravelDirection=$first.host.lastTravelDirection;firstActualRows=$first;allThreeRolesFreshZero=$true}
     })
     return [ordered]@{passed=$true;rematches=$proof;identityIncludesEpoch=$true}
 }
