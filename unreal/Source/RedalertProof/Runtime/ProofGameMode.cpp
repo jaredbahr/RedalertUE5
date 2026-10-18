@@ -271,6 +271,11 @@ FProofCommandResult AProofGameMode::SubmitForOwner(int32 TrustedOwnerId, const F
     TOptional<FProofSnapshot> AttackMoveBefore;
     if (AttackMoveEvidence.Enabled()) AttackMoveBefore.Emplace(Model.GetSnapshot());
     FProofCommandResult Result = Model.Submit(TrustedOwnerId, Command);
+    if (TrustedOwnerId == 1 && Command.Type == EProofCommandType::Gather
+        && FParse::Param(FCommandLine::Get(), TEXT("ProofGroupGatherEvidence")))
+        UE_LOG(LogTemp, Display, TEXT("PROOF_GROUP_GATHER_COMMAND {\"owner\":%d,\"epoch\":%d,\"sequence\":%d,\"unit\":%d,\"resource\":%d,\"accepted\":%d,\"revision\":%d}"),
+            TrustedOwnerId, MatchEpoch, Command.Sequence, Command.UnitId, Command.TargetUnitId,
+            Result.bAccepted ? 1 : 0, Model.GetSnapshot().Revision);
     if (TrustedOwnerId == 1 && FParse::Param(FCommandLine::Get(), TEXT("ProofCoopContextEvidence")))
     {
         if (++CoopContextCommandRows > 256)
@@ -536,6 +541,8 @@ void AProofGameMode::Tick(float DeltaSeconds)
                 SkirmishSeconds += 0.1;
                 const FProofSnapshot After = Model.GetSnapshot();
                 if (RefineryEvidence.Enabled()) RefineryEvidence.ObserveAdvance(MatchEpoch, EvidenceBeforeAdvance, After);
+                if (FParse::Param(FCommandLine::Get(), TEXT("ProofGroupGatherEvidence")))
+                    ObserveGroupGatherDeposits(EvidenceBeforeAdvance, After);
                 ObserveSkirmish(After);
                 if (After.MatchPhase == EProofMatchPhase::Finished && !bSkirmishTerminalPublished)
                 {

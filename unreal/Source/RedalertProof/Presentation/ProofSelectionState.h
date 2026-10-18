@@ -31,6 +31,9 @@ public:
     TArray<FProofCommand> PlanMove(const FProofSnapshot& Snapshot, int32 OwnerId, const FVector& Destination) const;
     TArray<FProofCommand> PlanAttackMove(const FProofSnapshot& Snapshot, int32 OwnerId, const FVector& Destination) const;
     TArray<FProofCommand> PlanAttack(const FProofSnapshot& Snapshot, int32 OwnerId, int32 TargetUnitId) const;
+    bool IsAllHarvesters(const FProofSnapshot& Snapshot, int32 OwnerId) const;
+    static bool CanGather(const FProofSnapshot& Snapshot, int32 OwnerId, int32 UnitId, int32 ResourceId);
+    TArray<FProofCommand> PlanGather(const FProofSnapshot& Snapshot, int32 OwnerId, int32 ResourceId) const;
     TArray<FProofCommand> PlanStop(const FProofSnapshot& Snapshot, int32 OwnerId) const;
 
 private:
