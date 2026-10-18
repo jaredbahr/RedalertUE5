@@ -1,5 +1,6 @@
 #include "Runtime/ProofGameState.h"
 #include "Net/UnrealNetwork.h"
+#include "Runtime/ProofFacingEvidence.h"
 
 AProofGameState::AProofGameState()
 {
@@ -24,6 +25,7 @@ void AProofGameState::Publish(const FProofSnapshot& NewSnapshot)
 
 void AProofGameState::LogSnapshot(const TCHAR* ProofRole, int32 OwnerId) const
 {
+    LogProofFacingSnapshot(Snapshot, ProofRole, OwnerId);
     UE_LOG(LogTemp, Display, TEXT("PROOF_SNAPSHOT role=%s owner=%d epoch=%d revision=%lld digest=%s"),
         ProofRole, OwnerId, Snapshot.MatchEpoch, static_cast<long long>(Snapshot.Revision), *Snapshot.ComputeDigest());
 }

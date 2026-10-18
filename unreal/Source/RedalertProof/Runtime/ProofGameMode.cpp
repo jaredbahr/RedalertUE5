@@ -545,7 +545,13 @@ void AProofGameMode::Tick(float DeltaSeconds)
     if (!bSkirmish) StartBotIfReady();
     // Bounded catch-up avoids a long stalled frame monopolizing the game thread.
     int32 CatchupSteps = 0;
-    const bool bLifecyclePlay = !bLifecycleFixtureHost ||
+    // Diagnostic preflight advances normal movement without starting the bot's
+    // existing play gate. Ordinary lifecycle runs retain their original path.
+    const bool bFacingPreflight = bLifecycleFixtureHost && MatchEpoch == 1
+        && FParse::Param(FCommandLine::Get(), TEXT("ProofFacingEvidence"))
+        && IFileManager::Get().FileExists(*FPaths::Combine(LifecycleControl, TEXT("facing-preflight")))
+        && !IFileManager::Get().FileExists(*FPaths::Combine(LifecycleControl, TEXT("play-epoch-1")));
+    const bool bLifecyclePlay = bFacingPreflight || !bLifecycleFixtureHost ||
         (!LifecycleControl.IsEmpty() && IFileManager::Get().FileExists(*FPaths::Combine(LifecycleControl, FString::Printf(TEXT("play-epoch-%d"), MatchEpoch))));
     if (!bLifecyclePlay) Accumulator = 0.f;
     while (bLifecyclePlay && Accumulator >= 0.1f && CatchupSteps++ < 10)
@@ -555,7 +561,9 @@ void AProofGameMode::Tick(float DeltaSeconds)
             const FProofSnapshot Before = Model.GetSnapshot();
             if (Before.MatchPhase == EProofMatchPhase::Playing)
             {
-                for (FProofCommand Command : SkirmishBot.Decide(Before, ProofOwnerIds::Bot, SkirmishSeconds))
+                const TArray<FProofCommand> BotCommands = bFacingPreflight ? TArray<FProofCommand>()
+                    : SkirmishBot.Decide(Before, ProofOwnerIds::Bot, SkirmishSeconds);
+                for (FProofCommand Command : BotCommands)
                 {
                     Command.MatchEpoch = MatchEpoch;
                     SubmitForOwner(ProofOwnerIds::Bot, Command);

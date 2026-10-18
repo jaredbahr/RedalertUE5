@@ -3,9 +3,11 @@ param(
     [ValidateRange(0,60000)][int]$Port = 0,
     [ValidateRange(60,240)][int]$TimeoutSeconds = 240,
     [ValidateRange(0,65536)][int]$MaxCacheMiB = 2048,
-    [ValidateRange(0,65536)][int]$MaxTempMiB = 1024
+    [ValidateRange(0,65536)][int]$MaxTempMiB = 1024,
+    [switch]$FacingEvidence
 )
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'FacingLifecycleEvidence.ps1')
 # Read-only observations of the original process handle.
 function Initialize-LifecycleProcessProbe {
     if('SessionLifecycleHandleProbe' -as [type]){return}
@@ -298,6 +300,7 @@ function Wait-PlannedDisconnect($Entry) {
     }
 }
 function Start-Role([string]$Role,[string]$Destination,[string[]]$Mode) {
+    if ($FacingEvidence) { $Mode+= '-ProofFacingEvidence' }
     $log=Join-Path $run ($Role+'.log')
     $launchArguments=@(('"'+$project+'"'),$Destination)+$Mode+@('-unattended','-nosound','-nosplash','-NoSourceControl','-NoP4','-CoreLimit=2','-ddc=BlockoutDDC','-logcmds="LogDerivedDataCache Verbose"',('-port='+$Port),'-ini:Engine:[DevOptions.Shaders]:WorkerProcessPriority=0,[ConsoleVariables]:t.MaxFPS=30,[AssetRegistry]:EditorGameScansAR=Async,[ShaderCompiler]:r.Shaders.Optimize=1,[ConsoleVariables]:r.Shaders.Optimize=1',('-abslog="'+$log+'"'))
     if ($Role -ne 'host') { $launchArguments+=('-cvarsini="'+$cvars+'"') }
@@ -445,6 +448,10 @@ try {
     Wait-Marker $owner2 'PROOF_SNAPSHOT role=client owner=2 epoch=1 revision=\d+ digest=[A-Za-z0-9]+'
     Assert-CommonEpochSnapshots 1 @($serverEntry,$lead,$owner2)
     $result.lifecycle.initialOwner1Healthy=$true
+    if ($FacingEvidence) {
+        Signal-Gate 'facing-preflight'
+        Wait-Marker $lead 'PROOF_FACING_PREFLIGHT status=pass unit=\d+ epoch=1 stationarySeconds=[\d.]+'
+    }
     $owner2Live=Get-OwnedLiveProcess $owner2
     if (-not $owner2Live) { throw 'Owner 2 exited before the planned disconnect.' }
     Assert-OwnedRolesHealthy
@@ -458,6 +465,18 @@ try {
     $rejoin=Start-Role 'rejoin' ('127.0.0.1:'+$Port) @('-game','-nullrhi','-ProofSkirmish','-ProofLifecycleRole=rejoin',('-ProofLifecycleControl="'+$control+'"'))
     Wait-Marker $serverEntry 'PROOF_LIFECYCLE_JOIN owner=2 epoch=1 seeded=0'
     $result.lifecycle.owner2RejoinedSlot2=$true
+    if ($FacingEvidence) {
+        # Observe a surviving owner-1 unit, not owner-2 assets removed on logout.
+        # A fresh process's first content row must already contain the direction.
+        while ($true) {
+            Assert-OwnedRolesHealthy; Check-StorageBudget; Maintain-OwnedCpuPolicy
+            $logs=@{host=(Read-Log $serverEntry);lead=(Read-Log $lead);rejoin=(Read-Log $rejoin)}
+            $late=Get-FacingLateObserverEvidence -Logs $logs
+            if ($late) { $result['facingLateObserverEvidence']=$late; break }
+            if ($scenarioWatch.Elapsed.TotalSeconds -ge $TimeoutSeconds) { throw 'Facing late observer content agreement exceeded the unchanged lifecycle budget.' }
+            Start-Sleep -Milliseconds 200
+        }
+    }
     $third=Start-Role 'third' ('127.0.0.1:'+$Port) @('-game','-nullrhi','-ProofSkirmish','-ProofLifecycleRole=third',('-ProofLifecycleControl="'+$control+'"'))
     Wait-Marker $serverEntry 'PROOF_LIFECYCLE_REJECT reason=full'
     Wait-Marker $third 'PROOF_LIFECYCLE_CLIENT_REJECT reason=full'
@@ -527,6 +546,9 @@ try {
     }
     Assert-OwnerOneActiveBeforeFinish $serverEntry $finishSignaledUtc
     Assert-OwnedRolesHealthy
+    if ($FacingEvidence) {
+        $result['facingResetEvidence']=Get-FacingResetEvidence -Logs @{host=(Read-Log $serverEntry);lead=(Read-Log $lead);rejoin=(Read-Log $rejoin)}
+    }
     $result.passed=$true
 } catch {
     $result.error=$_.Exception.Message

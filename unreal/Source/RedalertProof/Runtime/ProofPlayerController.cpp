@@ -433,6 +433,7 @@ void AProofPlayerController::TickSkirmishObserver(AProofGameState* State)
 void AProofPlayerController::TickLifecycleFixture(AProofGameState* State)
 {
     if (bFinished || LifecycleControl.IsEmpty()) return;
+    if (TickFacingLifecyclePreflight(State)) return;
     const auto HasGate = [this](const FString& Name)
     {
         return IFileManager::Get().FileExists(*FPaths::Combine(LifecycleControl, Name));

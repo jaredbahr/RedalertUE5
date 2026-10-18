@@ -62,6 +62,13 @@ private:
     bool bLifecycleRematchSent = false;
     bool bLifecycleStaleSent = false;
     void TickLifecycleFixture(AProofGameState* State);
+    bool TickFacingLifecyclePreflight(AProofGameState* State);
+    int32 FacingPreflightStep = 0;
+    int32 FacingPreflightPending = INDEX_NONE;
+    int32 FacingPreflightUnit = INDEX_NONE;
+    FVector FacingPreflightOrigin = FVector::ZeroVector;
+    FVector FacingPreflightGoal = FVector::ZeroVector;
+    double FacingPreflightStationaryAt = -1.0;
     bool bIngressFlood = false;
     bool bIngressHealthy = false;
     bool bIngressSent = false;

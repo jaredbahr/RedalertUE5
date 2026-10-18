@@ -102,6 +102,7 @@ $result = [ordered]@{
     returnCargoEvidenceEnabled=[bool]$ReturnCargoEvidence; returnCargoEvidence=$null
     visualGeometryEvidenceEnabled=[bool]$VisualGeometryEvidence; visualGeometryEvidence=$null
     rhinoDirectionEvidence=$null
+    diagnosticGraphicsWarmup=$null
     processes=@(); screenshots=@(); commonRevisions=@(); expectedWinner=$(if($Scenario -eq 'Defeat'){1}else{0}); error=$null; cleanupErrors=@()
 }
 $entries = [Collections.Generic.List[object]]::new()
@@ -305,6 +306,20 @@ try {
     [Environment]::SetEnvironmentVariable('UE-SharedDataCachePath','None','Process')
     [Environment]::SetEnvironmentVariable('TEMP',$temp,'Process'); [Environment]::SetEnvironmentVariable('TMP',$temp,'Process')
     $scenarioWatch=[Diagnostics.Stopwatch]::StartNew()
+    if ($VisualGeometryEvidence) {
+        # Serial preparation, inside the same scenario stopwatch and budget.
+        # Do not let a fresh workspace's render-data compilation give the bot
+        # a head start before the local match fixture can issue any commands.
+        $warmup=Start-Role 'geometry-warmup' '/Game/CommandProofGenerated/Maps/CommandProof' @('-game','-RenderOffscreen','-windowed','-ResX=1280','-ResY=720','-ProofGraphicsWarmup')
+        Wait-Marker $warmup 'PROOF_GRAPHICS_WARMUP_COMPLETE status=pass remaining=0 idleSeconds=[\d.]+ frames=\d+ width=1280 height=720 maxFPS=30\.000'
+        while (-not $warmup.Process.HasExited) {
+            Check-StorageBudget; Maintain-OwnedCpuPolicy
+            if ($scenarioWatch.Elapsed.TotalSeconds -ge $TimeoutSeconds) { throw 'Diagnostic warmup exhausted the unchanged scenario budget.' }
+            Start-Sleep -Milliseconds 200
+        }
+        if ($warmup.Process.ExitCode -ne 0) { throw 'Diagnostic graphics warmup failed.' }
+        $result.diagnosticGraphicsWarmup=@{passed=$true;serial=$true;insideScenarioBudget=$true;elapsedAtExitSeconds=$scenarioWatch.Elapsed.TotalSeconds;logSHA256=(Get-FileHash $warmup.Log).Hash}
+    }
     if ($Scenario -eq 'Coop') {
         $serverEntry=Start-Role 'host' '/Game/CommandProofGenerated/Maps/CommandProof' @('-server','-nullrhi','-MULTIHOME=127.0.0.1','-ProofSkirmish','-ProofSkirmishFixtureHost')
         Wait-Marker $serverEntry 'PROOF_SKIRMISH_READY fixture=1'

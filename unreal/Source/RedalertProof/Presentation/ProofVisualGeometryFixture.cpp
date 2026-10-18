@@ -171,6 +171,8 @@ bool AProofRTSPawn::LogVisualGeometryObservation() const
     Row->SetNumberField(TEXT("frame"), static_cast<double>(GFrameCounter));
     Row->SetNumberField(TEXT("elapsed"), SkirmishElapsed);
     GeometryVector(Row, TEXT("modelPosition"), Unit->Position);
+    GeometryVector(Row, TEXT("authoritativeLastTravelDirection"), Unit->LastTravelDirection);
+    Row->SetStringField(TEXT("snapshotDigest"), GS->Snapshot.ComputeDigest());
     Row->SetObjectField(TEXT("component"), GeometryComponent(*Target));
     Row->SetObjectField(TEXT("floor"), GeometryComponent(Floor));
     GeometryVector(Row, TEXT("floorActorLocation"), Floor->GetOwner()->GetActorLocation());
