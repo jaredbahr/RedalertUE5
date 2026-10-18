@@ -318,7 +318,20 @@ try {
             Start-Sleep -Milliseconds 200
         }
         if ($warmup.Process.ExitCode -ne 0) { throw 'Diagnostic graphics warmup failed.' }
-        $result.diagnosticGraphicsWarmup=@{passed=$true;serial=$true;insideScenarioBudget=$true;elapsedAtExitSeconds=$scenarioWatch.Elapsed.TotalSeconds;logSHA256=(Get-FileHash $warmup.Log).Hash}
+        while (@($ownedWorkers | Where-Object { Get-OwnedWorkerLiveProcess $_ }).Count -gt 0) {
+            Check-StorageBudget; Maintain-OwnedCpuPolicy
+            if ($scenarioWatch.Elapsed.TotalSeconds -ge $TimeoutSeconds) { throw 'Warmup worker release exhausted the unchanged scenario budget.' }
+            Start-Sleep -Milliseconds 200
+        }
+        $cpuPaths=@('\Processor(_Total)\% Processor Time')+@($fixtureLogicalProcessors|ForEach-Object {'\Processor('+$_+')\% Processor Time'})
+        $samples=@(Get-Counter $cpuPaths -SampleInterval 1 -MaxSamples 3 -ErrorAction Stop)
+        if ($samples.Count-ne3) { throw 'Three fresh post-warmup CPU samples required.' }
+        foreach($sample in $samples){foreach($path in $cpuPaths){$matching=@($sample.CounterSamples|Where-Object {$_.Path.EndsWith($path,[StringComparison]::OrdinalIgnoreCase)});if($matching.Count-ne1-or$matching[0].Status-ne0-or-not[double]::IsFinite($matching[0].CookedValue)-or$matching[0].CookedValue-lt0-or$matching[0].CookedValue-gt80){throw 'Post-warmup CPU capacity gate blocked.'}}}
+        $competing=@(Get-CimInstance Win32_Process -ErrorAction Stop|Where-Object {$_.Name-match'^(UnrealEditor(?:-Cmd)?|UnrealBuildTool|UnrealHeaderTool|ShaderCompileWorker|cl|link|clang(?:\+\+)?|lld-link|MSBuild|BuildGraph|AutomationTool|UbaAgent|UbaHost|UbaSessionServer)\.exe$'-or($_.Name-eq'dotnet.exe'-and$_.CommandLine-match'UnrealBuildTool|UnrealHeaderTool|AutomationTool')})
+        if ($competing.Count) { throw 'Competing heavy work blocks the post-warmup match launch.' }
+        $result.diagnosticGraphicsWarmup=@{passed=$true;serial=$true;insideScenarioBudget=$true;elapsedAfterWarmupAdmissionSeconds=$scenarioWatch.Elapsed.TotalSeconds;logSHA256=(Get-FileHash $warmup.Log).Hash}
+        $result.diagnosticGraphicsWarmup.postWarmupAdmission=@{freshSamples=3;thresholdPercent=80;peakPercent=($samples.CounterSamples.CookedValue|Measure-Object -Maximum).Maximum;ownedWorkersReleased=$true;competingHeavyProcesses=0}
+        $result.diagnosticGraphicsWarmup.postWarmupAdmission.samples=@($samples|ForEach-Object {@{utc=$_.Timestamp.ToUniversalTime().ToString('o');counters=@($_.CounterSamples|ForEach-Object {@{value=$_.CookedValue;status=$_.Status}})}})
     }
     if ($Scenario -eq 'Coop') {
         $serverEntry=Start-Role 'host' '/Game/CommandProofGenerated/Maps/CommandProof' @('-server','-nullrhi','-MULTIHOME=127.0.0.1','-ProofSkirmish','-ProofSkirmishFixtureHost')
