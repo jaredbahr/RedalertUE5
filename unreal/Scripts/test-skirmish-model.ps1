@@ -3,6 +3,24 @@ param(
     [ValidateRange(15,90)][int]$TimeoutSeconds = 90
 )
 $ErrorActionPreference = 'Stop'
+function Assert-SkirmishPolicyObservation($Policy,$BeforeMask,$BeforePriority,$ExpectedMask,[scriptblock]$Refresh,[scriptblock]$ReadMask,[scriptblock]$ReadPriority) {
+    $observation=[ordered]@{utc=[DateTime]::UtcNow.ToString('o');expectedMask=$ExpectedMask;expectedPriority='Normal';beforeMask=$BeforeMask;beforePriority=$BeforePriority;observedMask=$null;observedPriority=$null;priorityRead='not-read';readStage='refresh';readError=$null;verificationError=$null;passed=$false}
+    $Policy.lastVerification=$observation
+    try {
+        & $Refresh
+        $observation.readStage='affinity';$observation.observedMask=& $ReadMask
+        if($observation.observedMask -eq $ExpectedMask) {
+            $observation.readStage='priority';$observation.priorityRead='attempted';$observation.observedPriority=& $ReadPriority
+            $observation.priorityRead='read'
+        } else {$observation.priorityRead='not-read-affinity-mismatch'}
+        $observation.readStage='complete'
+    } catch {$observation.readError=$_.Exception.Message;throw}
+    if($observation.observedMask -ne $ExpectedMask -or $observation.observedPriority -ne 'Normal') {
+        $observation.verificationError='Native CPU policy verification failed.'
+        throw $observation.verificationError
+    }
+    $observation.passed=$true
+}
 $projectRoot=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $repoRoot=(Resolve-Path (Join-Path $projectRoot '..')).Path
 $project=Join-Path $projectRoot 'RedalertProof.uproject'
@@ -47,8 +65,7 @@ try {
             $beforeMask=$live.ProcessorAffinity.ToInt64(); $beforePriority=[string]$live.PriorityClass
             $live.ProcessorAffinity=[IntPtr]$fixtureMask
             $live.PriorityClass='Normal'
-            $live.Refresh()
-            if($live.ProcessorAffinity.ToInt64() -ne $fixtureMask -or $live.PriorityClass -ne 'Normal') { throw 'Native CPU policy verification failed.' }
+            Assert-SkirmishPolicyObservation $result.cpuPolicy $beforeMask $beforePriority $fixtureMask {$live.Refresh()} {$live.ProcessorAffinity.ToInt64()} {[string]$live.PriorityClass}
             $result.cpuPolicy.polls++
             $result.cpuPolicy.peakObservedWorkingSetBytes=[math]::Max([int64]$result.cpuPolicy.peakObservedWorkingSetBytes,[int64]$live.PeakWorkingSet64)
             $result.cpuPolicy.lastObservedCpuSeconds=$live.CPU
