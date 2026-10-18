@@ -1,13 +1,13 @@
 # ReturnCargo native and rendered acceptance
 
-The primary integration path is main
-`700cc2d3b6110819c59cec8e65dd96eac09983df`, which includes the merged bot-miner
-recovery, plus the compatible frozen ReturnCargo gameplay variant. The original
-`6d66203d71413f1d98ffc37c78a445b455031201` plus standalone ReturnCargo variant
-remains an explicit alternate. Apply the matching frozen gameplay and acceptance
-patches from the integration handoff; do not mix native manifests across paths.
-This opt-in fixture adds observations and shared-handler orchestration, not new units, resources, timing
-allowances or authoritative state setters.
+The published integration is reconciled with main
+`4cacdd803220fb1ca1b6bc7a9cbc87ea686f04e8`, including bot-miner recovery and
+factory-production fallback. Engine acceptance below was executed at
+`55cba8265910a89e148adb539a94772208a9f17a` (Source
+`96a2c14b81deba085f6f4bdaaa9033cc5e55b987`). Use that integrated source;
+do not mix the older standalone variant's manifests into it. This opt-in
+fixture adds read-only observations and shared-handler orchestration, without
+new units, resources, timing allowances or authoritative state setters.
 
 ## Admission and native pre-gate
 
@@ -156,17 +156,60 @@ viewport dimensions, per-run freshness and SHA-256 recording are retained. Revie
 the actual image for the two selected miners and the existing HUD/input scope.
 A log marker alone is not screenshot validation.
 
-## Status and remaining scope
+## Executed acceptance and remaining scope
 
-This is an executable acceptance candidate, not a native or rendered pass.
-Actual UHT/build, native groups, engine screenshots and
-bounded ordinary Victory still require recorded results from the approved
-execution environment. Keep failures and raw evidence private until reviewed
-under the repository's public-content policy.
+All eight admitted heavy stages passed at engine checkpoint `55cba826`, with
+DLL SHA-256 `FD405AD7FCCF49336ECF175A3E6E80339D1A75719356FDD77AB831FB7635E70B`.
+A later documentation-only publication must retain identical Unreal and test
+trees; it is not a separate engine execution.
 
-The 12 native model tests cover repeated/retargeted returns, overrides, lost
-refineries, partial/saturated deposits, source depletion/removal, combat ordering,
-validation atomicity, sequence/rate behavior and terminal/reset state. The
-rendered fixture is deliberately narrower. Physical input/focus, remote network
-transport, performance, cross-viewport presentation and wider RA2/Yuri fidelity
-remain separate acceptance work.
+| Check | Result |
+| --- | --- |
+| Installed UE editor/UHT incremental build | Passed, 17.428 seconds |
+| Native Skirmish / Controls | 40 / 14 exact groups passed |
+| Native Gather / Stop / FactoryRally | 5 / 11 / 4 exact groups passed |
+| ReturnCargo standalone Victory | Passed, 112.973 total / 112.888 scenario seconds |
+| Ordinary standalone Victory | Passed, 66.514 total / 66.346 scenario seconds |
+| Actual PowerShell policy | 89 checks passed: original 86 plus three negative-string controls |
+| Existing factory-production parser | 30 synthetic checks passed |
+
+All 74 native groups are unique, with zero failures. The ReturnCargo run
+validated all 19 phases and eight miner commands. Miner 2 returned at sequences
+6 and 11, then miners 2 and 11 returned at sequences 16 and 17 to refinery 10.
+Their deposits occurred at revisions 106, 145 and shared revision 198; the
+shared 100-credit boundary counted once. Three subsequent resource-1 reloads
+proved saved-Gather behavior, while the stopped miner waited empty until an
+explicit Gather. Absolute balances and total ore/cargo/gathered conservation
+passed the actual raw PowerShell policy. The group PNG shows two selected
+miners with primary 11 carrying 50 after its reload. All five fresh original
+1280x720 PNGs across both runs were reviewed. Ordinary Victory supplies baseline
+completion/receipt evidence; it did not enable the semantic ReturnCargo logger.
+
+Every stage used three fresh total/selected-CPU samples at or below 80% and no
+competing engine/build work. The serial build used one action/NoUBA; owned
+processes used CPUs 2 and 6 at Normal priority. Existing 900/90/220/240-second
+build/native/scenario/outer bounds remained unchanged. Polling repairs are not
+continuous confinement. Available individual cleanup records and a fresh final empty heavy inventory
+were verified. Skirmish/Controls legacy results omit individual cleanup fields.
+The allocation was released. Generated evidence,
+cache and binary outputs remain ignored on D:; preserved human trials were not
+refreshed.
+
+Original failures remain private: the first synthetic policy rejected string
+negative arguments; the first UHT-successful build then hit MSVC C4458 because
+an observer parameter named `Owner` shadowed `AActor::Owner`. Typed test helpers
+and the parameter-only rename to `TrustedOwnerId` fixed these without weakening
+numeric validation, warnings or gameplay rules. Fresh acceptance used the
+corrected source. Core model/helper/native-test and portable inputs remain
+identical to original cloud candidate `837e9a4`; the earlier 622/287 portable
+checks per mode are not a new Windows portable-compiler execution.
+
+This is standalone local-authority shared-handler proof. The inherited generic
+top-level transport label does not establish a network test; actual topology
+and nested `networkTransportVerified=false` define the scope. Physical input,
+focus, remote RPC serialization, internet, performance, cross-viewport/final-art
+acceptance and wider RA2/Yuri fidelity remain separate. The 12 native ReturnCargo
+model groups cover repeated/retargeted returns, overrides, lost refineries,
+partial/saturated deposits, source depletion/removal, combat ordering,
+validation atomicity, sequence/rate behavior and terminal/reset state; those
+wider cases were not all rendered.

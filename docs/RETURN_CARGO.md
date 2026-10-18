@@ -95,40 +95,31 @@ The exact original-base candidate also passes address/undefined sanitizers with
 622 checks. Leak detection is disabled because LeakSanitizer is incompatible
 with this executor's tracing; no leak-detection success is claimed.
 
-This draft integrates the reviewed gameplay and separate acceptance fixture on
-main `700cc2d3b6110819c59cec8e65dd96eac09983df`, which already includes the merged
-selection, ore-reselection and bot-miner-recovery changes. Fresh portable checks
-pass 622 ReturnCargo and 287 miner-recovery assertions in each normal and optimized
-NDEBUG mode. The native manifests retain all prior names and add the new
-declarations: exactly 40 Skirmish and 14 Controls names on this integration path.
-These are static manifest checks, not executed native-suite results. All execution
-settings, exact-count gates, deadlines and resource policies are unchanged.
+The integrated source includes merged selection, ore-reselection, bot-miner
+recovery and factory-production fallback. Core portable inputs remain identical
+to original cloud candidate `837e9a4`: its reported 622 ReturnCargo and 287
+miner-recovery assertions per normal/optimized mode remain source-bound portable
+evidence, rather than a new Windows compiler run.
 
-The original standalone variants used earlier bases and a 38-name Skirmish
-manifest. Do not apply those alternate manifests over this integrated draft.
-See [the acceptance checklist](RETURN_CARGO_ACCEPTANCE.md) for the exact current
-pre-gates, opt-in fixture and remaining native/rendered work.
+## Native and rendered integration
 
-## Required native acceptance
+Engine checkpoint `55cba8265910a89e148adb539a94772208a9f17a`, reconciled with
+main `4cacdd8`, passed the installed UE/UHT build and all 74 unique native groups:
+40 Skirmish, 14 Controls, 5 Gather, 11 Stop and 4 FactoryRally, with zero failures.
+The scripted standalone ReturnCargo fixture and ordinary Victory both passed.
+Actual PowerShell policy checks passed all original 86 cases plus three
+explicit negative-string controls. The existing factory parser's 30 checks
+also passed.
 
-This remains a draft source candidate pending separately coordinated native
-acceptance. Preserve existing build/native/runtime budgets.
+The actual fixture proved four forced returns/deposits, three saved-Gather
+reloads, an empty group member being skipped and a stopped miner waiting empty
+until explicit Gather. It used ordinary commands, actual mining, host model
+validation and receipts. See [the acceptance record](RETURN_CARGO_ACCEPTANCE.md)
+for exact source identity, timings, economy evidence and retained failures.
 
-1. Build the exact candidate with the installed Unreal toolchain, including UHT.
-2. Run the new `RedalertProof.Skirmish.ReturnCargo` and
-   `RedalertProof.Controls.ReturnCargo` groups, plus existing command, economy,
-   ore-reselection, refinery-miner, Gather, Stop, group queue and bot regressions.
-3. In the bounded existing rendered host/client setup, select a loaded miner and
-   right-click a specific owned refinery. Verify one accepted ReturnCargo receipt,
-   travel, unchanged cargo before arrival and matching authoritative deposit.
-4. Repeat with multiple loaded miners plus an empty miner, repeated clicks and a
-   Stop override. Check queue rate, no duplicate credit, and ordinary ore/ground,
-   enemy, mixed-selection and factory-rally behavior.
-5. Destroy the chosen refinery during return and verify cargo preservation; then
-   explicitly target a surviving refinery. Verify Gather resumes only when saved.
-6. Check exact host/client snapshot agreement, terminal freeze and rematch state.
-   Physical input/focus and network transport require their own actual evidence.
-
-No native Unreal, rendered input, RPC/network or performance pass is claimed by
-portable success. The narrow original-manual reference does not establish full
-RA2/Yuri economy, AI, timing or faction parity.
+This rendered evidence is narrower than the native model tests. It covers
+standalone local authority and shared handlers, without physical mouse/keyboard
+or remote transport verification. Destroyed-refinery, repeated/retargeted-return,
+terminal/reset and saturation cases have native coverage; their wider rendered,
+physical/focus and network acceptance remains separate. Prototype PNGs do not
+establish final art or full RA2/Yuri economy, AI, timing or faction parity.
