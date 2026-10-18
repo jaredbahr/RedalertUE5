@@ -232,6 +232,40 @@ bool FProofSkirmishLoadedOreDisconnectTest::RunTest(const FString&)
         if (!TestNotNull(TEXT("Surviving ore retained"), After)) return false;
         TestEqual(TEXT("Surviving ore stays untouched by cancelled Gather"), After->Remaining, Ore.Remaining);
     }
+    const int32 RecoveryOreId = Opening.Resources[1].ResourceId;
+    // Removal stops the old assignment, not future commands by the survivor.
+    // The ordinary next sequence can explicitly target the surviving own ore.
+    if (!TestTrue(TEXT("Fresh Gather recovers after removed-source delivery"), Model.Submit(2,
+        MakeDisconnectCommand(3, EProofCommandType::Gather, HarvesterId, RecoveryOreId)).bAccepted)) return false;
+    Model.Advance(30.f);
+    const FProofSnapshot Recovering = Model.GetSnapshot();
+    const FProofUnitRecord* RecoveringHarvester = Recovering.Units.FindByPredicate([HarvesterId]
+        (const FProofUnitRecord& Unit) { return Unit.UnitId == HarvesterId; });
+    const FProofPlayerRecord* RecoveringPlayer = Recovering.Players.FindByPredicate([]
+        (const FProofPlayerRecord& Player) { return Player.OwnerId == 2; });
+    const FProofResourceRecord* RecoveryOre = Recovering.Resources.FindByPredicate([RecoveryOreId]
+        (const FProofResourceRecord& Resource) { return Resource.ResourceId == RecoveryOreId; });
+    if (!TestNotNull(TEXT("Recovering miner exists"), RecoveringHarvester)
+        || !TestNotNull(TEXT("Recovering account exists"), RecoveringPlayer)
+        || !TestNotNull(TEXT("Explicit recovery patch exists"), RecoveryOre)) return false;
+    TestEqual(TEXT("Recovery extracts one ordinary load"), RecoveringHarvester->Cargo, FProofCommandModel::CargoCapacity);
+    TestEqual(TEXT("Recovery consumes exactly one load from surviving ore"), RecoveryOre->Remaining, 500 - FProofCommandModel::CargoCapacity);
+    TestEqual(TEXT("Extraction alone does not credit recovery income"), RecoveringPlayer->Credits, ReturnedPlayer->Credits);
+
+    Model.Advance(30.f);
+    const FProofSnapshot Recovered = Model.GetSnapshot();
+    const FProofUnitRecord* RecoveredHarvester = Recovered.Units.FindByPredicate([HarvesterId]
+        (const FProofUnitRecord& Unit) { return Unit.UnitId == HarvesterId; });
+    const FProofPlayerRecord* RecoveredPlayer = Recovered.Players.FindByPredicate([]
+        (const FProofPlayerRecord& Player) { return Player.OwnerId == 2; });
+    if (!TestNotNull(TEXT("Recovered miner exists"), RecoveredHarvester)
+        || !TestNotNull(TEXT("Recovered account exists"), RecoveredPlayer)) return false;
+    TestEqual(TEXT("Recovery cargo unloads normally"), RecoveredHarvester->Cargo, 0);
+    TestEqual(TEXT("Recovery credits belong to surviving miner owner"), RecoveredPlayer->Credits,
+        ReturnedPlayer->Credits + FProofCommandModel::CargoCapacity);
+    TestEqual(TEXT("Recovery adds exactly one further deposit"), RecoveredPlayer->TotalGathered,
+        ReturnedPlayer->TotalGathered + FProofCommandModel::CargoCapacity);
+
     return true;
 }
 
