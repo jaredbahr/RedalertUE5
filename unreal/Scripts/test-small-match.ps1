@@ -13,11 +13,17 @@ param(
     [switch]$CameraEdgeCaptures,
     [ValidateSet('1280x720','960x540')][string]$Viewport = '1280x720',
     [switch]$FactoryProductionEvidence,
-    [switch]$GroupGatherEvidence
+    [switch]$GroupGatherEvidence,
+    [switch]$ReturnCargoEvidence
 )
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'RefineryMinerEvidence.ps1')
 . (Join-Path $PSScriptRoot 'GroupGatherEvidence.ps1')
+. (Join-Path $PSScriptRoot 'ReturnCargoEvidence.ps1')
+if ($ReturnCargoEvidence) {
+    if ($Scenario -ne 'Victory' -or $GroupGatherEvidence -or $FactoryProductionEvidence -or $FactoryRallyEvidence -or $CoopContextEvidence -or $ReadabilityCaptures -or $CameraEdgeCaptures) { throw 'ReturnCargoEvidence requires plain Victory.' }
+    $RefineryMinerEvidence = [switch]::new($true)
+}
 if ($GroupGatherEvidence) {
     if ($Scenario -ne 'Victory' -or $FactoryRallyEvidence -or $CoopContextEvidence -or $ReadabilityCaptures -or $CameraEdgeCaptures) { throw 'GroupGatherEvidence requires plain Victory.' }
     $RefineryMinerEvidence = [switch]::new($true)
@@ -27,7 +33,7 @@ if ($GroupGatherEvidence) {
 if ($CameraEdgeCaptures -and (-not $ReadabilityCaptures -or $Scenario -ne 'Victory')) { throw 'CameraEdgeCaptures requires Victory and ReadabilityCaptures.' }
 . (Join-Path $PSScriptRoot 'FactoryProductionEvidence.ps1')
 if ($FactoryProductionEvidence) {
-    if ($Scenario -ne 'Coop' -or $FactoryRallyEvidence -or $CoopContextEvidence -or $GroupGatherEvidence -or $ReadabilityCaptures -or $CameraEdgeCaptures) { throw 'FactoryProductionEvidence requires plain three-role Coop.' }
+    if ($Scenario -ne 'Coop' -or $ReturnCargoEvidence -or $FactoryRallyEvidence -or $CoopContextEvidence -or $GroupGatherEvidence -or $ReadabilityCaptures -or $CameraEdgeCaptures) { throw 'FactoryProductionEvidence requires plain three-role Coop.' }
     $RefineryMinerEvidence = [switch]::new($true)
 }
 . (Join-Path $PSScriptRoot 'FactoryRallyEvidence.ps1')
@@ -89,6 +95,7 @@ $result = [ordered]@{
     renderConfiguration=[ordered]@{realViewport=$true;offscreen=$true;width=$viewportWidth;height=$viewportHeight;optimizedShaders=1;targetFPS=30}
     factoryProductionEvidenceEnabled=[bool]$FactoryProductionEvidence; factoryProductionEvidence=$null
     groupGatherEvidenceEnabled=[bool]$GroupGatherEvidence; groupGatherEvidence=$null
+    returnCargoEvidenceEnabled=[bool]$ReturnCargoEvidence; returnCargoEvidence=$null
     processes=@(); screenshots=@(); commonRevisions=@(); expectedWinner=$(if($Scenario -eq 'Defeat'){1}else{0}); error=$null; cleanupErrors=@()
 }
 $entries = [Collections.Generic.List[object]]::new()
@@ -240,6 +247,7 @@ function Start-Role([string]$Role,[string]$Destination,[string[]]$Mode) {
     $launchArguments=@(('"'+$project+'"'),$Destination)+$Mode+@('-unattended','-nosound','-nosplash','-NoSourceControl','-NoP4','-CoreLimit=2','-ddc=BlockoutDDC','-logcmds="LogDerivedDataCache Verbose"',('-port='+$Port),'-ini:GameUserSettings:[/Script/Engine.GameUserSettings]:FrameRateLimit=30','-ini:Engine:[DevOptions.Shaders]:WorkerProcessPriority=0,[ConsoleVariables]:t.MaxFPS=30,[AssetRegistry]:EditorGameScansAR=Async,[ShaderCompiler]:r.Shaders.Optimize=1,[ConsoleVariables]:r.Shaders.Optimize=1',('-abslog="'+$log+'"'))
     if ($RefineryMinerEvidence) { $launchArguments+='-ProofRefineryMinerEvidence' }
     if ($GroupGatherEvidence) { $launchArguments+='-ProofGroupGatherEvidence' }
+    if ($ReturnCargoEvidence) { $launchArguments+='-ProofReturnCargoEvidence' }
     if ($FactoryProductionEvidence) { $launchArguments+='-ProofFactoryProductionEvidence' }
     if ($FactoryRallyEvidence) { $launchArguments+='-ProofFactoryRallyEvidence' }
     if ($CoopContextEvidence) { $launchArguments+='-ProofCoopContextEvidence' }
@@ -338,6 +346,7 @@ try {
     $captureNames=@('01-base.png','02-result.png')
     if ($FactoryProductionEvidence) { $captureNames+=@('03-factory-production.png','04-factory-production.png','05-factory-production.png') }
     if ($GroupGatherEvidence) { $captureNames+='03-group-gather.png' }
+    if ($ReturnCargoEvidence) { $captureNames+='03-return-cargo.png' }
     if ($FactoryRallyEvidence) { $captureNames+='03-factory-rally.png' }
     if ($CoopContextEvidence) { $captureNames+=@('04-context-single.png','05-context-group.png') }
     if ($ReadabilityCaptures) {
@@ -367,6 +376,7 @@ try {
         $stateContext=@{}
         $result.refineryMinerEvidence=Get-RefineryMinerEvidence -Logs $evidenceLogs -Scenario $Scenario -ValidatedStateContext $stateContext
         if ($GroupGatherEvidence) { $result.groupGatherEvidence=Get-GroupGatherEvidence -Log (Read-Log $client) -ValidatedStateContext $stateContext -RefineryEvidence $result.refineryMinerEvidence }
+        if ($ReturnCargoEvidence) { $result.returnCargoEvidence=Get-ReturnCargoEvidence -Log (Read-Log $client) -ValidatedStateContext $stateContext -RefineryEvidence $result.refineryMinerEvidence }
         if ($FactoryProductionEvidence) { $result.factoryProductionEvidence=Get-FactoryProductionEvidence -Logs $evidenceLogs -ValidatedStateContext $stateContext }
         if ($FactoryRallyEvidence) { $result.factoryRallyEvidence=Get-FactoryRallyEvidence -Logs $evidenceLogs }
         if ($CoopContextEvidence) { $result.coopContextEvidence=Get-CoopContextEvidence -Logs $evidenceLogs -ValidatedStateContext $stateContext -RallyEvidence $result.factoryRallyEvidence }

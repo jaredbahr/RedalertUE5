@@ -2,6 +2,7 @@
 #include "Presentation/ProofCameraPan.h"
 #include "Presentation/ProofTypeSelectionAdapter.h"
 #include "Presentation/ProofPointerBounds.h"
+#include "Presentation/ProofReturnCargoSelection.h"
 #include "Presentation/ProofSkirmishOwnershipRecovery.h"
 #include "Presentation/ProofHUDPanelLayout.h"
 #include "Camera/CameraComponent.h"
@@ -68,6 +69,7 @@ void AProofRTSPawn::BeginPlay()
         FPlatformMisc::RequestExitWithStatus(false, 1);
         return;
     }
+    ReturnCargoRuntime.bEnabled = FParse::Param(FCommandLine::Get(), TEXT("ProofReturnCargoEvidence"));
     bGroupGatherEvidence = FParse::Param(FCommandLine::Get(), TEXT("ProofGroupGatherEvidence"));
     bFactoryRallyEvidence = FParse::Param(FCommandLine::Get(), TEXT("ProofFactoryRallyEvidence"));
     FactoryProduction.bEnabled = FParse::Param(FCommandLine::Get(), TEXT("ProofFactoryProductionEvidence"));
@@ -76,6 +78,20 @@ void AProofRTSPawn::BeginPlay()
     FParse::Value(FCommandLine::Get(), TEXT("ProofSkirmishOutput="), SkirmishOutput);
     bHUDReadabilityCaptures = FParse::Param(FCommandLine::Get(), TEXT("ProofHUDReadabilityCaptures"));
     bCameraEdgeCaptures = FParse::Param(FCommandLine::Get(), TEXT("ProofCameraEdgeCaptures"));
+    if (ReturnCargoRuntime.bEnabled && (SkirmishScenario != TEXT("Victory") || GetNetMode() != NM_Standalone
+        || !FParse::Param(FCommandLine::Get(), TEXT("ProofSkirmish"))
+        || !FParse::Param(FCommandLine::Get(), TEXT("ProofRefineryMinerEvidence"))
+        || bGroupGatherEvidence || bFactoryRallyEvidence || CoopContext.bEnabled
+        || bHUDReadabilityCaptures || bCameraEdgeCaptures || bGraphicsWarmup
+        || bTypeSelectionControls || bMapTypeSelectionControls || bStopControls || bStopInputBinding
+        || AttackMoveRuntime.bEnabled || FParse::Param(FCommandLine::Get(), TEXT("ProofControlsAutomation"))
+        || FParse::Param(FCommandLine::Get(), TEXT("ProofControlsObserver"))
+        || FParse::Param(FCommandLine::Get(), TEXT("ProofSkirmishObserver"))
+        || FParse::Param(FCommandLine::Get(), TEXT("ProofAutomation"))
+        || FParse::Param(FCommandLine::Get(), TEXT("ProofLifecycleFixtureHost"))
+        || FParse::Param(FCommandLine::Get(), TEXT("ProofSkirmishFixtureHost"))
+        || FParse::Param(FCommandLine::Get(), TEXT("ProofAttackMoveFixtureHost"))))
+    { UE_LOG(LogTemp, Error, TEXT("PROOF_RETURN_CARGO_ERROR incompatible_fixture_flags")); FPlatformMisc::RequestExitWithStatus(false, 1); return; }
     // Fixture-only viewport contract; defaults preserve the existing trace.
     FString FixtureViewport = TEXT("1280x720");
     FParse::Value(FCommandLine::Get(), TEXT("ProofSkirmishViewport="), FixtureViewport);
@@ -291,6 +307,13 @@ void AProofRTSPawn::Tick(float DeltaSeconds)
     {
         TickGraphicsWarmup();
         return;
+    }
+    if (ReturnCargoRuntime.bEnabled)
+    {
+        // A full intervening Pawn frame lets the local controller's ordinary
+        // semantic snapshot logger see this revision, whatever actor tick order.
+        ReturnCargoRuntime.bPublishedSnapshotPreviouslySeen = ReturnCargoRuntime.PublishedRevisionSeen == GS->Snapshot.Revision;
+        ReturnCargoRuntime.PublishedRevisionSeen = GS->Snapshot.Revision;
     }
     for (const FProofCommand& Command : GroupOrders.PopReady(GS->Snapshot, PC->OwnerId, FPlatformTime::Seconds()))
     {
@@ -616,6 +639,10 @@ void AProofRTSPawn::SelectUnderCursor()
     Selection.SelectSingle(GS->Snapshot, PC->OwnerId, FindUnitUnderCursor(true));
     SelectedUnitId = Selection.GetPrimaryUnitId();
     RequestStatus = SelectedUnitId == INDEX_NONE ? TEXT("No owned live unit selected.") : TEXT("Owned unit selected. Right-click ground or an enemy.");
+    const FProofUnitRecord* Selected = GS->Snapshot.Units.FindByPredicate(
+        [this](const FProofUnitRecord& Unit) { return Unit.UnitId == SelectedUnitId; });
+    if (GS->Snapshot.bSkirmish && Selected && Selected->Kind == EProofUnitKind::Harvester)
+        RequestStatus = TEXT("Harvester: right-click ore to mine, your refinery to unload.");
 }
 
 int32 AProofRTSPawn::FindResourceUnderCursor(bool bAllowDepleted) const
@@ -654,6 +681,9 @@ void AProofRTSPawn::OrderUnderCursor()
         TArray<FProofCommand> Commands;
         if (FProofSelectionState::IsHostileTarget(GS->Snapshot, PC->OwnerId, TargetId))
             Commands = Selection.PlanAttack(GS->Snapshot, PC->OwnerId, TargetId);
+        else if (Selection.IsAllHarvesters(GS->Snapshot, PC->OwnerId)
+            && FProofReturnCargoSelection::IsOwnedLiveRefinery(GS->Snapshot, PC->OwnerId, TargetId))
+            Commands = FProofReturnCargoSelection::Plan(GS->Snapshot, PC->OwnerId, Selection, TargetId);
         else
         {
             int32 ResourceId = INDEX_NONE;
@@ -696,6 +726,14 @@ void AProofRTSPawn::OrderUnderCursor()
     }
     if (GS->Snapshot.bSkirmish && Selected && Selected->Kind == EProofUnitKind::Harvester)
     {
+        const int32 RefineryId = FindUnitUnderCursor(false);
+        if (FProofReturnCargoSelection::IsOwnedLiveRefinery(GS->Snapshot, PC->OwnerId, RefineryId))
+        {
+            const TArray<FProofCommand> Returns = FProofReturnCargoSelection::Plan(GS->Snapshot, PC->OwnerId, Selection, RefineryId);
+            if (Returns.Num() == 1) Request(Returns[0]);
+            else RequestStatus = TEXT("Select a loaded owned Harvester to unload at this refinery.");
+            return;
+        }
         const int32 ResourceId = FindResourceUnderCursor(Selected->Cargo > 0);
         if (ResourceId != INDEX_NONE)
         {
@@ -844,7 +882,7 @@ void AProofRTSPawn::Request(FProofCommand Command)
     }
     if (Command.Type == EProofCommandType::Move || Command.Type == EProofCommandType::Attack
         || Command.Type == EProofCommandType::Gather || Command.Type == EProofCommandType::Stop
-        || Command.Type == EProofCommandType::AttackMove) GroupOrders.CancelUnit(Command.UnitId);
+        || Command.Type == EProofCommandType::AttackMove || Command.Type == EProofCommandType::ReturnCargo) GroupOrders.CancelUnit(Command.UnitId);
     // Capture the exact replicated source before submission; a local authority
     // may publish a newer snapshot synchronously while handling the request.
     const FProofUnitRecord* Source = GS->Snapshot.Units.FindByPredicate(
@@ -862,7 +900,8 @@ void AProofRTSPawn::Request(FProofCommand Command)
         : Command.Type == EProofCommandType::Gather ? TEXT("Gather")
         : Command.Type == EProofCommandType::Stop ? TEXT("Stop")
         : Command.Type == EProofCommandType::SetRally ? TEXT("SetRally")
-        : Command.Type == EProofCommandType::AttackMove ? TEXT("AttackMove") : TEXT("Produce");
+        : Command.Type == EProofCommandType::AttackMove ? TEXT("AttackMove")
+        : Command.Type == EProofCommandType::ReturnCargo ? TEXT("ReturnCargo") : TEXT("Produce");
     if (GS && GS->Snapshot.bSkirmish)
         UE_LOG(LogTemp, Display, TEXT("PROOF_SKIRMISH_REQUEST owner=%d sequence=%d type=%s unit=%d target=%d"),
             PC->OwnerId, Command.Sequence, *LastRequestedType, Command.UnitId, Command.TargetUnitId);
@@ -1483,6 +1522,7 @@ void AProofRTSPawn::TickSkirmishScenario(float DeltaSeconds)
                 && bSkirmishBotAttacked && bSkirmishBaseCaptured && (!bFactoryRallyEvidence || FactoryRallyStage == 4)
                 && (!CoopContext.bEnabled || CoopContext.Stage == 8)
                 && (!bGroupGatherEvidence || GroupGatherStage == 3)
+                && (!ReturnCargoRuntime.bEnabled || ReturnCargoRuntime.Stage == 15)
                 && (!FactoryProduction.bEnabled || FactoryProduction.Complete());
             if (bPass && bHUDReadabilityCaptures && !TickHUDReadabilityCaptures()) return;
             FinishSkirmishScenario(bPass, bPass ? TEXT("complete_loop") : TEXT("outcome_or_evidence"));
@@ -1559,6 +1599,14 @@ void AProofRTSPawn::TickSkirmishScenario(float DeltaSeconds)
         if (LastRequestedSequence > BeforeSequence && LastRequestedType == TEXT("BuildFactory")) ++SkirmishStage;
         else FinishSkirmishScenario(false, TEXT("build_factory_not_sent"));
         return;
+    }
+    if (ReturnCargoRuntime.bEnabled && SkirmishStage >= 2 && Harvester && Refinery && Factory)
+    {
+        const bool bAllowOrdinaryActions = TickReturnCargoFixture();
+        if (ReturnCargoRuntime.Stage > 0 && SkirmishStage == 2) ++SkirmishStage;
+        // Receipt and capture barriers keep command identities/selection exact.
+        // Travel/reload observation lets the ordinary Victory defense continue.
+        if (bSkirmishFinished || !bAllowOrdinaryActions) return;
     }
     if (bGroupGatherEvidence && SkirmishStage >= 3 && GroupGatherStage == 2)
     {

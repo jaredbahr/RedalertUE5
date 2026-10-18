@@ -67,10 +67,10 @@ try {
     $index=Join-Path $report 'index.json'
     if (-not (Test-Path -LiteralPath $index)) { throw 'No fresh Automation index.json report.' }
     $data=Get-Content -LiteralPath $index -Raw | ConvertFrom-Json
-    $expected=@('RedalertProof.Controls.CooperativeContextTargets','RedalertProof.Controls.CameraPanInput','RedalertProof.Controls.CameraPanMovement','RedalertProof.Controls.SelectionOwnershipAndPruning','RedalertProof.Controls.SelectionGroupsAndEpochs','RedalertProof.Controls.SelectionNineGroups','RedalertProof.Controls.SelectionDeterministicPlans','RedalertProof.Controls.SelectionBoundedAndStale','RedalertProof.Controls.QueueCoalescesAndPreservesOrder','RedalertProof.Controls.QueueWallPacing','RedalertProof.Controls.QueueSnapshotRevalidation','RedalertProof.Controls.QueueCapacityIsAtomic')
+    $expected=@('RedalertProof.Controls.CooperativeContextTargets','RedalertProof.Controls.CameraPanInput','RedalertProof.Controls.CameraPanMovement','RedalertProof.Controls.SelectionOwnershipAndPruning','RedalertProof.Controls.SelectionGroupsAndEpochs','RedalertProof.Controls.SelectionNineGroups','RedalertProof.Controls.SelectionDeterministicPlans','RedalertProof.Controls.SelectionBoundedAndStale','RedalertProof.Controls.QueueCoalescesAndPreservesOrder','RedalertProof.Controls.QueueWallPacing','RedalertProof.Controls.QueueSnapshotRevalidation','RedalertProof.Controls.QueueCapacityIsAtomic','RedalertProof.Controls.ReturnCargoSelection','RedalertProof.Controls.ReturnCargoQueue')
     $tests=@($data.tests)
     $result.testCount=$tests.Count; $result.succeeded=[int]$data.succeeded; $result.failed=[int]$data.failed
-    if ($tests.Count -ne $expected.Count -or [int]$data.succeeded -ne $expected.Count -or [int]$data.failed -ne 0) { throw 'Expected the exact twelve successful controls tests and zero failures.' }
+    if ($tests.Count -ne $expected.Count -or [int]$data.succeeded -ne $expected.Count -or [int]$data.failed -ne 0) { throw 'Expected all exact named controls tests successful and zero failures.' }
     foreach($name in $expected){
         $matching=@($tests | Where-Object {$_.fullTestPath -eq $name})
         if ($matching.Count -ne 1 -or $matching[0].state -ne 'Success') { throw "Missing successful exact test $name." }

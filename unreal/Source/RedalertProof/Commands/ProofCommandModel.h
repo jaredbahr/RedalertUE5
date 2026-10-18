@@ -14,7 +14,8 @@ enum class EProofCommandType : uint8
     Gather,
     Stop,
     SetRally = 7,
-    AttackMove = 8
+    AttackMove = 8,
+    ReturnCargo = 9
 };
 
 UENUM()
@@ -152,6 +153,7 @@ private:
     // Bounded exhaustion coverage without exposing a production ID setter.
     friend class FProofRefineryMinerIdBoundaryTest;
     friend struct FProofOreReselectionFixture;
+    friend struct FProofReturnCargoFixture;
 #endif
     struct FOrder
     {
@@ -159,6 +161,9 @@ private:
         FVector Destination = FVector::ZeroVector;
         int32 TargetUnitId = INDEX_NONE;
         bool bReturning = false;
+        // ReturnCargo targets one refinery. Only a displaced Gather supplies
+        // this resource ID; ordinary Move/Stop/idle returns never auto-harvest.
+        int32 ResumeResourceId = INDEX_NONE;
     };
 
     FProofSnapshot State;
@@ -179,4 +184,5 @@ private:
         const FProofUnitRecord& Unit, int32 PreferredTargetId) const;
     FProofResourceRecord* ResolveGatherResource(FOrder& Order, const FVector& From);
     const FProofUnitRecord* FindLiveRefinery(int32 OwnerId, const FVector& From) const;
+    const FProofUnitRecord* FindReturnCargoRefinery(int32 OwnerId, int32 RefineryId) const;
 };

@@ -204,7 +204,8 @@ bool FProofCommandModel::RemoveSkirmishPlayer(int32 OwnerId)
         const bool bEmptyGatherFromRemovedOre = Order.Type == EProofCommandType::Gather
             && RemovedResources.Contains(Order.TargetUnitId) && (!OrderedUnit || OrderedUnit->Cargo <= 0);
         if (RemovedUnits.Contains(It.Key())
-            || (Order.Type == EProofCommandType::Attack && RemovedUnits.Contains(Order.TargetUnitId))
+            || ((Order.Type == EProofCommandType::Attack || Order.Type == EProofCommandType::ReturnCargo)
+                && RemovedUnits.Contains(Order.TargetUnitId))
             || bEmptyGatherFromRemovedOre)
         {
             It.RemoveCurrent();
@@ -300,6 +301,13 @@ const FProofUnitRecord* FProofCommandModel::FindLiveRefinery(int32 OwnerId, cons
     return Best;
 }
 
+const FProofUnitRecord* FProofCommandModel::FindReturnCargoRefinery(int32 OwnerId, int32 RefineryId) const
+{
+    return State.Units.FindByPredicate([OwnerId, RefineryId](const FProofUnitRecord& Unit)
+        { return Unit.UnitId == RefineryId && Unit.OwnerId == OwnerId
+            && Unit.Kind == EProofUnitKind::Refinery && Unit.HitPoints > 0.f; });
+}
+
 FProofCommandResult FProofCommandModel::Submit(int32 TrustedOwnerId, const FProofCommand& Command)
 {
     FProofCommandResult Result;
@@ -321,11 +329,12 @@ FProofCommandResult FProofCommandModel::Submit(int32 TrustedOwnerId, const FProo
     const bool bStop = Command.Type == EProofCommandType::Stop;
     const bool bSetRally = Command.Type == EProofCommandType::SetRally;
     const bool bAttackMove = Command.Type == EProofCommandType::AttackMove;
-    if ((!bMove && !bAttack && !bProduce && !bBuildRefinery && !bBuildFactory && !bGather && !bStop && !bSetRally && !bAttackMove)
-        || ((!State.bSkirmish) && (bBuildRefinery || bBuildFactory || bGather || bSetRally || bAttackMove)) || Command.Sequence <= 0
+    const bool bReturnCargo = Command.Type == EProofCommandType::ReturnCargo;
+    if ((!bMove && !bAttack && !bProduce && !bBuildRefinery && !bBuildFactory && !bGather && !bStop && !bSetRally && !bAttackMove && !bReturnCargo)
+        || ((!State.bSkirmish) && (bBuildRefinery || bBuildFactory || bGather || bSetRally || bAttackMove || bReturnCargo)) || Command.Sequence <= 0
         || !IsFinitePosition(Command.Destination)
-        || ((bMove || bAttackMove || bAttack || bGather || bStop || bSetRally || (State.bSkirmish && bProduce)) && Command.UnitId <= 0)
-        || ((bAttack || bGather) && Command.TargetUnitId <= 0)
+        || ((bMove || bAttackMove || bAttack || bGather || bStop || bSetRally || bReturnCargo || (State.bSkirmish && bProduce)) && Command.UnitId <= 0)
+        || ((bAttack || bGather || bReturnCargo) && Command.TargetUnitId <= 0)
         || ((bSetRally || bAttackMove) && Command.TargetUnitId != INDEX_NONE))
     {
         return Reject(TEXT("malformed"));
@@ -427,7 +436,8 @@ FProofCommandResult FProofCommandModel::Submit(int32 TrustedOwnerId, const FProo
         if (!Unit || Unit->OwnerId != TrustedOwnerId || Unit->HitPoints <= 0.f) { return Reject(TEXT("ownership")); }
         if (State.bSkirmish && ((bMove && (Unit->Kind == EProofUnitKind::HQ || Unit->Kind == EProofUnitKind::Refinery || Unit->Kind == EProofUnitKind::Factory))
             || (bStop && Unit->Kind != EProofUnitKind::Combat && Unit->Kind != EProofUnitKind::Harvester)
-            || ((bAttack || bAttackMove) && Unit->Kind != EProofUnitKind::Combat) || (bGather && Unit->Kind != EProofUnitKind::Harvester)))
+            || ((bAttack || bAttackMove) && Unit->Kind != EProofUnitKind::Combat)
+            || ((bGather || bReturnCargo) && Unit->Kind != EProofUnitKind::Harvester)))
         {
             return Reject(TEXT("role"));
         }
@@ -452,6 +462,17 @@ FProofCommandResult FProofCommandModel::Submit(int32 TrustedOwnerId, const FProo
                 if (!Target || Target->HitPoints <= 0.f || Target->OwnerId == TrustedOwnerId) { return Reject(TEXT("target")); }
                 if (State.bSkirmish && TeamForOwner(Target->OwnerId) == TeamForOwner(TrustedOwnerId)) { return Reject(TEXT("team")); }
                 Order.TargetUnitId = Command.TargetUnitId;
+            }
+            else if (bReturnCargo)
+            {
+                if (Unit->Cargo <= 0) { return Reject(TEXT("cargo")); }
+                if (!FindReturnCargoRefinery(TrustedOwnerId, Command.TargetUnitId)) { return Reject(TEXT("refinery")); }
+                Order.TargetUnitId = Command.TargetUnitId;
+                if (const FOrder* Previous = Orders.Find(Command.UnitId))
+                {
+                    if (Previous->Type == EProofCommandType::Gather) { Order.ResumeResourceId = Previous->TargetUnitId; }
+                    else if (Previous->Type == EProofCommandType::ReturnCargo) { Order.ResumeResourceId = Previous->ResumeResourceId; }
+                }
             }
             else
             {
@@ -516,6 +537,14 @@ void FProofCommandModel::Advance(float DeltaSeconds)
                 if (!Resource) { Orders.Remove(Unit.UnitId); continue; }
                 Destination = Resource->Position;
             }
+        }
+        else if (Order->Type == EProofCommandType::ReturnCargo)
+        {
+            const FProofUnitRecord* Refinery = FindReturnCargoRefinery(Unit.OwnerId, Order->TargetUnitId);
+            // A clicked refinery is a specific destination, never a request
+            // to silently fall back to the nearest surviving refinery.
+            if (!Refinery) { Orders.Remove(Unit.UnitId); continue; }
+            Destination = Refinery->Position;
         }
         else if (Order->Type != EProofCommandType::Move && Order->Type != EProofCommandType::AttackMove)
         {
@@ -648,10 +677,17 @@ void FProofCommandModel::Advance(float DeltaSeconds)
         for (FProofUnitRecord& Unit : State.Units)
         {
             FOrder* Order = Orders.Find(Unit.UnitId);
-            if (Unit.HitPoints <= 0.f || Unit.Kind != EProofUnitKind::Harvester || !Order || Order->Type != EProofCommandType::Gather) { continue; }
-            if (Order->bReturning || Unit.Cargo > 0)
+            if (Unit.HitPoints <= 0.f || Unit.Kind != EProofUnitKind::Harvester || !Order
+                || (Order->Type != EProofCommandType::Gather && Order->Type != EProofCommandType::ReturnCargo)) { continue; }
+            const bool bForcedReturn = Order->Type == EProofCommandType::ReturnCargo;
+            if (bForcedReturn || Order->bReturning || Unit.Cargo > 0)
             {
-                const FProofUnitRecord* Refinery = FindLiveRefinery(Unit.OwnerId, Unit.Position);
+                const FProofUnitRecord* Refinery = bForcedReturn
+                    ? FindReturnCargoRefinery(Unit.OwnerId, Order->TargetUnitId)
+                    : FindLiveRefinery(Unit.OwnerId, Unit.Position);
+                // Combat can destroy the chosen refinery on the arrival tick.
+                // Cancel before credit conversion, preserving undelivered cargo.
+                if (bForcedReturn && !Refinery) { Orders.Remove(Unit.UnitId); continue; }
                 if (Refinery && FVector::DistSquared(Unit.Position, Refinery->Position) <= 1.0)
                 {
                     FProofPlayerRecord* Player = State.Players.FindByPredicate([&Unit](const FProofPlayerRecord& P) { return P.OwnerId == Unit.OwnerId; });
@@ -664,6 +700,13 @@ void FProofCommandModel::Advance(float DeltaSeconds)
                     }
                     if (Unit.Cargo == 0)
                     {
+                        if (bForcedReturn)
+                        {
+                            if (Order->ResumeResourceId == INDEX_NONE) { Orders.Remove(Unit.UnitId); continue; }
+                            Order->Type = EProofCommandType::Gather;
+                            Order->TargetUnitId = Order->ResumeResourceId;
+                            Order->ResumeResourceId = INDEX_NONE;
+                        }
                         Order->bReturning = false;
                         if (!ResolveGatherResource(*Order, Unit.Position)) { Orders.Remove(Unit.UnitId); }
                     }
