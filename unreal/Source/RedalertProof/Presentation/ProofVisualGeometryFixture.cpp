@@ -203,7 +203,7 @@ bool AProofRTSPawn::LogVisualGeometryObservation() const
     return true;
 }
 
-bool AProofRTSPawn::TickVisualGeometryFixture()
+bool AProofRTSPawn::TickVisualGeometryFixture(int32 FixtureHarvesterId)
 {
     const AProofGameState* GS = GetWorld()->GetGameState<AProofGameState>();
     const AProofPlayerController* PC = Cast<AProofPlayerController>(GetController());
@@ -245,9 +245,12 @@ bool AProofRTSPawn::TickVisualGeometryFixture()
     if (GS->Snapshot.MatchPhase == EProofMatchPhase::Finished) return false;
     if (VisualGeometry.Stage == 0)
     {
-        for (const FProofUnitRecord& Unit : GS->Snapshot.Units)
-            if (Unit.OwnerId == PC->OwnerId && Unit.Kind == EProofUnitKind::Harvester && Unit.HitPoints > 0.f)
-            { VisualGeometry.HarvesterId = Unit.UnitId; return BeginVisualGeometryCapture(Unit.UnitId, TEXT("03-geometry-harvester-contact.png")); }
+        // Observe the exact miner the existing Victory fixture is about to
+        // Gather with, after paid construction. Do not order a different miner.
+        if (SkirmishStage != 2) return false;
+        const FProofUnitRecord* Unit = Find(FixtureHarvesterId);
+        if (Unit && Unit->OwnerId == PC->OwnerId && Unit->Kind == EProofUnitKind::Harvester)
+        { VisualGeometry.HarvesterId = Unit->UnitId; return BeginVisualGeometryCapture(Unit->UnitId, TEXT("03-geometry-harvester-contact.png")); }
     }
     if (VisualGeometry.Stage == 1 || VisualGeometry.Stage == 2)
     {

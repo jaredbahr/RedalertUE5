@@ -1518,7 +1518,7 @@ void AProofRTSPawn::TickSkirmishScenario(float DeltaSeconds)
         UE_LOG(LogTemp, Display, TEXT("PROOF_SKIRMISH_READY owner=%d width=%d height=%d maxFPS=%.3f shadersOptimize=%d"),
             PC->OwnerId, Width, Height, FPS->GetFloat(), Optimize->GetInt());
     }
-    if (VisualGeometry.bEnabled && TickVisualGeometryFixture()) return;
+    if (VisualGeometry.bEnabled && TickVisualGeometryFixture(Harvester ? Harvester->UnitId : INDEX_NONE)) return;
     if (Snapshot.MatchPhase == EProofMatchPhase::Finished)
     {
         if (SkirmishTerminalSeen < 0.f) SkirmishTerminalSeen = SkirmishElapsed;

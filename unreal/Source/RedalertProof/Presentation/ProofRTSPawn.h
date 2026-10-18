@@ -43,7 +43,7 @@ protected:
 
 private:
     FProofVisualGeometryRuntimeState VisualGeometry;
-    bool TickVisualGeometryFixture();
+    bool TickVisualGeometryFixture(int32 FixtureHarvesterId);
     bool BeginVisualGeometryCapture(int32 UnitId, const TCHAR* Name);
     void RestoreVisualGeometryView();
     bool LogVisualGeometryObservation() const;
