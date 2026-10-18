@@ -70,24 +70,50 @@ bash tests/run_factory_production_tests.sh /path/to/baseline-source-tree
 This argument changes the production source inputs, not the test bodies or
 adapters. The paths in source identity output remain repository-relative.
 
-## Remaining acceptance
+## Native and runtime acceptance
 
-These are portable handler/model checks, not native Unreal, UHT, replication,
-rendered input or physical keyboard evidence. The complete Pawn translation
-unit and its real engine types have not been compiled for this patch. The
-remaining integration gate is the normal approved UE build plus the relevant
-native model/control suites on the integrated source.
+The integrated source was executed at engine checkpoint
+`914aec71df59751f0340b9c362258cd6463c09eb`, Source tree
+`f212106972634f37ec3ea53f8aca6712e4ba46ca`. A later documentation-only
+publication must retain identical Unreal and test trees; it does not represent
+a separate engine execution.
 
-In a later authorized skirmish acceptance run, build two owned factories with
-distinct rally points. With no factory selected, press `P` and verify the first
-factory's legal spawn and rally. Select the second and repeat after earning
-enough credits; it must use the second. Check a non-factory selection and a
-lost first factory, then confirm the existing insufficient-credit and
-no-factory messages. Physical `P` input/focus acceptance remains separate from
-scripted handler coverage. Existing launcher admission and cleanup limits
-still apply; this change does not authorize a game session.
+| Check | Result |
+| --- | --- |
+| Installed UE editor/UHT build | Passed, 8.283 seconds |
+| Native skirmish / factory rally / controls | 28 / 4 / 12 exact groups passed, zero failures |
+| New two-factory three-role Coop | Passed, 117.015 total / 116.939 scenario seconds |
+| Existing single-factory three-role Coop | Passed, 119.703 total / 119.519 scenario seconds |
+| Offline production parser | 30 checks passed, including 29 invalid-evidence mutations |
+| Existing rally parser / process policy | 32 / 8 offline checks passed |
 
-## Opt-in engine routing fixture (prepared)
+The two-factory run paid for factories 11 and 18. Empty selection produced
+unit 20 at factory 11 (sequence 8); selecting factory 18 produced unit 23
+there (sequence 10); selecting HQ 3 produced unit 26 at factory 11
+(sequence 12). Every production debited exactly 50 credits and used the legal
+spawn of the chosen factory. Each case has five later movement checkpoints
+shared by the dedicated host, rendered owner-1 client and NullRHI owner-2
+observer. All eight fresh 1280x720 PNGs from the two runs were reviewed in
+original form. Their scope is functional prototype evidence, not art approval.
+
+Each heavy stage used three fresh total/selected-CPU samples at or below 80%
+and no competing engine/build jobs. The serial build used one action and
+NoUBA; owned processes used CPUs 2 and 6, Normal priority and bounded cleanup.
+Affinity/priority polling repairs are recorded; polling is not continuous
+confinement. Build/native/scenario/total bounds remained 900/90/220/240 seconds.
+Generated evidence, caches and binaries remain ignored on D:.
+
+The complete `Produce()` method and its portable test/model/rules inputs remain
+identical to original cloud checkpoint `384790d8f312734e93b3bf5bbf01f3bf42ee2df5`.
+The 508 checks per compiler mode and 28 baseline failures above are that
+source-bound portable evidence, not a newly executed Windows compiler run.
+The engine run proves actual shared handlers and loopback replication; it
+claims no physical `P`/focus input, internet, performance, final-art or
+rendered factory-loss/no-factory/insufficient-funds acceptance. Those negative
+routing/payment cases remain portable checks; native rally tests also cover
+atomic failed production and factory death/reset behavior.
+
+## Opt-in engine routing fixture
 
 `test-small-match.ps1 -Scenario Coop -FactoryProductionEvidence -CleanPresentation`
 adds a separate three-role loopback fixture. It leaves the existing
@@ -108,6 +134,7 @@ credit and replication waits still allow defense decisions. Three additional
 PNGs identify the cases. These are scripted shared-handler checks; physical `P`
 and focus testing remain separate.
 
-This fixture is prepared source, not an executed acceptance claim. It still
-requires source review, a fresh admitted UE/UHT build, native checks and an
-actual three-role run within the existing deadlines before integration.
+`test-factory-production-evidence-policy.ps1` exercises a valid synthetic
+three-case context and 29 invalid-evidence mutations without launching UE.
+The runtime runner separately validates full raw three-role state semantics;
+synthetic parser checks alone never represent engine acceptance.
