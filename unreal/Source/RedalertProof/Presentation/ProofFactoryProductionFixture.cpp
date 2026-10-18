@@ -59,7 +59,11 @@ bool AProofRTSPawn::TickFactoryProductionFixture()
         // ordinary live miner an actual Gather command too; no credit grants.
         const FProofUnitRecord* Miner = S.Units.FindByPredicate([PC, this](const FProofUnitRecord& U)
             { return U.OwnerId == PC->OwnerId && U.HitPoints > 0.f && U.Kind == EProofUnitKind::Harvester && U.UnitId != LastRequestedUnitId; });
-        const FProofResourceRecord* Ore = S.Resources.FindByPredicate([](const FProofResourceRecord& R) { return R.Remaining > 0; });
+        const FProofResourceRecord* Ore = nullptr;
+        if (Miner)
+            for (const FProofResourceRecord& R : S.Resources)
+                if (R.Remaining > 0 && (!Ore || FVector::DistSquared(R.Position, Miner->Position)
+                    < FVector::DistSquared(Ore->Position, Miner->Position))) Ore = &R;
         if (!Miner || !Ore || !Select(Miner->UnitId) || !SetControlsCursorFromWorld(Ore->Position)) return Fail(TEXT("factory_production_second_miner"));
         const int32 Before = LastRequestedSequence;
         OrderUnderCursor();
