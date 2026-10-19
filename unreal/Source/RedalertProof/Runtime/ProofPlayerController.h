@@ -7,6 +7,7 @@
 #include "Commands/ProofIngressBudget.h"
 #include "Runtime/ProofRefineryMinerEvidence.h"
 #include "Runtime/ProofStopEvidence.h"
+#include "Runtime/ProofBaseExpansionObservation.h"
 #include "ProofPlayerController.generated.h"
 
 class AProofGameState;
@@ -31,6 +32,7 @@ public:
     UFUNCTION(Server, Reliable) void ServerRequestRematch(int32 ExpectedEpoch);
     UFUNCTION(Client, Reliable) void ClientCommandResult(FProofCommandResult Result);
     UFUNCTION(Client, Reliable) void ClientLifecycleRejected();
+    UFUNCTION(Client, Reliable) void ClientBotBaseExpansionReady(int32 BeforeRevision, int32 NextSequence, bool bPositive);
     virtual void Tick(float DeltaSeconds) override;
     virtual void BuildInputStack(TArray<UInputComponent*>& InputStack) override;
     virtual void ProcessPlayerInput(float DeltaTime, bool bGamePaused) override;
@@ -51,6 +53,12 @@ private:
     FProofIngressBudget IngressBudget;
     FProofRefineryMinerEvidence RefineryEvidence;
     FProofStopEvidence StopEvidence;
+    FProofBaseExpansionObservation BaseExpansionObservation;
+    bool bBotBaseExpansionPassive = false;
+    bool bBotBaseExpansionPositive = false;
+    bool bBotBaseExpansionSent = false;
+    int32 BotBaseExpansionBeforeRevision = INDEX_NONE;
+    int32 BotBaseExpansionNextSequence = INDEX_NONE;
     bool AdmitIngress();
     bool bIngressFixture = false;
     bool bLifecycleFixture = false;

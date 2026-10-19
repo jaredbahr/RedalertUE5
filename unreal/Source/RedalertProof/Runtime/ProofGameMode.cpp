@@ -29,6 +29,7 @@ AProofGameMode::AProofGameMode()
     bLifecycleFixtureHost = bSkirmish && FParse::Param(FCommandLine::Get(), TEXT("ProofLifecycleFixtureHost"));
     FParse::Value(FCommandLine::Get(), TEXT("ProofLifecycleControl="), LifecycleControl);
     bSkirmishFixtureHost = bSkirmish && !bLifecycleFixtureHost && FParse::Param(FCommandLine::Get(), TEXT("ProofSkirmishFixtureHost"));
+    bBotBaseExpansionFixtureHost = bSkirmish && FParse::Param(FCommandLine::Get(), TEXT("ProofBotBaseExpansionFixtureHost"));
     MatchEpoch = bSkirmish ? 1 : 0;
     // PostLogin may precede BeginPlay for the first local player.
     if (bSkirmish) Model.StartSkirmish();
@@ -37,6 +38,14 @@ AProofGameMode::AProofGameMode()
 void AProofGameMode::BeginPlay()
 {
     Super::BeginPlay();
+    if (bBotBaseExpansionFixtureHost && (GetNetMode() != NM_DedicatedServer || bSkirmishFixtureHost
+        || bLifecycleFixtureHost || bAutomation || bControlsAutomation || AttackMoveRuntime.bEnabled
+        || !BaseExpansionObservation.Enabled()))
+    {
+        UE_LOG(LogTemp, Error, TEXT("PROOF_BOT_BASE_EXPANSION_ERROR reason=incompatible-flags"));
+        FPlatformMisc::RequestExitWithStatus(false, 1);
+        return;
+    }
     if (bTypeSelectionControls && (!bControlsAutomation || bSkirmish || FParse::Param(FCommandLine::Get(), TEXT("ProofStopControls"))))
     {
         UE_LOG(LogTemp, Error, TEXT("PROOF_TYPE_SELECTION_ERROR incompatible_fixture_flags"));
@@ -291,8 +300,58 @@ FProofCommandResult AProofGameMode::SubmitForOwner(int32 TrustedOwnerId, const F
     if (FactoryRallyEvidence.WantsCommand(TrustedOwnerId, Command.Type)) { RallyBefore.Emplace(Model.GetSnapshot()); }
     TOptional<FProofSnapshot> AttackMoveBefore;
     if (AttackMoveEvidence.Enabled()) AttackMoveBefore.Emplace(Model.GetSnapshot());
+    TOptional<FProofSnapshot> BaseExpansionBefore;
+    if (bBotBaseExpansionFixtureHost && bBotBaseExpansionSetupDone
+        && Command.Type == EProofCommandType::BuildRefinery && (TrustedOwnerId == 1 || TrustedOwnerId == 2))
+        BaseExpansionBefore.Emplace(Model.GetSnapshot());
     const FProofSnapshot ReturnCargoBefore = bReturnCargoEvidence && TrustedOwnerId == 1 ? Model.GetSnapshot() : FProofSnapshot();
     FProofCommandResult Result = Model.Submit(TrustedOwnerId, Command);
+    if (BaseExpansionBefore.IsSet())
+    {
+        const FProofSnapshot After = Model.GetSnapshot();
+        BaseExpansionObservation.ObserveCommand(MatchEpoch, TrustedOwnerId, Command, Result,
+            BaseExpansionBefore.GetValue(), After);
+        if (Command.Destination != FVector(-250.f, -400.f, 0.f)
+            || Command.Sequence != (TrustedOwnerId == 1 ? BotBaseExpansionOwnerSequence + 1 : 1))
+            FailBotBaseExpansion(TEXT("unexpected-command"));
+        else if (TrustedOwnerId == 2)
+        {
+            if (bBotBaseExpansionNegativeSeen || Result.bAccepted || Result.Reason != TEXT("placement")
+                || After.ComputeDigest() != BaseExpansionBefore->ComputeDigest())
+                FailBotBaseExpansion(TEXT("negative-control"));
+            else bBotBaseExpansionNegativeSeen = true;
+        }
+        else
+        {
+            int32 MaxBeforeId = 0;
+            for (const FProofUnitRecord& Unit : BaseExpansionBefore->Units)
+                MaxBeforeId = FMath::Max(MaxBeforeId, Unit.UnitId);
+            const FProofUnitRecord* NewRefinery = After.Units.FindByPredicate([MaxBeforeId](const FProofUnitRecord& Unit)
+                { return Unit.UnitId == MaxBeforeId + 1; });
+            const FProofUnitRecord* NewMiner = After.Units.FindByPredicate([MaxBeforeId](const FProofUnitRecord& Unit)
+                { return Unit.UnitId == MaxBeforeId + 2; });
+            const FProofPlayerRecord* Owner = After.Players.FindByPredicate([](const FProofPlayerRecord& Player)
+                { return Player.OwnerId == 1; });
+            if (!bBotBaseExpansionNegativeSeen || bBotBaseExpansionPositiveSeen || !Result.bAccepted
+                || After.Revision - BaseExpansionBefore->Revision != 3
+                || After.Units.Num() - BaseExpansionBefore->Units.Num() != 2
+                || !Owner || Owner->Credits != 0 || Owner->TotalGathered != 450
+                || !NewRefinery || NewRefinery->OwnerId != 1 || NewRefinery->Kind != EProofUnitKind::Refinery
+                || NewRefinery->Position != Command.Destination || NewRefinery->HitPoints != 200.f
+                || !NewMiner || NewMiner->OwnerId != 1 || NewMiner->Kind != EProofUnitKind::Harvester
+                || NewMiner->HitPoints != 100.f || NewMiner->Cargo != 0)
+                FailBotBaseExpansion(TEXT("positive-submit"));
+            else
+            {
+                bBotBaseExpansionPositiveSeen = true;
+                ++BotBaseExpansionOwnerSequence;
+                BotBaseExpansionAfterRevision = After.Revision;
+                BotBaseExpansionAfterDigest = After.ComputeDigest();
+                Publish();
+                BotBaseExpansionStageAt = Lifetime;
+            }
+        }
+    }
     if (bReturnCargoEvidence && TrustedOwnerId == 1)
         ObserveReturnCargoCommand(TrustedOwnerId, Command, Result, ReturnCargoBefore, Model.GetSnapshot());
     if (TrustedOwnerId == 1 && Command.Type == EProofCommandType::Gather
@@ -464,6 +523,7 @@ void AProofGameMode::Publish()
         FProofSnapshot Snapshot = Model.GetSnapshot();
         Snapshot.MatchEpoch = MatchEpoch;
         State->Publish(Snapshot);
+        BaseExpansionObservation.LogSnapshot(Snapshot, TEXT("host"), 0);
         RefineryEvidence.LogSnapshot(Snapshot, TEXT("host"), 0);
         AttackMoveEvidence.LogClock(MatchEpoch, Snapshot, AttackMoveRuntime.SimulatedSeconds);
         if (StopEvidence.Enabled()) { StopEvidence.LogSnapshot(Snapshot, TEXT("host"), 0); }
@@ -513,9 +573,205 @@ void AProofGameMode::ObserveSkirmish(const FProofSnapshot& Snapshot)
         if ((Player.OwnerId == 1 || Player.OwnerId == 2) && Player.TotalGathered > 0) bSkirmishHumanGathered = true;
 }
 
+void AProofGameMode::FailBotBaseExpansion(const TCHAR* Reason)
+{
+    UE_LOG(LogTemp, Error, TEXT("PROOF_BOT_BASE_EXPANSION_COMPLETE role=host status=fail reason=%s"), Reason);
+    FPlatformMisc::RequestExitWithStatus(false, 1);
+}
+
+bool AProofGameMode::BotBaseExpansionSubmit(int32 Owner, EProofCommandType Type,
+    const FVector& Position, int32 Unit, int32 Target)
+{
+    FProofCommand Command;
+    Command.Sequence = Owner == 1 ? ++BotBaseExpansionOwnerSequence : ++BotBaseExpansionEnemySequence;
+    Command.MatchEpoch = MatchEpoch;
+    Command.Type = Type;
+    Command.Destination = Position;
+    Command.UnitId = Unit;
+    Command.TargetUnitId = Target;
+    if (SubmitForOwner(Owner, Command).bAccepted) return true;
+    FailBotBaseExpansion(TEXT("setup-command-rejected"));
+    return false;
+}
+
+bool AProofGameMode::BotBaseExpansionKillMiner(int32 Target)
+{
+    auto Unit = [this](int32 Id) -> FProofUnitRecord
+    {
+        for (const FProofUnitRecord& Record : Model.GetSnapshot().Units)
+            if (Record.UnitId == Id) return Record;
+        return FProofUnitRecord();
+    };
+    int32 Attacker = INDEX_NONE;
+    for (const FProofUnitRecord& Record : Model.GetSnapshot().Units)
+        if (Record.OwnerId == ProofOwnerIds::Bot && Record.Kind == EProofUnitKind::Combat && Record.HitPoints > 0.f)
+            Attacker = Record.UnitId;
+    if (Attacker == INDEX_NONE) { FailBotBaseExpansion(TEXT("missing-attacker")); return false; }
+    const FVector SafeEnemy(1000.f, 3000.f, 0.f);
+    const FVector CombatSite(-1400.f, 1400.f, 0.f);
+    if (!BotBaseExpansionSubmit(ProofOwnerIds::Bot, EProofCommandType::Move, SafeEnemy, Attacker)) return false;
+    for (int32 Tick = 0; Tick < 100 && Unit(Attacker).Position != SafeEnemy; ++Tick)
+    { Model.Advance(1.f); SkirmishSeconds += 1.0; }
+    if (Unit(Attacker).Position != SafeEnemy
+        || !BotBaseExpansionSubmit(1, EProofCommandType::Move, CombatSite, Target))
+    { FailBotBaseExpansion(TEXT("attacker-move")); return false; }
+    for (int32 Tick = 0; Tick < 100 && Unit(Target).Position != CombatSite; ++Tick)
+    { Model.Advance(1.f); SkirmishSeconds += 1.0; }
+    if (Unit(Target).Position != CombatSite
+        || !BotBaseExpansionSubmit(ProofOwnerIds::Bot, EProofCommandType::Attack, FVector::ZeroVector, Attacker, Target))
+    { FailBotBaseExpansion(TEXT("target-move")); return false; }
+    for (int32 Tick = 0; Tick < 100 && Unit(Target).HitPoints > 0.f; ++Tick)
+    { Model.Advance(1.f); SkirmishSeconds += 1.0; }
+    if (Unit(Target).HitPoints > 0.f
+        || !BotBaseExpansionSubmit(ProofOwnerIds::Bot, EProofCommandType::Stop, FVector::ZeroVector, Attacker))
+    { FailBotBaseExpansion(TEXT("miner-loss")); return false; }
+    return true;
+}
+
+bool AProofGameMode::BotBaseExpansionSetup()
+{
+    // Scripted public-model history from BotBaseExpansion.PublicRecovery. This
+    // does not claim an autonomous default-map stall or hot bot takeover.
+    const FVector HQ(-1400.f, -400.f, 0.f);
+    const FVector Anchor = HQ + FVector(800.f, 0.f, 0.f);
+    const FVector Expanded = Anchor + FVector(350.f, 0.f, 0.f);
+    auto Player = [this]() -> FProofPlayerRecord
+    {
+        for (const FProofPlayerRecord& Record : Model.GetSnapshot().Players)
+            if (Record.OwnerId == 1) return Record;
+        return FProofPlayerRecord();
+    };
+    auto LiveId = [this](int32 Owner, EProofUnitKind Kind) -> int32
+    {
+        int32 Id = INDEX_NONE;
+        for (const FProofUnitRecord& Record : Model.GetSnapshot().Units)
+            if (Record.OwnerId == Owner && Record.Kind == Kind && Record.HitPoints > 0.f
+                && (Id == INDEX_NONE || Record.UnitId < Id)) Id = Record.UnitId;
+        return Id;
+    };
+    auto StopMiners = [this]() -> bool
+    {
+        const FProofSnapshot Snapshot = Model.GetSnapshot();
+        for (const FProofUnitRecord& Record : Snapshot.Units)
+            if (Record.OwnerId == 1 && Record.Kind == EProofUnitKind::Harvester && Record.HitPoints > 0.f
+                && !BotBaseExpansionSubmit(1, EProofCommandType::Stop, FVector::ZeroVector, Record.UnitId)) return false;
+        return true;
+    };
+    if (!BotBaseExpansionSubmit(1, EProofCommandType::BuildRefinery, Anchor)) return false;
+    for (int32 Tick = 0; Tick < 400 && Player().TotalGathered < 450; ++Tick)
+    { Model.Advance(1.f); SkirmishSeconds += 1.0; }
+    if (Player().TotalGathered != 450 || !StopMiners())
+    { FailBotBaseExpansion(TEXT("earned-income")); return false; }
+    const FVector Ring[] = {
+        FVector(425.f, 175.f, 0.f), FVector(-175.f, 425.f, 0.f),
+        FVector(-425.f, -175.f, 0.f), FVector(175.f, -425.f, 0.f)
+    };
+    for (const FVector& Offset : Ring)
+        if (!BotBaseExpansionSubmit(1, EProofCommandType::BuildFactory, HQ + Offset)) return false;
+    if (!StopMiners()) return false;
+    if (!BotBaseExpansionSubmit(ProofOwnerIds::Bot, EProofCommandType::BuildFactory, FVector(1050.f, 0.f, 0.f))
+        || !BotBaseExpansionSubmit(ProofOwnerIds::Bot, EProofCommandType::Produce,
+            FVector::ZeroVector, LiveId(ProofOwnerIds::Bot, EProofUnitKind::Factory))) return false;
+    const FProofSnapshot BeforeLoss = Model.GetSnapshot();
+    int32 Losses = 0;
+    for (const FProofUnitRecord& Record : BeforeLoss.Units)
+    {
+        if (Record.OwnerId == 1 && Record.Kind == EProofUnitKind::Harvester && Record.HitPoints > 0.f)
+        {
+            if (!BotBaseExpansionKillMiner(Record.UnitId)) return false;
+            ++Losses;
+        }
+    }
+    const FProofSnapshot Before = Model.GetSnapshot();
+    int32 OwnLive = 0, OwnMiners = 0, AnchorId = INDEX_NONE;
+    for (const FProofUnitRecord& Record : Before.Units)
+    {
+        if (Record.OwnerId == 1 && Record.HitPoints > 0.f)
+        {
+            ++OwnLive;
+            OwnMiners += Record.Kind == EProofUnitKind::Harvester ? 1 : 0;
+            if (Record.Kind == EProofUnitKind::Refinery) AnchorId = Record.UnitId;
+        }
+    }
+    if (Losses != 2 || OwnLive != 6 || OwnMiners != 0 || AnchorId == INDEX_NONE
+        || Player().Credits != 100 || Player().TotalGathered != 450
+        || Before.MatchPhase != EProofMatchPhase::Playing
+        || FVector::Dist(Expanded, HQ) != 1150.0 || FVector::Dist(Expanded, Anchor) != 350.0)
+    { FailBotBaseExpansion(TEXT("pre-recovery-state")); return false; }
+    const FVector Offsets[] = {
+        FVector(350, 0, 0), FVector(-350, 0, 0), FVector(0, 350, 0), FVector(0, -350, 0),
+        FVector(350, 350, 0), FVector(-350, 350, 0), FVector(350, -350, 0), FVector(-350, -350, 0),
+        FVector(600, 0, 0), FVector(-600, 0, 0), FVector(0, 600, 0), FVector(0, -600, 0)
+    };
+    for (const FVector& Offset : Offsets)
+    {
+        bool bBlocked = false;
+        for (const FProofUnitRecord& Record : Before.Units)
+            if (Record.HitPoints > 0.f
+                && (Record.Kind == EProofUnitKind::HQ || Record.Kind == EProofUnitKind::Refinery
+                    || Record.Kind == EProofUnitKind::Factory)
+                && FVector::DistSquared(HQ + Offset, Record.Position) < 250.0 * 250.0) bBlocked = true;
+        if (!bBlocked) { FailBotBaseExpansion(TEXT("hq-site-open")); return false; }
+    }
+    FVector GrantSpawn = FVector::ZeroVector;
+    if (!FProofCommandModel::FindSkirmishSpawn(Before, Expanded, GrantSpawn))
+    { FailBotBaseExpansion(TEXT("grant-spawn-blocked")); return false; }
+    FProofSkirmishBot Planner;
+    const TArray<FProofCommand> Batch = Planner.Decide(Before, 1, SkirmishSeconds);
+    if (Batch.Num() != 1 || Batch[0].Sequence != 1
+        || Batch[0].Type != EProofCommandType::BuildRefinery || Batch[0].Destination != Expanded
+        || Model.GetSnapshot().ComputeDigest() != Before.ComputeDigest())
+    { FailBotBaseExpansion(TEXT("host-planner-intent")); return false; }
+    bBotBaseExpansionSetupDone = true;
+    BotBaseExpansionBeforeRevision = Before.Revision;
+    Publish();
+    SkirmishOwner2.Get()->ClientBotBaseExpansionReady(Before.Revision, 1, false);
+    BotBaseExpansionStageAt = Lifetime;
+    UE_LOG(LogTemp, Display, TEXT("PROOF_BOT_BASE_EXPANSION_BEFORE epoch=%d revision=%d digest=%s ownerSequence=%d grantX=%.0f grantY=%.0f"),
+        MatchEpoch, Before.Revision, *Before.ComputeDigest(), BotBaseExpansionOwnerSequence, GrantSpawn.X, GrantSpawn.Y);
+    return true;
+}
+
+void AProofGameMode::TickBotBaseExpansionFixture(float DeltaSeconds)
+{
+    Lifetime += DeltaSeconds;
+    if (Lifetime > 90.f) { FailBotBaseExpansion(TEXT("timeout")); return; }
+    if (!bBotBaseExpansionSetupDone)
+    {
+        // The harness launches clients serially. Keep the ordinary bot and
+        // simulation paused until both human seats are connected.
+        if (!SkirmishOwner1.IsValid() || !SkirmishOwner2.IsValid()) return;
+        BotBaseExpansionSetup();
+        return;
+    }
+    if (!bBotBaseExpansionNegativeSeen)
+    {
+        if (Lifetime - BotBaseExpansionStageAt > 20.f) FailBotBaseExpansion(TEXT("missing-negative-rpc"));
+        return;
+    }
+    if (!bBotBaseExpansionOwnerReadySent)
+    {
+        bBotBaseExpansionOwnerReadySent = true;
+        SkirmishOwner1.Get()->ClientBotBaseExpansionReady(BotBaseExpansionBeforeRevision,
+            BotBaseExpansionOwnerSequence + 1, true);
+        BotBaseExpansionStageAt = Lifetime;
+        return;
+    }
+    if (!bBotBaseExpansionPositiveSeen)
+    {
+        if (Lifetime - BotBaseExpansionStageAt > 20.f) FailBotBaseExpansion(TEXT("missing-positive-rpc"));
+        return;
+    }
+    if (Lifetime - BotBaseExpansionStageAt < 6.f) return;
+    UE_LOG(LogTemp, Display, TEXT("PROOF_BOT_BASE_EXPANSION_COMPLETE role=host status=pass epoch=%d beforeRevision=%d afterRevision=%d afterDigest=%s"),
+        MatchEpoch, BotBaseExpansionBeforeRevision, BotBaseExpansionAfterRevision, *BotBaseExpansionAfterDigest);
+    FPlatformMisc::RequestExitWithStatus(false, 0);
+}
+
 void AProofGameMode::Tick(float DeltaSeconds)
 {
     Super::Tick(DeltaSeconds);
+    if (bBotBaseExpansionFixtureHost) { TickBotBaseExpansionFixture(DeltaSeconds); return; }
     if (AttackMoveRuntime.bEnabled) { TickAttackMoveRuntime(DeltaSeconds); return; }
     if (bLifecycleFixtureHost && !LifecycleControl.IsEmpty() &&
         IFileManager::Get().FileExists(*FPaths::Combine(LifecycleControl, TEXT("finish"))))

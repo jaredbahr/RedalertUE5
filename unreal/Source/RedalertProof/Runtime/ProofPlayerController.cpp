@@ -13,6 +13,7 @@
 #include "HAL/PlatformMisc.h"
 #include "HAL/PlatformTime.h"
 #include "Misc/Paths.h"
+#include "Skirmish/ProofSkirmishBot.h"
 
 AProofPlayerController::AProofPlayerController()
 {
@@ -25,6 +26,7 @@ AProofPlayerController::AProofPlayerController()
     bStopInputBindingTrace = bControlsAutomation && !bControlsObserver
         && FParse::Param(FCommandLine::Get(), TEXT("ProofStopInputBinding"));
     bSkirmishObserver = bSkirmishMode && FParse::Param(FCommandLine::Get(), TEXT("ProofSkirmishObserver"));
+    bBotBaseExpansionPassive = bSkirmishMode && FParse::Param(FCommandLine::Get(), TEXT("ProofBotBaseExpansionPassive"));
     bIngressFixture = FParse::Param(FCommandLine::Get(), TEXT("ProofIngressFixture"));
     bIngressFlood = FParse::Param(FCommandLine::Get(), TEXT("ProofIngressFlood"));
     bIngressHealthy = FParse::Param(FCommandLine::Get(), TEXT("ProofIngressHealthy"));
@@ -153,6 +155,22 @@ void AProofPlayerController::ClientLifecycleRejected_Implementation()
     }
 }
 
+void AProofPlayerController::ClientBotBaseExpansionReady_Implementation(int32 BeforeRevision, int32 NextSequence, bool bPositive)
+{
+    if (!bBotBaseExpansionPassive || BeforeRevision <= 0 || NextSequence <= 0
+        || BotBaseExpansionBeforeRevision != INDEX_NONE)
+    {
+        UE_LOG(LogTemp, Error, TEXT("PROOF_BOT_BASE_EXPANSION_COMPLETE role=client owner=%d status=fail reason=ready-contract"), OwnerId);
+        FPlatformMisc::RequestExitWithStatus(false, 1);
+        return;
+    }
+    BotBaseExpansionBeforeRevision = BeforeRevision;
+    BotBaseExpansionNextSequence = NextSequence;
+    bBotBaseExpansionPositive = bPositive;
+    UE_LOG(LogTemp, Display, TEXT("PROOF_BOT_BASE_EXPANSION_READY owner=%d revision=%d sequence=%d positive=%d"),
+        OwnerId, BeforeRevision, NextSequence, bPositive ? 1 : 0);
+}
+
 void AProofPlayerController::ClientCommandResult_Implementation(FProofCommandResult Result)
 {
     SynchronizeMatchEpoch();
@@ -203,6 +221,7 @@ void AProofPlayerController::Tick(float DeltaSeconds)
     AProofGameState* State = GetWorld()->GetGameState<AProofGameState>();
     SynchronizeMatchEpoch();
     if (State && OwnerId != INDEX_NONE) RefineryEvidence.LogSnapshot(State->Snapshot, TEXT("client"), OwnerId);
+    if (State && OwnerId != INDEX_NONE) BaseExpansionObservation.LogSnapshot(State->Snapshot, TEXT("client"), OwnerId);
     if (State && OwnerId != INDEX_NONE && StopEvidence.Enabled()) { StopEvidence.LogSnapshot(State->Snapshot, TEXT("client"), OwnerId); }
     if (State && OwnerId != INDEX_NONE && LastLoggedRevision != State->Snapshot.Revision)
     {
@@ -210,6 +229,82 @@ void AProofPlayerController::Tick(float DeltaSeconds)
         LastLoggedRevision = State->Snapshot.Revision;
     }
     if (AttackMoveRuntime.bEnabled) { TickAttackMoveRuntime(DeltaSeconds); return; }
+    if (bBotBaseExpansionPassive)
+    {
+        if (Lifetime > 90.f && !bFinished)
+        {
+            bFinished = true;
+            UE_LOG(LogTemp, Error, TEXT("PROOF_BOT_BASE_EXPANSION_COMPLETE role=client owner=%d status=fail reason=timeout"), OwnerId);
+            FPlatformMisc::RequestExitWithStatus(false, 1);
+            return;
+        }
+        if (bFinished || !State || OwnerId == INDEX_NONE || BotBaseExpansionBeforeRevision == INDEX_NONE) return;
+        const FProofSnapshot& Snapshot = State->Snapshot;
+        if (!bBotBaseExpansionSent && Snapshot.MatchEpoch == LocalMatchEpoch
+            && Snapshot.Revision == BotBaseExpansionBeforeRevision)
+        {
+            FProofCommand Command;
+            if (bBotBaseExpansionPositive)
+            {
+                FProofSkirmishBot Planner;
+                const TArray<FProofCommand> Batch = Planner.Decide(Snapshot, OwnerId, 0.0);
+                if (OwnerId != 1 || Batch.Num() != 1 || Batch[0].Sequence != 1
+                    || Batch[0].Type != EProofCommandType::BuildRefinery
+                    || Batch[0].Destination != FVector(-250.f, -400.f, 0.f))
+                {
+                    bFinished = true;
+                    UE_LOG(LogTemp, Error, TEXT("PROOF_BOT_BASE_EXPANSION_COMPLETE role=client owner=%d status=fail reason=planner-intent"), OwnerId);
+                    FPlatformMisc::RequestExitWithStatus(false, 1);
+                    return;
+                }
+                Command = Batch[0];
+            }
+            else
+            {
+                if (OwnerId != 2)
+                {
+                    bFinished = true;
+                    UE_LOG(LogTemp, Error, TEXT("PROOF_BOT_BASE_EXPANSION_COMPLETE role=client owner=%d status=fail reason=negative-owner"), OwnerId);
+                    FPlatformMisc::RequestExitWithStatus(false, 1);
+                    return;
+                }
+                Command.Type = EProofCommandType::BuildRefinery;
+                Command.Destination = FVector(-250.f, -400.f, 0.f);
+            }
+            Command.Sequence = BotBaseExpansionNextSequence;
+            Command.MatchEpoch = Snapshot.MatchEpoch;
+            bBotBaseExpansionSent = true;
+            ServerSubmitCommand(Command);
+            UE_LOG(LogTemp, Display, TEXT("PROOF_BOT_BASE_EXPANSION_SEND owner=%d epoch=%d sequence=%d revision=%d positive=%d"),
+                OwnerId, Command.MatchEpoch, Command.Sequence, Snapshot.Revision, bBotBaseExpansionPositive ? 1 : 0);
+        }
+        FProofCommandResult Receipt;
+        if (!bBotBaseExpansionSent || !FindReceipt(BotBaseExpansionNextSequence, Receipt)) return;
+        if (Receipt.MatchEpoch != LocalMatchEpoch || Receipt.bAccepted != bBotBaseExpansionPositive
+            || (!bBotBaseExpansionPositive && Receipt.Reason != TEXT("placement")))
+        {
+            bFinished = true;
+            UE_LOG(LogTemp, Error, TEXT("PROOF_BOT_BASE_EXPANSION_COMPLETE role=client owner=%d status=fail reason=receipt"), OwnerId);
+            FPlatformMisc::RequestExitWithStatus(false, 1);
+            return;
+        }
+        if (Snapshot.Revision <= BotBaseExpansionBeforeRevision) return;
+        bool bRecoveredRefinery = false, bRecoveredMiner = false;
+        for (const FProofUnitRecord& Unit : Snapshot.Units)
+        {
+            bRecoveredRefinery |= Unit.OwnerId == 1 && Unit.Kind == EProofUnitKind::Refinery
+                && Unit.Position == FVector(-250.f, -400.f, 0.f) && Unit.HitPoints == 200.f;
+            bRecoveredMiner |= Unit.OwnerId == 1 && Unit.Kind == EProofUnitKind::Harvester && Unit.HitPoints > 0.f;
+        }
+        if (bRecoveredRefinery && bRecoveredMiner)
+        {
+            bFinished = true;
+            UE_LOG(LogTemp, Display, TEXT("PROOF_BOT_BASE_EXPANSION_COMPLETE role=client owner=%d status=pass epoch=%d revision=%d digest=%s"),
+                OwnerId, Snapshot.MatchEpoch, Snapshot.Revision, *Snapshot.ComputeDigest());
+            FPlatformMisc::RequestExitWithStatus(false, 0);
+        }
+        return;
+    }
     if (bLifecycleFixture) { TickLifecycleFixture(State); return; }
     if (bSkirmishObserver) { TickSkirmishObserver(State); return; }
     if (bControlsObserver && !bFinished)

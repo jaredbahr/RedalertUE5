@@ -11,6 +11,7 @@
 #include "Runtime/ProofFactoryProductionEvidence.h"
 #include "Runtime/ProofAttackMoveEvidence.h"
 #include "Runtime/ProofAttackMoveRuntimeState.h"
+#include "Runtime/ProofBaseExpansionObservation.h"
 #include "ProofGameMode.generated.h"
 
 class AProofPlayerController;
@@ -33,6 +34,7 @@ public:
 private:
     FProofCommandModel Model;
     FProofAttackMoveRuntimeState AttackMoveRuntime;
+    FProofBaseExpansionObservation BaseExpansionObservation;
     FProofAttackMoveEvidence AttackMoveEvidence;
     void TickAttackMoveRuntime(float DeltaSeconds);
     FProofRefineryMinerEvidence RefineryEvidence;
@@ -62,6 +64,24 @@ private:
     int32 TypeSelectionClockRows = 0;
     bool bSkirmish = false;
     bool bSkirmishFixtureHost = false;
+    // Opt-in, review-only diagnostic; never enabled by ordinary skirmishes.
+    bool bBotBaseExpansionFixtureHost = false;
+    bool bBotBaseExpansionSetupDone = false;
+    bool bBotBaseExpansionNegativeSeen = false;
+    bool bBotBaseExpansionPositiveSeen = false;
+    bool bBotBaseExpansionOwnerReadySent = false;
+    int32 BotBaseExpansionOwnerSequence = 0;
+    int32 BotBaseExpansionEnemySequence = 0;
+    int32 BotBaseExpansionBeforeRevision = INDEX_NONE;
+    int32 BotBaseExpansionAfterRevision = INDEX_NONE;
+    FString BotBaseExpansionAfterDigest;
+    float BotBaseExpansionStageAt = 0.f;
+    bool BotBaseExpansionSubmit(int32 Owner, EProofCommandType Type,
+        const FVector& Position = FVector::ZeroVector, int32 Unit = INDEX_NONE, int32 Target = INDEX_NONE);
+    bool BotBaseExpansionKillMiner(int32 Target);
+    bool BotBaseExpansionSetup();
+    void TickBotBaseExpansionFixture(float DeltaSeconds);
+    void FailBotBaseExpansion(const TCHAR* Reason);
     bool bLifecycleFixtureHost = false;
     FString LifecycleControl;
     bool bSkirmishFixtureStarted = false;
