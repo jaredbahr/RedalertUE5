@@ -3,26 +3,31 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'AreaGuardObservation.ps1')
 $run = 'a' * 32; $source = 'b' * 40
 function Copy-GuardTest($Value) { return (ConvertTo-Json -InputObject $Value -Depth 18 -Compress | ConvertFrom-Json -AsHashtable -Depth 18) }
-function New-GuardTestState([int]$Revision, [double]$X, [int]$Target, [bool]$Returning, [double]$FoeX = 500) {
+function New-GuardTestState([int]$Revision, [double]$X, [int]$Target, [bool]$Returning, [double]$FoeX = 600, [double]$FoeHP = 100) {
     $units = @(
         @{id=1;owner=1;kind=0;hp=100.0;position=@{x=$X;y=0.0;z=0.0};direction=@{x=0.0;y=0.0;z=0.0};cargo=0;rally=$false;rallyPoint=@{x=0.0;y=0.0;z=0.0};guard=($Revision -ge 2);post=@{x=0.0;y=0.0;z=0.0};target=$Target;returning=$Returning},
-        @{id=2;owner=100;kind=1;hp=100.0;position=@{x=$FoeX;y=0.0;z=0.0};direction=@{x=0.0;y=0.0;z=0.0};cargo=0;rally=$false;rallyPoint=@{x=0.0;y=0.0;z=0.0};guard=$false;post=@{x=0.0;y=0.0;z=0.0};target=-1;returning=$false}
+        @{id=2;owner=100;kind=1;hp=$FoeHP;position=@{x=$FoeX;y=0.0;z=0.0};direction=@{x=0.0;y=0.0;z=0.0};cargo=0;rally=$false;rallyPoint=@{x=0.0;y=0.0;z=0.0};guard=$false;post=@{x=0.0;y=0.0;z=0.0};target=-1;returning=$false}
     )
-    return @{epoch=1;revision=$Revision;digest=('a' * 31 + [string]$Revision);skirmish=$true;phase=1;winner=-1;
+    $suffix=$Revision.ToString('x')
+    return @{epoch=1;revision=$Revision;digest=('a' * (32-$suffix.Length) + $suffix);skirmish=$true;phase=1;winner=-1;
         players=@(@{owner=1;team=0;credits=350;gathered=0},@{owner=100;team=1;credits=350;gathered=0});units=$units;resources=@()}
 }
 function New-GuardTestLogs {
     param([switch]$FastChase,[switch]$OutsideLeash,[switch]$DelayedPublication)
-    $chaseX = if($OutsideLeash){301.0}elseif($FastChase){200.0}else{30.0}
-    $states = @(
-        (New-GuardTestState 1 0 -1 $false),
-        (New-GuardTestState 2 0 -1 $false),
-        (New-GuardTestState 3 15 2 $false),
-        (New-GuardTestState 4 $chaseX 2 $false),
-        (New-GuardTestState 5 $chaseX -1 $true 700),
-        (New-GuardTestState 6 15 -1 $true 700),
-        (New-GuardTestState 7 0 -1 $true 700)
-    )
+    $states = [Collections.Generic.List[object]]::new()
+    $states.Add((New-GuardTestState 1 0 -1 $false))
+    $states.Add((New-GuardTestState 2 0 -1 $false))
+    for($step=1;$step -le 20;$step++) {
+        $x = 15.0*$step
+        if($FastChase -and $step -eq 2){$x=200.0}
+        if($OutsideLeash -and $step -eq 20){$x=301.0}
+        $hp=if($step -eq 20){97.5}else{100.0}
+        $states.Add((New-GuardTestState (2+$step) $x 2 $false 600 $hp))
+    }
+    $states.Add((New-GuardTestState 23 300 -1 $true 615 97.5))
+    for($step=1;$step -le 20;$step++) {
+        $states.Add((New-GuardTestState (23+$step) (300.0-15.0*$step) -1 $true 615 97.5))
+    }
     $rows = @{host=[Collections.Generic.List[object]]::new();rendered=[Collections.Generic.List[object]]::new();observer=[Collections.Generic.List[object]]::new()}
     foreach ($role in @('host','rendered','observer')) { $rows[$role].Add(@{event='snapshot';state=$states[0]}) }
     $rows.host.Add(@{event='command';owner=1;type=10;sequence=1;payloadEpoch=1;unit=1;target=-1;
@@ -60,9 +65,9 @@ function Reject-Test([string]$Name, [scriptblock]$Mutation) {
     Require-Test $rejected "accepted $Name"
 }
 $positive = Get-AreaGuardObservation -Logs (New-GuardTestLogs) -RunId $run -SourceTree $source
-Require-Test ($positive.passed -and $positive.unit -eq 1 -and $positive.commonRevisions.Count -eq 7) 'positive route'
+Require-Test ($positive.passed -and $positive.unit -eq 1 -and $positive.commonRevisions.Count -eq 43) 'positive route'
 $delayed = Get-AreaGuardObservation -Logs (New-GuardTestLogs -DelayedPublication) -RunId $run -SourceTree $source
-Require-Test ($delayed.passed -and $delayed.commonRevisions.Count -eq 6) 'delayed client publication'
+Require-Test ($delayed.passed -and $delayed.commonRevisions.Count -eq 42) 'delayed client publication'
 foreach ($case in @('FastChase','OutsideLeash')) {
     $rejected = $false
     $caseLogs = if ($case -eq 'FastChase') { New-GuardTestLogs -FastChase } else { New-GuardTestLogs -OutsideLeash }

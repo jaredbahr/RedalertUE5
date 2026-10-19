@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Runtime/ProofAttackMoveRuntimeState.h"
+#include "Runtime/ProofAreaGuardRuntimeState.h"
 #include "GameFramework/PlayerController.h"
 #include "Commands/ProofCommandModel.h"
 #include "Commands/ProofIngressBudget.h"
@@ -42,7 +43,9 @@ public:
     virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 private:
     FProofAttackMoveRuntimeState AttackMoveRuntime;
+    FProofAreaGuardRuntimeState AreaGuardRuntime;
     void TickAttackMoveRuntime(float DeltaSeconds);
+    void TickAreaGuardRuntime(float DeltaSeconds);
     // Opt-in fixture observation only; normal input always runs through Super.
     bool bStopInputBindingTrace = false;
     TWeakObjectPtr<UInputComponent> StopInputBuiltComponent;

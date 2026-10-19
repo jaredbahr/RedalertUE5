@@ -26,6 +26,7 @@ AProofGameMode::AProofGameMode()
     bReturnCargoEvidence = FParse::Param(FCommandLine::Get(), TEXT("ProofReturnCargoEvidence"));
     bSkirmish = FParse::Param(FCommandLine::Get(), TEXT("ProofSkirmish"));
     AttackMoveRuntime.bEnabled = FParse::Param(FCommandLine::Get(), TEXT("ProofAttackMoveFixtureHost"));
+    AreaGuardRuntime.bEnabled = FParse::Param(FCommandLine::Get(), TEXT("ProofAreaGuardFixtureHost"));
     bLifecycleFixtureHost = bSkirmish && FParse::Param(FCommandLine::Get(), TEXT("ProofLifecycleFixtureHost"));
     FParse::Value(FCommandLine::Get(), TEXT("ProofLifecycleControl="), LifecycleControl);
     bSkirmishFixtureHost = bSkirmish && !bLifecycleFixtureHost && FParse::Param(FCommandLine::Get(), TEXT("ProofSkirmishFixtureHost"));
@@ -41,6 +42,14 @@ void AProofGameMode::BeginPlay()
         AttackMoveRuntime.bEnabled || bSkirmishFixtureHost || bLifecycleFixtureHost))
     {
         UE_LOG(LogTemp, Error, TEXT("PROOF_AREA_GUARD_OBSERVATION_ERROR reason=incompatible-host-flags"));
+        FPlatformMisc::RequestExitWithStatus(false, 1);
+        return;
+    }
+    if (AreaGuardRuntime.bEnabled && (!AreaGuardObservation.Enabled() || !bSkirmish ||
+        GetNetMode() != NM_DedicatedServer || bAutomation || bControlsAutomation ||
+        bSkirmishFixtureHost || bLifecycleFixtureHost || AttackMoveRuntime.bEnabled))
+    {
+        UE_LOG(LogTemp, Error, TEXT("PROOF_AREA_GUARD_FIXTURE_ERROR role=host reason=incompatible-flags"));
         FPlatformMisc::RequestExitWithStatus(false, 1);
         return;
     }
@@ -534,6 +543,7 @@ void AProofGameMode::Tick(float DeltaSeconds)
 {
     Super::Tick(DeltaSeconds);
     if (AttackMoveRuntime.bEnabled) { TickAttackMoveRuntime(DeltaSeconds); return; }
+    if (AreaGuardRuntime.bEnabled) { TickAreaGuardRuntime(DeltaSeconds); return; }
     if (bLifecycleFixtureHost && !LifecycleControl.IsEmpty() &&
         IFileManager::Get().FileExists(*FPaths::Combine(LifecycleControl, TEXT("finish"))))
     {

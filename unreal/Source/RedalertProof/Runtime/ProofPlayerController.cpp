@@ -19,6 +19,7 @@ AProofPlayerController::AProofPlayerController()
     PrimaryActorTick.bCanEverTick = true;
     const bool bSkirmishMode = FParse::Param(FCommandLine::Get(), TEXT("ProofSkirmish"));
     AttackMoveRuntime.bEnabled = FParse::Param(FCommandLine::Get(), TEXT("ProofAttackMoveFixture"));
+    AreaGuardRuntime.bEnabled = FParse::Param(FCommandLine::Get(), TEXT("ProofAreaGuardFixture"));
     bAutomation = !bSkirmishMode && FParse::Param(FCommandLine::Get(), TEXT("ProofAutomation"));
     bControlsAutomation = !bSkirmishMode && FParse::Param(FCommandLine::Get(), TEXT("ProofControlsAutomation"));
     bControlsObserver = FParse::Param(FCommandLine::Get(), TEXT("ProofControlsObserver"));
@@ -211,6 +212,7 @@ void AProofPlayerController::Tick(float DeltaSeconds)
         LastLoggedRevision = State->Snapshot.Revision;
     }
     if (AttackMoveRuntime.bEnabled) { TickAttackMoveRuntime(DeltaSeconds); return; }
+    if (AreaGuardRuntime.bEnabled) { TickAreaGuardRuntime(DeltaSeconds); return; }
     if (bLifecycleFixture) { TickLifecycleFixture(State); return; }
     if (bSkirmishObserver) { TickSkirmishObserver(State); return; }
     if (bControlsObserver && !bFinished)

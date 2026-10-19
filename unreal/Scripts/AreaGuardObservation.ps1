@@ -5,7 +5,8 @@ function Get-AreaGuardObservation {
     param(
         [Parameter(Mandatory)][hashtable]$Logs,
         [Parameter(Mandatory)][string]$RunId,
-        [Parameter(Mandatory)][string]$SourceTree
+        [Parameter(Mandatory)][string]$SourceTree,
+        [switch]$RequireRuntimeMarkers
     )
     function Require($Condition, [string]$Reason) { if (-not $Condition) { throw "AreaGuard observation: $Reason" } }
     function Int($Value, [long]$Min = 0) {
@@ -106,6 +107,7 @@ function Get-AreaGuardObservation {
     foreach ($role in @('host', 'rendered', 'observer')) {
         Require ($Logs.ContainsKey($role) -and $Logs[$role] -is [string] -and $Logs[$role].Length -le 32MB) "missing/oversized $role log"
         Require ($Logs[$role] -notmatch 'PROOF_AREA_GUARD_OBSERVATION_ERROR') "$role runtime error"
+        Require ($Logs[$role] -notmatch 'PROOF_AREA_GUARD_FIXTURE_ERROR|Fatal error:|Assertion failed:|Unhandled Exception:') "$role fixture/runtime error"
         $viewer = @{host=0;rendered=1;observer=2}[$role]
         $rows = @([regex]::Matches($Logs[$role], 'PROOF_AREA_GUARD_OBSERVATION (\{[^\r\n]*\})') | ForEach-Object { JsonRow $_.Groups[1].Value })
         Require ($rows.Count -eq [regex]::Matches($Logs[$role], 'PROOF_AREA_GUARD_OBSERVATION ').Count) "$role malformed/truncated row"
@@ -178,6 +180,7 @@ function Get-AreaGuardObservation {
     $advances = @($events.host | Where-Object { $_.event -eq 'advance' -and $_.after.revision -gt $command.after.revision })
     Require ($advances.Count -ge 3) 'missing host advances'
     $acquired = $false; $chased = $false; $returned = $false; $atPost = $false
+    $damaged = $false; $escaped = $false; $maxOutbound = 0.0
     $lastClock = -1.0; $returnRevision = -1
     foreach ($advance in $advances) {
         Require ($advance.simulatedSeconds -gt $lastClock) 'host clock regression'
@@ -185,6 +188,7 @@ function Get-AreaGuardObservation {
         $from = Unit $advance.before $unitId; $to = Unit $advance.after $unitId
         if ($from.Count -ne 1 -or $to.Count -ne 1 -or -not $to[0].guard) { continue }
         Require ((Dist $to[0].post $post) -eq 0 -and (Dist $to[0].position $post) -le 300.0) 'guard post/leash'
+        $maxOutbound = [math]::Max($maxOutbound, (Dist $to[0].position $post))
         Require ((Dist $to[0].position $from[0].position) -le 150.0*$advance.deltaSeconds+0.000001) 'extra movement budget'
         if ($from[0].returning -and (Dist $from[0].position $post) -gt 0) {
             Require ($to[0].returning -and $to[0].target -eq -1 -and
@@ -201,27 +205,49 @@ function Get-AreaGuardObservation {
             $acquired = $true
             if ((Dist $to[0].position $post) -gt 20 -and
                 (Dist $to[0].position $post) -gt (Dist $from[0].position $post)) { $chased = $true }
+            $priorTarget = Unit $advance.before $to[0].target
+            if ($priorTarget.Count -eq 1 -and $target[0].hp -lt $priorTarget[0].hp -and
+                (Dist $to[0].position $target[0].position) -le 300.0) { $damaged = $true }
         }
         if ($to[0].returning) {
             Require ($to[0].target -eq -1) 'return target not cleared'
+            if ($from[0].target -gt 0) {
+                $lostTarget = Unit $advance.after $from[0].target
+                Require ($lostTarget.Count -eq 1 -and $lostTarget[0].hp -gt 0 -and
+                    (Dist $lostTarget[0].position $post) -gt 600.0) 'return was not caused by observed live target escape'
+                $escaped = $true
+            }
             if ($returnRevision -lt 0) { $returnRevision = $advance.after.revision }
             if ((Dist $to[0].position $post) -lt (Dist $from[0].position $post)) { $returned = $true }
             if ((Dist $to[0].position $post) -eq 0 -and $advance.after.revision -gt $returnRevision) { $atPost = $true }
         }
     }
-    Require ($acquired -and $chased -and $returned -and $atPost) 'missing acquired/chased/return/home host progression'
-    $commonAcquire = $false; $commonChase = $false; $commonReturn = $false; $commonHome = $false
+    Require ($acquired -and $chased -and $damaged -and $escaped -and $returned -and $atPost -and
+        $maxOutbound -ge 299.999) 'missing bounded chase/damage/escape/return/home host progression'
+    $commonAcquire = $false; $commonChase = $false; $commonReturn = $false; $commonHome = $false; $commonLeash = $false
     foreach ($key in $common) {
         $state = $snapshots.host[$key]; if ($state.revision -lt $command.after.revision) { continue }
         $match = Unit $state $unitId; if ($match.Count -ne 1) { continue }
         $unit = $match[0]
         if ($unit.guard -and $unit.target -gt 0) { $commonAcquire = $true }
         if ($unit.guard -and $unit.target -gt 0 -and (Dist $unit.position $post) -gt 20) { $commonChase = $true }
+        if ($unit.guard -and (Dist $unit.position $post) -ge 299.999) { $commonLeash = $true }
         if ($unit.guard -and $unit.returning -and $unit.target -eq -1 -and (Dist $unit.position $post) -gt 0) { $commonReturn = $true }
         if ($unit.guard -and $unit.returning -and (Dist $unit.position $post) -eq 0) { $commonHome = $true }
     }
-    Require ($commonAcquire -and $commonChase -and $commonReturn -and $commonHome) 'missing common acquisition/chase/return/home'
+    Require ($commonAcquire -and $commonChase -and $commonLeash -and $commonReturn -and $commonHome) 'missing common acquisition/chase/leash/return/home'
+    if ($RequireRuntimeMarkers) {
+        Require ([regex]::Matches($Logs.rendered,('PROOF_AREA_GUARD_FIXTURE_SEND owner=1 epoch='+$command.after.epoch+
+            ' sequence='+$command.sequence+' type=10 unit='+$unitId+' target=-1\b')).Count -eq 1) 'missing/duplicate public RPC send'
+        Require ([regex]::Matches($Logs.rendered,('PROOF_RESULT owner=1 sequence='+$command.sequence+' accepted=1 reason=accepted')).Count -eq 1) 'missing/duplicate accepted client receipt'
+        Require ([regex]::Matches($Logs.host,('PROOF_AREA_GUARD_FIXTURE_RETREAT target=\d+ guard='+$unitId+'\b')).Count -eq 1) 'missing/duplicate host target retreat'
+        foreach ($role in @('host','rendered','observer')) {
+            Require ([regex]::Matches($Logs[$role],('PROOF_AREA_GUARD_FIXTURE_READY role='+$role+' status=pass\b')).Count -eq 1) "$role ready marker"
+            Require ([regex]::Matches($Logs[$role],('PROOF_AREA_GUARD_FIXTURE_COMPLETE role='+$role+' status=pass\b')).Count -eq 1) "$role complete marker"
+        }
+    }
     return [ordered]@{passed=$true;epoch=$command.after.epoch;unit=$unitId;post=$post;
-        commandSequence=$command.sequence;commonRevisions=$common;lastSimulatedSeconds=$lastClock;
+        commandSequence=$command.sequence;commonRevisions=$common;maxOutbound=$maxOutbound;escaped=$escaped;
+        targetDamaged=$damaged;lastSimulatedSeconds=$lastClock;
         proofScope='synthetic public-command and three-role replicated AreaGuard state; physical G input and performance unverified'}
 }
