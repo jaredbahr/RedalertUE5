@@ -6,17 +6,17 @@ $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'FactoryProductionEvidence.ps1')
 function New-FactoryProductionPolicyFixture {
     $logs=@{host='';rendered='';observer=''};$maps=@{host=@{};rendered=@{};observer=@{}};$events=@();$phases=@();$advances=@()
-    function Copy($O){return ($O|ConvertTo-Json -Depth 16 -Compress|ConvertFrom-Json -Depth 16)}
+    function Copy-FactoryProductionFixtureValue($O){return ($O|ConvertTo-Json -Depth 16 -Compress|ConvertFrom-Json -Depth 16)}
     function Digest([int]$R){return ('{0:x32}' -f $R)}
     function Add-State([int]$Revision,$Context){
-        $s=Copy $Context;$s|Add-Member -NotePropertyName epoch -NotePropertyValue 1;$s|Add-Member -NotePropertyName revision -NotePropertyValue $Revision;$s|Add-Member -NotePropertyName digest -NotePropertyValue (Digest $Revision)
-        $key="1:$Revision";foreach($role in @('host','rendered','observer')){$maps[$role][$key]=Copy $s};$script:policyCommon+=,$key
+        $s=Copy-FactoryProductionFixtureValue $Context;$s|Add-Member -NotePropertyName epoch -NotePropertyValue 1;$s|Add-Member -NotePropertyName revision -NotePropertyValue $Revision;$s|Add-Member -NotePropertyName digest -NotePropertyValue (Digest $Revision)
+        $key="1:$Revision";foreach($role in @('host','rendered','observer')){$maps[$role][$key]=Copy-FactoryProductionFixtureValue $s};$script:policyCommon+=,$key
     }
-    $current=Copy @{phase=1;jobs=@();players=@(@{id=1;credits=900;gathered=0});units=@(
+    $current=Copy-FactoryProductionFixtureValue @{phase=1;jobs=@();players=@(@{id=1;credits=900;gathered=0});units=@(
         @{id=1;owner=1;kind=2;hp=300;cargo=0;x=0;y=0;z=0;rally=0;rallyX=0;rallyY=0;rallyZ=0})}
     $script:policyCommon=@()
     for($i=0;$i -lt 4;$i++) {
-        $build=$i -lt 2;$before=Copy $current;$factory=if($i -in @(0,2)){10}else{20}
+        $build=$i -lt 2;$before=Copy-FactoryProductionFixtureValue $current;$factory=if($i -in @(0,2)){10}else{20}
         $beforeRevision=@(1,5,9,12)[$i];$revision=@(3,7,10,13)[$i]
         if($build){
             $spawnX=if($i -eq 0){0}else{-350};$spawnY=if($i -eq 0){-350}else{0}
@@ -26,22 +26,22 @@ function New-FactoryProductionPolicyFixture {
             $spawnX=0;$spawnY=0;$rallyX=if($i -eq 2){-600}else{-950};$rallyY=if($i -eq 2){-350}else{350}
             $changed=@($current.units|Where-Object id -eq $factory)[0];$changed.rally=1;$changed.rallyX=$rallyX;$changed.rallyY=$rallyY
         }
-        $e=@{type=$(if($build){'BuildFactory'}else{'SetRally'});owner=1;epoch=1;sequence=$i+1;factory=$factory;unit=$(if($build){$factory}else{-1});beforeRevision=$beforeRevision;revision=$revision;beforeDigest=(Digest $beforeRevision);digest=(Digest $revision);creditsBefore=$before.players[0].credits;creditsAfter=$current.players[0].credits;rallyX=$rallyX;rallyY=$rallyY;rallyZ=0;spawnX=$spawnX;spawnY=$spawnY;spawnZ=0;beforeIds=@($before.units.id);afterIds=@($current.units.id);eligible=@($before.units|Where-Object{$_.owner -eq 1 -and $_.kind -eq 4 -and $_.hp -gt 0}|ForEach-Object{$_.id});productionBefore=$before;productionAfter=(Copy $current);productionPayment=0;productionRefund=0}
+        $e=@{type=$(if($build){'BuildFactory'}else{'SetRally'});owner=1;epoch=1;sequence=$i+1;factory=$factory;unit=$(if($build){$factory}else{-1});beforeRevision=$beforeRevision;revision=$revision;beforeDigest=(Digest $beforeRevision);digest=(Digest $revision);creditsBefore=$before.players[0].credits;creditsAfter=$current.players[0].credits;rallyX=$rallyX;rallyY=$rallyY;rallyZ=0;spawnX=$spawnX;spawnY=$spawnY;spawnZ=0;beforeIds=@($before.units.id);afterIds=@($current.units.id);eligible=@($before.units|Where-Object{$_.owner -eq 1 -and $_.kind -eq 4 -and $_.hp -gt 0}|ForEach-Object{$_.id});productionBefore=$before;productionAfter=(Copy-FactoryProductionFixtureValue $current);productionPayment=0;productionRefund=0}
         $events+=,$e;Add-State $beforeRevision $before;Add-State $revision $current
     }
     Add-State 20 $current
     for($case=0;$case -lt 3;$case++) {
         $startRev=31+$case*80;$factory=if($case -eq 1){20}else{10};$set=$events[$(if($case -eq 1){3}else{2})];$seq=5+$case;$unit=100+$case
-        $start=@{type='Produce';owner=1;epoch=1;sequence=$seq;factory=$factory;unit=-1;beforeRevision=$startRev-1;revision=$startRev;beforeDigest=(Digest ($startRev-1));digest=(Digest $startRev);creditsBefore=$current.players[0].credits;creditsAfter=$current.players[0].credits;rallyX=$set.rallyX;rallyY=$set.rallyY;rallyZ=0;spawnX=0;spawnY=0;spawnZ=0;beforeIds=@($current.units.id);afterIds=@($current.units.id);eligible=@(10,20);productionBefore=(Copy $current);productionPayment=0;productionRefund=0}
+        $start=@{type='Produce';owner=1;epoch=1;sequence=$seq;factory=$factory;unit=-1;beforeRevision=$startRev-1;revision=$startRev;beforeDigest=(Digest ($startRev-1));digest=(Digest $startRev);creditsBefore=$current.players[0].credits;creditsAfter=$current.players[0].credits;rallyX=$set.rallyX;rallyY=$set.rallyY;rallyZ=0;spawnX=0;spawnY=0;spawnZ=0;beforeIds=@($current.units.id);afterIds=@($current.units.id);eligible=@(10,20);productionBefore=(Copy-FactoryProductionFixtureValue $current);productionPayment=0;productionRefund=0}
         Add-State ($startRev-2) $current
-        $current.jobs=@([pscustomobject]@{owner=1;sequence=$seq;factory=$factory;work=0;paid=0;held=0});$start.productionAfter=Copy $current;$events+=,$start
+        $current.jobs=@([pscustomobject]@{owner=1;sequence=$seq;factory=$factory;work=0;paid=0;held=0});$start.productionAfter=Copy-FactoryProductionFixtureValue $current;$events+=,$start
         Add-State $startRev $current;$revision=$startRev
         $spawnX=@(300,-650,-300)[$case];$spawnY=@(-350,0,-350)[$case]
         for($step=1;$step -le 50;$step++) {
-            $before=Copy $current;$beforeRev=$revision;$current.players[0].credits--
+            $before=Copy-FactoryProductionFixtureValue $current;$beforeRev=$revision;$current.players[0].credits--
             if($step -lt 50){$current.jobs[0].work=$step*100000;$current.jobs[0].paid=$step;$revision++}
             else{$current.jobs=@();$current.units+=,[pscustomobject]@{id=$unit;owner=1;kind=0;hp=100;cargo=0;x=$spawnX;y=$spawnY;z=0;rally=0;rallyX=0;rallyY=0;rallyZ=0};$revision+=2}
-            $advance=@{index=$step;owner=1;epoch=1;sequence=$seq;factory=$factory;beforeRevision=$beforeRev;revision=$revision;beforeDigest=(Digest $beforeRev);digest=(Digest $revision);productionBefore=$before;productionAfter=(Copy $current);productionPayment=1;productionRefund=0}
+            $advance=@{index=$step;owner=1;epoch=1;sequence=$seq;factory=$factory;beforeRevision=$beforeRev;revision=$revision;beforeDigest=(Digest $beforeRev);digest=(Digest $revision);productionBefore=$before;productionAfter=(Copy-FactoryProductionFixtureValue $current);productionPayment=1;productionRefund=0}
             $advances+=,$advance
             if($step -in @(10,25,50)){Add-State $revision $current}
         }

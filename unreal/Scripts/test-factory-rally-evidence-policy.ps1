@@ -9,24 +9,24 @@ if(-not $generator){throw 'Missing maintained synthetic generator'}
 . ([scriptblock]::Create($generator.Extent.Text))
 function New-RallyLogs([switch]$CashPause,[switch]$CompletionDeposit) {
     $logs=New-SyntheticRefineryLogs
-    function Copy($O){return ($O|ConvertTo-Json -Depth 16 -Compress|ConvertFrom-Json -Depth 16)}
+    function Copy-FactoryRallyFixtureValue($O){return ($O|ConvertTo-Json -Depth 16 -Compress|ConvertFrom-Json -Depth 16)}
     function Digest([int]$R){return ('{0:x32}' -f $R)}
     $base=($logs.host -split '\r?\n'|Where-Object{$_ -like 'PROOF_REFINERY_STATE *'}|Select-Object -Last 1).Substring(21)|ConvertFrom-Json -Depth 16
     $base.units+=,[pscustomobject]@{id=9990;owner=1;kind=4;x=0;y=350;z=0;hp=200;cargo=0;rally=1;rallyX=-600;rallyY=-350;rallyZ=0}
-    $current=Copy @{phase=1;jobs=@();units=$base.units;players=@($base.players|ForEach-Object{@{id=$_.id;credits=$_.credits;gathered=$_.gathered}})}
+    $current=Copy-FactoryRallyFixtureValue @{phase=1;jobs=@();units=$base.units;players=@($base.players|ForEach-Object{@{id=$_.id;credits=$_.credits;gathered=$_.gathered}})}
     $initialCredits=if($CashPause){1}else{300};($current.players|Where-Object id -eq 1).credits=$initialCredits
     if($CashPause -or $CompletionDeposit){$miner=@($current.units|Where-Object id -eq 1003)[0];$miner.cargo=50;if($CashPause){$miner.x=30}else{$miner.x=750}}
     $states=@();$advances=@();$events=@();$currentRevision=10
-    function State([int]$Revision,$Context){$s=Copy $base;$s.revision=$Revision;$s.digest=Digest $Revision;$s.units=Copy $Context.units;$s.jobs=@($Context.jobs|ForEach-Object{Copy $_});foreach($p in $s.players){$q=@($Context.players|Where-Object id -eq $p.id)[0];$p.credits=$q.credits;$p.gathered=$q.gathered};return $s}
-    $setBefore=Copy $current;$unrallied=@($setBefore.units|Where-Object id -eq 9990)[0];$unrallied.rally=0;$unrallied.rallyX=0;$unrallied.rallyY=0
+    function State([int]$Revision,$Context){$s=Copy-FactoryRallyFixtureValue $base;$s.revision=$Revision;$s.digest=Digest $Revision;$s.units=Copy-FactoryRallyFixtureValue $Context.units;$s.jobs=@($Context.jobs|ForEach-Object{Copy-FactoryRallyFixtureValue $_});foreach($p in $s.players){$q=@($Context.players|Where-Object id -eq $p.id)[0];$p.credits=$q.credits;$p.gathered=$q.gathered};return $s}
+    $setBefore=Copy-FactoryRallyFixtureValue $current;$unrallied=@($setBefore.units|Where-Object id -eq 9990)[0];$unrallied.rally=0;$unrallied.rallyX=0;$unrallied.rallyY=0
     $states+=,(State 8 $setBefore);$states+=,(State 9 $current);$states+=,(State 10 $current)
     $ids=@($current.units.id)
-    $events+=,@{type='SetRally';owner=1;epoch=1;sequence=4;factory=9990;unit=-1;beforeRevision=8;revision=9;beforeDigest=(Digest 8);digest=(Digest 9);creditsBefore=$initialCredits;creditsAfter=$initialCredits;rallyX=-600;rallyY=-350;rallyZ=0;spawnX=0;spawnY=0;spawnZ=0;beforeIds=$ids;afterIds=$ids;productionBefore=$setBefore;productionAfter=(Copy $current);productionPayment=0;productionRefund=0}
-    $start=@{type='Produce';owner=1;epoch=1;sequence=5;factory=9990;unit=-1;beforeRevision=10;revision=11;beforeDigest=(Digest 10);digest=(Digest 11);creditsBefore=$initialCredits;creditsAfter=$initialCredits;rallyX=-600;rallyY=-350;rallyZ=0;spawnX=0;spawnY=0;spawnZ=0;beforeIds=$ids;afterIds=$ids;productionBefore=(Copy $current);productionPayment=0;productionRefund=0}
-    $current.jobs=@([pscustomobject]@{owner=1;sequence=5;factory=9990;work=0;paid=0;held=0});$start.productionAfter=Copy $current;$events+=,$start;$states+=,(State 11 $current);$currentRevision=11
+    $events+=,@{type='SetRally';owner=1;epoch=1;sequence=4;factory=9990;unit=-1;beforeRevision=8;revision=9;beforeDigest=(Digest 8);digest=(Digest 9);creditsBefore=$initialCredits;creditsAfter=$initialCredits;rallyX=-600;rallyY=-350;rallyZ=0;spawnX=0;spawnY=0;spawnZ=0;beforeIds=$ids;afterIds=$ids;productionBefore=$setBefore;productionAfter=(Copy-FactoryRallyFixtureValue $current);productionPayment=0;productionRefund=0}
+    $start=@{type='Produce';owner=1;epoch=1;sequence=5;factory=9990;unit=-1;beforeRevision=10;revision=11;beforeDigest=(Digest 10);digest=(Digest 11);creditsBefore=$initialCredits;creditsAfter=$initialCredits;rallyX=-600;rallyY=-350;rallyZ=0;spawnX=0;spawnY=0;spawnZ=0;beforeIds=$ids;afterIds=$ids;productionBefore=(Copy-FactoryRallyFixtureValue $current);productionPayment=0;productionRefund=0}
+    $current.jobs=@([pscustomobject]@{owner=1;sequence=5;factory=9990;work=0;paid=0;held=0});$start.productionAfter=Copy-FactoryRallyFixtureValue $current;$events+=,$start;$states+=,(State 11 $current);$currentRevision=11
     $stepCount=if($CashPause){51}else{50}
     for($step=1;$step -le $stepCount;$step++){
-        $before=Copy $current;$beforeRevision=$currentRevision;$payment=if($CashPause -and $step -eq 2){0}else{1}
+        $before=Copy-FactoryRallyFixtureValue $current;$beforeRevision=$currentRevision;$payment=if($CashPause -and $step -eq 2){0}else{1}
         ($current.players|Where-Object id -eq 1).credits-=$payment
         $paid=if($CashPause -and $step -ge 2){$step-1}else{$step}
         if($step -lt $stepCount){$current.jobs[0].work=$paid*100000;$current.jobs[0].paid=$paid;$currentRevision++}
@@ -37,7 +37,7 @@ function New-RallyLogs([switch]$CashPause,[switch]$CompletionDeposit) {
             $miner=@($current.units|Where-Object id -eq 1003)[0];$miner.x=0;$miner.cargo=0
             $payer=@($current.players|Where-Object id -eq 1)[0];$payer.credits+=50;$payer.gathered+=50
         }
-        $advance=@{index=$step;owner=1;epoch=1;sequence=5;factory=9990;beforeRevision=$beforeRevision;revision=$currentRevision;beforeDigest=(Digest $beforeRevision);digest=(Digest $currentRevision);productionBefore=$before;productionAfter=(Copy $current);productionPayment=$payment;productionRefund=0};$advances+=,$advance
+        $advance=@{index=$step;owner=1;epoch=1;sequence=5;factory=9990;beforeRevision=$beforeRevision;revision=$currentRevision;beforeDigest=(Digest $beforeRevision);digest=(Digest $currentRevision);productionBefore=$before;productionAfter=(Copy-FactoryRallyFixtureValue $current);productionPayment=$payment;productionRefund=0};$advances+=,$advance
         if($step -in @(10,25,$stepCount)){$states+=,(State $currentRevision $current)}
     }
     $events+=,@{type='Complete';advanceCount=$stepCount;owner=1;epoch=1;sequence=5;factory=9990;unit=9991;beforeRevision=$advance.beforeRevision;revision=$currentRevision;beforeDigest=$advance.beforeDigest;digest=$advance.digest;creditsBefore=(@($advance.productionBefore.players|Where-Object id -eq 1)[0].credits);creditsAfter=(@($current.players|Where-Object id -eq 1)[0].credits);rallyX=-600;rallyY=-350;rallyZ=0;spawnX=300;spawnY=350;spawnZ=0;beforeIds=$ids;afterIds=@($ids)+9991;productionBefore=$advance.productionBefore;productionAfter=$advance.productionAfter;productionPayment=1;productionRefund=0}
@@ -45,7 +45,7 @@ function New-RallyLogs([switch]$CashPause,[switch]$CompletionDeposit) {
     $current.units[-1].x=220;$current.units[-1].y=270;$states+=,(State ($currentRevision+8) $current)
     foreach($role in @('host','rendered','observer')){
         $view=if($role -eq 'host'){'host'}else{'client'};$viewer=if($role -eq 'host'){0}elseif($role -eq 'rendered'){1}else{2}
-        foreach($source in $states){$s=Copy $source;$s.role=$view;$s.viewer=$viewer;$logs[$role]+="`nPROOF_SNAPSHOT role=$view owner=$viewer epoch=1 revision=$($s.revision) digest=$($s.digest)`nPROOF_REFINERY_STATE "+($s|ConvertTo-Json -Depth 16 -Compress)}
+        foreach($source in $states){$s=Copy-FactoryRallyFixtureValue $source;$s.role=$view;$s.viewer=$viewer;$logs[$role]+="`nPROOF_SNAPSHOT role=$view owner=$viewer epoch=1 revision=$($s.revision) digest=$($s.digest)`nPROOF_REFINERY_STATE "+($s|ConvertTo-Json -Depth 16 -Compress)}
     }
     foreach($e in $events){
         if($e.type -eq 'Complete'){foreach($a in $advances){$logs.host+="`nPROOF_FACTORY_RALLY_ADVANCE "+($a|ConvertTo-Json -Depth 16 -Compress)}}
