@@ -110,9 +110,17 @@ struct FReturnSetup
         Ore = Opening.Resources[0].ResourceId;
         FProofReturnCargoFixture::Resource(Model, Ore).Remaining = OreQuantity;
         if (!Submit(EProofCommandType::BuildRefinery, INDEX_NONE, INDEX_NONE, FVector(300, 0, 0)).bAccepted) { return false; }
+        // ReturnCargo cases measure only the explicitly commanded starter miner.
+        // Reset only command allowance so the one-command rate fixture can Stop too.
+        Model.Advance(0.f);
+        if (!Submit(EProofCommandType::Stop, Model.GetSnapshot().Units.Last().UnitId).bAccepted) return false;
         NearRefinery = ReturnFirstKind(Model.GetSnapshot(), 1, EProofUnitKind::Refinery);
         Model.Advance(0.f);
         if (!Submit(EProofCommandType::BuildRefinery, INDEX_NONE, INDEX_NONE, FVector(-300, 0, 0)).bAccepted) { return false; }
+        // ReturnCargo cases measure only the explicitly commanded starter miner.
+        // Reset only command allowance so the one-command rate fixture can Stop too.
+        Model.Advance(0.f);
+        if (!Submit(EProofCommandType::Stop, Model.GetSnapshot().Units.Last().UnitId).bAccepted) return false;
         const FProofSnapshot Built = Model.GetSnapshot();
         const FProofUnitRecord* Far = Built.Units.FindByPredicate([this](const FProofUnitRecord& Unit)
             { return Unit.Kind == EProofUnitKind::Refinery && Unit.UnitId != NearRefinery; });

@@ -1,5 +1,7 @@
 # Refinery-provided miner: bounded fidelity slice
 
+Historical grant-only acceptance is recorded below. The later [automatic first-assignment feature](REFINERY_AUTO_GATHER.md) extends the new miner behavior; those new tests and remaining acceptance gates are separate from this historical pass.
+
 Status: validated at clean 8ab9b55c00daf6dd46f807cd3eec5e17f03a4ad3. Build, 44 model cases, Victory/Defeat/Coop, legacy networking/controls and lifecycle passed. See [validation and limits](REFINERY_MINER_VALIDATION.md) and the exact-source evidence ledger. The shared heavy slot has been released; no additional engine run is queued.
 
 ## Intended behavior

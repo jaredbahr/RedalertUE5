@@ -94,17 +94,20 @@ bool FProofRefineryMinerGrantTest::RunTest(const FString&)
     TestEqual(TEXT("Replay cannot grant, debit or revise"), Model.GetSnapshot().ComputeDigest(), Built.ComputeDigest());
     TestEqual(TEXT("Teammate cannot command granted miner"), Model.Submit(2, MinerCommand(1, EProofCommandType::Move, FVector(900, 0, 0), Granted.UnitId)).Reason, FString(TEXT("ownership")));
     TestEqual(TEXT("Ownership rejection is snapshot atomic"), Model.GetSnapshot().ComputeDigest(), Built.ComputeDigest());
-    if (!TestTrue(TEXT("Original miner gathers"), Model.Submit(1, MinerCommand(2, EProofCommandType::Gather, FVector::ZeroVector, Starter, Opening.Resources[0].ResourceId)).bAccepted)) { return false; }
+    // Keep this existing-order preservation test to one active miner.
+    if (!TestTrue(TEXT("Stop first incidental grant"), Model.Submit(1, MinerCommand(2, EProofCommandType::Stop, FVector::ZeroVector, Granted.UnitId)).bAccepted)) return false;
+    if (!TestTrue(TEXT("Original miner gathers"), Model.Submit(1, MinerCommand(3, EProofCommandType::Gather, FVector::ZeroVector, Starter, Opening.Resources[0].ResourceId)).bAccepted)) { return false; }
     Model.Advance(3.f);
     const FProofSnapshot Loaded = Model.GetSnapshot();
     const FProofUnitRecord* LoadedStarter = Loaded.Units.FindByPredicate([Starter](const FProofUnitRecord& U) { return U.UnitId == Starter; });
     if (!TestNotNull(TEXT("Original miner retained"), LoadedStarter)) { return false; }
     TestEqual(TEXT("Original miner carries a full load"), LoadedStarter->Cargo, 50);
-    if (!TestTrue(TEXT("Second refinery while miner returns"), Model.Submit(1, MinerCommand(3, EProofCommandType::BuildRefinery, FVector(0, 300, 0))).bAccepted)) { return false; }
+    if (!TestTrue(TEXT("Second refinery while miner returns"), Model.Submit(1, MinerCommand(4, EProofCommandType::BuildRefinery, FVector(0, 300, 0))).bAccepted)) { return false; }
     const FProofSnapshot Second = Model.GetSnapshot();
     const FProofUnitRecord* Retained = Second.Units.FindByPredicate([Starter](const FProofUnitRecord& U) { return U.UnitId == Starter; });
     if (!TestNotNull(TEXT("Original miner remains after second grant"), Retained)) { return false; }
     TestTrue(TEXT("Build preserves original cargo and position"), Retained->Cargo == LoadedStarter->Cargo && Retained->Position.Equals(LoadedStarter->Position, 0.0));
+    if (!TestTrue(TEXT("Stop second incidental grant"), Model.Submit(1, MinerCommand(5, EProofCommandType::Stop, FVector::ZeroVector, Second.Units.Last().UnitId)).bAccepted)) return false;
     Model.Advance(2.f);
     TestEqual(TEXT("Original return order still deposits cargo"), Model.GetSnapshot().Players[0].TotalGathered, 50);
     for (int32 Tick = 0; Tick < 20; ++Tick) { Model.Advance(1.f); }
