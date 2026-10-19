@@ -179,12 +179,12 @@ void AProofGameMode::TickAreaGuardRuntime(float DeltaSeconds)
 void AProofPlayerController::TickAreaGuardRuntime(float DeltaSeconds)
 {
     auto& R = AreaGuardRuntime;
-    const TCHAR* Role = OwnerId == 1 ? TEXT("rendered") : TEXT("observer");
-    if (!AGConfig(R, Role)) return;
+    const TCHAR* FixtureRole = OwnerId == 1 ? TEXT("rendered") : TEXT("observer");
+    if (!AGConfig(R, FixtureRole)) return;
     R.Elapsed += DeltaSeconds;
-    if (R.Elapsed > 55.f) { AGFail(Role, TEXT("timeout")); return; }
+    if (R.Elapsed > 55.f) { AGFail(FixtureRole, TEXT("timeout")); return; }
     if (OwnerId == INDEX_NONE) return;
-    if (OwnerId != 1 && OwnerId != 2) { AGFail(Role, TEXT("owner")); return; }
+    if (OwnerId != 1 && OwnerId != 2) { AGFail(FixtureRole, TEXT("owner")); return; }
     const auto* GS = GetWorld()->GetGameState<AProofGameState>();
     if (!GS || !AGRoster(GS->Snapshot)) return;
     const FProofSnapshot& Snapshot = GS->Snapshot;
@@ -195,7 +195,7 @@ void AProofPlayerController::TickAreaGuardRuntime(float DeltaSeconds)
             FProofCommandResult Receipt;
             if (!FindReceipt(R.PendingSequence, Receipt)) return;
             if (!Receipt.bAccepted || Receipt.MatchEpoch != Snapshot.MatchEpoch)
-            { AGFail(Role, TEXT("command-rejected")); return; }
+            { AGFail(FixtureRole, TEXT("command-rejected")); return; }
             R.PendingSequence = INDEX_NONE;
         }
         auto Send = [this, &R, &Snapshot](FProofCommand Command)
@@ -251,7 +251,7 @@ void AProofPlayerController::TickAreaGuardRuntime(float DeltaSeconds)
     }
     if (!Guard || !Guard->bAreaGuard || R.bReady || (OwnerId == 1 && R.Stage < 4)) return;
     if (Guard->AreaGuardPost != R.Post || Guard->HitPoints <= 0.f)
-    { AGFail(Role, TEXT("guard-identity")); return; }
+    { AGFail(FixtureRole, TEXT("guard-identity")); return; }
     const double Outbound = FVector::Dist(Guard->Position, R.Post);
     if (Guard->AreaGuardTargetId > 0 && !Guard->bAreaGuardReturning) R.bSawAcquisition = true;
     if (R.bSawAcquisition && Guard->AreaGuardTargetId > 0 && Outbound > 20.0) R.bSawChase = true;
@@ -259,11 +259,11 @@ void AProofPlayerController::TickAreaGuardRuntime(float DeltaSeconds)
         R.bSawReturn = true;
     if (R.bSawReturn && Guard->bAreaGuardReturning && Guard->AreaGuardTargetId == INDEX_NONE && Guard->Position == R.Post)
     {
-        if (!AGWriteMarker(R, OwnerId)) { AGFail(Role, TEXT("ready-marker")); return; }
+        if (!AGWriteMarker(R, OwnerId)) { AGFail(FixtureRole, TEXT("ready-marker")); return; }
         R.bReady = true;
         UE_LOG(LogTemp, Display, TEXT("PROOF_AREA_GUARD_FIXTURE_READY role=%s status=pass unit=%d epoch=%d revision=%d input=synthetic physicalInput=unverified"),
-            Role, R.GuardId, Snapshot.MatchEpoch, Snapshot.Revision);
-        UE_LOG(LogTemp, Display, TEXT("PROOF_AREA_GUARD_FIXTURE_COMPLETE role=%s status=pass input=synthetic physicalInput=unverified"), Role);
+            FixtureRole, R.GuardId, Snapshot.MatchEpoch, Snapshot.Revision);
+        UE_LOG(LogTemp, Display, TEXT("PROOF_AREA_GUARD_FIXTURE_COMPLETE role=%s status=pass input=synthetic physicalInput=unverified"), FixtureRole);
         FPlatformMisc::RequestExitWithStatus(false, 0);
     }
 }
