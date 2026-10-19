@@ -49,7 +49,9 @@ std::string Visible(const FProofSnapshot& Snapshot)
             << Unit.HitPoints << ',' << Unit.Cargo << ',' << Unit.Position.X << ','
             << Unit.Position.Y << ',' << Unit.Position.Z << ',' << Unit.bHasRallyPoint << ','
             << Unit.RallyPoint.X << ',' << Unit.RallyPoint.Y << ',' << Unit.RallyPoint.Z << ','
-            << Unit.LastTravelDirection.X << ',' << Unit.LastTravelDirection.Y << ',' << Unit.LastTravelDirection.Z << ';';
+            << Unit.LastTravelDirection.X << ',' << Unit.LastTravelDirection.Y << ',' << Unit.LastTravelDirection.Z << ','
+            << Unit.bAreaGuard << ',' << Unit.AreaGuardPost.X << ',' << Unit.AreaGuardPost.Y << ',' << Unit.AreaGuardPost.Z << ','
+            << Unit.AreaGuardTargetId << ',' << Unit.bAreaGuardReturning << ';';
     }
     for (const auto& Resource : Snapshot.Resources)
     {
@@ -66,6 +68,7 @@ struct FRun
     int Gathers[2] = {};
     int Produces[2] = {};
     int Attacks[2] = {};
+    int Guards[2] = {};
     std::int64_t Spent[2] = {};
     int Rejected = 0;
     int Ticks = 0;
@@ -196,6 +199,11 @@ FRun RunMatch(const FVector& FirstHQ, const FVector& SecondHQ, bool ReverseSubmi
                     ++Run.Produces[Index]; Run.Spent[Index] += FProofCommandModel::ProductionCost;
                 }
                 if (Command.Type == EProofCommandType::Attack) { ++Run.Attacks[Index]; }
+                if (Command.Type == EProofCommandType::AreaGuard)
+                {
+                    ++Run.Guards[Index];
+                    Check(Tick / 10.0 < 20.0, "AreaGuard is submitted only before the unchanged attack grace");
+                }
             }
         }
         Model.Advance(StepSeconds);
@@ -227,6 +235,7 @@ FRun RunMatch(const FVector& FirstHQ, const FVector& SecondHQ, bool ReverseSubmi
     for (int Index = 0; Index < 2; ++Index)
     {
         Check(Run.Refineries[Index] > 0 && Run.Factories[Index] > 0, "each bot builds refinery and factory");
+        Check(Run.Guards[Index] > 0, "each bot issues real pre-grace AreaGuard through the shared validator");
         Check(Run.Gathers[Index] > 0 && Run.Produces[Index] > 0 && Run.Attacks[Index] > 0,
             "each bot gathers, produces, and attacks");
         const auto* Player = Run.Final.Players.FindByPredicate(
@@ -264,7 +273,7 @@ int main()
                 [Index](const auto& Candidate) { return Candidate.OwnerId == Owners[Index]; });
             std::cout << " owner" << Owners[Index] << "[refinery=" << First.Refineries[Index]
                 << ",factory=" << First.Factories[Index] << ",gather=" << First.Gathers[Index]
-                << ",produce=" << First.Produces[Index] << ",attack=" << First.Attacks[Index]
+                << ",produce=" << First.Produces[Index] << ",attack=" << First.Attacks[Index] << ",guard=" << First.Guards[Index]
                 << ",earned=" << (Player ? Player->TotalGathered : -1) << ']';
         }
         std::cout << " rejected=" << First.Rejected << " exact_replay=" << ExactReplay << '\n';

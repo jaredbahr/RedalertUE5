@@ -11,6 +11,12 @@ bool IsWithinProofAttackRange(const FVector& A, const FVector& B)
 {
     return FVector::DistSquared(A, B) <= FMath::Square(static_cast<double>(FProofCommandModel::AttackRange));
 }
+
+bool IsWithinProofAreaGuardScan(const FVector& Post, const FVector& Target)
+{
+    return FVector::DistSquared(Post, Target)
+        <= FMath::Square(2.0 * static_cast<double>(FProofCommandModel::AttackRange));
+}
 }
 
 FString FProofSnapshot::ComputeDigest() const
@@ -42,6 +48,13 @@ FString FProofSnapshot::ComputeDigest() const
         if (Unit.LastTravelDirection != FVector::ZeroVector)
             Canonical += FString::Printf(TEXT("d:%d,%.17g,%.17g,%.17g;"), Unit.UnitId,
                 Unit.LastTravelDirection.X, Unit.LastTravelDirection.Y, Unit.LastTravelDirection.Z);
+        // Default records retain their old digest. Commit all guard fields,
+        // even an unexpected noncanonical disabled post/target/return phase.
+        if (Unit.bAreaGuard || Unit.AreaGuardPost != FVector::ZeroVector
+            || Unit.AreaGuardTargetId != INDEX_NONE || Unit.bAreaGuardReturning)
+            Canonical += FString::Printf(TEXT("a:%d,%d,%.17g,%.17g,%.17g,%d,%d;"), Unit.UnitId,
+                Unit.bAreaGuard ? 1 : 0, Unit.AreaGuardPost.X, Unit.AreaGuardPost.Y, Unit.AreaGuardPost.Z,
+                Unit.AreaGuardTargetId, Unit.bAreaGuardReturning ? 1 : 0);
     }
     for (const FProofResourceRecord& Resource : SortedResources)
     {
@@ -131,6 +144,19 @@ bool FProofCommandModel::FindSkirmishSpawn(const FProofSnapshot& Snapshot, const
 void FProofCommandModel::BumpRevision()
 {
     if (State.Revision < MAX_int32) { ++State.Revision; }
+}
+
+void FProofCommandModel::ClearAreaGuard(FProofUnitRecord& Unit)
+{
+    Unit.bAreaGuard = false;
+    Unit.AreaGuardPost = FVector::ZeroVector;
+    Unit.AreaGuardTargetId = INDEX_NONE;
+    Unit.bAreaGuardReturning = false;
+}
+
+void FProofCommandModel::ClearAllAreaGuards()
+{
+    for (FProofUnitRecord& Unit : State.Units) { ClearAreaGuard(Unit); }
 }
 
 void FProofCommandModel::AddPlayer(int32 OwnerId, int32 StartingCredits)
@@ -244,6 +270,14 @@ bool FProofCommandModel::RemoveSkirmishPlayer(int32 OwnerId)
             It.RemoveCurrent();
         }
     }
+    for (FProofUnitRecord& Unit : State.Units)
+    {
+        if (Unit.bAreaGuard && RemovedUnits.Contains(Unit.AreaGuardTargetId))
+        {
+            Unit.AreaGuardTargetId = INDEX_NONE;
+            Unit.bAreaGuardReturning = true;
+        }
+    }
     if (bBothTeamsRepresented && State.MatchPhase == EProofMatchPhase::Playing)
     {
         bool bTeam0HasHQ = false;
@@ -260,6 +294,7 @@ bool FProofCommandModel::RemoveSkirmishPlayer(int32 OwnerId)
             State.MatchPhase = EProofMatchPhase::Finished;
             State.WinnerTeam = bTeam0HasHQ ? 0 : (bTeam1HasHQ ? 1 : INDEX_NONE);
             Orders.Reset();
+            ClearAllAreaGuards();
         }
     }
     BumpRevision();
@@ -319,6 +354,26 @@ const FProofUnitRecord* FProofCommandModel::FindAttackMoveTarget(const TArray<FP
     return Best;
 }
 
+const FProofUnitRecord* FProofCommandModel::FindAreaGuardTarget(const TArray<FProofUnitRecord>& Units,
+    const FProofUnitRecord& Guard, int32 PreferredTargetId) const
+{
+    const int32 Team = TeamForOwner(Guard.OwnerId);
+    const FProofUnitRecord* Best = nullptr;
+    double BestDistance = 0.0;
+    for (const FProofUnitRecord& Candidate : Units)
+    {
+        const int32 CandidateTeam = TeamForOwner(Candidate.OwnerId);
+        if (Candidate.HitPoints <= 0.f || Candidate.OwnerId == Guard.OwnerId
+            || Team == INDEX_NONE || CandidateTeam == INDEX_NONE || CandidateTeam == Team
+            || !IsWithinProofAreaGuardScan(Guard.AreaGuardPost, Candidate.Position)) { continue; }
+        if (Candidate.UnitId == PreferredTargetId) { return &Candidate; }
+        const double Distance = FVector::DistSquared(Guard.AreaGuardPost, Candidate.Position);
+        if (!Best || Distance < BestDistance || (Distance == BestDistance && Candidate.UnitId < Best->UnitId))
+        { Best = &Candidate; BestDistance = Distance; }
+    }
+    return Best;
+}
+
 const FProofUnitRecord* FProofCommandModel::FindLiveRefinery(int32 OwnerId, const FVector& From) const
 {
     const FProofUnitRecord* Best = nullptr;
@@ -363,12 +418,14 @@ FProofCommandResult FProofCommandModel::Submit(int32 TrustedOwnerId, const FProo
     const bool bSetRally = Command.Type == EProofCommandType::SetRally;
     const bool bAttackMove = Command.Type == EProofCommandType::AttackMove;
     const bool bReturnCargo = Command.Type == EProofCommandType::ReturnCargo;
-    if ((!bMove && !bAttack && !bProduce && !bBuildRefinery && !bBuildFactory && !bGather && !bStop && !bSetRally && !bAttackMove && !bReturnCargo)
-        || ((!State.bSkirmish) && (bBuildRefinery || bBuildFactory || bGather || bSetRally || bAttackMove || bReturnCargo)) || Command.Sequence <= 0
+    const bool bAreaGuard = Command.Type == EProofCommandType::AreaGuard;
+    if ((!bMove && !bAttack && !bProduce && !bBuildRefinery && !bBuildFactory && !bGather && !bStop && !bSetRally && !bAttackMove && !bReturnCargo && !bAreaGuard)
+        || ((!State.bSkirmish) && (bBuildRefinery || bBuildFactory || bGather || bSetRally || bAttackMove || bReturnCargo || bAreaGuard)) || Command.Sequence <= 0
         || !IsFinitePosition(Command.Destination)
-        || ((bMove || bAttackMove || bAttack || bGather || bStop || bSetRally || bReturnCargo || (State.bSkirmish && bProduce)) && Command.UnitId <= 0)
+        || ((bMove || bAttackMove || bAttack || bGather || bStop || bSetRally || bReturnCargo || bAreaGuard || (State.bSkirmish && bProduce)) && Command.UnitId <= 0)
         || ((bAttack || bGather || bReturnCargo) && Command.TargetUnitId <= 0)
-        || ((bSetRally || bAttackMove) && Command.TargetUnitId != INDEX_NONE))
+        || ((bSetRally || bAttackMove || bAreaGuard) && Command.TargetUnitId != INDEX_NONE)
+        || (bAreaGuard && Command.Destination != FVector::ZeroVector))
     {
         return Reject(TEXT("malformed"));
     }
@@ -483,11 +540,11 @@ FProofCommandResult FProofCommandModel::Submit(int32 TrustedOwnerId, const FProo
     }
     else
     {
-        const FProofUnitRecord* Unit = State.Units.FindByPredicate([&Command](const FProofUnitRecord& U) { return U.UnitId == Command.UnitId; });
+        FProofUnitRecord* Unit = State.Units.FindByPredicate([&Command](const FProofUnitRecord& U) { return U.UnitId == Command.UnitId; });
         if (!Unit || Unit->OwnerId != TrustedOwnerId || Unit->HitPoints <= 0.f) { return Reject(TEXT("ownership")); }
         if (State.bSkirmish && ((bMove && (Unit->Kind == EProofUnitKind::HQ || Unit->Kind == EProofUnitKind::Refinery || Unit->Kind == EProofUnitKind::Factory))
             || (bStop && Unit->Kind != EProofUnitKind::Combat && Unit->Kind != EProofUnitKind::Harvester)
-            || ((bAttack || bAttackMove) && Unit->Kind != EProofUnitKind::Combat)
+            || ((bAttack || bAttackMove || bAreaGuard) && Unit->Kind != EProofUnitKind::Combat)
             || ((bGather || bReturnCargo) && Unit->Kind != EProofUnitKind::Harvester)))
         {
             return Reject(TEXT("role"));
@@ -497,12 +554,18 @@ FProofCommandResult FProofCommandModel::Submit(int32 TrustedOwnerId, const FProo
             // Stop cancels locomotion/chase/Gather only. Removing the order
             // leaves stationary skirmish Combat eligible for ordinary idle fire.
             Orders.Remove(Command.UnitId);
+            ClearAreaGuard(*Unit);
         }
         else
         {
             FOrder Order;
             Order.Type = Command.Type;
-            if (bMove || bAttackMove)
+            if (bAreaGuard)
+            {
+                // The authoritative current position is the only guard post.
+                // A new accepted command deliberately reanchors; retries do not.
+            }
+            else if (bMove || bAttackMove)
             {
                 if (!IsInWorld(Command.Destination)) { return Reject(TEXT("position")); }
                 Order.Destination = Command.Destination;
@@ -535,6 +598,12 @@ FProofCommandResult FProofCommandModel::Submit(int32 TrustedOwnerId, const FProo
                 Order.TargetUnitId = Command.TargetUnitId;
                 Order.bReturning = Unit->Cargo > 0;
             }
+            ClearAreaGuard(*Unit);
+            if (bAreaGuard)
+            {
+                Unit->bAreaGuard = true;
+                Unit->AreaGuardPost = Unit->Position;
+            }
             Orders.Add(Command.UnitId, Order);
         }
     }
@@ -561,6 +630,35 @@ void FProofCommandModel::Advance(float DeltaSeconds)
         if (Unit.HitPoints <= 0.f || !Order) { continue; }
         FVector Destination = Order->Destination;
         double StopDistance = 0.0;
+        const bool bAreaGuardOrder = Order->Type == EProofCommandType::AreaGuard;
+        bool bAreaGuardChase = false;
+        if (bAreaGuardOrder)
+        {
+            FProofUnitRecord& Guard = State.Units[Index];
+            if (Guard.bAreaGuardReturning && Unit.Position == Guard.AreaGuardPost)
+            {
+                Guard.bAreaGuardReturning = false;
+            }
+            if (!Guard.bAreaGuardReturning)
+            {
+                const FProofUnitRecord* Target = FindAreaGuardTarget(BeforeMove, Guard, Guard.AreaGuardTargetId);
+                if (Guard.AreaGuardTargetId != INDEX_NONE
+                    && (!Target || Target->UnitId != Guard.AreaGuardTargetId))
+                {
+                    Guard.AreaGuardTargetId = INDEX_NONE;
+                    Guard.bAreaGuardReturning = true;
+                }
+                else
+                {
+                    Guard.AreaGuardTargetId = Target ? Target->UnitId : INDEX_NONE;
+                    if (!Target) { continue; }
+                    Destination = Target->Position;
+                    StopDistance = AttackRange;
+                    bAreaGuardChase = true;
+                }
+            }
+            if (Guard.bAreaGuardReturning) { Destination = Guard.AreaGuardPost; }
+        }
         if (Order->Type == EProofCommandType::AttackMove)
         {
             const FProofUnitRecord* Target = FindAttackMoveTarget(BeforeMove, Unit, Order->TargetUnitId);
@@ -597,15 +695,17 @@ void FProofCommandModel::Advance(float DeltaSeconds)
             if (!Refinery) { Orders.Remove(Unit.UnitId); continue; }
             Destination = Refinery->Position;
         }
-        else if (Order->Type != EProofCommandType::Move && Order->Type != EProofCommandType::AttackMove)
+        else if (Order->Type != EProofCommandType::Move && Order->Type != EProofCommandType::AttackMove && !bAreaGuardOrder)
         {
             continue;
         }
         const FVector Offset = Destination - Unit.Position;
         const double Distance = Offset.Size();
-        const bool bAttackOrder = Order->Type == EProofCommandType::Attack;
+        const bool bAttackOrder = Order->Type == EProofCommandType::Attack || bAreaGuardChase;
+        const bool bExactEndpoint = Order->Type == EProofCommandType::Move || Order->Type == EProofCommandType::AttackMove
+            || (bAreaGuardOrder && !bAreaGuardChase);
         const bool bNeedsMovement = bAttackOrder ? !IsWithinProofAttackRange(Unit.Position, Destination) : Distance > StopDistance;
-        if (State.bSkirmish && (Order->Type == EProofCommandType::Move || Order->Type == EProofCommandType::AttackMove) && Distance <= UE_SMALL_NUMBER)
+        if (State.bSkirmish && bExactEndpoint && Distance <= UE_SMALL_NUMBER)
         {
             // Even a representable sub-epsilon Move must finish. Avoid a
             // division by a tiny distance and leave the legacy path unchanged.
@@ -617,7 +717,7 @@ void FProofCommandModel::Advance(float DeltaSeconds)
             const double Remaining = FMath::Max(0.0, Distance - StopDistance);
             const double Step = FMath::Min(static_cast<double>(MovementSpeed) * DeltaSeconds, Remaining);
             FVector Landing = Unit.Position + Offset * (Step / Distance);
-            if (State.bSkirmish && (Order->Type == EProofCommandType::Move || Order->Type == EProofCommandType::AttackMove) && Step == Remaining)
+            if (State.bSkirmish && bExactEndpoint && Step == Remaining)
             {
                 // Preserve the intended exact endpoint so a completed Move
                 // becomes idle even when reconstruction would round away.
@@ -645,6 +745,27 @@ void FProofCommandModel::Advance(float DeltaSeconds)
                     }
                 }
             }
+            if (bAreaGuardChase && !IsWithinProofAttackRange(Landing, Unit.AreaGuardPost))
+            {
+                // Bounded prototype AreaGuard: scan twice weapon range, but
+                // never chase beyond one weapon range from the saved post.
+                // Abandon a step that would leave that sphere; use this tick's
+                // single movement budget to return, not an additional step.
+                FProofUnitRecord& Guard = State.Units[Index];
+                Guard.AreaGuardTargetId = INDEX_NONE;
+                Guard.bAreaGuardReturning = true;
+                const FVector HomeOffset = Guard.AreaGuardPost - Unit.Position;
+                const double HomeDistance = HomeOffset.Size();
+                const double HomeStep = FMath::Min(static_cast<double>(MovementSpeed) * DeltaSeconds, HomeDistance);
+                Landing = HomeDistance <= UE_SMALL_NUMBER || HomeStep == HomeDistance
+                    ? Guard.AreaGuardPost : Unit.Position + HomeOffset * (HomeStep / HomeDistance);
+            }
+            // Rounding must not turn a closed leash into a permissive one.
+            // The current point and post are both inside the convex sphere.
+            if (bAreaGuardOrder && !IsWithinProofAttackRange(Landing, Unit.AreaGuardPost))
+            {
+                Landing = Unit.Position;
+            }
             State.Units[Index].Position = Landing;
         }
     }
@@ -662,7 +783,7 @@ void FProofCommandModel::Advance(float DeltaSeconds)
     // All combat observes post-move positions and pre-damage HP. Damage is
     // accumulated before applying, so mutually lethal attackers both fire.
     TMap<int32, double> Damage;
-    for (const FProofUnitRecord& Unit : State.Units)
+    for (FProofUnitRecord& Unit : State.Units)
     {
         FOrder* Order = Orders.Find(Unit.UnitId);
         if (Unit.HitPoints <= 0.f) { continue; }
@@ -677,6 +798,21 @@ void FProofCommandModel::Advance(float DeltaSeconds)
         {
             Target = FindAttackMoveTarget(State.Units, Unit, Order->TargetUnitId);
             Order->TargetUnitId = Target ? Target->UnitId : INDEX_NONE;
+        }
+        else if (State.bSkirmish && Order && Order->Type == EProofCommandType::AreaGuard)
+        {
+            if (!Unit.bAreaGuardReturning && Unit.AreaGuardTargetId != INDEX_NONE)
+            {
+                Target = FindAreaGuardTarget(State.Units, Unit, Unit.AreaGuardTargetId);
+                if (!Target || Target->UnitId != Unit.AreaGuardTargetId)
+                {
+                    // The enemy can leave the scan during this same movement
+                    // phase. Publish return intent now; do not move twice.
+                    Unit.AreaGuardTargetId = INDEX_NONE;
+                    Unit.bAreaGuardReturning = true;
+                    Target = nullptr;
+                }
+            }
         }
         else if (State.bSkirmish && Unit.Kind == EProofUnitKind::Combat
             && (!Order || (Order->Type == EProofCommandType::Move && Unit.Position == Order->Destination)))
@@ -714,11 +850,27 @@ void FProofCommandModel::Advance(float DeltaSeconds)
         if (Unit.HitPoints <= 0.f)
         {
             Orders.Remove(Unit.UnitId);
+            ClearAreaGuard(Unit);
             if (Unit.Kind == EProofUnitKind::Factory)
             {
                 Unit.bHasRallyPoint = false;
                 Unit.RallyPoint = FVector::ZeroVector;
             }
+        }
+    }
+
+    // Resolve guard target deaths only after every simultaneous damage result
+    // is applied. Surviving guards publish canonical return intent immediately,
+    // without another movement, shot, or acquisition in this advance.
+    for (FProofUnitRecord& Unit : State.Units)
+    {
+        if (!Unit.bAreaGuard || Unit.AreaGuardTargetId == INDEX_NONE) { continue; }
+        const FProofUnitRecord* Target = State.Units.FindByPredicate([&Unit](const FProofUnitRecord& Candidate)
+            { return Candidate.UnitId == Unit.AreaGuardTargetId && Candidate.HitPoints > 0.f; });
+        if (!Target)
+        {
+            Unit.AreaGuardTargetId = INDEX_NONE;
+            Unit.bAreaGuardReturning = true;
         }
     }
 
@@ -730,6 +882,7 @@ void FProofCommandModel::Advance(float DeltaSeconds)
             State.MatchPhase = EProofMatchPhase::Finished;
             State.WinnerTeam = Outcome.WinnerTeam;
             Orders.Reset();
+            ClearAllAreaGuards();
             BumpRevision();
             return;
         }

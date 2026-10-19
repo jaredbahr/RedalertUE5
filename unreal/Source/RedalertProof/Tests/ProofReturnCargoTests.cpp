@@ -519,7 +519,7 @@ bool FProofReturnCargoEnvelopeTest::RunTest(const FString&)
     Bad = Valid; Bad.TargetUnitId = 0; Reject(Bad, TEXT("malformed"));
     Bad = Valid; Bad.Destination.X = std::numeric_limits<double>::quiet_NaN(); Reject(Bad, TEXT("malformed"));
     Bad = Valid; Bad.Destination.Y = std::numeric_limits<double>::infinity(); Reject(Bad, TEXT("malformed"));
-    Bad = Valid; Bad.Type = static_cast<EProofCommandType>(10); Reject(Bad, TEXT("malformed"));
+    Bad = Valid; Bad.Type = static_cast<EProofCommandType>(255); Reject(Bad, TEXT("malformed"));
     Bad = Valid; Bad.Sequence = Next + 1; Reject(Bad, TEXT("sequence"));
     TestTrue(TEXT("Malformed envelopes do not consume the expected sequence"), Test.Model.Submit(1, Valid).bAccepted);
     const FProofSnapshot Accepted = Test.Model.GetSnapshot();

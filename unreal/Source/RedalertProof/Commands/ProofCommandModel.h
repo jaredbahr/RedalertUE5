@@ -15,7 +15,8 @@ enum class EProofCommandType : uint8
     Stop,
     SetRally = 7,
     AttackMove = 8,
-    ReturnCargo = 9
+    ReturnCargo = 9,
+    AreaGuard = 10
 };
 
 UENUM()
@@ -76,6 +77,11 @@ struct REDALERTPROOF_API FProofUnitRecord
     // Only live factories can own a rally. New records and resets have none.
     UPROPERTY() bool bHasRallyPoint = false;
     UPROPERTY() FVector RallyPoint = FVector::ZeroVector;
+    // Authoritative bounded AreaGuard intent. Defaults mean no guarding order.
+    UPROPERTY() bool bAreaGuard = false;
+    UPROPERTY() FVector AreaGuardPost = FVector::ZeroVector;
+    UPROPERTY() int32 AreaGuardTargetId = INDEX_NONE;
+    UPROPERTY() bool bAreaGuardReturning = false;
 };
 
 USTRUCT()
@@ -179,6 +185,10 @@ private:
     int32 CommandsPerAdvance = 32;
 
     void BumpRevision();
+    static void ClearAreaGuard(FProofUnitRecord& Unit);
+    void ClearAllAreaGuards();
+    const FProofUnitRecord* FindAreaGuardTarget(const TArray<FProofUnitRecord>& Units,
+        const FProofUnitRecord& Guard, int32 PreferredTargetId) const;
     static void RecordLastTravelDirection(FProofUnitRecord& Unit, const FVector& PreviousPosition);
     static bool IsFinitePosition(const FVector& Position);
     static bool IsInWorld(const FVector& Position);

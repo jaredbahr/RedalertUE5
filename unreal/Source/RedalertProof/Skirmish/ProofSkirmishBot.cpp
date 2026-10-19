@@ -246,7 +246,28 @@ TArray<FProofCommand> FProofSkirmishBot::Decide(const FProofSnapshot& Snapshot, 
         }
     }
 
-    if (NowSeconds - FirstDecisionAt >= AttackGraceSeconds)
+    if (NowSeconds - FirstDecisionAt < AttackGraceSeconds)
+    {
+        // Defend each combat unit's current post during the existing grace.
+        // Economy keeps priority, and the same four-command budget applies.
+        // Never retry Guard while it is pursuing/returning: that would silently
+        // reanchor its post. The offensive scheduler replaces it after grace.
+        for (const FProofUnitRecord* Defender : OwnUnits)
+        {
+            if (Commands.Num() >= MaxCommandsPerDecision) { break; }
+            if (Defender->Kind != EProofUnitKind::Combat) { continue; }
+            const FIssuedOrder* Last = IssuedOrders.Find(Defender->UnitId);
+            if (Last && Last->Type == EProofCommandType::AreaGuard) { continue; }
+            if (AddCommand(EProofCommandType::AreaGuard, Defender->UnitId, INDEX_NONE, FVector::ZeroVector))
+            {
+                FIssuedOrder& Issued = IssuedOrders.FindOrAdd(Defender->UnitId);
+                Issued.Type = EProofCommandType::AreaGuard;
+                Issued.TargetId = INDEX_NONE;
+                Issued.IssuedAt = NowSeconds;
+            }
+        }
+    }
+    else
     {
         // Resume after the last issued attack so changing nearest targets
         // cannot consume every decision's budget on the lowest IDs forever.
