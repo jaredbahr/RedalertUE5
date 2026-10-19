@@ -8,13 +8,13 @@
 
 namespace
 {
-bool IsHexToken(const FString& Value, int32 Length)
+bool BaseExpansionIsHexToken(const FString& Value, int32 Length)
 {
     if (Value.Len() != Length) return false;
     for (TCHAR Character : Value) if (!FChar::IsHexDigit(Character)) return false;
     return true;
 }
-TSharedRef<FJsonObject> Point(const FVector& Value)
+TSharedRef<FJsonObject> BaseExpansionPoint(const FVector& Value)
 {
     auto J = MakeShared<FJsonObject>();
     J->SetNumberField(TEXT("x"), Value.X);
@@ -22,25 +22,25 @@ TSharedRef<FJsonObject> Point(const FVector& Value)
     J->SetNumberField(TEXT("z"), Value.Z);
     return J;
 }
-TSharedRef<FJsonObject> Unit(const FProofUnitRecord& Value)
+TSharedRef<FJsonObject> BaseExpansionUnit(const FProofUnitRecord& Value)
 {
     auto J = MakeShared<FJsonObject>();
     J->SetNumberField(TEXT("id"), Value.UnitId);
     J->SetNumberField(TEXT("owner"), Value.OwnerId);
     J->SetNumberField(TEXT("kind"), static_cast<int32>(Value.Kind));
     J->SetNumberField(TEXT("hp"), Value.HitPoints);
-    J->SetObjectField(TEXT("position"), Point(Value.Position));
-    J->SetObjectField(TEXT("direction"), Point(Value.LastTravelDirection));
+    J->SetObjectField(TEXT("position"), BaseExpansionPoint(Value.Position));
+    J->SetObjectField(TEXT("direction"), BaseExpansionPoint(Value.LastTravelDirection));
     J->SetNumberField(TEXT("cargo"), Value.Cargo);
     J->SetBoolField(TEXT("rally"), Value.bHasRallyPoint);
-    J->SetObjectField(TEXT("rallyPoint"), Point(Value.RallyPoint));
+    J->SetObjectField(TEXT("rallyPoint"), BaseExpansionPoint(Value.RallyPoint));
     J->SetBoolField(TEXT("guard"), Value.bAreaGuard);
-    J->SetObjectField(TEXT("post"), Point(Value.AreaGuardPost));
+    J->SetObjectField(TEXT("post"), BaseExpansionPoint(Value.AreaGuardPost));
     J->SetNumberField(TEXT("target"), Value.AreaGuardTargetId);
     J->SetBoolField(TEXT("returning"), Value.bAreaGuardReturning);
     return J;
 }
-TSharedRef<FJsonObject> State(FProofSnapshot Value, int32 Epoch)
+TSharedRef<FJsonObject> BaseExpansionState(FProofSnapshot Value, int32 Epoch)
 {
     // Model snapshots carry epoch zero. The GameMode is the trusted epoch adapter.
     Value.MatchEpoch = Epoch;
@@ -63,7 +63,7 @@ TSharedRef<FJsonObject> State(FProofSnapshot Value, int32 Epoch)
     }
     J->SetArrayField(TEXT("players"), Players);
     TArray<TSharedPtr<FJsonValue>> Units;
-    for (const auto& Record : Value.Units) Units.Add(MakeShared<FJsonValueObject>(Unit(Record)));
+    for (const auto& Record : Value.Units) Units.Add(MakeShared<FJsonValueObject>(BaseExpansionUnit(Record)));
     J->SetArrayField(TEXT("units"), Units);
     TArray<TSharedPtr<FJsonValue>> Resources;
     for (const auto& Record : Value.Resources)
@@ -71,7 +71,7 @@ TSharedRef<FJsonObject> State(FProofSnapshot Value, int32 Epoch)
         auto Resource = MakeShared<FJsonObject>();
         Resource->SetNumberField(TEXT("id"), Record.ResourceId);
         Resource->SetNumberField(TEXT("owner"), Record.OwnerId);
-        Resource->SetObjectField(TEXT("position"), Point(Record.Position));
+        Resource->SetObjectField(TEXT("position"), BaseExpansionPoint(Record.Position));
         Resource->SetNumberField(TEXT("remaining"), Record.Remaining);
         Resources.Add(MakeShared<FJsonValueObject>(Resource));
     }
@@ -86,7 +86,7 @@ FProofBaseExpansionObservation::FProofBaseExpansionObservation()
     if (!bEnabled) return;
     FParse::Value(FCommandLine::Get(), TEXT("ProofBaseExpansionRun="), Run);
     FParse::Value(FCommandLine::Get(), TEXT("ProofBaseExpansionSource="), Source);
-    if (!IsHexToken(Run, 32) || !IsHexToken(Source, 40)) Fail(TEXT("invalid-run-or-source"));
+    if (!BaseExpansionIsHexToken(Run, 32) || !BaseExpansionIsHexToken(Source, 40)) Fail(TEXT("invalid-run-or-source"));
 }
 void FProofBaseExpansionObservation::Fail(const TCHAR* Reason)
 {
@@ -99,6 +99,7 @@ void FProofBaseExpansionObservation::Emit(const TCHAR* Role, int32 Viewer, const
     const TSharedRef<FJsonObject>& Row)
 {
     if (!bEnabled || bFailed) return;
+    if (bComplete) { Fail(TEXT("event-after-finish")); return; }
     Row->SetNumberField(TEXT("v"), 1);
     Row->SetStringField(TEXT("run"), Run);
     Row->SetStringField(TEXT("source"), Source);
@@ -127,21 +128,38 @@ void FProofBaseExpansionObservation::ObserveCommand(int32 Epoch, int32 Owner, co
     J->SetNumberField(TEXT("payloadEpoch"), Command.MatchEpoch);
     J->SetNumberField(TEXT("unit"), Command.UnitId);
     J->SetNumberField(TEXT("target"), Command.TargetUnitId);
-    J->SetObjectField(TEXT("destination"), Point(Command.Destination));
+    J->SetObjectField(TEXT("destination"), BaseExpansionPoint(Command.Destination));
     J->SetBoolField(TEXT("accepted"), Result.bAccepted);
     J->SetStringField(TEXT("reason"), Result.Reason);
-    J->SetObjectField(TEXT("before"), State(Before, Epoch));
-    J->SetObjectField(TEXT("after"), State(After, Epoch));
+    J->SetObjectField(TEXT("before"), BaseExpansionState(Before, Epoch));
+    J->SetObjectField(TEXT("after"), BaseExpansionState(After, Epoch));
+    ++CommandRows;
     Emit(TEXT("host"), 0, TEXT("command"), J);
 }
 void FProofBaseExpansionObservation::LogSnapshot(const FProofSnapshot& Snapshot, const TCHAR* Role, int32 Viewer)
 {
-    if (!bEnabled || bFailed || Snapshot.MatchEpoch <= 0 || !Snapshot.bSkirmish) return;
+    // This observer ends at this role's first terminal snapshot. Ordinary
+    // Logout teardown can publish later terminal revisions; it is out of scope.
+    if (!bEnabled || bFailed || bComplete || Snapshot.MatchEpoch <= 0 || !Snapshot.bSkirmish) return;
     if (EpochSeen && EpochSeen != Snapshot.MatchEpoch) { Fail(TEXT("epoch")); return; }
     EpochSeen = Snapshot.MatchEpoch;
     if (LastRevision == Snapshot.Revision) return;
     LastRevision = Snapshot.Revision;
     auto J = MakeShared<FJsonObject>();
-    J->SetObjectField(TEXT("state"), State(Snapshot, Snapshot.MatchEpoch));
+    J->SetObjectField(TEXT("state"), BaseExpansionState(Snapshot, Snapshot.MatchEpoch));
+    ++SnapshotRows;
     Emit(Role, Viewer, TEXT("snapshot"), J);
+    if (!bFailed && Snapshot.MatchPhase == EProofMatchPhase::Finished)
+    {
+        // Bind a complete bounded stream to its terminal published state. Later
+        // teardown publications are excluded by bComplete above.
+        auto Finish = MakeShared<FJsonObject>();
+        Finish->SetNumberField(TEXT("epoch"), Snapshot.MatchEpoch);
+        Finish->SetNumberField(TEXT("revision"), Snapshot.Revision);
+        Finish->SetStringField(TEXT("digest"), Snapshot.ComputeDigest());
+        Finish->SetNumberField(TEXT("snapshots"), SnapshotRows);
+        Finish->SetNumberField(TEXT("commands"), CommandRows);
+        Emit(Role, Viewer, TEXT("finish"), Finish);
+        bComplete = !bFailed;
+    }
 }

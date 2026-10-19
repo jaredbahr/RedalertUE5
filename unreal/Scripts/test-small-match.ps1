@@ -15,7 +15,8 @@ param(
     [switch]$FactoryProductionEvidence,
     [switch]$GroupGatherEvidence,
     [switch]$ReturnCargoEvidence,
-    [switch]$BaseExpansionEvidence
+    [switch]$BaseExpansionEvidence,
+    [string]$BaseExpansionPython = ''
 )
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'RefineryMinerEvidence.ps1')
@@ -52,6 +53,13 @@ if ($ReadabilityCaptures -and $Scenario -ne 'Victory') { throw 'ReadabilityCaptu
 if ($BaseExpansionEvidence -and ($Scenario -ne 'Coop' -or $ReturnCargoEvidence -or $RefineryMinerEvidence -or
     $FactoryRallyEvidence -or $FactoryProductionEvidence -or $CoopContextEvidence -or $GroupGatherEvidence -or
     $ReadabilityCaptures -or $CameraEdgeCaptures)) { throw 'BaseExpansionEvidence requires plain three-role Coop.' }
+$baseExpansionPythonResolved = $null
+if ($BaseExpansionEvidence) {
+    if (-not $BaseExpansionPython -or -not (Test-Path -LiteralPath $BaseExpansionPython -PathType Leaf)) {
+        throw 'BaseExpansionEvidence requires an explicit existing Python executable path; no interpreter is installed by this runner.'
+    }
+    $baseExpansionPythonResolved = (Resolve-Path -LiteralPath $BaseExpansionPython).Path
+}
 $Viewport = $Viewport.ToLowerInvariant()
 $viewportParts = $Viewport.Split('x')
 $viewportWidth = [int]$viewportParts[0]; $viewportHeight = [int]$viewportParts[1]
@@ -92,6 +100,7 @@ $dirty = [bool](& git -C $repoRoot status --porcelain)
 $result = [ordered]@{
     passed=$false; scenario=$Scenario; head=$head; sourceTree=$sourceTree; dirtyWorkingTree=$dirty
     baseExpansionEvidenceEnabled=[bool]$BaseExpansionEvidence; baseExpansionRun=$baseExpansionRun
+    ordinaryPassed=$false; baseExpansionEvidence=$null; baseExpansionParser=$null
     startedUtc=[DateTime]::UtcNow.ToString('o'); finishedUtc=$null; elapsedSeconds=0; scenarioElapsedSeconds=0
     scenarioTimeoutSeconds=$TimeoutSeconds; scenarioCoreLimit=2; runDirectory=$run; map='/Game/CommandProofGenerated/Maps/CommandProof'
     topology=$(if($Scenario -eq 'Coop'){'dedicated NullRHI fixture host, one rendered owner-1 client, one NullRHI owner-2 observer'}else{'one rendered standalone match client'})
@@ -397,6 +406,71 @@ try {
     $retryLog=Read-Log $client
     if($Scenario -eq 'Coop'){$retryLog=(Read-Log $serverEntry)+[Environment]::NewLine+$retryLog}
     $result.ownershipRetryEvidence=Get-SkirmishOwnershipRetryEvidence -Log $retryLog -RequireSemanticEvidence:$RefineryMinerEvidence
+    $result.ordinaryPassed=$true
+    if ($BaseExpansionEvidence) {
+        # All role processes have exited. Keep passed=false until the separate,
+        # bounded parser validates the complete producer/transport evidence.
+        $parserInput=Join-Path $run 'base-expansion-parser-input.json'
+        $parserOutput=Join-Path $run 'base-expansion-evidence.json'
+        $parserStdout=Join-Path $run 'base-expansion-parser-stdout.log'
+        $parserStderr=Join-Path $run 'base-expansion-parser-stderr.log'
+        $result | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $parserInput -Encoding utf8
+        $parserScript=Join-Path $PSScriptRoot 'parse-base-expansion-observation.py'
+        $parserArguments=@(('"'+$parserScript+'"'),'--run-dir',('"'+$run+'"'),'--result',('"'+$parserInput+'"'),
+            '--diagnostic-head',$head,'--source-tree',$sourceTree,'--output',('"'+$parserOutput+'"'))
+        $parserProcess=$null
+        $parserWatch=[Diagnostics.Stopwatch]::StartNew()
+        try {
+            $remainingMs=[int][Math]::Floor(($TimeoutSeconds-$scenarioWatch.Elapsed.TotalSeconds)*1000)
+            $parserLimitMs=[Math]::Min(20000,$remainingMs)
+            if ($parserLimitMs -le 0) { throw 'No scenario budget remains for base-expansion evidence validation.' }
+            $parserProcess=Start-Process -FilePath $baseExpansionPythonResolved -ArgumentList $parserArguments -NoNewWindow -PassThru `
+                -RedirectStandardOutput $parserStdout -RedirectStandardError $parserStderr
+            try {
+                $parserProcess.ProcessorAffinity=[IntPtr]$fixtureAffinity
+                $parserProcess.PriorityClass=[Diagnostics.ProcessPriorityClass]::Normal
+            } catch { if (-not $parserProcess.HasExited) { throw } }
+            while (-not $parserProcess.HasExited) {
+                $remainingMs=[int][Math]::Floor([Math]::Min(20-$parserWatch.Elapsed.TotalSeconds,
+                    $TimeoutSeconds-$scenarioWatch.Elapsed.TotalSeconds)*1000)
+                if ($remainingMs -le 0) { throw 'Base-expansion parser exceeded its bounded timeout.' }
+                $readParserPolicy=$false
+                try {
+                    $parserProcess.Refresh()
+                    if (-not $parserProcess.HasExited) {
+                        $parserMask=$parserProcess.ProcessorAffinity.ToInt64()
+                        $parserPriority=$parserProcess.PriorityClass
+                        $readParserPolicy=$true
+                    }
+                } catch { if (-not $parserProcess.HasExited) { throw } }
+                if ($readParserPolicy -and ($parserMask -ne $fixtureAffinity -or
+                    $parserPriority -ne [Diagnostics.ProcessPriorityClass]::Normal)) {
+                    throw 'Base-expansion parser CPU policy did not remain applied.'
+                }
+                [void]$parserProcess.WaitForExit([Math]::Min(200,$remainingMs))
+            }
+            if ($parserWatch.Elapsed.TotalSeconds -gt 20 -or $scenarioWatch.Elapsed.TotalSeconds -ge $TimeoutSeconds) {
+                throw 'Base-expansion parser exceeded its bounded timeout.'
+            }
+            if ($parserProcess.ExitCode -ne 0) { throw "Base-expansion parser rejected evidence (exit $($parserProcess.ExitCode))." }
+            if (-not (Test-Path -LiteralPath $parserOutput -PathType Leaf)) { throw 'Base-expansion parser did not produce evidence.' }
+            $parsed=Get-Content -LiteralPath $parserOutput -Raw | ConvertFrom-Json
+            if ($parsed.passed -ne $true -or $parsed.diagnosticHead -cne $head -or
+                $parsed.diagnosticSourceTree -cne $sourceTree -or $parsed.run -cne $baseExpansionRun) {
+                throw 'Base-expansion parser result binding mismatch.'
+            }
+            if ($parserWatch.Elapsed.TotalSeconds -gt 20 -or $scenarioWatch.Elapsed.TotalSeconds -ge $TimeoutSeconds) {
+                throw 'Base-expansion parser output validation exceeded its bounded timeout.'
+            }
+            $result.baseExpansionEvidence=$parsed
+            $result.baseExpansionParser=@{exitCode=$parserProcess.ExitCode;elapsedSeconds=$parserWatch.Elapsed.TotalSeconds;timeoutMilliseconds=$parserLimitMs}
+        } finally {
+            if ($parserProcess -and -not $parserProcess.HasExited) {
+                $parserProcess.Kill()
+                if (-not $parserProcess.WaitForExit(5000)) { throw 'Base-expansion parser cleanup did not finish.' }
+            }
+        }
+    }
     $result.passed=$true
 } catch { $result.error=$_.Exception.Message }
 finally {

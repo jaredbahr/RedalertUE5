@@ -17,8 +17,11 @@ public:
 private:
     bool bEnabled = false;
     bool bFailed = false;
+    bool bComplete = false;
     int32 EpochSeen = 0;
     int32 Rows = 0;
+    int32 SnapshotRows = 0;
+    int32 CommandRows = 0;
     int32 LastRevision = INDEX_NONE;
     int64 Bytes = 0;
     FString Run;
