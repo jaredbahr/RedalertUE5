@@ -43,6 +43,14 @@ FProofSnapshot SmallSnapshot()
     return S;
 }
 
+int32 ProofBotAreaGuardCount(const TArray<FProofCommand>& Commands)
+{
+    int32 Count = 0;
+    for (const FProofCommand& Command : Commands)
+        Count += Command.Type == EProofCommandType::AreaGuard ? 1 : 0;
+    return Count;
+}
+
 bool SameCommands(const TArray<FProofCommand>& A, const TArray<FProofCommand>& B)
 {
     if (A.Num() != B.Num()) { return false; }
@@ -89,14 +97,16 @@ bool FProofSkirmishBotPlannerTest::RunTest(const FString&)
     S.Units.Add(Unit(7, 100, EProofUnitKind::Combat, FVector(200, 0, 0)));
     S.Players[0].Credits = 100;
     const TArray<FProofCommand> Economy = A.Decide(S, 100, 1.0);
-    TestEqual(TEXT("Gather and produce share a bounded batch"), Economy.Num(), 2);
-    if (Economy.Num() == 2)
+    TestEqual(TEXT("Gather and produce precede one defensive guard in the bounded batch"), Economy.Num(), 3);
+    if (Economy.Num() == 3)
     {
         TestTrue(TEXT("Harvester gathers a real resource"), Economy[0].Type == EProofCommandType::Gather
             && Economy[0].UnitId == 2 && Economy[0].TargetUnitId == 1);
         TestTrue(TEXT("Factory produces a combat unit"), Economy[1].Type == EProofCommandType::Produce && Economy[1].UnitId == 6);
         TestEqual(TEXT("Sequence continues across decisions"), Economy[0].Sequence, 3);
         TestEqual(TEXT("Sequence remains contiguous"), Economy[1].Sequence, 4);
+        TestTrue(TEXT("Pre-grace Combat receives one guard after economy commands"),
+            Economy[2].Type == EProofCommandType::AreaGuard && Economy[2].UnitId == 7 && Economy[2].Sequence == 5);
     }
     S.Players[0].Credits = 0;
     TestEqual(TEXT("Nonfinite time produces no commands"), A.Decide(S, 100, std::numeric_limits<double>::quiet_NaN()).Num(), 0);
@@ -130,14 +140,18 @@ bool FProofSkirmishBotPlannerTest::RunTest(const FString&)
     AtCap.Resources.Reset();
     AtCap.Players[0].Credits = 500;
     FProofSkirmishBot CappedBot;
-    TestEqual(TEXT("Twelve live records prevent production"), CappedBot.Decide(AtCap, 100, 0.0).Num(), 0);
+    const TArray<FProofCommand> CappedDefense = CappedBot.Decide(AtCap, 100, 0.0);
+    TestTrue(TEXT("Twelve live records prevent production but allow four defensive guards"),
+        CappedDefense.Num() == 4 && ProofBotAreaGuardCount(CappedDefense) == 4);
 
     // An opponent alternates which live target is nearest each second. Without
     // fair rotation the first four combat IDs retarget forever and the other
     // four never receive an order, despite remaining eligible throughout.
     FProofSkirmishBot FairBot;
     FProofSkirmishBot SameFairBot;
-    TestEqual(TEXT("Fairness fixture starts before attack grace"), FairBot.Decide(AtCap, 100, 0.0).Num(), 0);
+    const TArray<FProofCommand> FairDefense = FairBot.Decide(AtCap, 100, 0.0);
+    TestTrue(TEXT("Fairness fixture starts with four guards before unchanged attack grace"),
+        FairDefense.Num() == 4 && ProofBotAreaGuardCount(FairDefense) == 4);
     SameFairBot.Decide(AtCap, 100, 0.0);
     TSet<int32> OrderedCombatIds;
     TArray<FProofCommand> FirstFairBatch;
@@ -242,16 +256,17 @@ bool FProofSkirmishBotRefineryPlanningTest::RunTest(const FString&)
     };
     FProofSkirmishBot TwoSlots;
     const TArray<FProofCommand> AtTen = TwoSlots.Decide(WithLiveCount(10), 100, 0.0);
-    TestTrue(TEXT("Two free slots plan refinery+miner, leaving no slot for factory"), AtTen.Num() == 1
-        && AtTen[0].Type == EProofCommandType::BuildRefinery);
+    TestTrue(TEXT("Two free slots plan refinery+miner, leaving no slot for factory"), AtTen.Num() == 4
+        && AtTen[0].Type == EProofCommandType::BuildRefinery && ProofBotAreaGuardCount(AtTen) == 3);
     FProofSkirmishBot OneSlot;
     const TArray<FProofCommand> AtEleven = OneSlot.Decide(WithLiveCount(11), 100, 0.0);
-    TestTrue(TEXT("One free slot cannot plan refinery+miner but still permits factory"), AtEleven.Num() == 1
-        && AtEleven[0].Type == EProofCommandType::BuildFactory);
+    TestTrue(TEXT("One free slot cannot plan refinery+miner but still permits factory"), AtEleven.Num() == 4
+        && AtEleven[0].Type == EProofCommandType::BuildFactory && ProofBotAreaGuardCount(AtEleven) == 3);
     FProofSkirmishBot ThreeSlots;
     const TArray<FProofCommand> AtNine = ThreeSlots.Decide(WithLiveCount(9), 100, 0.0);
-    TestTrue(TEXT("Three free slots permit refinery+miner and factory together"), AtNine.Num() == 2
-        && AtNine[0].Type == EProofCommandType::BuildRefinery && AtNine[1].Type == EProofCommandType::BuildFactory);
+    TestTrue(TEXT("Three free slots permit refinery+miner and factory together"), AtNine.Num() == 4
+        && AtNine[0].Type == EProofCommandType::BuildRefinery && AtNine[1].Type == EProofCommandType::BuildFactory
+        && ProofBotAreaGuardCount(AtNine) == 2);
 
     // Force the first grant to (50,300), next to the ordinary third factory
     // candidate (0,350). Only this newly planned miner changes factory planning.

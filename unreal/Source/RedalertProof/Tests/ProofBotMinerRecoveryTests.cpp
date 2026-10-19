@@ -404,14 +404,32 @@ bool FProofBotMinerRecoveryModelTest::RunTest(const FString&)
         TestEqual(TEXT("Public no-ore refinery recovery depends on surviving own cargo"),
             CountRecoveryCommands(Intents), bKeepLoadedCargo ? 1 : 0);
         TestTrue(TEXT("Public depletion intent remains bounded"), Intents.Num() <= 4);
+        int32 ProduceIntents = 0, GuardIntents = 0;
+        for (const FProofCommand& Intent : Intents)
+        {
+            ProduceIntents += Intent.Type == EProofCommandType::Produce ? 1 : 0;
+            GuardIntents += Intent.Type == EProofCommandType::AreaGuard ? 1 : 0;
+        }
         if (!bKeepLoadedCargo)
-            TestTrue(TEXT("Exhausted empty public trace uses ordinary production instead of a refinery"),
-                Intents.Num() == 1 && Intents[0].Type == EProofCommandType::Produce);
+            TestTrue(TEXT("Exhausted empty public trace produces once, then guards three existing Combat within budget"),
+                Intents.Num() == 4 && Intents[0].Type == EProofCommandType::Produce
+                && ProduceIntents == 1 && GuardIntents == 3);
+        else
+            TestTrue(TEXT("Loaded recovery fixture keeps refinery plus production and has no existing Combat to guard"),
+                Intents.Num() == 2 && ProduceIntents == 1 && GuardIntents == 0);
         int32 ExpectedSpend = 0;
         for (const FProofCommand& Intent : Intents)
         {
             if (Intent.Type == EProofCommandType::BuildRefinery) ExpectedSpend += FProofCommandModel::RefineryCost;
             else if (Intent.Type == EProofCommandType::Produce) ExpectedSpend += FProofCommandModel::ProductionCost;
+            else if (Intent.Type == EProofCommandType::AreaGuard)
+            {
+                const FProofUnitRecord* Defender = BeforeIntent.Units.FindByPredicate(
+                    [&Intent](const FProofUnitRecord& Record) { return Record.UnitId == Intent.UnitId; });
+                TestTrue(TEXT("Only live owned Combat gets a cost-free defensive intent"), Defender
+                    && Defender->OwnerId == 100 && Defender->HitPoints > 0.f && Defender->Kind == EProofUnitKind::Combat
+                    && Intent.TargetUnitId == INDEX_NONE && Intent.Destination == FVector::ZeroVector);
+            }
             else { TestTrue(TEXT("Unexpected public depletion planner intent"), false); return false; }
             if (!DepletedSubmit(100, Intent.Type, Intent.UnitId, Intent.TargetUnitId, Intent.Destination)) return false;
         }
