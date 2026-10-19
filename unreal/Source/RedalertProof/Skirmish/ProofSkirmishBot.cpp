@@ -43,11 +43,11 @@ bool IsValidBuildPosition(const FProofSnapshot& Snapshot, const FVector& Positio
     return true;
 }
 
-bool FindBuildPosition(const FProofSnapshot& Snapshot, const FVector& HQPosition, FVector& OutPosition,
+bool FindBuildPositionAround(const FProofSnapshot& Snapshot, const FVector& AnchorPosition, FVector& OutPosition,
     FVector* OutMinerPosition = nullptr, const FVector* PlannedMiner = nullptr)
 {
-    // These points are all within 800 cm of HQ, with the nearer cardinals
-    // preferred. The fixed order makes placement independent of array order.
+    // Reuse the existing twelve sites, all within the model's build radius.
+    // Nearer cardinals remain preferred at each committed structure anchor.
     const FVector Offsets[] = {
         FVector(350, 0, 0), FVector(-350, 0, 0), FVector(0, 350, 0), FVector(0, -350, 0),
         FVector(350, 350, 0), FVector(-350, 350, 0), FVector(350, -350, 0), FVector(-350, -350, 0),
@@ -55,7 +55,7 @@ bool FindBuildPosition(const FProofSnapshot& Snapshot, const FVector& HQPosition
     };
     for (const FVector& Offset : Offsets)
     {
-        const FVector Candidate = HQPosition + Offset;
+        const FVector Candidate = AnchorPosition + Offset;
         if (IsValidBuildPosition(Snapshot, Candidate, PlannedMiner))
         {
             if (OutMinerPosition && !FProofCommandModel::FindSkirmishSpawn(Snapshot, Candidate, *OutMinerPosition))
@@ -63,6 +63,28 @@ bool FindBuildPosition(const FProofSnapshot& Snapshot, const FVector& HQPosition
                 continue;
             }
             OutPosition = Candidate;
+            return true;
+        }
+    }
+    return false;
+}
+
+bool FindBuildPosition(const FProofSnapshot& Snapshot, const FProofUnitRecord& HQ,
+    const TArray<const FProofUnitRecord*>& OwnUnits, FVector& OutPosition,
+    FVector* OutMinerPosition = nullptr, const FVector* PlannedMiner = nullptr)
+{
+    // Preserve every existing HQ-first choice before considering expansion.
+    if (FindBuildPositionAround(Snapshot, HQ.Position, OutPosition, OutMinerPosition, PlannedMiner))
+    {
+        return true;
+    }
+    // OwnUnits contains only live owned records, sorted by stable ID. Use
+    // committed structures only; this batch's reservations cannot be anchors.
+    for (const FProofUnitRecord* Anchor : OwnUnits)
+    {
+        if (Anchor->UnitId == HQ.UnitId || !IsStructure(Anchor->Kind)) { continue; }
+        if (FindBuildPositionAround(Snapshot, Anchor->Position, OutPosition, OutMinerPosition, PlannedMiner))
+        {
             return true;
         }
     }
@@ -157,7 +179,7 @@ TArray<FProofCommand> FProofSkirmishBot::Decide(const FProofSnapshot& Snapshot, 
         && PlannedLiveCount <= MaxLiveUnitsPerOwner - 2)
     {
         FVector Site, MinerPosition;
-        if (FindBuildPosition(PlacementView, HQ->Position, Site, &MinerPosition)
+        if (FindBuildPosition(PlacementView, *HQ, OwnUnits, Site, &MinerPosition)
             && AddCommand(EProofCommandType::BuildRefinery, INDEX_NONE, INDEX_NONE, Site))
         {
             SpendableCredits -= RefineryCost;
@@ -179,7 +201,7 @@ TArray<FProofCommand> FProofSkirmishBot::Decide(const FProofSnapshot& Snapshot, 
         FVector Site;
         // Only this decision's grant gets an extra footprint reservation. The
         // authoritative factory/live-mobile placement policy remains unchanged.
-        if (FindBuildPosition(PlacementView, HQ->Position, Site, nullptr, bPlannedMiner ? &PlannedMinerPosition : nullptr)
+        if (FindBuildPosition(PlacementView, *HQ, OwnUnits, Site, nullptr, bPlannedMiner ? &PlannedMinerPosition : nullptr)
             && AddCommand(EProofCommandType::BuildFactory, INDEX_NONE, INDEX_NONE, Site))
         {
             SpendableCredits -= FactoryCost;

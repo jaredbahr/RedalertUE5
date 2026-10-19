@@ -20,7 +20,7 @@ The previous proof accepted construction only inside an 800 cm sphere around the
 
 `AProofRTSPawn::BuildUnderCursor` already submits the R/F build request's ground destination unchanged through the authoritative command adapter. The new policy is therefore reachable through the existing human command producer without a new control binding or helper-only scaffold. No Pawn, HUD, selection, gesture, RPC or input source is changed. The old cursor-failure hint still suggests pointing near HQ, which remains a valid subset of the expanded placement area; a broader hint can be reconciled with the separately owned input work.
 
-The bot's deterministic HQ-first site search is unchanged. It does not yet use distant-building anchors as a blocked-site fallback; that is a separately scoped strategy improvement. The authoritative policy applies equally to any human or bot build command.
+The bot keeps its deterministic HQ-first site search. If all its HQ candidate sites fail, the [bot construction fallback](BOT_BASE_EXPANSION.md) also searches around already-committed own live structures using the same candidate offsets. Construction capability, authoritative placement admission and existing economy priorities still apply equally to human and bot commands.
 
 ## Tests and acceptance
 
