@@ -152,6 +152,45 @@ bool FProofBotMinerRecoveryPlannerTest::RunTest(const FString&)
             Blocker.Position = FVector(X, Y, 0);
             Blocked.Units.Add(Blocker);
         }
+    // The old HQ-only obstruction has a real free spawn beyond that envelope.
+    // This remains a prepared planner control; BotBaseExpansion.PublicRecovery
+    // separately proves paid recovery through a reachable public-command history.
+    FVector ExpandedSpawn = FVector::ZeroVector;
+    TestTrue(TEXT("Former HQ-only obstruction leaves a legitimate expanded spawn"),
+        FProofCommandModel::FindSkirmishSpawn(Blocked, FVector(950, 0, 0), ExpandedSpawn)
+        && ExpandedSpawn == FVector(1850, 0, 0));
+    FProofSkirmishBot FreeSlotBot;
+    const TArray<FProofCommand> FreeSlot = FreeSlotBot.Decide(Blocked, 100, 0.0);
+    TestTrue(TEXT("A valid expanded spawn must still allow exactly one recovery"), FreeSlot.Num() == 1
+        && FreeSlot[0].Type == EProofCommandType::BuildRefinery && FreeSlot[0].Sequence == 1
+        && FreeSlot[0].Destination == FVector(950, 0, 0));
+    // Cover every committed anchor's candidates, not just the HQ candidates.
+    // Existing anchors are within 350cm, offsets within 600cm and spawn rings
+    // within 900cm, so this 300cm lattice covers the whole search envelope.
+    for (int32 X = -2100; X <= 2100; X += 300)
+        for (int32 Y = -2100; Y <= 2100; Y += 300)
+        {
+            if (FMath::Abs(X) <= 1500 && FMath::Abs(Y) <= 1500) { continue; }
+            FProofUnitRecord Blocker;
+            Blocker.UnitId = 1000 + Blocked.Units.Num();
+            Blocker.OwnerId = 1;
+            Blocker.Position = FVector(X, Y, 0);
+            Blocked.Units.Add(Blocker);
+        }
+    const FVector RecoveryBlockedOffsets[] = {
+        FVector(350, 0, 0), FVector(-350, 0, 0), FVector(0, 350, 0), FVector(0, -350, 0),
+        FVector(350, 350, 0), FVector(-350, 350, 0), FVector(350, -350, 0), FVector(-350, -350, 0),
+        FVector(600, 0, 0), FVector(-600, 0, 0), FVector(0, 600, 0), FVector(0, -600, 0)
+    };
+    for (const FProofUnitRecord& Anchor : Blocked.Units)
+        if (Anchor.OwnerId == 100 && Anchor.HitPoints > 0.f
+            && (Anchor.Kind == EProofUnitKind::HQ || Anchor.Kind == EProofUnitKind::Refinery || Anchor.Kind == EProofUnitKind::Factory))
+            for (const FVector& Offset : RecoveryBlockedOffsets)
+            {
+                FVector NoSpawn = FVector::ZeroVector;
+                TestFalse(TEXT("Obstruction exhausts spawn search at every eligible committed anchor candidate"),
+                    FProofCommandModel::FindSkirmishSpawn(Blocked, Anchor.Position + Offset, NoSpawn));
+            }
     FProofSkirmishBot BlockedBot;
     TestEqual(TEXT("No spawn space prevents a recovery build"), CountRecoveryCommands(BlockedBot.Decide(Blocked, 100, 0.0)), 0);
     TestEqual(TEXT("Blocked planner preserves credits"), Blocked.Players[0].Credits, 100);
