@@ -203,6 +203,7 @@ void AProofPlayerController::Tick(float DeltaSeconds)
     AProofGameState* State = GetWorld()->GetGameState<AProofGameState>();
     SynchronizeMatchEpoch();
     if (State && OwnerId != INDEX_NONE) RefineryEvidence.LogSnapshot(State->Snapshot, TEXT("client"), OwnerId);
+    if (State && OwnerId != INDEX_NONE) AreaGuardObservation.LogSnapshot(State->Snapshot, TEXT("client"), OwnerId);
     if (State && OwnerId != INDEX_NONE && StopEvidence.Enabled()) { StopEvidence.LogSnapshot(State->Snapshot, TEXT("client"), OwnerId); }
     if (State && OwnerId != INDEX_NONE && LastLoggedRevision != State->Snapshot.Revision)
     {

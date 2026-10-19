@@ -10,6 +10,7 @@
 #include "Runtime/ProofFactoryRallyEvidence.h"
 #include "Runtime/ProofFactoryProductionEvidence.h"
 #include "Runtime/ProofAttackMoveEvidence.h"
+#include "Runtime/ProofAreaGuardObservation.h"
 #include "Runtime/ProofAttackMoveRuntimeState.h"
 #include "ProofGameMode.generated.h"
 
@@ -34,6 +35,7 @@ private:
     FProofCommandModel Model;
     FProofAttackMoveRuntimeState AttackMoveRuntime;
     FProofAttackMoveEvidence AttackMoveEvidence;
+    FProofAreaGuardObservation AreaGuardObservation;
     void TickAttackMoveRuntime(float DeltaSeconds);
     FProofRefineryMinerEvidence RefineryEvidence;
     FProofStopEvidence StopEvidence;

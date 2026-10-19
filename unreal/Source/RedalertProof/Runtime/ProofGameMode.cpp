@@ -37,6 +37,13 @@ AProofGameMode::AProofGameMode()
 void AProofGameMode::BeginPlay()
 {
     Super::BeginPlay();
+    if (AreaGuardObservation.Enabled() && (!bSkirmish || GetNetMode() != NM_DedicatedServer ||
+        AttackMoveRuntime.bEnabled || bSkirmishFixtureHost || bLifecycleFixtureHost))
+    {
+        UE_LOG(LogTemp, Error, TEXT("PROOF_AREA_GUARD_OBSERVATION_ERROR reason=incompatible-host-flags"));
+        FPlatformMisc::RequestExitWithStatus(false, 1);
+        return;
+    }
     if (bTypeSelectionControls && (!bControlsAutomation || bSkirmish || FParse::Param(FCommandLine::Get(), TEXT("ProofStopControls"))))
     {
         UE_LOG(LogTemp, Error, TEXT("PROOF_TYPE_SELECTION_ERROR incompatible_fixture_flags"));
@@ -272,6 +279,11 @@ FProofCommandResult AProofGameMode::SubmitForOwner(int32 TrustedOwnerId, const F
         Result.Sequence = Command.Sequence;
         Result.MatchEpoch = Command.MatchEpoch;
         Result.Reason = TEXT("stale-epoch");
+        if (AreaGuardObservation.Enabled())
+        {
+            const FProofSnapshot Rejected = Model.GetSnapshot();
+            AreaGuardObservation.ObserveCommand(MatchEpoch, TrustedOwnerId, Command, Result, Rejected, Rejected);
+        }
         if (StopEvidence.WantsCommand(Command.Type))
         {
             const FProofSnapshot RejectedSnapshot = Model.GetSnapshot();
@@ -291,8 +303,12 @@ FProofCommandResult AProofGameMode::SubmitForOwner(int32 TrustedOwnerId, const F
     if (FactoryRallyEvidence.WantsCommand(TrustedOwnerId, Command.Type)) { RallyBefore.Emplace(Model.GetSnapshot()); }
     TOptional<FProofSnapshot> AttackMoveBefore;
     if (AttackMoveEvidence.Enabled()) AttackMoveBefore.Emplace(Model.GetSnapshot());
+    TOptional<FProofSnapshot> AreaGuardBefore;
+    if (AreaGuardObservation.Enabled()) AreaGuardBefore.Emplace(Model.GetSnapshot());
     const FProofSnapshot ReturnCargoBefore = bReturnCargoEvidence && TrustedOwnerId == 1 ? Model.GetSnapshot() : FProofSnapshot();
     FProofCommandResult Result = Model.Submit(TrustedOwnerId, Command);
+    if (AreaGuardBefore.IsSet())
+        AreaGuardObservation.ObserveCommand(MatchEpoch, TrustedOwnerId, Command, Result, AreaGuardBefore.GetValue(), Model.GetSnapshot());
     if (bReturnCargoEvidence && TrustedOwnerId == 1)
         ObserveReturnCargoCommand(TrustedOwnerId, Command, Result, ReturnCargoBefore, Model.GetSnapshot());
     if (TrustedOwnerId == 1 && Command.Type == EProofCommandType::Gather
@@ -465,6 +481,7 @@ void AProofGameMode::Publish()
         Snapshot.MatchEpoch = MatchEpoch;
         State->Publish(Snapshot);
         RefineryEvidence.LogSnapshot(Snapshot, TEXT("host"), 0);
+        AreaGuardObservation.LogSnapshot(Snapshot, TEXT("host"), 0);
         AttackMoveEvidence.LogClock(MatchEpoch, Snapshot, AttackMoveRuntime.SimulatedSeconds);
         if (StopEvidence.Enabled()) { StopEvidence.LogSnapshot(Snapshot, TEXT("host"), 0); }
         if (bTypeSelectionControls)
@@ -560,11 +577,12 @@ void AProofGameMode::Tick(float DeltaSeconds)
                     Command.MatchEpoch = MatchEpoch;
                     SubmitForOwner(ProofOwnerIds::Bot, Command);
                 }
-                const FProofSnapshot EvidenceBeforeAdvance = RefineryEvidence.Enabled() || bReturnCargoEvidence ? Model.GetSnapshot() : FProofSnapshot();
+                const FProofSnapshot EvidenceBeforeAdvance = RefineryEvidence.Enabled() || bReturnCargoEvidence || AreaGuardObservation.Enabled() ? Model.GetSnapshot() : FProofSnapshot();
                 Model.Advance(0.1f);
                 if (StopEvidence.Enabled()) { StopEvidence.ObserveAdvance(MatchEpoch, 0.1f); }
                 SkirmishSeconds += 0.1;
                 const FProofSnapshot After = Model.GetSnapshot();
+                if (AreaGuardObservation.Enabled()) AreaGuardObservation.ObserveAdvance(MatchEpoch, SkirmishSeconds, 0.1f, EvidenceBeforeAdvance, After);
                 if (RefineryEvidence.Enabled()) RefineryEvidence.ObserveAdvance(MatchEpoch, EvidenceBeforeAdvance, After);
                 if (FParse::Param(FCommandLine::Get(), TEXT("ProofGroupGatherEvidence")))
                     ObserveGroupGatherDeposits(EvidenceBeforeAdvance, After);
