@@ -7,6 +7,7 @@
 #include "Commands/ProofIngressBudget.h"
 #include "Runtime/ProofRefineryMinerEvidence.h"
 #include "Runtime/ProofStopEvidence.h"
+#include "Runtime/ProofBaseExpansionObservation.h"
 #include "ProofPlayerController.generated.h"
 
 class AProofGameState;
@@ -51,6 +52,7 @@ private:
     FProofIngressBudget IngressBudget;
     FProofRefineryMinerEvidence RefineryEvidence;
     FProofStopEvidence StopEvidence;
+    FProofBaseExpansionObservation BaseExpansionObservation;
     bool AdmitIngress();
     bool bIngressFixture = false;
     bool bLifecycleFixture = false;
@@ -77,6 +79,10 @@ private:
     bool bControlsAutomation = false;
     bool bControlsObserver = false;
     bool bSkirmishObserver = false;
+    bool bBaseExpansionFixture = false;
+    bool bBaseExpansionRejectSent = false;
+    bool bBaseExpansionRejectVerified = false;
+    int32 BaseExpansionRejectSequence = INDEX_NONE;
     bool bSkirmishObserverReady = false;
     bool bSkirmishObserverRefinery = false;
     bool bSkirmishObserverFactory = false;

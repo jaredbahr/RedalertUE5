@@ -25,6 +25,7 @@ AProofPlayerController::AProofPlayerController()
     bStopInputBindingTrace = bControlsAutomation && !bControlsObserver
         && FParse::Param(FCommandLine::Get(), TEXT("ProofStopInputBinding"));
     bSkirmishObserver = bSkirmishMode && FParse::Param(FCommandLine::Get(), TEXT("ProofSkirmishObserver"));
+    bBaseExpansionFixture = bSkirmishObserver && FParse::Param(FCommandLine::Get(), TEXT("ProofBaseExpansionFixture"));
     bIngressFixture = FParse::Param(FCommandLine::Get(), TEXT("ProofIngressFixture"));
     bIngressFlood = FParse::Param(FCommandLine::Get(), TEXT("ProofIngressFlood"));
     bIngressHealthy = FParse::Param(FCommandLine::Get(), TEXT("ProofIngressHealthy"));
@@ -203,6 +204,7 @@ void AProofPlayerController::Tick(float DeltaSeconds)
     AProofGameState* State = GetWorld()->GetGameState<AProofGameState>();
     SynchronizeMatchEpoch();
     if (State && OwnerId != INDEX_NONE) RefineryEvidence.LogSnapshot(State->Snapshot, TEXT("client"), OwnerId);
+    if (State && OwnerId != INDEX_NONE) BaseExpansionObservation.LogSnapshot(State->Snapshot, TEXT("client"), OwnerId);
     if (State && OwnerId != INDEX_NONE && StopEvidence.Enabled()) { StopEvidence.LogSnapshot(State->Snapshot, TEXT("client"), OwnerId); }
     if (State && OwnerId != INDEX_NONE && LastLoggedRevision != State->Snapshot.Revision)
     {
@@ -287,6 +289,9 @@ void AProofPlayerController::FinishSkirmishObserver(bool bPass, const TCHAR* Rea
 {
     if (bFinished) return;
     bFinished = true;
+    if (bBaseExpansionFixture)
+        UE_LOG(LogTemp, Display, TEXT("PROOF_BASE_EXPANSION_COMPLETE role=observer owner=%d status=%s rejectionVerified=%d"),
+            OwnerId, bPass && bBaseExpansionRejectVerified ? TEXT("pass") : TEXT("fail"), bBaseExpansionRejectVerified ? 1 : 0);
     UE_LOG(LogTemp, Display, TEXT("PROOF_SKIRMISH_COMPLETE role=observer owner=%d status=%s scenario=Coop winnerTeam=%d reason=%s refinery=%d factory=%d gathered=%d produced=%d step=%d"),
         OwnerId, bPass ? TEXT("pass") : TEXT("fail"), WinnerTeam, Reason,
         bSkirmishObserverRefinery, bSkirmishObserverFactory, bSkirmishObserverGathered,
@@ -344,6 +349,9 @@ void AProofPlayerController::TickSkirmishObserver(AProofGameState* State)
             return;
         }
         UE_LOG(LogTemp, Display, TEXT("PROOF_SKIRMISH_OBSERVER_READY owner=2 revision=%d"), Snapshot.Revision);
+        if (bBaseExpansionFixture)
+            UE_LOG(LogTemp, Display, TEXT("PROOF_BASE_EXPANSION_READY owner=2 epoch=%d revision=%lld"),
+                Snapshot.MatchEpoch, static_cast<long long>(Snapshot.Revision));
     }
 
     if (SkirmishObserverPendingSequence != INDEX_NONE)
@@ -376,11 +384,49 @@ void AProofPlayerController::TickSkirmishObserver(AProofGameState* State)
         ++SkirmishObserverStep;
     }
 
+    // Separate opt-in diagnostic: send a foreign-anchor-only build through the
+    // ordinary owner-2 RPC and require its normal rejected receipt before play resumes.
+    if (bBaseExpansionFixture && SkirmishObserverStep == 2 && !bBaseExpansionRejectVerified)
+    {
+        if (!bBaseExpansionRejectSent)
+        {
+            if (!HQ || Snapshot.MatchPhase != EProofMatchPhase::Playing) return;
+            FProofCommand Rejected;
+            Rejected.Type = EProofCommandType::BuildRefinery;
+            Rejected.Destination = HQ->Position + FVector(2300.f, 0.f, 0.f);
+            Rejected.Sequence = NextLocalCommandSequence();
+            Rejected.MatchEpoch = Snapshot.MatchEpoch;
+            BaseExpansionRejectSequence = Rejected.Sequence;
+            bBaseExpansionRejectSent = true;
+            ServerSubmitCommand(Rejected);
+            UE_LOG(LogTemp, Display, TEXT("PROOF_BASE_EXPANSION_SEND owner=2 kind=rejected-refinery epoch=%d sequence=%d x=%.9g y=%.9g z=%.9g"),
+                Rejected.MatchEpoch, Rejected.Sequence, static_cast<double>(Rejected.Destination.X),
+                static_cast<double>(Rejected.Destination.Y), static_cast<double>(Rejected.Destination.Z));
+            return;
+        }
+        FProofCommandResult RejectedReceipt;
+        if (!FindReceipt(BaseExpansionRejectSequence, RejectedReceipt))
+        {
+            if (SkirmishObserverTerminalAt >= 0.f && Lifetime - SkirmishObserverTerminalAt >= 2.f)
+                FinishSkirmishObserver(false, TEXT("missing-rejection-receipt"), Snapshot.WinnerTeam);
+            return;
+        }
+        if (RejectedReceipt.bAccepted || RejectedReceipt.Reason != TEXT("placement"))
+        {
+            FinishSkirmishObserver(false, TEXT("unexpected-rejection-result"), Snapshot.WinnerTeam);
+            return;
+        }
+        bBaseExpansionRejectVerified = true;
+        UE_LOG(LogTemp, Display, TEXT("PROOF_BASE_EXPANSION_REJECTION_RECEIPT owner=2 epoch=%d sequence=%d accepted=0 reason=placement"),
+            RejectedReceipt.MatchEpoch, BaseExpansionRejectSequence);
+    }
+
     if (Snapshot.MatchPhase == EProofMatchPhase::Finished)
     {
         const bool bPass = Snapshot.WinnerTeam == 0 && SkirmishObserverStep == 4
             && bSkirmishObserverRefinery && bSkirmishObserverFactory
-            && bSkirmishObserverGathered && bSkirmishObserverProduced;
+            && bSkirmishObserverGathered && bSkirmishObserverProduced
+            && (!bBaseExpansionFixture || bBaseExpansionRejectVerified);
         FinishSkirmishObserver(bPass, bPass ? TEXT("complete") : TEXT("terminal-evidence"), Snapshot.WinnerTeam);
         return;
     }
@@ -397,7 +443,8 @@ void AProofPlayerController::TickSkirmishObserver(AProofGameState* State)
     {
         if (!HQ) return;
         Command.Type = EProofCommandType::BuildFactory;
-        Command.Destination = HQ->Position + FVector(0.f, -350.f, 0.f);
+        Command.Destination = bBaseExpansionFixture ? HQ->Position + FVector(1050.f, 0.f, 0.f)
+            : HQ->Position + FVector(0.f, -350.f, 0.f);
     }
     else if (SkirmishObserverStep == 2)
     {
@@ -426,6 +473,11 @@ void AProofPlayerController::TickSkirmishObserver(AProofGameState* State)
     ServerSubmitCommand(Command);
     UE_LOG(LogTemp, Display, TEXT("PROOF_SKIRMISH_OBSERVER_SEND owner=2 step=%d sequence=%d revision=%d"),
         SkirmishObserverStep, Command.Sequence, Snapshot.Revision);
+    if (bBaseExpansionFixture && SkirmishObserverStep <= 1)
+        UE_LOG(LogTemp, Display, TEXT("PROOF_BASE_EXPANSION_SEND owner=2 kind=%s epoch=%d sequence=%d x=%.9g y=%.9g z=%.9g"),
+            SkirmishObserverStep == 0 ? TEXT("refinery") : TEXT("factory"), Command.MatchEpoch, Command.Sequence,
+            static_cast<double>(Command.Destination.X), static_cast<double>(Command.Destination.Y),
+            static_cast<double>(Command.Destination.Z));
 }
 
 // The lifecycle runner only creates gate files. Every action here still travels

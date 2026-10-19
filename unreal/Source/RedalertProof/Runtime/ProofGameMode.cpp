@@ -291,8 +291,15 @@ FProofCommandResult AProofGameMode::SubmitForOwner(int32 TrustedOwnerId, const F
     if (FactoryRallyEvidence.WantsCommand(TrustedOwnerId, Command.Type)) { RallyBefore.Emplace(Model.GetSnapshot()); }
     TOptional<FProofSnapshot> AttackMoveBefore;
     if (AttackMoveEvidence.Enabled()) AttackMoveBefore.Emplace(Model.GetSnapshot());
+    TOptional<FProofSnapshot> BaseExpansionBefore;
+    if (BaseExpansionObservation.Enabled() && bSkirmish && TrustedOwnerId == 2
+        && (Command.Type == EProofCommandType::BuildRefinery || Command.Type == EProofCommandType::BuildFactory))
+        BaseExpansionBefore.Emplace(Model.GetSnapshot());
     const FProofSnapshot ReturnCargoBefore = bReturnCargoEvidence && TrustedOwnerId == 1 ? Model.GetSnapshot() : FProofSnapshot();
     FProofCommandResult Result = Model.Submit(TrustedOwnerId, Command);
+    if (BaseExpansionBefore.IsSet())
+        BaseExpansionObservation.ObserveCommand(MatchEpoch, TrustedOwnerId, Command, Result,
+            BaseExpansionBefore.GetValue(), Model.GetSnapshot());
     if (bReturnCargoEvidence && TrustedOwnerId == 1)
         ObserveReturnCargoCommand(TrustedOwnerId, Command, Result, ReturnCargoBefore, Model.GetSnapshot());
     if (TrustedOwnerId == 1 && Command.Type == EProofCommandType::Gather
@@ -464,6 +471,7 @@ void AProofGameMode::Publish()
         FProofSnapshot Snapshot = Model.GetSnapshot();
         Snapshot.MatchEpoch = MatchEpoch;
         State->Publish(Snapshot);
+        BaseExpansionObservation.LogSnapshot(Snapshot, TEXT("host"), 0);
         RefineryEvidence.LogSnapshot(Snapshot, TEXT("host"), 0);
         AttackMoveEvidence.LogClock(MatchEpoch, Snapshot, AttackMoveRuntime.SimulatedSeconds);
         if (StopEvidence.Enabled()) { StopEvidence.LogSnapshot(Snapshot, TEXT("host"), 0); }

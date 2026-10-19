@@ -14,7 +14,8 @@ param(
     [ValidateSet('1280x720','960x540')][string]$Viewport = '1280x720',
     [switch]$FactoryProductionEvidence,
     [switch]$GroupGatherEvidence,
-    [switch]$ReturnCargoEvidence
+    [switch]$ReturnCargoEvidence,
+    [switch]$BaseExpansionEvidence
 )
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'RefineryMinerEvidence.ps1')
@@ -48,6 +49,9 @@ if ($FactoryRallyEvidence) {
     $RefineryMinerEvidence = [switch]::new($true)
 }
 if ($ReadabilityCaptures -and $Scenario -ne 'Victory') { throw 'ReadabilityCaptures requires the standalone Victory scenario.' }
+if ($BaseExpansionEvidence -and ($Scenario -ne 'Coop' -or $ReturnCargoEvidence -or $RefineryMinerEvidence -or
+    $FactoryRallyEvidence -or $FactoryProductionEvidence -or $CoopContextEvidence -or $GroupGatherEvidence -or
+    $ReadabilityCaptures -or $CameraEdgeCaptures)) { throw 'BaseExpansionEvidence requires plain three-role Coop.' }
 $Viewport = $Viewport.ToLowerInvariant()
 $viewportParts = $Viewport.Split('x')
 $viewportWidth = [int]$viewportParts[0]; $viewportHeight = [int]$viewportParts[1]
@@ -81,9 +85,13 @@ for ($cpuIndex=0; $cpuIndex -lt 64 -and $fixtureLogicalProcessors.Count -lt 2; $
 if ($fixtureLogicalProcessors.Count -ne 2) { throw 'Small match requires two available logical CPUs in the invoking process affinity mask.' }
 $head = (& git -C $repoRoot rev-parse HEAD).Trim()
 if ($LASTEXITCODE -ne 0) { throw 'Cannot record tested HEAD.' }
+$sourceTree = (& git -C $repoRoot rev-parse 'HEAD:unreal/Source').Trim()
+if ($LASTEXITCODE -ne 0 -or $sourceTree -notmatch '^[0-9a-f]{40}$') { throw 'Cannot bind diagnostic Source tree.' }
+$baseExpansionRun = if ($BaseExpansionEvidence) { [Guid]::NewGuid().ToString('N') } else { '' }
 $dirty = [bool](& git -C $repoRoot status --porcelain)
 $result = [ordered]@{
-    passed=$false; scenario=$Scenario; head=$head; dirtyWorkingTree=$dirty
+    passed=$false; scenario=$Scenario; head=$head; sourceTree=$sourceTree; dirtyWorkingTree=$dirty
+    baseExpansionEvidenceEnabled=[bool]$BaseExpansionEvidence; baseExpansionRun=$baseExpansionRun
     startedUtc=[DateTime]::UtcNow.ToString('o'); finishedUtc=$null; elapsedSeconds=0; scenarioElapsedSeconds=0
     scenarioTimeoutSeconds=$TimeoutSeconds; scenarioCoreLimit=2; runDirectory=$run; map='/Game/CommandProofGenerated/Maps/CommandProof'
     topology=$(if($Scenario -eq 'Coop'){'dedicated NullRHI fixture host, one rendered owner-1 client, one NullRHI owner-2 observer'}else{'one rendered standalone match client'})
@@ -251,6 +259,10 @@ function Start-Role([string]$Role,[string]$Destination,[string[]]$Mode) {
     if ($FactoryProductionEvidence) { $launchArguments+='-ProofFactoryProductionEvidence' }
     if ($FactoryRallyEvidence) { $launchArguments+='-ProofFactoryRallyEvidence' }
     if ($CoopContextEvidence) { $launchArguments+='-ProofCoopContextEvidence' }
+    if ($BaseExpansionEvidence) {
+        $launchArguments+=@('-ProofBaseExpansionObserve',('-ProofBaseExpansionRun='+$baseExpansionRun),('-ProofBaseExpansionSource='+$sourceTree))
+        if ($Role -eq 'observer') { $launchArguments+='-ProofBaseExpansionFixture' }
+    }
     if ($ReadabilityCaptures -and $Role -eq 'rendered') { $launchArguments+='-ProofHUDReadabilityCaptures' }
     if ($CameraEdgeCaptures -and $Role -eq 'rendered') { $launchArguments+='-ProofCameraEdgeCaptures' }
     $needsLiteralLoopback = $Scenario -eq 'Coop' -and $Role -in @('rendered','observer')
@@ -308,6 +320,7 @@ try {
         Wait-Marker $serverEntry 'PROOF_SKIRMISH_FIXTURE_START owners=1,2 simulationSeconds=0'
         Wait-Marker $serverEntry 'PROOF_SKIRMISH_COMPLETE role=host status=pass scenario=Coop winnerTeam=0'
         Wait-Marker $observer 'PROOF_SKIRMISH_COMPLETE role=observer owner=2 status=pass scenario=Coop winnerTeam=0'
+        if ($BaseExpansionEvidence) { Wait-Marker $observer 'PROOF_BASE_EXPANSION_COMPLETE role=observer owner=2 status=pass rejectionVerified=1' }
         Wait-Marker $client 'PROOF_SKIRMISH_COMPLETE role=client owner=1 status=pass scenario=Coop winnerTeam=0 built=1 gathered=1 produced=1 botBuilt=1 botProduced=1 botAttacked=1'
     } else {
         $client=Start-Role 'rendered' '/Game/CommandProofGenerated/Maps/CommandProof' @('-game','-RenderOffscreen','-windowed',('-ResX='+$viewportWidth),('-ResY='+$viewportHeight),('-ProofSkirmishViewport='+$Viewport),'-ProofSkirmish','-ProofInteractive',('-ProofSkirmishScenario='+$Scenario),('-ProofSkirmishOutput="'+$images+'"'))

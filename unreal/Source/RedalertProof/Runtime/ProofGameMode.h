@@ -11,6 +11,7 @@
 #include "Runtime/ProofFactoryProductionEvidence.h"
 #include "Runtime/ProofAttackMoveEvidence.h"
 #include "Runtime/ProofAttackMoveRuntimeState.h"
+#include "Runtime/ProofBaseExpansionObservation.h"
 #include "ProofGameMode.generated.h"
 
 class AProofPlayerController;
@@ -33,6 +34,7 @@ public:
 private:
     FProofCommandModel Model;
     FProofAttackMoveRuntimeState AttackMoveRuntime;
+    FProofBaseExpansionObservation BaseExpansionObservation;
     FProofAttackMoveEvidence AttackMoveEvidence;
     void TickAttackMoveRuntime(float DeltaSeconds);
     FProofRefineryMinerEvidence RefineryEvidence;
