@@ -23,7 +23,7 @@ The HUD shows credits, delivered ore, selected role/cargo, command receipt, role
 
 ## Provisional rules
 
-One human, or two cooperative human owners on team 0, fights bot owner 100 on team 1. Each starts with HQ, Harvester, 350 credits and 500 finite ore. Refinery costs 100, factory 150, combat unit 50. Structures must be within 800 cm of the owner's live HQ and at least 180 cm from other live structures. Production requires the owner's live factory and a free spawn position. The cap is 12 live records per owner, including structures; this is a fixture limit, not a measured performance budget.
+One human, or two cooperative human owners on team 0, fights bot owner 100 on team 1. Each starts with HQ, Harvester, 350 credits and 500 finite ore. Refinery costs 100, factory 150, combat unit 50. Construction requires the owner's live HQ. Structures may be placed within the prototype 800 cm radius of any owned live HQ, refinery or factory, and at least 180 cm from all other live structures; see [base expansion](BASE_EXPANSION.md). Production requires the owner's live factory and a free spawn position. The cap is 12 live records per owner, including structures; this is a fixture limit, not a measured performance budget.
 
 Harvesters travel to ore, extract up to 50 cargo immediately on arrival, then travel to a live owned refinery to deposit and repeat. Income is recorded only on deposit. HQ has 300 HP, other structures 200, mobiles 100; existing speed 150, range 300 and damage 25 remain provisional. Structures cannot move, and only Combat attacks opposing teams. Destroy all opposing live HQs to win; simultaneous loss is a draw. Terminal simulation and commands freeze.
 
