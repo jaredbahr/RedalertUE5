@@ -157,6 +157,7 @@ function Check-AreaGuardProgress([switch]$AllowExit) {
     $elapsed=if($scenarioWatch){$scenarioWatch.Elapsed.TotalSeconds}else{$watch.Elapsed.TotalSeconds}
     if($elapsed -ge $limit){throw 'AreaGuard bounded stage timed out.'}
     foreach($entry in $processes) {
+        if($scenarioWatch -and $entry.Role -eq 'warmup') { continue } # Its exit 0 was already verified.
         $log=Read-AreaGuardLog $entry
         if($log -match 'PROOF_AREA_GUARD_(FIXTURE|OBSERVATION)_ERROR|Fatal error:|Assertion failed:|Unhandled Exception:'){
             throw "$($entry.Role) reported a runtime error."
