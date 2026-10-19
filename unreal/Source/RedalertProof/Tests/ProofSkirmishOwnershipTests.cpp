@@ -46,6 +46,7 @@ bool FProofSkirmishOwnershipTest::RunTest(const FString&)
         if (!TestTrue(TEXT("Seed first human"), Model.SeedSkirmishPlayer(1, 0, FVector::ZeroVector))
             || !TestTrue(TEXT("Seed cooperative human"), Model.SeedSkirmishPlayer(2, 0, FVector(0, 2000, 0)))
             || !TestTrue(TEXT("Seed opposing bot"), Model.SeedSkirmishPlayer(100, 1, FVector(5000, 0, 0)))) return false;
+        const FProofSnapshot Seeded = Model.GetSnapshot();
         for (int32 Owner : { 1, 2 })
         {
             const FVector Origin(0, Owner == 1 ? 0 : 2000, 0);
@@ -57,6 +58,21 @@ bool FProofSkirmishOwnershipTest::RunTest(const FString&)
             if (!TestTrue(TEXT("Prepare own combat"), Model.Submit(Owner,
                 OwnershipCommand(3, EProofCommandType::Produce, Factory)).bAccepted)) return false;
         }
+        // This fixture checks for latent foreign orders against a stationary
+        // teammate. Stop only its newly granted auto-miner through its own owner;
+        // the seeded harvester remains the target of the forbidden requests.
+        int32 StoppedGrants = 0;
+        const FProofSnapshot Prepared = Model.GetSnapshot();
+        for (const FProofUnitRecord& Unit : Prepared.Units)
+        {
+            if (Unit.OwnerId != 1 || Unit.Kind != EProofUnitKind::Harvester
+                || Seeded.Units.ContainsByPredicate([&Unit](const FProofUnitRecord& Prior)
+                    { return Prior.UnitId == Unit.UnitId; })) continue;
+            if (!TestTrue(TEXT("Stop granted teammate miner for stationary ownership fixture"),
+                Model.Submit(1, OwnershipCommand(4, EProofCommandType::Stop, Unit.UnitId)).bAccepted)) return false;
+            ++StoppedGrants;
+        }
+        if (!TestEqual(TEXT("Exactly one incidental teammate grant stopped"), StoppedGrants, 1)) return false;
         const FProofSnapshot Before = Model.GetSnapshot();
         const int32 ForeignHarvester = OwnershipUnit(Before, 1, EProofUnitKind::Harvester);
         const int32 OwnHarvester = OwnershipUnit(Before, 2, EProofUnitKind::Harvester);
