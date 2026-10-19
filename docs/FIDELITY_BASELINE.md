@@ -14,6 +14,7 @@ Authorized local lookup found a residual RA2 folder in an existing Steam library
 | --- | --- | --- |
 | S stops selected units. | Original manuals: Basic Keyboard Functions, Stop | [Validated Stop slice](STOP_COMMAND.md) cancels orders through the shared validator and bounded group queue. Clean b10e1ff passed 62 models, Stop/default controls, three matches and lifecycle; the earlier failure remains recorded. Existing stationary idle fire remains; physical S is unverified. |
 | Full miners unload at a friendly refinery and resume harvesting. | RA2 pp16-17 | Travel, finite extraction, deposit and repeat on the selected patch already exist; extraction/unloading happen instantly on arrival. |
+| Structure placement is near the player's other structures; the Construction Yard enables construction. | RA2 pp18,38 | [Base expansion](BASE_EXPANSION.md) permits placement off owned live HQ/refinery/factory records while still requiring an own live HQ. Its 800 cm center radius is an existing prototype calibration, not original grid/foundation parity. |
 | Production takes time; funds shortages suspend it until money returns. | RA2 p17 | `Submit` immediately debits the full price and creates the record. No production job, progress, hold/resume or queue. |
 | Power shortages affect production and some defenses/radar. | RA2 p18 | No power model; a Tesla mesh is only a display proxy. |
 | Idle units engage approaching enemies; Guard adds return-to-position behavior. | RA2 pp21,23 | Stationary idle fire is implemented. The [bounded AreaGuard prototype](AREA_GUARD.md) adds an explicit authoritative defend/chase/return order and a pre-attack bot producer; human G input and exact original disengagement calibration remain pending. |
@@ -32,7 +33,7 @@ Source: `Commands/ProofCommandModel.h/.cpp` and `Skirmish/ProofSkirmishBot.cpp`.
 | Health | HQ 300; constructed Refinery/Factory 200; Harvester/Combat 100 |
 | Movement/combat | 150 cm/s; 300 cm closed attack sphere; 25 damage/s with simultaneous damage application |
 | Economy | Cargo 50; one extracted ore unit becomes one credit; instant extraction and deposit at arrival |
-| Bounds | World coordinates ±10000 cm; build within 800 cm of HQ; structure separation 180 cm |
+| Bounds | World coordinates ±10000 cm; own live HQ required; build within 800 cm of owned live HQ/refinery/factory; structure separation 180 cm |
 | Proof capacity | 12 live records per owner, including structures; not an army budget |
 | Bot pacing | 1-second decisions, up to four commands/decision, 5-second retry, 20-second initial attack grace |
 

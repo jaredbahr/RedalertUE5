@@ -493,14 +493,22 @@ FProofCommandResult FProofCommandModel::Submit(int32 TrustedOwnerId, const FProo
         if (!Player || Player->Credits < Cost) { return Reject(TEXT("resources")); }
         const int32 RequiredRecords = bBuildRefinery ? 2 : 1;
         if (CountLiveOwnerUnits(TrustedOwnerId) > SkirmishRecordCap - RequiredRecords) { return Reject(TEXT("capacity")); }
-        bool bNearHQ = false;
+        bool bHasConstructionHQ = false;
+        bool bNearOwnStructure = false;
         for (const FProofUnitRecord& Unit : State.Units)
         {
             if (Unit.HitPoints <= 0.f) { continue; }
-            if (Unit.OwnerId == TrustedOwnerId && Unit.Kind == EProofUnitKind::HQ
-                && FVector::DistSquared(Unit.Position, Command.Destination) <= FMath::Square(static_cast<double>(BuildRadius)))
+            if (Unit.OwnerId == TrustedOwnerId)
             {
-                bNearHQ = true;
+                // Construction capability and placement reach are separate.
+                // Every live structure here is already synchronously completed;
+                // pending or rejected commands never become placement anchors.
+                bHasConstructionHQ |= Unit.Kind == EProofUnitKind::HQ;
+                if ((Unit.Kind == EProofUnitKind::HQ || Unit.Kind == EProofUnitKind::Refinery || Unit.Kind == EProofUnitKind::Factory)
+                    && FVector::DistSquared(Unit.Position, Command.Destination) <= FMath::Square(static_cast<double>(BuildRadius)))
+                {
+                    bNearOwnStructure = true;
+                }
             }
             if ((Unit.Kind == EProofUnitKind::HQ || Unit.Kind == EProofUnitKind::Refinery || Unit.Kind == EProofUnitKind::Factory)
                 && FVector::DistSquared(Unit.Position, Command.Destination) < FMath::Square(static_cast<double>(StructureSeparation)))
@@ -508,7 +516,7 @@ FProofCommandResult FProofCommandModel::Submit(int32 TrustedOwnerId, const FProo
                 return Reject(TEXT("overlap"));
             }
         }
-        if (!bNearHQ) { return Reject(TEXT("placement")); }
+        if (!bHasConstructionHQ || !bNearOwnStructure) { return Reject(TEXT("placement")); }
         if (NextUnitId > MAX_int32 - RequiredRecords) { return Reject(TEXT("capacity")); }
         FVector MinerSpawn = FVector::ZeroVector;
         if (bBuildRefinery && !FindSkirmishSpawn(State, Command.Destination, MinerSpawn)) { return Reject(TEXT("spawn")); }
