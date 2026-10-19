@@ -13,6 +13,8 @@ public:
     void ObserveCommand(int32 Epoch, int32 Owner, const FProofCommand& Command,
         const FProofCommandResult& Result, const FProofSnapshot& Before, const FProofSnapshot& After);
     void LogSnapshot(const FProofSnapshot& Snapshot, const TCHAR* Role, int32 Viewer);
+    // Explicit bounded pre-play scope; does not require a terminal match.
+    void Finish(const FProofSnapshot& Snapshot, const TCHAR* Role, int32 Viewer);
 
 private:
     bool bEnabled = false;

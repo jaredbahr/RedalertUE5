@@ -30,6 +30,8 @@ public:
     FProofCommandResult SubmitForController(const AProofPlayerController* Controller, const FProofCommand& Command);
     bool RequestRematch(const AProofPlayerController* Controller, int32 ExpectedEpoch);
     int32 GetMatchEpoch() const { return MatchEpoch; }
+    void ObserveBotBaseExpansionClient(const AProofPlayerController* Controller, int32 Epoch,
+        int32 Revision, const FString& Digest);
     bool IsCurrentController(const AProofPlayerController* Controller) const;
 private:
     FProofCommandModel Model;
@@ -67,6 +69,11 @@ private:
     // Opt-in, review-only diagnostic; never enabled by ordinary skirmishes.
     bool bBotBaseExpansionFixtureHost = false;
     bool bBotBaseExpansionSetupDone = false;
+    bool bBotBaseExpansionFailed = false;
+    bool bBotBaseExpansionFinished = false;
+    bool bBotBaseExpansionOwner1Observed = false;
+    bool bBotBaseExpansionOwner2Observed = false;
+    bool bBotBaseExpansionReleased = false;
     bool bBotBaseExpansionNegativeSeen = false;
     bool bBotBaseExpansionPositiveSeen = false;
     bool bBotBaseExpansionOwnerReadySent = false;
@@ -76,7 +83,7 @@ private:
     int32 BotBaseExpansionAfterRevision = INDEX_NONE;
     FString BotBaseExpansionAfterDigest;
     float BotBaseExpansionStageAt = 0.f;
-    bool BotBaseExpansionSubmit(int32 Owner, EProofCommandType Type,
+    bool BotBaseExpansionSubmit(int32 SetupOwnerId, EProofCommandType Type,
         const FVector& Position = FVector::ZeroVector, int32 Unit = INDEX_NONE, int32 Target = INDEX_NONE);
     bool BotBaseExpansionKillMiner(int32 Target);
     bool BotBaseExpansionSetup();

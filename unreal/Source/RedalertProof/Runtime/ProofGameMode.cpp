@@ -286,6 +286,12 @@ FProofCommandResult AProofGameMode::SubmitForOwner(int32 TrustedOwnerId, const F
             const FProofSnapshot RejectedSnapshot = Model.GetSnapshot();
             StopEvidence.ObserveCommand(MatchEpoch, TrustedOwnerId, Command, Result, RejectedSnapshot, RejectedSnapshot);
         }
+        if (bBotBaseExpansionFixtureHost && bBotBaseExpansionSetupDone)
+        {
+            const FProofSnapshot Rejected = Model.GetSnapshot();
+            BaseExpansionObservation.ObserveCommand(MatchEpoch, TrustedOwnerId, Command, Result, Rejected, Rejected);
+            FailBotBaseExpansion(TEXT("unexpected-stale-command"));
+        }
         if (bLifecycleFixtureHost) UE_LOG(LogTemp, Display, TEXT("PROOF_LIFECYCLE_STALE_REJECT epoch=%d current=%d owner=%d sequence=%d"), Command.MatchEpoch, MatchEpoch, TrustedOwnerId, Command.Sequence);
         return Result;
     }
@@ -301,57 +307,10 @@ FProofCommandResult AProofGameMode::SubmitForOwner(int32 TrustedOwnerId, const F
     TOptional<FProofSnapshot> AttackMoveBefore;
     if (AttackMoveEvidence.Enabled()) AttackMoveBefore.Emplace(Model.GetSnapshot());
     TOptional<FProofSnapshot> BaseExpansionBefore;
-    if (bBotBaseExpansionFixtureHost && bBotBaseExpansionSetupDone
-        && Command.Type == EProofCommandType::BuildRefinery && (TrustedOwnerId == 1 || TrustedOwnerId == 2))
+    if (bBotBaseExpansionFixtureHost && bBotBaseExpansionSetupDone)
         BaseExpansionBefore.Emplace(Model.GetSnapshot());
     const FProofSnapshot ReturnCargoBefore = bReturnCargoEvidence && TrustedOwnerId == 1 ? Model.GetSnapshot() : FProofSnapshot();
     FProofCommandResult Result = Model.Submit(TrustedOwnerId, Command);
-    if (BaseExpansionBefore.IsSet())
-    {
-        const FProofSnapshot After = Model.GetSnapshot();
-        BaseExpansionObservation.ObserveCommand(MatchEpoch, TrustedOwnerId, Command, Result,
-            BaseExpansionBefore.GetValue(), After);
-        if (Command.Destination != FVector(-250.f, -400.f, 0.f)
-            || Command.Sequence != (TrustedOwnerId == 1 ? BotBaseExpansionOwnerSequence + 1 : 1))
-            FailBotBaseExpansion(TEXT("unexpected-command"));
-        else if (TrustedOwnerId == 2)
-        {
-            if (bBotBaseExpansionNegativeSeen || Result.bAccepted || Result.Reason != TEXT("placement")
-                || After.ComputeDigest() != BaseExpansionBefore->ComputeDigest())
-                FailBotBaseExpansion(TEXT("negative-control"));
-            else bBotBaseExpansionNegativeSeen = true;
-        }
-        else
-        {
-            int32 MaxBeforeId = 0;
-            for (const FProofUnitRecord& Unit : BaseExpansionBefore->Units)
-                MaxBeforeId = FMath::Max(MaxBeforeId, Unit.UnitId);
-            const FProofUnitRecord* NewRefinery = After.Units.FindByPredicate([MaxBeforeId](const FProofUnitRecord& Unit)
-                { return Unit.UnitId == MaxBeforeId + 1; });
-            const FProofUnitRecord* NewMiner = After.Units.FindByPredicate([MaxBeforeId](const FProofUnitRecord& Unit)
-                { return Unit.UnitId == MaxBeforeId + 2; });
-            const FProofPlayerRecord* Owner = After.Players.FindByPredicate([](const FProofPlayerRecord& Player)
-                { return Player.OwnerId == 1; });
-            if (!bBotBaseExpansionNegativeSeen || bBotBaseExpansionPositiveSeen || !Result.bAccepted
-                || After.Revision - BaseExpansionBefore->Revision != 3
-                || After.Units.Num() - BaseExpansionBefore->Units.Num() != 2
-                || !Owner || Owner->Credits != 0 || Owner->TotalGathered != 450
-                || !NewRefinery || NewRefinery->OwnerId != 1 || NewRefinery->Kind != EProofUnitKind::Refinery
-                || NewRefinery->Position != Command.Destination || NewRefinery->HitPoints != 200.f
-                || !NewMiner || NewMiner->OwnerId != 1 || NewMiner->Kind != EProofUnitKind::Harvester
-                || NewMiner->HitPoints != 100.f || NewMiner->Cargo != 0)
-                FailBotBaseExpansion(TEXT("positive-submit"));
-            else
-            {
-                bBotBaseExpansionPositiveSeen = true;
-                ++BotBaseExpansionOwnerSequence;
-                BotBaseExpansionAfterRevision = After.Revision;
-                BotBaseExpansionAfterDigest = After.ComputeDigest();
-                Publish();
-                BotBaseExpansionStageAt = Lifetime;
-            }
-        }
-    }
     if (bReturnCargoEvidence && TrustedOwnerId == 1)
         ObserveReturnCargoCommand(TrustedOwnerId, Command, Result, ReturnCargoBefore, Model.GetSnapshot());
     if (TrustedOwnerId == 1 && Command.Type == EProofCommandType::Gather
@@ -413,6 +372,59 @@ FProofCommandResult AProofGameMode::SubmitForOwner(int32 TrustedOwnerId, const F
     if (StopBefore.IsSet()) { StopEvidence.ObserveCommand(MatchEpoch, TrustedOwnerId, Command, Result, StopBefore.GetValue(), Model.GetSnapshot()); }
     if (bRefineryEvidence) RefineryEvidence.ObserveCommand(MatchEpoch, TrustedOwnerId, Command, Result, EvidenceBefore, Model.GetSnapshot());
     Result.MatchEpoch = Command.MatchEpoch;
+    if (BaseExpansionBefore.IsSet())
+    {
+        const FProofSnapshot After = Model.GetSnapshot();
+        BaseExpansionObservation.ObserveCommand(MatchEpoch, TrustedOwnerId, Command, Result,
+            BaseExpansionBefore.GetValue(), After);
+        if (bBotBaseExpansionFailed || bBotBaseExpansionPositiveSeen
+            || (TrustedOwnerId != 1 && TrustedOwnerId != 2)
+            || Command.Type != EProofCommandType::BuildRefinery || Command.MatchEpoch != MatchEpoch
+            || Command.UnitId != INDEX_NONE || Command.TargetUnitId != INDEX_NONE
+            || Command.Destination != FVector(-250.f, -400.f, 0.f)
+            || Command.Sequence != (TrustedOwnerId == 1 ? BotBaseExpansionOwnerSequence + 1 : 1))
+            FailBotBaseExpansion(TEXT("unexpected-command"));
+        else if (TrustedOwnerId == 2)
+        {
+            if (bBotBaseExpansionNegativeSeen || Result.bAccepted || Result.Reason != TEXT("placement")
+                || After.ComputeDigest() != BaseExpansionBefore->ComputeDigest())
+                FailBotBaseExpansion(TEXT("negative-control"));
+            else bBotBaseExpansionNegativeSeen = true;
+        }
+        else
+        {
+            int32 MaxBeforeId = 0;
+            for (const FProofUnitRecord& Unit : BaseExpansionBefore->Units)
+                MaxBeforeId = FMath::Max(MaxBeforeId, Unit.UnitId);
+            const FProofUnitRecord* NewRefinery = After.Units.FindByPredicate([MaxBeforeId](const FProofUnitRecord& Unit)
+                { return Unit.UnitId == MaxBeforeId + 1; });
+            const FProofUnitRecord* NewMiner = After.Units.FindByPredicate([MaxBeforeId](const FProofUnitRecord& Unit)
+                { return Unit.UnitId == MaxBeforeId + 2; });
+            const FProofPlayerRecord* OwnerPlayer = After.Players.FindByPredicate([](const FProofPlayerRecord& Player)
+                { return Player.OwnerId == 1; });
+            if (!bBotBaseExpansionNegativeSeen || bBotBaseExpansionPositiveSeen || !Result.bAccepted
+                || After.Revision - BaseExpansionBefore->Revision != 3
+                || After.Units.Num() - BaseExpansionBefore->Units.Num() != 2
+                || !OwnerPlayer || OwnerPlayer->Credits != 0 || OwnerPlayer->TotalGathered != 450
+                || !NewRefinery || NewRefinery->OwnerId != 1 || NewRefinery->Kind != EProofUnitKind::Refinery
+                || NewRefinery->Position != Command.Destination || NewRefinery->HitPoints != 200.f
+                || !NewMiner || NewMiner->OwnerId != 1 || NewMiner->Kind != EProofUnitKind::Harvester
+                || NewMiner->HitPoints != 100.f || NewMiner->Cargo != 0)
+                FailBotBaseExpansion(TEXT("positive-submit"));
+            else
+            {
+                bBotBaseExpansionPositiveSeen = true;
+                ++BotBaseExpansionOwnerSequence;
+                BotBaseExpansionAfterRevision = After.Revision;
+                FProofSnapshot PublishedAfter = After;
+                PublishedAfter.MatchEpoch = MatchEpoch;
+                BotBaseExpansionAfterDigest = PublishedAfter.ComputeDigest();
+                Publish();
+                BaseExpansionObservation.Finish(PublishedAfter, TEXT("host"), 0);
+                BotBaseExpansionStageAt = Lifetime;
+            }
+        }
+    }
     if (bSkirmish && Result.bAccepted && TrustedOwnerId == ProofOwnerIds::Bot && Command.Type == EProofCommandType::Attack)
         bSkirmishBotAttackAccepted = true;
     if (bControlsAutomation && Result.bAccepted && TrustedOwnerId != 100 && Command.Type == EProofCommandType::Attack)
@@ -575,21 +587,23 @@ void AProofGameMode::ObserveSkirmish(const FProofSnapshot& Snapshot)
 
 void AProofGameMode::FailBotBaseExpansion(const TCHAR* Reason)
 {
+    if (bBotBaseExpansionFailed) return;
+    bBotBaseExpansionFailed = true;
     UE_LOG(LogTemp, Error, TEXT("PROOF_BOT_BASE_EXPANSION_COMPLETE role=host status=fail reason=%s"), Reason);
     FPlatformMisc::RequestExitWithStatus(false, 1);
 }
 
-bool AProofGameMode::BotBaseExpansionSubmit(int32 Owner, EProofCommandType Type,
+bool AProofGameMode::BotBaseExpansionSubmit(int32 SetupOwnerId, EProofCommandType Type,
     const FVector& Position, int32 Unit, int32 Target)
 {
     FProofCommand Command;
-    Command.Sequence = Owner == 1 ? ++BotBaseExpansionOwnerSequence : ++BotBaseExpansionEnemySequence;
+    Command.Sequence = SetupOwnerId == 1 ? ++BotBaseExpansionOwnerSequence : ++BotBaseExpansionEnemySequence;
     Command.MatchEpoch = MatchEpoch;
     Command.Type = Type;
     Command.Destination = Position;
     Command.UnitId = Unit;
     Command.TargetUnitId = Target;
-    if (SubmitForOwner(Owner, Command).bAccepted) return true;
+    if (SubmitForOwner(SetupOwnerId, Command).bAccepted) return true;
     FailBotBaseExpansion(TEXT("setup-command-rejected"));
     return false;
 }
@@ -641,11 +655,11 @@ bool AProofGameMode::BotBaseExpansionSetup()
             if (Record.OwnerId == 1) return Record;
         return FProofPlayerRecord();
     };
-    auto LiveId = [this](int32 Owner, EProofUnitKind Kind) -> int32
+    auto LiveId = [this](int32 SetupOwnerId, EProofUnitKind Kind) -> int32
     {
         int32 Id = INDEX_NONE;
         for (const FProofUnitRecord& Record : Model.GetSnapshot().Units)
-            if (Record.OwnerId == Owner && Record.Kind == Kind && Record.HitPoints > 0.f
+            if (Record.OwnerId == SetupOwnerId && Record.Kind == Kind && Record.HitPoints > 0.f
                 && (Id == INDEX_NONE || Record.UnitId < Id)) Id = Record.UnitId;
         return Id;
     };
@@ -725,15 +739,34 @@ bool AProofGameMode::BotBaseExpansionSetup()
     bBotBaseExpansionSetupDone = true;
     BotBaseExpansionBeforeRevision = Before.Revision;
     Publish();
-    SkirmishOwner2.Get()->ClientBotBaseExpansionReady(Before.Revision, 1, false);
+    SkirmishOwner2.Get()->ClientBotBaseExpansionReady(MatchEpoch, Before.Revision, 1, false);
     BotBaseExpansionStageAt = Lifetime;
-    UE_LOG(LogTemp, Display, TEXT("PROOF_BOT_BASE_EXPANSION_BEFORE epoch=%d revision=%d digest=%s ownerSequence=%d grantX=%.0f grantY=%.0f"),
-        MatchEpoch, Before.Revision, *Before.ComputeDigest(), BotBaseExpansionOwnerSequence, GrantSpawn.X, GrantSpawn.Y);
+    FProofSnapshot PublishedBefore = Before;
+    PublishedBefore.MatchEpoch = MatchEpoch;
+    UE_LOG(LogTemp, Display, TEXT("PROOF_BOT_BASE_EXPANSION_BEFORE epoch=%d revision=%d digest=%s ownerSequence=%d grantX=%.17g grantY=%.17g"),
+        MatchEpoch, Before.Revision, *PublishedBefore.ComputeDigest(), BotBaseExpansionOwnerSequence, GrantSpawn.X, GrantSpawn.Y);
     return true;
+}
+
+void AProofGameMode::ObserveBotBaseExpansionClient(const AProofPlayerController* Controller,
+    int32 Epoch, int32 Revision, const FString& Digest)
+{
+    if (!bBotBaseExpansionFixtureHost) return;
+    const int32 ClientOwnerId = Controller ? Controller->OwnerId : INDEX_NONE;
+    if (bBotBaseExpansionFailed || !bBotBaseExpansionPositiveSeen || bBotBaseExpansionReleased
+        || !IsCurrentController(Controller) || Epoch != MatchEpoch
+        || Revision != BotBaseExpansionAfterRevision || Digest != BotBaseExpansionAfterDigest
+        || (ClientOwnerId != 1 && ClientOwnerId != 2)
+        || (ClientOwnerId == 1 ? bBotBaseExpansionOwner1Observed : bBotBaseExpansionOwner2Observed))
+    { FailBotBaseExpansion(TEXT("observation-ack")); return; }
+    (ClientOwnerId == 1 ? bBotBaseExpansionOwner1Observed : bBotBaseExpansionOwner2Observed) = true;
+    UE_LOG(LogTemp, Display, TEXT("PROOF_BOT_BASE_EXPANSION_ACK owner=%d epoch=%d revision=%d digest=%s"),
+        ClientOwnerId, Epoch, Revision, *Digest);
 }
 
 void AProofGameMode::TickBotBaseExpansionFixture(float DeltaSeconds)
 {
+    if (bBotBaseExpansionFailed || bBotBaseExpansionFinished) return;
     Lifetime += DeltaSeconds;
     if (Lifetime > 90.f) { FailBotBaseExpansion(TEXT("timeout")); return; }
     if (!bBotBaseExpansionSetupDone)
@@ -752,7 +785,8 @@ void AProofGameMode::TickBotBaseExpansionFixture(float DeltaSeconds)
     if (!bBotBaseExpansionOwnerReadySent)
     {
         bBotBaseExpansionOwnerReadySent = true;
-        SkirmishOwner1.Get()->ClientBotBaseExpansionReady(BotBaseExpansionBeforeRevision,
+        if (!SkirmishOwner1.IsValid()) { FailBotBaseExpansion(TEXT("owner-disconnected")); return; }
+        SkirmishOwner1.Get()->ClientBotBaseExpansionReady(MatchEpoch, BotBaseExpansionBeforeRevision,
             BotBaseExpansionOwnerSequence + 1, true);
         BotBaseExpansionStageAt = Lifetime;
         return;
@@ -762,7 +796,22 @@ void AProofGameMode::TickBotBaseExpansionFixture(float DeltaSeconds)
         if (Lifetime - BotBaseExpansionStageAt > 20.f) FailBotBaseExpansion(TEXT("missing-positive-rpc"));
         return;
     }
+    if (!bBotBaseExpansionReleased)
+    {
+        if (!bBotBaseExpansionOwner1Observed || !bBotBaseExpansionOwner2Observed)
+        {
+            if (Lifetime - BotBaseExpansionStageAt > 20.f) FailBotBaseExpansion(TEXT("missing-observation-ack"));
+            return;
+        }
+        if (!SkirmishOwner1.IsValid() || !SkirmishOwner2.IsValid())
+        { FailBotBaseExpansion(TEXT("owner-disconnected")); return; }
+        bBotBaseExpansionReleased = true;
+        SkirmishOwner1.Get()->ClientBotBaseExpansionRelease();
+        SkirmishOwner2.Get()->ClientBotBaseExpansionRelease();
+        BotBaseExpansionStageAt = Lifetime;
+    }
     if (Lifetime - BotBaseExpansionStageAt < 6.f) return;
+    bBotBaseExpansionFinished = true;
     UE_LOG(LogTemp, Display, TEXT("PROOF_BOT_BASE_EXPANSION_COMPLETE role=host status=pass epoch=%d beforeRevision=%d afterRevision=%d afterDigest=%s"),
         MatchEpoch, BotBaseExpansionBeforeRevision, BotBaseExpansionAfterRevision, *BotBaseExpansionAfterDigest);
     FPlatformMisc::RequestExitWithStatus(false, 0);

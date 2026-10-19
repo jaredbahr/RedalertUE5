@@ -129,6 +129,8 @@ void FProofBaseExpansionObservation::ObserveCommand(int32 Epoch, int32 Owner, co
     J->SetNumberField(TEXT("unit"), Command.UnitId);
     J->SetNumberField(TEXT("target"), Command.TargetUnitId);
     J->SetObjectField(TEXT("destination"), BaseExpansionPoint(Command.Destination));
+    J->SetNumberField(TEXT("resultEpoch"), Result.MatchEpoch);
+    J->SetNumberField(TEXT("resultSequence"), Result.Sequence);
     J->SetBoolField(TEXT("accepted"), Result.bAccepted);
     J->SetStringField(TEXT("reason"), Result.Reason);
     J->SetObjectField(TEXT("before"), BaseExpansionState(Before, Epoch));
@@ -149,17 +151,19 @@ void FProofBaseExpansionObservation::LogSnapshot(const FProofSnapshot& Snapshot,
     J->SetObjectField(TEXT("state"), BaseExpansionState(Snapshot, Snapshot.MatchEpoch));
     ++SnapshotRows;
     Emit(Role, Viewer, TEXT("snapshot"), J);
-    if (!bFailed && Snapshot.MatchPhase == EProofMatchPhase::Finished)
-    {
-        // Bind a complete bounded stream to its terminal published state. Later
-        // teardown publications are excluded by bComplete above.
-        auto Finish = MakeShared<FJsonObject>();
-        Finish->SetNumberField(TEXT("epoch"), Snapshot.MatchEpoch);
-        Finish->SetNumberField(TEXT("revision"), Snapshot.Revision);
-        Finish->SetStringField(TEXT("digest"), Snapshot.ComputeDigest());
-        Finish->SetNumberField(TEXT("snapshots"), SnapshotRows);
-        Finish->SetNumberField(TEXT("commands"), CommandRows);
-        Emit(Role, Viewer, TEXT("finish"), Finish);
-        bComplete = !bFailed;
-    }
+    if (!bFailed && Snapshot.MatchPhase == EProofMatchPhase::Finished) Finish(Snapshot, Role, Viewer);
+}
+void FProofBaseExpansionObservation::Finish(const FProofSnapshot& Snapshot, const TCHAR* Role, int32 Viewer)
+{
+    if (!bEnabled || bFailed) return;
+    if (bComplete || Snapshot.MatchEpoch != EpochSeen || Snapshot.Revision != LastRevision)
+    { Fail(TEXT("finish-state")); return; }
+    auto Row = MakeShared<FJsonObject>();
+    Row->SetNumberField(TEXT("epoch"), Snapshot.MatchEpoch);
+    Row->SetNumberField(TEXT("revision"), Snapshot.Revision);
+    Row->SetStringField(TEXT("digest"), Snapshot.ComputeDigest());
+    Row->SetNumberField(TEXT("snapshots"), SnapshotRows);
+    Row->SetNumberField(TEXT("commands"), CommandRows);
+    Emit(Role, Viewer, TEXT("finish"), Row);
+    bComplete = !bFailed;
 }

@@ -155,20 +155,48 @@ void AProofPlayerController::ClientLifecycleRejected_Implementation()
     }
 }
 
-void AProofPlayerController::ClientBotBaseExpansionReady_Implementation(int32 BeforeRevision, int32 NextSequence, bool bPositive)
+void AProofPlayerController::ClientBotBaseExpansionReady_Implementation(int32 Epoch, int32 BeforeRevision, int32 NextSequence, bool bPositive)
 {
-    if (!bBotBaseExpansionPassive || BeforeRevision <= 0 || NextSequence <= 0
+    if (!bBotBaseExpansionPassive || !BaseExpansionObservation.Enabled() || Epoch != 1
+        || (OwnerId != INDEX_NONE && OwnerId != (bPositive ? 1 : 2)) || BeforeRevision <= 0 || NextSequence <= 0
         || BotBaseExpansionBeforeRevision != INDEX_NONE)
     {
+        bFinished = true;
         UE_LOG(LogTemp, Error, TEXT("PROOF_BOT_BASE_EXPANSION_COMPLETE role=client owner=%d status=fail reason=ready-contract"), OwnerId);
         FPlatformMisc::RequestExitWithStatus(false, 1);
         return;
     }
+    BotBaseExpansionEpoch = Epoch;
     BotBaseExpansionBeforeRevision = BeforeRevision;
     BotBaseExpansionNextSequence = NextSequence;
     bBotBaseExpansionPositive = bPositive;
-    UE_LOG(LogTemp, Display, TEXT("PROOF_BOT_BASE_EXPANSION_READY owner=%d revision=%d sequence=%d positive=%d"),
-        OwnerId, BeforeRevision, NextSequence, bPositive ? 1 : 0);
+    // A reliable cue may precede the replicated OwnerId. This records the cue's
+    // expected seat; Tick waits for and checks the actual replicated identity.
+    UE_LOG(LogTemp, Display, TEXT("PROOF_BOT_BASE_EXPANSION_READY owner=%d epoch=%d revision=%d sequence=%d positive=%d"),
+        bPositive ? 1 : 2, Epoch, BeforeRevision, NextSequence, bPositive ? 1 : 0);
+}
+
+void AProofPlayerController::ServerBotBaseExpansionObserved_Implementation(int32 Epoch, int32 Revision, const FString& Digest)
+{
+    if (!AdmitIngress()) return;
+    if (AProofGameMode* Mode = GetWorld()->GetAuthGameMode<AProofGameMode>())
+        Mode->ObserveBotBaseExpansionClient(this, Epoch, Revision, Digest);
+}
+
+void AProofPlayerController::ClientBotBaseExpansionRelease_Implementation()
+{
+    if (!bBotBaseExpansionPassive || !bBotBaseExpansionObserved || bFinished
+        || LocalMatchEpoch != BotBaseExpansionEpoch)
+    {
+        bFinished = true;
+        UE_LOG(LogTemp, Error, TEXT("PROOF_BOT_BASE_EXPANSION_COMPLETE role=client owner=%d status=fail reason=release"), OwnerId);
+        FPlatformMisc::RequestExitWithStatus(false, 1);
+        return;
+    }
+    bFinished = true;
+    UE_LOG(LogTemp, Display, TEXT("PROOF_BOT_BASE_EXPANSION_COMPLETE role=client owner=%d status=pass epoch=%d revision=%d digest=%s"),
+        OwnerId, BotBaseExpansionEpoch, BotBaseExpansionObservedRevision, *BotBaseExpansionObservedDigest);
+    FPlatformMisc::RequestExitWithStatus(false, 0);
 }
 
 void AProofPlayerController::ClientCommandResult_Implementation(FProofCommandResult Result)
@@ -238,8 +266,24 @@ void AProofPlayerController::Tick(float DeltaSeconds)
             FPlatformMisc::RequestExitWithStatus(false, 1);
             return;
         }
-        if (bFinished || !State || OwnerId == INDEX_NONE || BotBaseExpansionBeforeRevision == INDEX_NONE) return;
+        if (bFinished || bBotBaseExpansionObserved || !State || OwnerId == INDEX_NONE
+            || BotBaseExpansionBeforeRevision == INDEX_NONE) return;
+        if (OwnerId != (bBotBaseExpansionPositive ? 1 : 2))
+        {
+            bFinished = true;
+            UE_LOG(LogTemp, Error, TEXT("PROOF_BOT_BASE_EXPANSION_COMPLETE role=client owner=%d status=fail reason=owner"), OwnerId);
+            FPlatformMisc::RequestExitWithStatus(false, 1);
+            return;
+        }
         const FProofSnapshot& Snapshot = State->Snapshot;
+        if (Snapshot.MatchEpoch == 0 || LocalMatchEpoch == 0) return;
+        if (Snapshot.MatchEpoch != BotBaseExpansionEpoch || LocalMatchEpoch != BotBaseExpansionEpoch)
+        {
+            bFinished = true;
+            UE_LOG(LogTemp, Error, TEXT("PROOF_BOT_BASE_EXPANSION_COMPLETE role=client owner=%d status=fail reason=epoch"), OwnerId);
+            FPlatformMisc::RequestExitWithStatus(false, 1);
+            return;
+        }
         if (!bBotBaseExpansionSent && Snapshot.MatchEpoch == LocalMatchEpoch
             && Snapshot.Revision == BotBaseExpansionBeforeRevision)
         {
@@ -280,7 +324,9 @@ void AProofPlayerController::Tick(float DeltaSeconds)
         }
         FProofCommandResult Receipt;
         if (!bBotBaseExpansionSent || !FindReceipt(BotBaseExpansionNextSequence, Receipt)) return;
-        if (Receipt.MatchEpoch != LocalMatchEpoch || Receipt.bAccepted != bBotBaseExpansionPositive
+        if (Receipt.MatchEpoch != LocalMatchEpoch || Receipt.Sequence != BotBaseExpansionNextSequence
+            || Receipt.bAccepted != bBotBaseExpansionPositive
+            || (bBotBaseExpansionPositive && Receipt.Reason != TEXT("accepted"))
             || (!bBotBaseExpansionPositive && Receipt.Reason != TEXT("placement")))
         {
             bFinished = true;
@@ -298,10 +344,15 @@ void AProofPlayerController::Tick(float DeltaSeconds)
         }
         if (bRecoveredRefinery && bRecoveredMiner)
         {
-            bFinished = true;
-            UE_LOG(LogTemp, Display, TEXT("PROOF_BOT_BASE_EXPANSION_COMPLETE role=client owner=%d status=pass epoch=%d revision=%d digest=%s"),
-                OwnerId, Snapshot.MatchEpoch, Snapshot.Revision, *Snapshot.ComputeDigest());
-            FPlatformMisc::RequestExitWithStatus(false, 0);
+            bBotBaseExpansionObserved = true;
+            BotBaseExpansionObservedRevision = Snapshot.Revision;
+            BotBaseExpansionObservedDigest = Snapshot.ComputeDigest();
+            UE_LOG(LogTemp, Display, TEXT("PROOF_BOT_BASE_EXPANSION_RECEIPT owner=%d epoch=%d sequence=%d accepted=%d reason=%s"),
+                OwnerId, Receipt.MatchEpoch, Receipt.Sequence, Receipt.bAccepted ? 1 : 0, *Receipt.Reason);
+            BaseExpansionObservation.Finish(Snapshot, TEXT("client"), OwnerId);
+            UE_LOG(LogTemp, Display, TEXT("PROOF_BOT_BASE_EXPANSION_OBSERVED owner=%d epoch=%d revision=%d digest=%s"),
+                OwnerId, Snapshot.MatchEpoch, Snapshot.Revision, *BotBaseExpansionObservedDigest);
+            ServerBotBaseExpansionObserved(Snapshot.MatchEpoch, Snapshot.Revision, BotBaseExpansionObservedDigest);
         }
         return;
     }

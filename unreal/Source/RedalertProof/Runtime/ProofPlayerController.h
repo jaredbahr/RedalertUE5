@@ -32,7 +32,9 @@ public:
     UFUNCTION(Server, Reliable) void ServerRequestRematch(int32 ExpectedEpoch);
     UFUNCTION(Client, Reliable) void ClientCommandResult(FProofCommandResult Result);
     UFUNCTION(Client, Reliable) void ClientLifecycleRejected();
-    UFUNCTION(Client, Reliable) void ClientBotBaseExpansionReady(int32 BeforeRevision, int32 NextSequence, bool bPositive);
+    UFUNCTION(Client, Reliable) void ClientBotBaseExpansionReady(int32 Epoch, int32 BeforeRevision, int32 NextSequence, bool bPositive);
+    UFUNCTION(Server, Reliable) void ServerBotBaseExpansionObserved(int32 Epoch, int32 Revision, const FString& Digest);
+    UFUNCTION(Client, Reliable) void ClientBotBaseExpansionRelease();
     virtual void Tick(float DeltaSeconds) override;
     virtual void BuildInputStack(TArray<UInputComponent*>& InputStack) override;
     virtual void ProcessPlayerInput(float DeltaTime, bool bGamePaused) override;
@@ -57,6 +59,10 @@ private:
     bool bBotBaseExpansionPassive = false;
     bool bBotBaseExpansionPositive = false;
     bool bBotBaseExpansionSent = false;
+    bool bBotBaseExpansionObserved = false;
+    int32 BotBaseExpansionEpoch = 0;
+    int32 BotBaseExpansionObservedRevision = INDEX_NONE;
+    FString BotBaseExpansionObservedDigest;
     int32 BotBaseExpansionBeforeRevision = INDEX_NONE;
     int32 BotBaseExpansionNextSequence = INDEX_NONE;
     bool AdmitIngress();
