@@ -1,6 +1,7 @@
 #include "Presentation/ProofSelectionState.h"
 #include "Presentation/ProofContextOrderPolicy.h"
 #include "Presentation/ProofGatherEligibility.h"
+#include "Presentation/ProofBoxSelection.h"
 
 namespace
 {
@@ -121,6 +122,40 @@ void FProofSelectionState::Toggle(const FProofSnapshot& Snapshot, int32 OwnerId,
         SelectedUnitIds.Sort();
         PrimaryUnitId = UnitId;
     }
+}
+
+bool FProofSelectionState::ApplyBoxSelection(const FProofSnapshot& Snapshot, int32 OwnerId,
+    int32 ExpectedOwnerId, int32 ExpectedEpoch, const ProofBoxSelection::Result& Plan, bool bAdditive)
+{
+    if (!Plan.Valid || OwnerId != ExpectedOwnerId || Snapshot.MatchEpoch != ExpectedEpoch
+        || !IsCurrentContext(Snapshot, OwnerId) || !Snapshot.bSkirmish || Snapshot.MatchEpoch <= 0
+        || Snapshot.MatchPhase != EProofMatchPhase::Playing || !FindPlayer(Snapshot, OwnerId)) return false;
+
+    const auto IsEligible = [&Snapshot, OwnerId](int32 Id, bool bMobileOnly)
+    {
+        const FProofUnitRecord* Unit = FindUnit(Snapshot, Id);
+        return Unit && IsOwnedLiveUnit(Snapshot, OwnerId, Id) && FMath::IsFinite(Unit->HitPoints)
+            && IsFiniteWorldPosition(Unit->Position) && (!bMobileOnly || CanMove(*Unit));
+    };
+    TArray<int32> Staged;
+    if (bAdditive)
+        for (int32 Id : SelectedUnitIds) if (IsEligible(Id, false)) Staged.AddUnique(Id);
+    TArray<int32> NewIds;
+    for (std::int32_t Id : Plan.UnitIds) if (IsEligible(Id, true)) NewIds.AddUnique(Id);
+    NewIds.Sort();
+    for (int32 Id : NewIds)
+    {
+        if (Staged.Num() >= MaxSelectedUnits) break;
+        Staged.AddUnique(Id);
+    }
+    Staged.Sort();
+    const int32 NextPrimary = bAdditive && Staged.Contains(PrimaryUnitId) ? PrimaryUnitId
+        : (Staged.IsEmpty() ? INDEX_NONE : Staged[0]);
+    // Validation/staging complete. No Toggle loop and no authoritative writes.
+    SelectedUnitIds = MoveTemp(Staged);
+    PrimaryUnitId = NextPrimary;
+    BumpSelectionRevision();
+    return true;
 }
 
 bool FProofSelectionState::IsViewportCenterVisible(const FVector2D& Center, const FIntPoint& Viewport)

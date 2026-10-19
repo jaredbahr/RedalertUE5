@@ -8,6 +8,7 @@
 #include "GameFramework/Pawn.h"
 #include "Presentation/ProofSelectionState.h"
 #include "Presentation/ProofTypeSelectGesture.h"
+#include "Presentation/ProofBoxSelectionGesture.h"
 #include "Presentation/ProofGroupOrderQueue.h"
 #include "ProofRTSPawn.generated.h"
 
@@ -35,6 +36,7 @@ public:
     FString GetManualInputStatus() const;
     bool IsInteractiveSession() const { return bInteractiveExitEnabled; }
     bool IsUsingBlockoutMesh() const { return bUsingBlockoutMesh; }
+    bool GetSelectionDragBounds(FBox2D& OutBounds) const;
 
 protected:
     virtual void BeginPlay() override;
@@ -65,6 +67,11 @@ private:
     int32 SelectedUnitId = INDEX_NONE;
     FProofSelectionState Selection;
     ProofTypeSelectGesture::State TypeGesture;
+    ProofBoxSelectionGesture::State BoxGesture;
+    bool ReadBoxSelectionContext(ProofBoxSelectionGesture::Context& OutContext, FVector2D& OutPointer) const;
+    bool BeginBoxSelection();
+    void TickBoxSelection();
+    void OnManualSelectRelease();
     FProofGroupOrderQueue GroupOrders;
     FVector CameraGroundCenter = FVector::ZeroVector;
     bool bCameraPanEnabled = false;
@@ -82,6 +89,7 @@ private:
     bool bViewportForeground = false;
     int32 FocusTransitions = 0;
     int32 ManualLeftPresses = 0;
+    int32 ManualLeftReleases = 0;
     int32 ManualRightPresses = 0;
     int32 ManualProducePresses = 0;
     int32 ManualStopPresses = 0;
