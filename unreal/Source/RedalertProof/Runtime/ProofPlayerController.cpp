@@ -11,6 +11,7 @@
 #include "HAL/PlatformMisc.h"
 #include "HAL/PlatformTime.h"
 #include "Misc/Paths.h"
+#include "Components/InputComponent.h"
 
 AProofPlayerController::AProofPlayerController()
 {
@@ -27,6 +28,27 @@ AProofPlayerController::AProofPlayerController()
     FParse::Value(FCommandLine::Get(), TEXT("ProofLifecycleRole="), LifecycleRole);
     FParse::Value(FCommandLine::Get(), TEXT("ProofLifecycleControl="), LifecycleControl);
     bLifecycleFixture = bSkirmishMode && !LifecycleRole.IsEmpty();
+    bInputBindingTrace = FParse::Param(FCommandLine::Get(), TEXT("ProofInputBindingFixture"));
+}
+
+void AProofPlayerController::BuildInputStack(TArray<UInputComponent*>& InputStack)
+{
+    Super::BuildInputStack(InputStack);
+    if (!bInputBindingTrace) return;
+    const APawn* Controlled = GetPawnOrSpectator();
+    UInputComponent* Component = Controlled ? Controlled->InputComponent.Get() : nullptr;
+    FixtureBuiltInput = Component && InputStack.Contains(Component) ? Component : nullptr;
+    FixtureBuiltInputFrame = GFrameCounter;
+}
+
+void AProofPlayerController::ProcessPlayerInput(float DeltaTime, bool bGamePaused)
+{
+    Super::ProcessPlayerInput(DeltaTime, bGamePaused);
+    if (bInputBindingTrace && FixtureBuiltInputFrame == GFrameCounter)
+    {
+        FixtureProcessedInput = FixtureBuiltInput;
+        FixtureProcessedInputFrame = GFrameCounter;
+    }
 }
 
 void AProofPlayerController::SynchronizeMatchEpoch()

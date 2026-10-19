@@ -9,6 +9,7 @@
 #include "HAL/PlatformMisc.h"
 #include "HAL/FileManager.h"
 #include "Misc/Paths.h"
+#include "Misc/FileHelper.h"
 
 AProofGameMode::AProofGameMode()
 {
@@ -23,6 +24,8 @@ AProofGameMode::AProofGameMode()
     bLifecycleFixtureHost = bSkirmish && FParse::Param(FCommandLine::Get(), TEXT("ProofLifecycleFixtureHost"));
     FParse::Value(FCommandLine::Get(), TEXT("ProofLifecycleControl="), LifecycleControl);
     bSkirmishFixtureHost = bSkirmish && !bLifecycleFixtureHost && FParse::Param(FCommandLine::Get(), TEXT("ProofSkirmishFixtureHost"));
+    bInputBindingServer = bSkirmish && FParse::Param(FCommandLine::Get(), TEXT("ProofInputBindingServer"));
+    FParse::Value(FCommandLine::Get(), TEXT("ProofInputBindingControl="), InputBindingControl);
     MatchEpoch = bSkirmish ? 1 : 0;
     // PostLogin may precede BeginPlay for the first local player.
     if (bSkirmish) Model.StartSkirmish();
@@ -39,6 +42,7 @@ void AProofGameMode::BeginPlay()
         Publish();
         UE_LOG(LogTemp, Display, TEXT("PROOF_SKIRMISH_READY fixture=%d"), bSkirmishFixtureHost ? 1 : 0);
         if (bLifecycleFixtureHost) UE_LOG(LogTemp, Display, TEXT("PROOF_LIFECYCLE_READY epoch=%d"), MatchEpoch);
+        if (bInputBindingServer) UE_LOG(LogTemp, Display, TEXT("PROOF_INPUT_BINDING_SERVER_READY epoch=%d"), MatchEpoch);
         return;
     }
     Model.AddPlayer(ProofOwnerIds::Bot);
@@ -218,6 +222,9 @@ bool AProofGameMode::RequestRematch(const AProofPlayerController* Controller, in
 void AProofGameMode::ResetSkirmishFixtureState()
 {
     SkirmishBot.Reset();
+    InputBindingBotSequence = 0;
+    bInputBindingDuelStarted = false;
+    // Last consumed control survives epochs so a stale duel cannot replay.
     SkirmishSeconds = 0.0;
     SkirmishTerminalAt = -1.f;
     bSkirmishTerminalPublished = false;
@@ -381,6 +388,7 @@ void AProofGameMode::Tick(float DeltaSeconds)
         FPlatformMisc::RequestExitWithStatus(false, bPass ? 0 : 1);
         return;
     }
+    if (bInputBindingServer) TickInputBindingFixture();
     Lifetime += DeltaSeconds;
     Accumulator += DeltaSeconds;
     if ((bSkirmishFixtureHost || bLifecycleFixtureHost) && !bSkirmishFixtureStarted)
@@ -411,7 +419,7 @@ void AProofGameMode::Tick(float DeltaSeconds)
             const FProofSnapshot Before = Model.GetSnapshot();
             if (Before.MatchPhase == EProofMatchPhase::Playing)
             {
-                for (FProofCommand Command : SkirmishBot.Decide(Before, ProofOwnerIds::Bot, SkirmishSeconds))
+                if (!bInputBindingServer) for (FProofCommand Command : SkirmishBot.Decide(Before, ProofOwnerIds::Bot, SkirmishSeconds))
                 {
                     Command.MatchEpoch = MatchEpoch;
                     SubmitForOwner(ProofOwnerIds::Bot, Command);
@@ -502,4 +510,84 @@ void AProofGameMode::Tick(float DeltaSeconds)
             bPass ? TEXT("pass") : TEXT("fail"), HumanAccepted, RejectedOwnership, BotAccepted, bMoved, bDamaged, bProduced);
         FPlatformMisc::RequestExitWithStatus(false, bPass ? 0 : 1);
     }
+}
+
+void AProofGameMode::TickInputBindingFixture()
+{
+    // Explicit local integration-fixture gate; never part of normal bot behavior.
+    auto Fail = [](const TCHAR* Reason)
+    {
+        UE_LOG(LogTemp, Error, TEXT("PROOF_INPUT_BINDING_COMPLETE role=host status=fail reason=%s"), Reason);
+        FPlatformMisc::RequestExitWithStatus(false, 1);
+    };
+    if (InputBindingControl.IsEmpty()) { Fail(TEXT("missing-control-path")); return; }
+    FString Control;
+    if (!FFileHelper::LoadFileToString(Control, *InputBindingControl)) return;
+    Control.TrimStartAndEndInline();
+    if (Control.IsEmpty() || Control == InputBindingLastControl) return;
+    InputBindingLastControl = Control;
+    if (Control == TEXT("finish"))
+    {
+        UE_LOG(LogTemp, Display, TEXT("PROOF_INPUT_BINDING_COMPLETE role=host status=pass epoch=%d duel=%d"), MatchEpoch, bInputBindingDuelStarted);
+        FPlatformMisc::RequestExitWithStatus(false, 0);
+        return;
+    }
+    if (!Control.StartsWith(TEXT("duel:")) || bInputBindingDuelStarted)
+    { Fail(TEXT("invalid-or-repeated-control")); return; }
+    int32 VictimId = INDEX_NONE;
+    if (!LexTryParseString(VictimId, *Control.Mid(5))) { Fail(TEXT("invalid-victim-id")); return; }
+    const FProofSnapshot Before = Model.GetSnapshot();
+    const FProofUnitRecord* Victim = Before.Units.FindByPredicate([VictimId](const FProofUnitRecord& Unit)
+    { return Unit.UnitId == VictimId && Unit.OwnerId == 1 && Unit.Kind == EProofUnitKind::Combat && Unit.HitPoints > 0.f; });
+    const FProofUnitRecord* HQ = Before.Units.FindByPredicate([](const FProofUnitRecord& Unit)
+    { return Unit.OwnerId == ProofOwnerIds::Bot && Unit.Kind == EProofUnitKind::HQ && Unit.HitPoints > 0.f; });
+    if (!Victim || !HQ || Before.MatchPhase != EProofMatchPhase::Playing)
+    { Fail(TEXT("invalid-duel-roster")); return; }
+    FProofCommand Build;
+    Build.Type = EProofCommandType::BuildFactory;
+    bool bBuilt = false;
+    const FVector Offsets[] = { FVector(350,0,0), FVector(-350,0,0), FVector(0,350,0), FVector(0,-350,0),
+        FVector(350,350,0), FVector(-350,350,0), FVector(350,-350,0), FVector(-350,-350,0) };
+    // Probe placement geometrically rather than submitting rejected sequence guesses.
+    for (const FVector& Offset : Offsets)
+    {
+        const FVector Candidate = HQ->Position + Offset;
+        bool bClear = FMath::Abs(Candidate.X) <= FProofCommandModel::WorldExtent && FMath::Abs(Candidate.Y) <= FProofCommandModel::WorldExtent;
+        for (const FProofUnitRecord& Unit : Before.Units)
+            if (Unit.HitPoints > 0.f && (Unit.Kind == EProofUnitKind::HQ || Unit.Kind == EProofUnitKind::Refinery || Unit.Kind == EProofUnitKind::Factory)
+                && FVector::DistSquared(Unit.Position, Candidate) < FMath::Square(250.0)) bClear = false;
+        if (!bClear) continue;
+        Build.Destination = Candidate;
+        Build.Sequence = ++InputBindingBotSequence;
+        Build.MatchEpoch = MatchEpoch;
+        const FProofCommandResult Result = SubmitForOwner(ProofOwnerIds::Bot, Build);
+        if (!Result.bAccepted) { Fail(TEXT("factory-rejected")); return; }
+        bBuilt = true;
+        break;
+    }
+    if (!bBuilt) { Fail(TEXT("no-valid-factory-placement")); return; }
+    FProofSnapshot Snapshot = Model.GetSnapshot();
+    const FProofUnitRecord* Factory = Snapshot.Units.FindByPredicate([](const FProofUnitRecord& Unit)
+    { return Unit.OwnerId == ProofOwnerIds::Bot && Unit.Kind == EProofUnitKind::Factory && Unit.HitPoints > 0.f; });
+    if (!Factory) { Fail(TEXT("factory-not-observed")); return; }
+    FProofCommand Produce;
+    Produce.Type = EProofCommandType::Produce;
+    Produce.UnitId = Factory->UnitId;
+    Produce.Sequence = ++InputBindingBotSequence;
+    Produce.MatchEpoch = MatchEpoch;
+    if (!SubmitForOwner(ProofOwnerIds::Bot, Produce).bAccepted) { Fail(TEXT("produce-rejected")); return; }
+    Snapshot = Model.GetSnapshot();
+    const FProofUnitRecord* Attacker = Snapshot.Units.FindByPredicate([](const FProofUnitRecord& Unit)
+    { return Unit.OwnerId == ProofOwnerIds::Bot && Unit.Kind == EProofUnitKind::Combat && Unit.HitPoints > 0.f; });
+    if (!Attacker) { Fail(TEXT("attacker-not-observed")); return; }
+    FProofCommand Attack;
+    Attack.Type = EProofCommandType::Attack;
+    Attack.UnitId = Attacker->UnitId;
+    Attack.TargetUnitId = VictimId;
+    Attack.Sequence = ++InputBindingBotSequence;
+    Attack.MatchEpoch = MatchEpoch;
+    if (!SubmitForOwner(ProofOwnerIds::Bot, Attack).bAccepted) { Fail(TEXT("attack-rejected")); return; }
+    bInputBindingDuelStarted = true;
+    Publish();
+    UE_LOG(LogTemp, Display, TEXT("PROOF_INPUT_BINDING_DUEL epoch=%d victim=%d attacker=%d commandsAccepted=3"), MatchEpoch, VictimId, Attacker->UnitId);
 }
