@@ -177,13 +177,29 @@ function Assert-AMJsonKeyDecodingCompatibility {
             if(-not $duplicateRejected){throw "JSON reader accepted duplicate: $($reader.name) $text"}
             $jsonChecks++
         }
+        # The hot-loop guards still reject at the exact original boundary.
+        $guardRows=@(
+            @{text='}';reason='unbalanced JSON'},
+            @{text='"id":1';reason=$(if($reader.name -eq 'JsonRow'){'JSON key outside object'}else{'key outside object'})},
+            @{text='["id":1]';reason=$(if($reader.name -eq 'JsonRow'){'JSON key outside object'}else{'key outside object'})},
+            @{text='{"id":1,"id":2}';reason='duplicate JSON key'},
+            @{text='{"id":1},"id":2';reason=$(if($reader.name -eq 'JsonRow'){'JSON key outside object'}else{'key outside object'})},
+            @{text='{"id":1}}';reason='unbalanced JSON'}
+        )
+        $guardPrefix=if($reader.name -eq 'JsonRow'){'Refinery/miner evidence: '}else{'Attack Move evidence: '}
+        foreach($guard in $guardRows){
+            $guardRejected=$false
+            try{& $reader.name $guard.text|Out-Null}catch{if($_.Exception.Message -cne ($guardPrefix+$guard.reason)){throw};$guardRejected=$true}
+            if(-not $guardRejected){throw "JSON reader accepted malformed token stream: $($reader.name) $($guard.text)"}
+            $jsonChecks++
+        }
         # Repeated fresh calls and a rejection in between cannot retain a seen-key set.
         for($repeat=0;$repeat -lt 2;$repeat++){
             $actual=& $reader.name '{"id":7}'
             if($actual.id -ne 7){throw "JSON reader leaked row state: $($reader.name)"};$jsonChecks++
         }
     }
-    if($jsonChecks -ne 36){throw "Unexpected JSON reader control count: $jsonChecks"}
+    if($jsonChecks -ne 48){throw "Unexpected JSON reader control count: $jsonChecks"}
     Write-Output "JSON key decoding compatibility: $jsonChecks focused checks passed."
 }
 Assert-AMJsonKeyDecodingCompatibility

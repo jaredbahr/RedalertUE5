@@ -13,8 +13,8 @@ function Get-AttackMoveEvidence {
         foreach($m in [regex]::Matches($Text,'"(?:\\.|[^"\\])*"\s*:|[{}\[\]]')) {
             $t=$m.Value
             if($t -eq '{'){$stack.Add(@{})}elseif($t -eq '['){$stack.Add($null)}
-            elseif($t -in @('}',']')){Require ($stack.Count -gt 0) 'unbalanced JSON';$stack.RemoveAt($stack.Count-1)}
-            else{Require ($stack.Count -gt 0 -and $null -ne $stack[$stack.Count-1]) 'key outside object';if(-not $decodedJsonKeyTokens.ContainsKey($t)){$decodedJsonKeyTokens[$t]=($t -replace '\s*:$',''|ConvertFrom-Json)};$key=$decodedJsonKeyTokens[$t];Require (-not $stack[$stack.Count-1].ContainsKey($key)) 'duplicate JSON key';$stack[$stack.Count-1][$key]=$true}
+            elseif($t -in @('}',']')){if(-not ($stack.Count -gt 0)){throw 'Attack Move evidence: unbalanced JSON'};$stack.RemoveAt($stack.Count-1)}
+            else{if(-not ($stack.Count -gt 0 -and $null -ne $stack[$stack.Count-1])){throw 'Attack Move evidence: key outside object'};if(-not $decodedJsonKeyTokens.ContainsKey($t)){$decodedJsonKeyTokens[$t]=($t -replace '\s*:$',''|ConvertFrom-Json)};$key=$decodedJsonKeyTokens[$t];if(-not (-not $stack[$stack.Count-1].ContainsKey($key))){throw 'Attack Move evidence: duplicate JSON key'};$stack[$stack.Count-1][$key]=$true}
         }
         Require ($stack.Count -eq 0) 'unbalanced JSON'
         $o=$Text|ConvertFrom-Json -Depth 12 -NoEnumerate -ErrorAction Stop

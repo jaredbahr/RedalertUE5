@@ -113,8 +113,8 @@ function Get-RefineryMinerEvidence {
             $t=$m.Value
             if($t -eq '{') { $stack.Add(@{}) }
             elseif($t -eq '[') { $stack.Add($null) }
-            elseif($t -in @('}',']')) { Require ($stack.Count -gt 0) 'unbalanced JSON'; $stack.RemoveAt($stack.Count-1) }
-            else { Require ($stack.Count -gt 0 -and $null -ne $stack[$stack.Count-1]) 'JSON key outside object'; if(-not $decodedJsonKeyTokens.ContainsKey($t)){$decodedJsonKeyTokens[$t]=($t -replace '\s*:$',''|ConvertFrom-Json)};$k=$decodedJsonKeyTokens[$t]; Require (-not $stack[$stack.Count-1].ContainsKey($k)) 'duplicate JSON key'; $stack[$stack.Count-1][$k]=$true }
+            elseif($t -in @('}',']')) { if(-not ($stack.Count -gt 0)){throw 'Refinery/miner evidence: unbalanced JSON'}; $stack.RemoveAt($stack.Count-1) }
+            else { if(-not ($stack.Count -gt 0 -and $null -ne $stack[$stack.Count-1])){throw 'Refinery/miner evidence: JSON key outside object'}; if(-not $decodedJsonKeyTokens.ContainsKey($t)){$decodedJsonKeyTokens[$t]=($t -replace '\s*:$',''|ConvertFrom-Json)};$k=$decodedJsonKeyTokens[$t]; if(-not (-not $stack[$stack.Count-1].ContainsKey($k))){throw 'Refinery/miner evidence: duplicate JSON key'}; $stack[$stack.Count-1][$k]=$true }
         }
         Require ($stack.Count -eq 0) 'unbalanced JSON'
         try { $o=$Text | ConvertFrom-Json -NoEnumerate -Depth 16 -ErrorAction Stop } catch { throw 'Refinery/miner evidence: malformed JSON' }
