@@ -106,12 +106,15 @@ function Get-RefineryMinerEvidence {
         # Schema keys contain only ASCII names, so reject repeated names at each object
         # using the token reader before ConvertFrom-Json can silently overwrite them.
         $stack=[Collections.Generic.List[object]]::new()
+        # Cache only pure key-token decoding within this bounded row. Every
+        # occurrence still participates in its own object's duplicate check.
+        $decodedJsonKeyTokens=[Collections.Generic.Dictionary[string,object]]::new([StringComparer]::Ordinal)
         foreach($m in [regex]::Matches($Text,'"(?:\\.|[^"\\])*"\s*:|[{}\[\]]')) {
             $t=$m.Value
             if($t -eq '{') { $stack.Add(@{}) }
             elseif($t -eq '[') { $stack.Add($null) }
             elseif($t -in @('}',']')) { Require ($stack.Count -gt 0) 'unbalanced JSON'; $stack.RemoveAt($stack.Count-1) }
-            else { Require ($stack.Count -gt 0 -and $null -ne $stack[$stack.Count-1]) 'JSON key outside object'; $k=($t -replace '\s*:$','' | ConvertFrom-Json); Require (-not $stack[$stack.Count-1].ContainsKey($k)) 'duplicate JSON key'; $stack[$stack.Count-1][$k]=$true }
+            else { Require ($stack.Count -gt 0 -and $null -ne $stack[$stack.Count-1]) 'JSON key outside object'; if(-not $decodedJsonKeyTokens.ContainsKey($t)){$decodedJsonKeyTokens[$t]=($t -replace '\s*:$',''|ConvertFrom-Json)};$k=$decodedJsonKeyTokens[$t]; Require (-not $stack[$stack.Count-1].ContainsKey($k)) 'duplicate JSON key'; $stack[$stack.Count-1][$k]=$true }
         }
         Require ($stack.Count -eq 0) 'unbalanced JSON'
         try { $o=$Text | ConvertFrom-Json -NoEnumerate -Depth 16 -ErrorAction Stop } catch { throw 'Refinery/miner evidence: malformed JSON' }

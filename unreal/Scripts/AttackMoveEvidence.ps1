@@ -7,11 +7,14 @@ function Get-AttackMoveEvidence {
     function Row([string]$Text,[int]$Cap=8192) {
         Require ($Text.Length -le $Cap) 'oversized JSON observation'
         $stack=[Collections.Generic.List[object]]::new()
+        # Cache only pure key-token decoding within this bounded row. Every
+        # occurrence still participates in its own object's duplicate check.
+        $decodedJsonKeyTokens=[Collections.Generic.Dictionary[string,object]]::new([StringComparer]::Ordinal)
         foreach($m in [regex]::Matches($Text,'"(?:\\.|[^"\\])*"\s*:|[{}\[\]]')) {
             $t=$m.Value
             if($t -eq '{'){$stack.Add(@{})}elseif($t -eq '['){$stack.Add($null)}
             elseif($t -in @('}',']')){Require ($stack.Count -gt 0) 'unbalanced JSON';$stack.RemoveAt($stack.Count-1)}
-            else{Require ($stack.Count -gt 0 -and $null -ne $stack[$stack.Count-1]) 'key outside object';$key=($t -replace '\s*:$',''|ConvertFrom-Json);Require (-not $stack[$stack.Count-1].ContainsKey($key)) 'duplicate JSON key';$stack[$stack.Count-1][$key]=$true}
+            else{Require ($stack.Count -gt 0 -and $null -ne $stack[$stack.Count-1]) 'key outside object';if(-not $decodedJsonKeyTokens.ContainsKey($t)){$decodedJsonKeyTokens[$t]=($t -replace '\s*:$',''|ConvertFrom-Json)};$key=$decodedJsonKeyTokens[$t];Require (-not $stack[$stack.Count-1].ContainsKey($key)) 'duplicate JSON key';$stack[$stack.Count-1][$key]=$true}
         }
         Require ($stack.Count -eq 0) 'unbalanced JSON'
         $o=$Text|ConvertFrom-Json -Depth 12 -NoEnumerate -ErrorAction Stop

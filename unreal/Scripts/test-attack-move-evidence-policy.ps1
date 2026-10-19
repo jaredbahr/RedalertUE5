@@ -133,6 +133,61 @@ function New-SyntheticAttackMoveLogs {
 function Edit-AMRows($Logs,[string]$Role,[string]$Marker,[scriptblock]$Edit) {
     $Logs[$Role]=($Logs[$Role] -split '\r?\n'|ForEach-Object{if($_.StartsWith($Marker+' ')){$o=$_.Substring($Marker.Length+1)|ConvertFrom-Json -Depth 12;&$Edit $o;$Marker+' '+($o|ConvertTo-Json -Depth 12 -Compress)}else{$_}})-join "`n"
 }
+# Exercise the actual nested JSON readers, isolated from the full fixture state.
+# This adds small cache-equivalence controls; the original 60 cases stay intact.
+function Assert-AMJsonKeyDecodingCompatibility {
+    function Require($Value,[string]$Why){if(-not $Value){throw "JSON reader test: $Why"}}
+    $jsonChecks=0
+    $validRows=@(
+        '{"items":[{"id":1,"value":7},{"id":2,"value":8}]}',
+        '{"items":[{"id":1},{"ID":2},{"\u0069d":3}]}',
+        '{"outer":{"id":1},"id":2}',
+        '{"items":[{"a\\b":1},{"a\\b":2},{"a\"b":3},{"a\"b":4}]}',
+        '{"items":[{"\u00e9":1},{"\u00E9":2}]}',
+        '{"items":[{"id" :1},{"id"  :2},{"id":3}]}',
+        '{"items":[{"id":1},{"id":2}],"other":{"id":3}}'
+    )
+    $duplicateRows=@(
+        '{"id":1,"id":2}',
+        '{"id":1,"\u0069d":2}',
+        '{"id":1,"ID":2}',
+        '{"\u00e9":1,"\u00E9":2}',
+        '{"items":[{"id":0},{"id":1,"id":2}]}',
+        '{"outer":{"id":0},"id":1,"id":2}',
+        '{"id" :1,"id":2}',
+        '{"a\\b":1,"a\u005cb":2}',
+        '{"a\"b":1,"a\u0022b":2}'
+    )
+    foreach($reader in @(@{file='AttackMoveEvidence.ps1';name='Row'},@{file='RefineryMinerEvidence.ps1';name='JsonRow'})) {
+        $tokens=$null;$errors=$null
+        $ast=[System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot $reader.file),[ref]$tokens,[ref]$errors)
+        if($errors.Count){throw "JSON reader syntax errors: $($reader.file)"}
+        $definitions=@($ast.FindAll({param($node)$node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $reader.name},$true))
+        if($definitions.Count -ne 1){throw "Missing/ambiguous actual JSON reader: $($reader.name)"}
+        . ([scriptblock]::Create($definitions[0].Extent.Text))
+        foreach($text in $validRows){
+            $actual=& $reader.name $text
+            $expected=ConvertFrom-Json -InputObject $text -Depth 16 -NoEnumerate
+            if(($actual|ConvertTo-Json -Depth 16 -Compress) -cne ($expected|ConvertTo-Json -Depth 16 -Compress)){throw "JSON reader changed decoded value: $($reader.name)"}
+            $jsonChecks++
+        }
+        foreach($text in $duplicateRows){
+            $duplicateRejected=$false
+            try{& $reader.name $text|Out-Null}catch{if($_.Exception.Message -notmatch 'duplicate JSON key'){throw};$duplicateRejected=$true}
+            if(-not $duplicateRejected){throw "JSON reader accepted duplicate: $($reader.name) $text"}
+            $jsonChecks++
+        }
+        # Repeated fresh calls and a rejection in between cannot retain a seen-key set.
+        for($repeat=0;$repeat -lt 2;$repeat++){
+            $actual=& $reader.name '{"id":7}'
+            if($actual.id -ne 7){throw "JSON reader leaked row state: $($reader.name)"};$jsonChecks++
+        }
+    }
+    if($jsonChecks -ne 36){throw "Unexpected JSON reader control count: $jsonChecks"}
+    Write-Output "JSON key decoding compatibility: $jsonChecks focused checks passed."
+}
+Assert-AMJsonKeyDecodingCompatibility
+
 $amChecks=0
 function Reject-AM([string]$Name,[scriptblock]$Mutate) {
     $logs=New-SyntheticAttackMoveLogs;$before=$logs|ConvertTo-Json -Depth 3 -Compress;&$Mutate $logs
