@@ -24,9 +24,11 @@ FString FProofSnapshot::ComputeDigest() const
     TArray<FProofPlayerRecord> SortedPlayers = Players;
     TArray<FProofUnitRecord> SortedUnits = Units;
     TArray<FProofResourceRecord> SortedResources = Resources;
+    TArray<FProofProductionJob> SortedJobs = ProductionJobs;
     SortedPlayers.Sort([](const FProofPlayerRecord& A, const FProofPlayerRecord& B) { return A.OwnerId < B.OwnerId; });
     SortedUnits.Sort([](const FProofUnitRecord& A, const FProofUnitRecord& B) { return A.UnitId < B.UnitId; });
     SortedResources.Sort([](const FProofResourceRecord& A, const FProofResourceRecord& B) { return A.ResourceId < B.ResourceId; });
+    SortedJobs.Sort([](const FProofProductionJob& A, const FProofProductionJob& B) { return A.OwnerId < B.OwnerId; });
     FString Canonical = FString::Printf(TEXT("revision:%d;epoch:%d;skirmish:%d;phase:%d;winner:%d;"),
         Revision, MatchEpoch, bSkirmish ? 1 : 0, static_cast<int32>(MatchPhase), WinnerTeam);
     for (const FProofPlayerRecord& Player : SortedPlayers)
@@ -60,6 +62,11 @@ FString FProofSnapshot::ComputeDigest() const
     {
         Canonical += FString::Printf(TEXT("r:%d,%d,%.17g,%.17g,%.17g,%d;"), Resource.ResourceId,
             Resource.OwnerId, Resource.Position.X, Resource.Position.Y, Resource.Position.Z, Resource.Remaining);
+    }
+    for (const FProofProductionJob& Job : SortedJobs)
+    {
+        Canonical += FString::Printf(TEXT("j:%d,%d,%d,%d,%d,%d;"), Job.OwnerId,
+            Job.StartSequence, Job.FactoryId, Job.WorkMicroseconds, Job.PaidCredits, Job.bHeld ? 1 : 0);
     }
     return FMD5::HashAnsiString(*Canonical);
 }
@@ -252,6 +259,7 @@ bool FProofCommandModel::RemoveSkirmishPlayer(int32 OwnerId)
     State.Players.RemoveAll([OwnerId](const FProofPlayerRecord& Player) { return Player.OwnerId == OwnerId; });
     State.Units.RemoveAll([OwnerId](const FProofUnitRecord& Unit) { return Unit.OwnerId == OwnerId; });
     State.Resources.RemoveAll([OwnerId](const FProofResourceRecord& Resource) { return Resource.OwnerId == OwnerId; });
+    State.ProductionJobs.RemoveAll([OwnerId](const FProofProductionJob& Job) { return Job.OwnerId == OwnerId; });
     LastSequences.Remove(OwnerId);
     CommandCounts.Remove(OwnerId);
     for (auto It = Orders.CreateIterator(); It; ++It)
@@ -419,13 +427,17 @@ FProofCommandResult FProofCommandModel::Submit(int32 TrustedOwnerId, const FProo
     const bool bAttackMove = Command.Type == EProofCommandType::AttackMove;
     const bool bReturnCargo = Command.Type == EProofCommandType::ReturnCargo;
     const bool bAreaGuard = Command.Type == EProofCommandType::AreaGuard;
-    if ((!bMove && !bAttack && !bProduce && !bBuildRefinery && !bBuildFactory && !bGather && !bStop && !bSetRally && !bAttackMove && !bReturnCargo && !bAreaGuard)
-        || ((!State.bSkirmish) && (bBuildRefinery || bBuildFactory || bGather || bSetRally || bAttackMove || bReturnCargo || bAreaGuard)) || Command.Sequence <= 0
+    const bool bHoldProduction = Command.Type == EProofCommandType::HoldProduction;
+    const bool bResumeProduction = Command.Type == EProofCommandType::ResumeProduction;
+    const bool bCancelProduction = Command.Type == EProofCommandType::CancelProduction;
+    const bool bProductionControl = bHoldProduction || bResumeProduction || bCancelProduction;
+    if ((!bMove && !bAttack && !bProduce && !bBuildRefinery && !bBuildFactory && !bGather && !bStop && !bSetRally && !bAttackMove && !bReturnCargo && !bAreaGuard && !bProductionControl)
+        || ((!State.bSkirmish) && (bBuildRefinery || bBuildFactory || bGather || bSetRally || bAttackMove || bReturnCargo || bAreaGuard || bProductionControl)) || Command.Sequence <= 0
         || !IsFinitePosition(Command.Destination)
-        || ((bMove || bAttackMove || bAttack || bGather || bStop || bSetRally || bReturnCargo || bAreaGuard || (State.bSkirmish && bProduce)) && Command.UnitId <= 0)
-        || ((bAttack || bGather || bReturnCargo) && Command.TargetUnitId <= 0)
+        || ((bMove || bAttackMove || bAttack || bGather || bStop || bSetRally || bReturnCargo || bAreaGuard || bProductionControl || (State.bSkirmish && bProduce)) && Command.UnitId <= 0)
+        || ((bAttack || bGather || bReturnCargo || bProductionControl) && Command.TargetUnitId <= 0)
         || ((bSetRally || bAttackMove || bAreaGuard) && Command.TargetUnitId != INDEX_NONE)
-        || (bAreaGuard && Command.Destination != FVector::ZeroVector))
+        || ((bAreaGuard || bProductionControl) && Command.Destination != FVector::ZeroVector))
     {
         return Reject(TEXT("malformed"));
     }
@@ -439,41 +451,60 @@ FProofCommandResult FProofCommandModel::Submit(int32 TrustedOwnerId, const FProo
     int32& Count = CommandCounts.FindChecked(TrustedOwnerId);
     if (Count >= CommandsPerAdvance) { return Reject(TEXT("rate")); }
     ++Count;
-    if (bProduce)
+    if (bProductionControl)
+    {
+        // A cancelled/destroyed factory can leave a refund liability. Validate
+        // the owned job identity before the generic live-unit ownership branch.
+        FProofProductionJob* Job = State.ProductionJobs.FindByPredicate([TrustedOwnerId](const FProofProductionJob& J)
+            { return J.OwnerId == TrustedOwnerId; });
+        if (!Job || Job->FactoryId != Command.UnitId || Job->StartSequence != Command.TargetUnitId)
+        { return Reject(TEXT("production")); }
+        FProofPlayerRecord* Player = State.Players.FindByPredicate([TrustedOwnerId](const FProofPlayerRecord& P)
+            { return P.OwnerId == TrustedOwnerId; });
+        if (!Player) { return Reject(TEXT("unknown-player")); }
+        if (bCancelProduction)
+        {
+            if (static_cast<int64>(Player->Credits) + Job->PaidCredits > MAX_int32)
+            { return Reject(TEXT("refund-capacity")); }
+            Player->Credits += Job->PaidCredits;
+            State.ProductionJobs.RemoveAll([TrustedOwnerId](const FProofProductionJob& J) { return J.OwnerId == TrustedOwnerId; });
+        }
+        else
+        {
+            Job->bHeld = bHoldProduction;
+        }
+    }
+    else if (bProduce)
     {
         FProofPlayerRecord* Player = State.Players.FindByPredicate([TrustedOwnerId](const FProofPlayerRecord& P) { return P.OwnerId == TrustedOwnerId; });
-        if (!Player || Player->Credits < ProductionCost) { return Reject(TEXT("resources")); }
+        if (!Player) { return Reject(TEXT("resources")); }
         if (State.bSkirmish)
         {
             const FProofUnitRecord* Factory = State.Units.FindByPredicate([&Command](const FProofUnitRecord& U) { return U.UnitId == Command.UnitId; });
             if (!Factory || Factory->OwnerId != TrustedOwnerId || Factory->Kind != EProofUnitKind::Factory || Factory->HitPoints <= 0.f)
-            {
-                return Reject(TEXT("factory"));
-            }
-            if (CountLiveOwnerUnits(TrustedOwnerId) >= SkirmishRecordCap) { return Reject(TEXT("capacity")); }
+            { return Reject(TEXT("factory")); }
+            if (State.ProductionJobs.ContainsByPredicate([TrustedOwnerId](const FProofProductionJob& J) { return J.OwnerId == TrustedOwnerId; }))
+            { return Reject(TEXT("production-busy")); }
+            if (CountLiveOwnerUnits(TrustedOwnerId) >= SkirmishRecordCap || NextUnitId == MAX_int32)
+            { return Reject(TEXT("capacity")); }
+            FProofProductionJob Job;
+            Job.OwnerId = TrustedOwnerId;
+            Job.StartSequence = Command.Sequence;
+            Job.FactoryId = Command.UnitId;
+            State.ProductionJobs.Add(Job);
+            State.ProductionJobs.Sort([](const FProofProductionJob& A, const FProofProductionJob& B) { return A.OwnerId < B.OwnerId; });
         }
-        const FProofUnitRecord* Anchor = State.bSkirmish
-            ? State.Units.FindByPredicate([&Command](const FProofUnitRecord& U) { return U.UnitId == Command.UnitId; })
-            : State.Units.FindByPredicate([TrustedOwnerId](const FProofUnitRecord& U) { return U.OwnerId == TrustedOwnerId && U.HitPoints > 0.f; });
-        FVector Spawn = Anchor ? Anchor->Position : FVector::ZeroVector;
-        if (State.bSkirmish)
+        else
         {
-            if (!FindSkirmishSpawn(State, Anchor->Position, Spawn)) { return Reject(TEXT("spawn")); }
+            // Preserve the separate legacy non-skirmish command proof.
+            if (Player->Credits < ProductionCost) { return Reject(TEXT("resources")); }
+            const FProofUnitRecord* Anchor = State.Units.FindByPredicate([TrustedOwnerId](const FProofUnitRecord& U)
+                { return U.OwnerId == TrustedOwnerId && U.HitPoints > 0.f; });
+            const FVector Spawn = Anchor ? Anchor->Position : FVector::ZeroVector;
+            if (AddUnit(TrustedOwnerId, Spawn, EProofUnitKind::Combat, 100.f) == INDEX_NONE)
+            { return Reject(TEXT("capacity")); }
+            Player->Credits -= ProductionCost;
         }
-        // AddUnit can reallocate State.Units. Copy the validated factory state
-        // before spawning, then use only the returned ID for its ordinary Move.
-        const bool bApplyRally = State.bSkirmish && Anchor->bHasRallyPoint;
-        const FVector RallyPoint = bApplyRally ? Anchor->RallyPoint : FVector::ZeroVector;
-        const int32 ProducedId = AddUnit(TrustedOwnerId, Spawn, EProofUnitKind::Combat, 100.f);
-        if (ProducedId == INDEX_NONE) { return Reject(TEXT("capacity")); }
-        if (bApplyRally)
-        {
-            FOrder Order;
-            Order.Type = EProofCommandType::Move;
-            Order.Destination = RallyPoint;
-            Orders.Add(ProducedId, Order);
-        }
-        Player->Credits -= ProductionCost;
     }
     else if (bSetRally)
     {
@@ -894,6 +925,9 @@ void FProofCommandModel::Advance(float DeltaSeconds)
             BumpRevision();
             return;
         }
+        // Existing jobs use the cash available before this step's deposits.
+        // A new unit is released after movement/damage and cannot act this step.
+        AdvanceProduction(DeltaSeconds);
         // Extraction and deposit happen only after travel and combat. Unit IDs
         // are assigned in insertion order, giving contested ore a stable order.
         for (FProofUnitRecord& Unit : State.Units)
@@ -949,6 +983,66 @@ void FProofCommandModel::Advance(float DeltaSeconds)
         }
     }
     BumpRevision();
+}
+
+void FProofCommandModel::AdvanceProduction(float DeltaSeconds)
+{
+    // The positive finite Advance guard has already run. Clamp before converting
+    // so even the largest float cannot overflow the quantized work calculation.
+    const int32 Work = DeltaSeconds >= ProductionDurationSeconds ? ProductionWorkMicroseconds
+        : static_cast<int32>(std::floor(static_cast<double>(DeltaSeconds) * 1000000.0 + 0.5));
+    for (int32 Index = 0; Index < State.ProductionJobs.Num();)
+    {
+        FProofProductionJob& Job = State.ProductionJobs[Index];
+        FProofPlayerRecord* Player = State.Players.FindByPredicate([&Job](const FProofPlayerRecord& P) { return P.OwnerId == Job.OwnerId; });
+        const FProofUnitRecord* Factory = State.Units.FindByPredicate([&Job](const FProofUnitRecord& U)
+            { return U.UnitId == Job.FactoryId && U.OwnerId == Job.OwnerId && U.Kind == EProofUnitKind::Factory && U.HitPoints > 0.f; });
+        check(Player);
+        if (!Factory)
+        {
+            // Loss refunds take precedence over manual hold. If representation
+            // is full, retain the exact liability until spending makes room.
+            if (static_cast<int64>(Player->Credits) + Job.PaidCredits <= MAX_int32)
+            {
+                Player->Credits += Job.PaidCredits;
+                State.ProductionJobs.RemoveAt(Index);
+                continue;
+            }
+            ++Index;
+            continue;
+        }
+        if (Job.bHeld) { ++Index; continue; }
+        const int32 AffordableCredits = Job.PaidCredits + FMath::Min(Player->Credits, ProductionCost - Job.PaidCredits);
+        const int32 Limit = AffordableCredits * ProductionWorkPerCredit;
+        const int32 NextWork = FMath::Min(Job.WorkMicroseconds + Work, Limit);
+        const int32 NextPaid = (NextWork + ProductionWorkPerCredit - 1) / ProductionWorkPerCredit;
+        Player->Credits -= NextPaid - Job.PaidCredits;
+        Job.WorkMicroseconds = NextWork;
+        Job.PaidCredits = NextPaid;
+        if (Job.WorkMicroseconds == ProductionWorkMicroseconds
+            && CountLiveOwnerUnits(Job.OwnerId) < SkirmishRecordCap && NextUnitId != MAX_int32)
+        {
+            FVector Spawn = FVector::ZeroVector;
+            if (FindSkirmishSpawn(State, Factory->Position, Spawn))
+            {
+                // AddUnit can reallocate Units. Copy factory state before it.
+                const bool bRally = Factory->bHasRallyPoint;
+                const FVector Point = Factory->RallyPoint;
+                const int32 UnitId = AddUnit(Job.OwnerId, Spawn, EProofUnitKind::Combat, 100.f);
+                check(UnitId != INDEX_NONE);
+                if (bRally)
+                {
+                    FOrder Order;
+                    Order.Type = EProofCommandType::Move;
+                    Order.Destination = Point;
+                    Orders.Add(UnitId, Order);
+                }
+                State.ProductionJobs.RemoveAt(Index);
+                continue;
+            }
+        }
+        ++Index;
+    }
 }
 
 FProofSnapshot FProofCommandModel::GetSnapshot() const

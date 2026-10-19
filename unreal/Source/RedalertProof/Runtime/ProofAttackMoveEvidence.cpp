@@ -1,6 +1,8 @@
 #include "Runtime/ProofAttackMoveEvidence.h"
+#include "Runtime/ProofProductionAccounting.h"
 #include "Dom/JsonObject.h"
 #include "Serialization/JsonSerializer.h"
+#include "Serialization/JsonReader.h"
 #include "Serialization/JsonWriter.h"
 #include "HAL/PlatformMisc.h"
 #include "Misc/CommandLine.h"
@@ -17,7 +19,8 @@ void AttackMoveJsonLog(const TCHAR* Marker, const TSharedRef<FJsonObject>& Row)
 {
     FString Json;
     const auto Writer = TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&Json);
-    if (!FJsonSerializer::Serialize(Row, Writer) || Json.Len() > 8192)
+    const int32 Limit = FCString::Strcmp(Marker, TEXT("PROOF_ATTACK_MOVE_COMMAND")) == 0 ? 128 * 1024 : 8192;
+    if (!FJsonSerializer::Serialize(Row, Writer) || Json.Len() > Limit)
     { AttackMoveEvidenceFail(TEXT("event_serialization_or_size")); return; }
     UE_LOG(LogTemp, Display, TEXT("%s %s"), Marker, *Json);
 }
@@ -63,6 +66,13 @@ void FProofAttackMoveEvidence::ObserveCommand(int32 Epoch, int32 Owner, const FP
     Row->SetNumberField(TEXT("hp"), Source ? Source->HitPoints : 0.0);
     Row->SetNumberField(TEXT("visibleUnchanged"), bVisibleUnchanged ? 1 : 0);
     Row->SetArrayField(TEXT("beforeIds"), AttackMoveIds(Before)); Row->SetArrayField(TEXT("afterIds"), AttackMoveIds(After));
+    TSharedPtr<FJsonObject> ProductionBefore, ProductionAfter;
+    const auto BeforeReader = TJsonReaderFactory<>::Create(ProofProductionAccounting::ContextJson(Before));
+    const auto AfterReader = TJsonReaderFactory<>::Create(ProofProductionAccounting::ContextJson(After));
+    if (!FJsonSerializer::Deserialize(BeforeReader, ProductionBefore) || !FJsonSerializer::Deserialize(AfterReader, ProductionAfter)
+        || !ProductionBefore.IsValid() || !ProductionAfter.IsValid())
+    { AttackMoveEvidenceFail(TEXT("production_context_serialization")); return; }
+    Row->SetObjectField(TEXT("productionBefore"), ProductionBefore); Row->SetObjectField(TEXT("productionAfter"), ProductionAfter);
     AttackMoveJsonLog(TEXT("PROOF_ATTACK_MOVE_COMMAND"), Row);
 }
 void FProofAttackMoveEvidence::LogClock(int32 Epoch, const FProofSnapshot& Snapshot, double SimulatedSeconds)

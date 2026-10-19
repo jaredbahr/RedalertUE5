@@ -1,4 +1,5 @@
 #include "Runtime/ProofRefineryMinerEvidence.h"
+#include "Runtime/ProofProductionAccounting.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
 #include "HAL/PlatformMisc.h"
@@ -120,6 +121,12 @@ void FProofRefineryMinerEvidence::ObserveAdvance(int32 NewEpoch, const FProofSna
     };
     const int64 BeforeOre = ConservedOre(Before), AfterOre = ConservedOre(After);
     if (BeforeOre < 0 || AfterOre != BeforeOre) { Fail(TEXT("ore-conservation")); return; }
+    for (const FProofPlayerRecord& P : Before.Players)
+    {
+        int32 Payment = 0, Refund = 0;
+        if (!ProofProductionAccounting::ValidateAdvance(Before, After, P.OwnerId, Payment, Refund))
+        { Fail(TEXT("production-ledger")); return; }
+    }
     for (FGrant& G : Grants)
     {
         if (!G.bGather || G.bDeposited) continue;
@@ -151,13 +158,16 @@ void FProofRefineryMinerEvidence::ObserveAdvance(int32 NewEpoch, const FProofSna
                     Contributors += FString::Printf(TEXT("{\"miner\":%d,\"before\":%d,\"after\":%d,\"depot\":%d}"), U.UnitId, U.Cargo, V->Cargo, DepositRefinery(After, *V)->UnitId);
                 }
             }
-            if (!Depot || !Prior || !Current || Current->Credits - Prior->Credits != DepositSum
+            int32 Payment = 0, Refund = 0;
+            if (!ProofProductionAccounting::ValidateAdvance(Before, After, G.Owner, Payment, Refund))
+            { Fail(TEXT("deposit-production-ledger")); return; }
+            if (!Depot || !Prior || !Current || static_cast<int64>(Current->Credits) - Prior->Credits != DepositSum - Payment + Refund
                 || Current->TotalGathered - Prior->TotalGathered != DepositSum || DepositSum < A->Cargo)
             { Fail(TEXT("deposit-attribution")); return; }
             G.bDeposited = true;
-            UE_LOG(LogTemp, Display, TEXT("PROOF_REFINERY_EVENT {\"event\":\"deposit\",\"epoch\":%d,\"owner\":%d,\"refinery\":%d,\"depot\":%d,\"miner\":%d,\"revision\":%d,\"cargoBefore\":%d,\"cargoAfter\":0,\"depositSum\":%d,\"creditsBefore\":%d,\"creditsAfter\":%d,\"gatheredBefore\":%d,\"gatheredAfter\":%d,\"contributors\":[%s]}"),
-                Epoch, G.Owner, G.Refinery, Depot->UnitId, G.Miner, After.Revision, A->Cargo, DepositSum,
-                Prior->Credits, Current->Credits, Prior->TotalGathered, Current->TotalGathered, *Contributors);
+            UE_LOG(LogTemp, Display, TEXT("PROOF_REFINERY_EVENT {\"event\":\"deposit\",\"epoch\":%d,\"owner\":%d,\"refinery\":%d,\"depot\":%d,\"miner\":%d,\"beforeRevision\":%d,\"revision\":%d,\"cargoBefore\":%d,\"cargoAfter\":0,\"depositSum\":%d,\"creditsBefore\":%d,\"creditsAfter\":%d,\"gatheredBefore\":%d,\"gatheredAfter\":%d,\"contributors\":[%s],\"productionPayment\":%d,\"productionRefund\":%d,\"productionBefore\":%s,\"productionAfter\":%s}"),
+                Epoch, G.Owner, G.Refinery, Depot->UnitId, G.Miner, Before.Revision, After.Revision, A->Cargo, DepositSum,
+                Prior->Credits, Current->Credits, Prior->TotalGathered, Current->TotalGathered, *Contributors, Payment, Refund, *ProofProductionAccounting::ContextJson(Before), *ProofProductionAccounting::ContextJson(After));
         }
     }
 }
@@ -177,24 +187,25 @@ void FProofRefineryMinerEvidence::LogSnapshot(const FProofSnapshot& State, const
             || FMath::Abs(U.RallyPoint.Y) > FProofCommandModel::WorldExtent || U.RallyPoint.Z != 0.0
             || (!U.bHasRallyPoint && U.RallyPoint != FVector::ZeroVector)
             || (U.bHasRallyPoint && (U.Kind != EProofUnitKind::Factory || U.HitPoints <= 0.f))) { Fail(TEXT("nonfinite-snapshot")); return; }
-        if (!First) Json += TEXT(","); First = false;
-        Json += FString::Printf(TEXT("{\"id\":%d,\"owner\":%d,\"kind\":%d,\"x\":%.6f,\"y\":%.6f,\"z\":%.6f,\"hp\":%.3f,\"cargo\":%d,\"rally\":%d,\"rallyX\":%.17g,\"rallyY\":%.17g,\"rallyZ\":%.17g}"),
+        if (!First) { Json += TEXT(","); } First = false;
+        Json += FString::Printf(TEXT("{\"id\":%d,\"owner\":%d,\"kind\":%d,\"x\":%.17g,\"y\":%.17g,\"z\":%.17g,\"hp\":%.17g,\"cargo\":%d,\"rally\":%d,\"rallyX\":%.17g,\"rallyY\":%.17g,\"rallyZ\":%.17g}"),
             U.UnitId, U.OwnerId, static_cast<int32>(U.Kind), U.Position.X, U.Position.Y, U.Position.Z, U.HitPoints, U.Cargo, U.bHasRallyPoint ? 1 : 0, U.RallyPoint.X, U.RallyPoint.Y, U.RallyPoint.Z);
     }
     Json += TEXT("],\"players\":["); First = true;
     for (const FProofPlayerRecord& P : State.Players)
     {
-        if (!First) Json += TEXT(","); First = false;
+        if (!First) { Json += TEXT(","); } First = false;
         Json += FString::Printf(TEXT("{\"id\":%d,\"team\":%d,\"credits\":%d,\"gathered\":%d}"), P.OwnerId, P.TeamId, P.Credits, P.TotalGathered);
     }
     Json += TEXT("],\"resources\":["); First = true;
     for (const FProofResourceRecord& R : State.Resources)
     {
         if (!EvidenceFinite(R.Position)) { Fail(TEXT("nonfinite-resource")); return; }
-        if (!First) Json += TEXT(","); First = false;
-        Json += FString::Printf(TEXT("{\"id\":%d,\"owner\":%d,\"x\":%.6f,\"y\":%.6f,\"z\":%.6f,\"remaining\":%d}"), R.ResourceId, R.OwnerId, R.Position.X, R.Position.Y, R.Position.Z, R.Remaining);
+        if (!First) { Json += TEXT(","); } First = false;
+        Json += FString::Printf(TEXT("{\"id\":%d,\"owner\":%d,\"x\":%.17g,\"y\":%.17g,\"z\":%.17g,\"remaining\":%d}"), R.ResourceId, R.OwnerId, R.Position.X, R.Position.Y, R.Position.Z, R.Remaining);
     }
-    Json += TEXT("]}");
+    if (!ProofProductionAccounting::Valid(State)) { Fail(TEXT("production-job-shape")); return; }
+    Json += TEXT("],\"jobs\":") + ProofProductionAccounting::JobsJson(State) + TEXT("}");
     SnapshotBytes += Json.Len(); // ASCII-only serialized schema; one byte per character.
     if (Json.Len() > 32768 || SnapshotBytes > 8 * 1024 * 1024) { Fail(TEXT("snapshot-byte-limit")); return; }
     UE_LOG(LogTemp, Display, TEXT("PROOF_REFINERY_STATE %s"), *Json);

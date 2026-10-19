@@ -128,7 +128,6 @@ struct FBotExpansionPublicFixture
         {
             if (Command.Type == EProofCommandType::BuildRefinery) { OwnerSpent += FProofCommandModel::RefineryCost; }
             if (Command.Type == EProofCommandType::BuildFactory) { OwnerSpent += FProofCommandModel::FactoryCost; }
-            if (Command.Type == EProofCommandType::Produce) { OwnerSpent += FProofCommandModel::ProductionCost; }
         }
         return true;
     }
@@ -187,7 +186,16 @@ struct FBotExpansionPublicFixture
         for (const FProofResourceRecord& Ore : Snapshot.Resources) { Total += Ore.Remaining; }
         for (const FProofUnitRecord& Record : Snapshot.Units) { Total += Record.Cargo; }
         for (const FProofPlayerRecord& Record : Snapshot.Players) { Total += Record.TotalGathered; }
-        return Total == 1000 && Player().Credits == 350 + Player().TotalGathered - OwnerSpent;
+        // No owner-one job is cancelled in this trace. Retained Combat records
+        // count completed payments, including any later-dead Combat; active
+        // jobs contribute only paid credits rather than their entire price.
+        int32 ProductionPaid = 0;
+        for (const FProofUnitRecord& Record : Snapshot.Units)
+            if (Record.OwnerId == 1 && Record.Kind == EProofUnitKind::Combat)
+                ProductionPaid += FProofCommandModel::ProductionCost;
+        for (const FProofProductionJob& Job : Snapshot.ProductionJobs)
+            if (Job.OwnerId == 1) ProductionPaid += Job.PaidCredits;
+        return Total == 1000 && Player().Credits == 350 + Player().TotalGathered - OwnerSpent - ProductionPaid;
     }
 };
 }
@@ -522,6 +530,8 @@ bool FProofBotBaseExpansionPublicTest::RunTest(const FString&)
         if (!TestTrue(TEXT("Enemy pays for factory and attacker"),
             Fixture.Submit(100, EProofCommandType::BuildFactory, FVector(1050, 0, 0))
             && Fixture.Submit(100, EProofCommandType::Produce, FVector::ZeroVector, Fixture.Id(100, EProofUnitKind::Factory)))) { return false; }
+        for (int32 Tick = 0; Tick < 5; ++Tick) { Fixture.Advance(); }
+        if (!TestTrue(TEXT("Enemy attacker completes real paid production"), Fixture.Model.GetSnapshot().ProductionJobs.IsEmpty())) return false;
         const FProofSnapshot BeforeLoss = Fixture.Model.GetSnapshot();
         int32 LostMiners = 0;
         for (const FProofUnitRecord& Unit : BeforeLoss.Units)
@@ -630,9 +640,16 @@ bool FProofBotBaseExpansionPublicTest::RunTest(const FString&)
                 Command.Sequence = ++Fixture.OwnerSequence;
                 if (!TestTrue(TEXT("Post-recovery planned production accepted publicly"), Fixture.SubmitIntent(1, Command))) { return false; }
             }
+            TestEqual(TEXT("Recovered factory job starts without an instant unit"),
+                BotExpansionCount(Fixture.Model.GetSnapshot(), 1, EProofUnitKind::Combat), 0);
+            TestEqual(TEXT("Recovered factory job starts without a debit"), Fixture.Player().Credits, Credits);
+            const int32 GatheredBeforeProduction = Fixture.Player().TotalGathered;
+            for (int32 Tick = 0; Tick < 5; ++Tick) { Fixture.Advance(); }
+            TestTrue(TEXT("Recovered factory job completes after five simulated seconds"), Fixture.Model.GetSnapshot().ProductionJobs.IsEmpty());
             TestEqual(TEXT("Recovered factory grants exactly one actual combat unit"),
                 BotExpansionCount(Fixture.Model.GetSnapshot(), 1, EProofUnitKind::Combat), 1);
-            TestEqual(TEXT("Production spends exactly 50 actual credits"), Fixture.Player().Credits, Credits - FProofCommandModel::ProductionCost);
+            TestEqual(TEXT("Production spends exactly 50 actual credits alongside actual Gather deposits"), Fixture.Player().Credits,
+                Credits + Fixture.Player().TotalGathered - GatheredBeforeProduction - FProofCommandModel::ProductionCost);
             TestEqual(TEXT("Production adds exactly one record"), Fixture.Model.GetSnapshot().Units.Num(), BeforeProduction.Units.Num() + 1);
             TestEqual(TEXT("Production restores exactly the twelve-record cap"), BotExpansionLive(Fixture.Model.GetSnapshot(), 1), 12);
             TestTrue(TEXT("Post-recovery paid production preserves economic conservation"), Fixture.Conserved());

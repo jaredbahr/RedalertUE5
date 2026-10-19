@@ -3,6 +3,7 @@
 // Test-only UE subset for the source-bound Produce handler and authoritative
 // model/rules regression. This is a portable adapter, not Unreal Engine.
 #include <algorithm>
+#include <cassert>
 #include <cmath>
 #include <cstdarg>
 #include <cstdint>
@@ -26,6 +27,7 @@ constexpr double UE_SMALL_NUMBER = 1.e-8;
 #define UPROPERTY(...)
 #define GENERATED_BODY(...)
 #define REDALERTPROOF_API
+#define check(Expression) assert(Expression)
 
 class FString
 {
@@ -87,6 +89,8 @@ template<typename T> class TArray
     std::vector<T> Data;
 public:
     int32 Num() const { return static_cast<int32>(Data.size()); }
+    bool IsEmpty() const { return Data.empty(); }
+    void RemoveAt(int32 Index) { Data.erase(Data.begin() + Index); }
     void Add(const T& Item) { Data.push_back(Item); }
     void Reset() { Data.clear(); }
     T& operator[](int32 Index) { return Data.at(static_cast<std::size_t>(Index)); }

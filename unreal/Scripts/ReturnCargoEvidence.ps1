@@ -11,8 +11,8 @@ function Get-ReturnCargoEvidence {
             [double]$Value -ge $Minimum -and [double]$Value -le $Maximum -and [double]$Value -eq [math]::Truncate([double]$Value)
     }
     function Number($Value) { return $null -ne $Value -and $Value -isnot [string] -and $Value -isnot [bool] -and $Value -isnot [array] -and [double]::IsFinite([double]$Value) }
-    function Row([string]$Text) {
-        Require ($Text.Length -le 8192) 'oversized event'
+    function Row([string]$Text,[int]$Cap=8192) {
+        Require ($Text.Length -le $Cap) 'oversized event'
         # Tokenize complete strings, including values, so braces inside a string
         # cannot change nesting. Reject duplicate/case-colliding decoded keys
         # before ConvertFrom-Json can overwrite them.
@@ -58,6 +58,61 @@ function Get-ReturnCargoEvidence {
         foreach($r in $State.resources){$sum+=$r.remaining}; foreach($u in $State.units){$sum+=$u.cargo}; foreach($p in $State.players){$sum+=$p.gathered}
         return $sum
     }
+    function CombatKey($Context) { return (@($Context.units|Where-Object{$_.owner -eq 1 -and $_.kind -eq 0}|Sort-Object id|ForEach-Object{[long]$_.id}) -join ',') }
+    function ContextKey($Context) {
+        return ([ordered]@{phase=[long]$Context.phase;jobs=@($Context.jobs|Sort-Object owner|ForEach-Object{[ordered]@{owner=[long]$_.owner;sequence=[long]$_.sequence;factory=[long]$_.factory;work=[long]$_.work;paid=[long]$_.paid;held=[long]$_.held}});players=@($Context.players|Sort-Object id|ForEach-Object{[ordered]@{id=[long]$_.id;credits=[long]$_.credits;gathered=[long]$_.gathered}});units=@($Context.units|Sort-Object id|ForEach-Object{[ordered]@{id=[long]$_.id;owner=[long]$_.owner;kind=[long]$_.kind;hp=[double]$_.hp;cargo=[long]$_.cargo;x=[double]$_.x;y=[double]$_.y;z=[double]$_.z;rally=[long]$_.rally;rallyX=[double]$_.rallyX;rallyY=[double]$_.rallyY;rallyZ=[double]$_.rallyZ}})} | ConvertTo-Json -Depth 8 -Compress)
+    }
+    function CheckContexts($Row,[long]$BeforeRevision) {
+        foreach($side in @('Before','After')) {
+            $context=$Row.('production'+$side); Assert-ProductionContext $context | Out-Null
+            $p=@($context.players|Where-Object id -eq 1)
+            Require ($p.Count -eq 1 -and $p[0].credits -eq $Row.('credits'+$side) -and $p[0].gathered -eq $Row.('gathered'+$side)) 'production context credit mismatch'
+            $rev=if($side -eq 'Before'){$BeforeRevision}else{$Row.revision}; $key="$($Row.epoch):$rev"
+            if($ValidatedStateContext.maps.host.ContainsKey($key)){Require ((ContextKey $context) -ceq (ContextKey $ValidatedStateContext.maps.host[$key])) 'production context differs from published checkpoint'}
+        }
+    }
+    function CheckCommandProduction($C) {
+        CheckContexts $C $C.revisionBefore
+        $before=$C.productionBefore; $after=$C.productionAfter
+        if($C.accepted -eq 1){Require ($before.phase -eq 1 -and $after.phase -eq 1) 'accepted command outside playing state'}
+        $jobs=@($before.jobs|Where-Object owner -eq 1); $next=@($after.jobs|Where-Object owner -eq 1)
+        $expected=ConvertFrom-Json -InputObject (ConvertTo-Json -InputObject @($before.jobs) -Depth 6) -Depth 6 -NoEnumerate
+        $refund=0
+        if($C.accepted -eq 1 -and $C.type -eq 2) {
+            Require ($jobs.Count -eq 0 -and $next.Count -eq 1 -and $next[0].sequence -eq $C.sequence -and $next[0].factory -eq $C.unit -and $next[0].work -eq 0 -and $next[0].paid -eq 0 -and $next[0].held -eq 0) 'Produce must only start exact unpaid job'
+            $factory=@($before.units|Where-Object {$_.id -eq $C.unit -and $_.owner -eq 1 -and $_.kind -eq 4 -and $_.hp -gt 0})
+            Require ($factory.Count -eq 1 -and $C.revision -eq $C.revisionBefore+1) 'Produce factory/revision contract'
+            $expected+=,$next[0]
+        } elseif($C.accepted -eq 1 -and $C.type -in @(11,12,13)) {
+            Require ($jobs.Count -eq 1 -and $jobs[0].sequence -eq $C.target -and $jobs[0].factory -eq $C.unit -and $C.revision -eq $C.revisionBefore+1) 'production control identity'
+            if($C.type -eq 13){$refund=[long]$jobs[0].paid; $expected=@($expected|Where-Object owner -ne 1)}
+            else {($expected|Where-Object owner -eq 1).held=$(if($C.type -eq 11){1}else{0})}
+        }
+        $expectedKey=ConvertTo-Json -InputObject @($expected|Sort-Object owner|ForEach-Object{[ordered]@{owner=$_.owner;sequence=$_.sequence;factory=$_.factory;work=$_.work;paid=$_.paid;held=$_.held}}) -Depth 6 -Compress
+        $actualKey=ConvertTo-Json -InputObject @($after.jobs|Sort-Object owner|ForEach-Object{[ordered]@{owner=$_.owner;sequence=$_.sequence;factory=$_.factory;work=$_.work;paid=$_.paid;held=$_.held}}) -Depth 6 -Compress
+        Require ($actualKey -ceq $expectedKey) 'command changed unrelated job, work or payment'
+        Require ((CombatKey $before) -ceq (CombatKey $after)) 'command created or removed retained Combat'
+        if($C.accepted -eq 0 -or $C.type -in @(2,11,12,13)) {
+            $left=ConvertTo-Json -InputObject @($before.units|Sort-Object id) -Depth 6 -Compress
+            $right=ConvertTo-Json -InputObject @($after.units|Sort-Object id) -Depth 6 -Compress
+            Require ($left -ceq $right -and $before.phase -eq $after.phase) 'production command spawned or changed units'
+        }
+        $cost=if($C.accepted -eq 1 -and $C.type -eq 3){100}elseif($C.accepted -eq 1 -and $C.type -eq 4){150}else{0}
+        Require ($C.creditsAfter-$C.creditsBefore -eq $refund-$cost -and $C.gatheredAfter -eq $C.gatheredBefore) 'command ledger economy mutation'
+        Require ($before.players.Count -eq $after.players.Count) 'command changed player roster'
+        foreach($p in $before.players) {
+            $q=@($after.players|Where-Object id -eq $p.id)
+            Require ($q.Count -eq 1 -and $q[0].gathered -eq $p.gathered -and ($p.id -eq 1 -or $q[0].credits -eq $p.credits)) 'command changed foreign economy'
+        }
+    }
+    function CheckAdvanceProduction($D) {
+        Require ((Integer $D.beforeRevision) -and $D.revision -gt $D.beforeRevision -and (Integer $D.productionPayment 0 50) -and (Integer $D.productionRefund 0 50)) 'production boundary fields'
+        CheckContexts $D $D.beforeRevision
+        $added=@($D.productionAfter.units|Where-Object{$_.id -notin $D.productionBefore.units.id})
+        Require ($D.revision -eq $D.beforeRevision+1+$added.Count) 'exact Advance revision/completion increment'
+        Assert-ProductionAdvance $D.productionBefore $D.productionAfter 1 $D.productionPayment $D.productionRefund | Out-Null
+        Require ($D.creditsAfter-$D.creditsBefore -eq $D.sum-$D.productionPayment+$D.productionRefund -and $D.gatheredAfter-$D.gatheredBefore -eq $D.sum) 'production/deposit credit attribution'
+    }
     Require ($Log.Length -le 24MB -and $Log -notmatch 'PROOF_RETURN_CARGO_ERROR|status=fail') 'runtime failure or log cap'
     Require ($RefineryEvidence.passed -is [bool] -and $RefineryEvidence.passed -and $ValidatedStateContext.maps -is [hashtable] -and
         $ValidatedStateContext.maps.ContainsKey('rendered') -and $ValidatedStateContext.maps.ContainsKey('host')) 'missing validated refinery context'
@@ -66,7 +121,8 @@ function Get-ReturnCargoEvidence {
         $kind=$m.Groups[1].Value
         if($kind -ceq 'CAPTURE'){continue}
         Require ($rows.ContainsKey($kind)) 'unknown event kind'
-        $rows[$kind]+=,(Row $m.Groups[2].Value)
+        $cap=if($kind -in @('COMMAND','DEPOSIT')){131072}else{8192}
+        $rows[$kind]+=,(Row $m.Groups[2].Value $cap)
         Require ($rows[$kind].Count -le 512) 'event count cap'
     }
     Require ($rows.COMMAND.Count+$rows.TRAVEL.Count+$rows.DEPOSIT.Count+$rows.RESUME.Count -le 512) 'combined authoritative row cap'
@@ -115,7 +171,7 @@ function Get-ReturnCargoEvidence {
     Require (@($start.units | Where-Object {$_.owner -eq 1 -and $_.kind -eq 1 -and $_.hp -gt 0}).Count -eq 2) 'exact existing miner population'
     $grants=@($RefineryEvidence.grants | Where-Object {$_.owner -eq 1 -and $_.epoch -eq $anchor.epoch})
     Require ($grants.Count -eq 1 -and $grants[0].miner -eq $anchor.b -and $grants[0].refinery -eq $anchor.refinery -and $grants[0].resource -eq $anchor.resource) 'real refinery-granted miner provenance'
-    $grantRows=@([regex]::Matches($Log,'PROOF_REFINERY_EVENT([^\r\n]*)') | ForEach-Object { Row $_.Groups[1].Value } | Where-Object {$_.event -eq 'grant' -and $_.owner -eq 1 -and $_.epoch -eq $anchor.epoch})
+    $grantRows=@([regex]::Matches($Log,'PROOF_REFINERY_EVENT([^\r\n]*)') | ForEach-Object { Row $_.Groups[1].Value 131072 } | Where-Object {$_.event -eq 'grant' -and $_.owner -eq 1 -and $_.epoch -eq $anchor.epoch})
     Require ($grantRows.Count -eq 1 -and $anchor.a -in $grantRows[0].beforeIds -and $anchor.b -notin $grantRows[0].beforeIds) 'starter/granted provenance'
     # Exact fixture miner command order. Global command gaps are permitted only
     # for ordinary non-miner defense/production, never an extra miner command.
@@ -128,22 +184,23 @@ function Get-ReturnCargoEvidence {
         @{phase='group-queued';unit=$anchor.a;type=9;target=$anchor.refinery;offset=0},
         @{phase='group-queued';unit=$anchor.b;type=9;target=$anchor.refinery;offset=1},
         @{phase='restore-a';unit=$anchor.a;type=5;target=$anchor.resource;offset=0})
-    $typeNames=@('Move','Attack','Produce','BuildRefinery','BuildFactory','Gather','Stop','SetRally','AttackMove','ReturnCargo')
+    $typeNames=@('Move','Attack','Produce','BuildRefinery','BuildFactory','Gather','Stop','SetRally','AttackMove','ReturnCargo','AreaGuard','HoldProduction','ResumeProduction','CancelProduction')
     $commands=$rows.COMMAND; Require ($commands.Count -ge 10 -and $commands.Count -le 256) 'bounded authoritative command log'
     $commandBySequence=@{}; $lastSequence=0; $lastRevision=-1
-    $commandFields=@('owner','epoch','sequence','type','unit','target','accepted','revisionBefore','revision','cargoBefore','cargoAfter','creditsBefore','creditsAfter','gatheredBefore','gatheredAfter','xBefore','yBefore','zBefore','x','y','z','resumeResource','conservedBefore','conservedAfter')
+    $commandFields=@('owner','epoch','sequence','type','unit','target','accepted','revisionBefore','revision','cargoBefore','cargoAfter','creditsBefore','creditsAfter','gatheredBefore','gatheredAfter','xBefore','yBefore','zBefore','x','y','z','resumeResource','conservedBefore','conservedAfter','productionBefore','productionAfter')
     foreach($c in $commands) {
         Schema $c $commandFields
         foreach($n in @('owner','epoch','sequence','type','accepted','revisionBefore','revision','cargoBefore','cargoAfter','creditsBefore','creditsAfter','gatheredBefore','gatheredAfter','conservedBefore','conservedAfter')) { Require (Integer $c.$n) "invalid command integer $n" }
         foreach($n in @('unit','target','resumeResource')) { Require (Integer $c.$n -1) "invalid command identity $n" }
         Coordinates $c @('xBefore','yBefore','zBefore','x','y','z')
-        Require ($c.owner -eq 1 -and $c.epoch -eq $anchor.epoch -and $c.sequence -eq $lastSequence+1 -and $c.type -le 9 -and $c.accepted -le 1 -and $c.revisionBefore -ge $lastRevision -and $c.revision -ge $c.revisionBefore -and $c.cargoBefore -le 50 -and $c.cargoAfter -le 50) 'command identity/chronology'
+        Require ($c.owner -eq 1 -and $c.epoch -eq $anchor.epoch -and $c.sequence -eq $lastSequence+1 -and $c.type -le 13 -and $c.accepted -le 1 -and $c.revisionBefore -ge $lastRevision -and $c.revision -ge $c.revisionBefore -and $c.cargoBefore -le 50 -and $c.cargoAfter -le 50) 'command identity/chronology'
         $requests=@([regex]::Matches($Log,('PROOF_SKIRMISH_REQUEST owner=1 sequence='+$c.sequence+'(?=\s|$)[^\r\n]*')))
         $expected='PROOF_SKIRMISH_REQUEST owner=1 sequence='+$c.sequence+' type='+$typeNames[$c.type]+' unit='+$c.unit+' target='+$c.target
         Require ($requests.Count -eq 1 -and $requests[0].Value -ceq $expected) 'shared Request identity/count'
         $receipts=@([regex]::Matches($Log,('PROOF_RESULT owner=1 sequence='+$c.sequence+'(?=\s|$)[^\r\n]*')))
         Require ($receipts.Count -eq 1 -and $receipts[0].Value -cmatch ('^PROOF_RESULT owner=1 sequence='+$c.sequence+' accepted='+$c.accepted+' reason=\S+$')) 'receipt identity/count'
         if($c.accepted -eq 1){Require ($receipts[0].Value -ceq ('PROOF_RESULT owner=1 sequence='+$c.sequence+' accepted=1 reason=accepted')) 'accepted receipt reason'}
+        CheckCommandProduction $c
         $commandBySequence[[string]$c.sequence]=$c; $lastSequence=$c.sequence; $lastRevision=$c.revision
     }
     Require ([regex]::Matches($Log,'PROOF_SKIRMISH_REQUEST owner=1(?=\s|$)').Count -eq $commands.Count -and [regex]::Matches($Log,'PROOF_RESULT owner=1(?=\s|$)').Count -eq $commands.Count) 'orphan Request/receipt'
@@ -195,12 +252,13 @@ function Get-ReturnCargoEvidence {
     $deposits=$rows.DEPOSIT; Require ($deposits.Count -ge 4 -and $deposits.Count -le 256) 'bounded deposit observations'
     $forcedDeposits=@{}; $depositKeys=@{}; $boundaries=@{}
     foreach($d in $deposits) {
-        Schema $d @('owner','epoch','revision','sequence','resumeResource','miner','depot','before','after','sum','creditsBefore','creditsAfter','gatheredBefore','gatheredAfter','x','y','z','depotX','depotY','depotZ','conservedBefore','conservedAfter','contributors')
+        Schema $d @('owner','epoch','revision','sequence','resumeResource','miner','depot','before','after','sum','creditsBefore','creditsAfter','gatheredBefore','gatheredAfter','x','y','z','depotX','depotY','depotZ','conservedBefore','conservedAfter','contributors','beforeRevision','productionPayment','productionRefund','productionBefore','productionAfter')
         foreach($n in @('owner','epoch','revision','sequence','miner','depot','before','after','sum','creditsBefore','creditsAfter','gatheredBefore','gatheredAfter','conservedBefore','conservedAfter')){Require (Integer $d.$n) "invalid deposit integer $n"}
         Require (Integer $d.resumeResource -1) 'invalid deposit saved resource'
         Coordinates $d @('x','y','z','depotX','depotY','depotZ')
         $key="$($d.revision):$($d.miner)"
-        Require ($d.owner -eq 1 -and $d.epoch -eq $anchor.epoch -and $d.miner -in @($anchor.a,$anchor.b) -and $d.depot -eq $anchor.refinery -and -not $depositKeys.ContainsKey($key) -and $d.before -ge 1 -and $d.before -le 50 -and $d.after -eq 0 -and $d.creditsAfter-$d.creditsBefore -eq $d.sum -and $d.gatheredAfter-$d.gatheredBefore -eq $d.sum -and $d.conservedBefore -eq $conserved -and $d.conservedAfter -eq $conserved) 'deposit identity/credit/conservation'
+        Require ($d.owner -eq 1 -and $d.epoch -eq $anchor.epoch -and $d.miner -in @($anchor.a,$anchor.b) -and $d.depot -eq $anchor.refinery -and -not $depositKeys.ContainsKey($key) -and $d.before -ge 1 -and $d.before -le 50 -and $d.after -eq 0 -and $d.gatheredAfter-$d.gatheredBefore -eq $d.sum -and $d.conservedBefore -eq $conserved -and $d.conservedAfter -eq $conserved) 'deposit identity/credit/conservation'
+        CheckAdvanceProduction $d
         $depositKeys[$key]=$true
         Require ((Squared $d $d '' 'depot') -le 1) 'deposit outside exact authoritative boundary'
         $ref=@(Units $start $d.depot)[0]; Require ((Squared $ref $d '' 'depot') -le 0.00000001) 'deposit refinery/source disagreement'
@@ -210,13 +268,16 @@ function Get-ReturnCargoEvidence {
             Schema $c @('miner','before','after','depot','sequence')
             foreach($n in @('miner','before','after','depot','sequence')) { Require (Integer $c.$n) 'invalid contributor integer' }
             Require ($c.miner -in @($anchor.a,$anchor.b) -and $c.depot -eq $anchor.refinery -and $c.before -ge 1 -and $c.before -le 50 -and $c.after -eq 0 -and -not $contributors.ContainsKey([string]$c.miner)) 'invalid/duplicate contributor'
+            $beforeUnit=@($d.productionBefore.units|Where-Object id -eq $c.miner);$afterUnit=@($d.productionAfter.units|Where-Object id -eq $c.miner);$afterDepot=@($d.productionAfter.units|Where-Object id -eq $c.depot)
+            Require ($beforeUnit.Count -eq 1 -and $afterUnit.Count -eq 1 -and $afterDepot.Count -eq 1 -and $beforeUnit[0].owner -eq 1 -and $afterUnit[0].owner -eq 1 -and $beforeUnit[0].kind -eq 1 -and $afterUnit[0].kind -eq 1 -and $beforeUnit[0].cargo -eq $c.before -and $afterUnit[0].cargo -eq $c.after -and $afterDepot[0].owner -eq 1 -and $afterDepot[0].kind -eq 3 -and $afterDepot[0].hp -gt 0 -and (Squared $afterUnit[0] $afterDepot[0]) -le 1) 'contributor differs from independent production/deposit context'
+            if($c.miner -eq $d.miner){Require ((Squared $afterUnit[0] $d) -le 0.00000001 -and (Squared $afterDepot[0] $d '' 'depot') -le 0.00000001) 'deposit location differs from authoritative context'}
             $contributors[[string]$c.miner]=$c; $sum+=$c.before-$c.after
             if($c.sequence -gt 0){Require ($commandBySequence.ContainsKey([string]$c.sequence) -and $commandBySequence[[string]$c.sequence].type -eq 9 -and $commandBySequence[[string]$c.sequence].unit -eq $c.miner) 'contributor ReturnCargo attribution'}
         }
         Require ($sum -eq $d.sum -and $contributors.ContainsKey([string]$d.miner)) 'deposit contributor sum'
         $mine=$contributors[[string]$d.miner]
         Require ($mine.before -eq $d.before -and $mine.after -eq $d.after -and $mine.sequence -eq $d.sequence) 'tracked contribution'
-        $boundary=([ordered]@{sum=$d.sum;creditsBefore=$d.creditsBefore;creditsAfter=$d.creditsAfter;gatheredBefore=$d.gatheredBefore;gatheredAfter=$d.gatheredAfter;contributors=@($d.contributors | Sort-Object miner)} | ConvertTo-Json -Depth 4 -Compress)
+        $boundary=([ordered]@{sum=$d.sum;beforeRevision=$d.beforeRevision;revision=$d.revision;epoch=$d.epoch;productionPayment=$d.productionPayment;productionRefund=$d.productionRefund;productionBefore=$d.productionBefore;productionAfter=$d.productionAfter;creditsBefore=$d.creditsBefore;creditsAfter=$d.creditsAfter;gatheredBefore=$d.gatheredBefore;gatheredAfter=$d.gatheredAfter;contributors=@($d.contributors | Sort-Object miner)} | ConvertTo-Json -Depth 8 -Compress)
         $revision=[string]$d.revision
         if($boundaries.ContainsKey($revision)){Require ($boundaries[$revision] -ceq $boundary) 'contradictory same-step credit boundary'}else{$boundaries[$revision]=$boundary}
         if($d.sequence -gt 0) {
@@ -237,47 +298,79 @@ function Get-ReturnCargoEvidence {
         Require ($b.gatheredBefore -ge $priorGathered) 'reused/overlapping credit boundary'
         $priorGathered=$b.gatheredAfter
     }
-    # Bind absolute totals, not only deltas, to every validated common state.
-    # A published phase may trail a legitimate ordinary Produce, so equality
-    # against only that phase is insufficient. Replay all owner-1 economic
-    # boundaries from the validated selected checkpoint; Advance deposits at a
-    # shared revision are represented once, followed by any rejected commands.
+    # Credits plus retained production investment is invariant under paid work,
+    # completion and exact refunds. Commands and actual deposits account for
+    # every change without adding one log row per production tick.
+    function Investment($State) {
+        $value=[long](50*@($State.units|Where-Object{$_.owner -eq 1 -and $_.kind -eq 0}).Count)
+        foreach($j in $State.jobs){if($j.owner -eq 1){$value+=[long]$j.paid}}
+        return $value
+    }
+    function ProductionSpan($Before,$After,[long]$BeforeRevision,[long]$AfterRevision) {
+        Assert-ProductionContext $Before | Out-Null; Assert-ProductionContext $After | Out-Null
+        Require ($AfterRevision -ge $BeforeRevision) 'production observation revision regression'
+        if($AfterRevision -eq $BeforeRevision){Require ((ContextKey $Before) -ceq (ContextKey $After)) 'contradictory same-revision production context';return}
+        $ownBefore=@($Before.units|Where-Object owner -eq 1);$ownAfter=@($After.units|Where-Object owner -eq 1)
+        foreach($u in $ownBefore){$v=@($ownAfter|Where-Object id -eq $u.id);Require ($v.Count -eq 1 -and $v[0].kind -eq $u.kind -and $v[0].hp -le $u.hp) 'retained owner unit removed, reidentified or healed'}
+        $added=@($ownAfter|Where-Object{$_.id -notin $ownBefore.id})
+        foreach($u in $added){Require ($u.kind -eq 0 -and $u.hp -le 100 -and $u.cargo -eq 0 -and $u.rally -eq 0 -and $u.id -gt ($Before.units.id|Measure-Object -Maximum).Maximum) 'unexplained owner unit creation'}
+        $a=@($Before.jobs|Where-Object owner -eq 1);$b=@($After.jobs|Where-Object owner -eq 1)
+        if($a.Count -eq 0){Require ($b.Count -eq 0 -and $added.Count -eq 0) 'production appeared without logged accepted Produce';return}
+        $a=$a[0]
+        $source=@($Before.units|Where-Object id -eq $a.factory)[0]
+        if($Before.phase -ne 1){Require ($After.phase -eq $Before.phase -and $b.Count -eq 1 -and $added.Count -eq 0) 'terminal production changed between observations'}
+        if($b.Count -eq 1){
+            $b=$b[0]
+            Require ($b.sequence -eq $a.sequence -and $b.factory -eq $a.factory -and $b.held -eq $a.held -and $b.work -ge $a.work -and $b.paid -ge $a.paid -and $added.Count -eq 0) 'production identity/hold/work regressed between observations'
+            if($a.held -eq 1 -or $source.hp -le 0 -or $Before.phase -ne 1){Require ($b.work -eq $a.work -and $b.paid -eq $a.paid) 'held, lost-source or terminal production progressed between observations'}
+        } else {
+            Require ($b.Count -eq 0 -and $added.Count -le 1) 'duplicate production completion'
+            $factory=@($After.units|Where-Object id -eq $a.factory);$priorFactory=@($Before.units|Where-Object id -eq $a.factory)
+            if($added.Count -eq 1){Require ($a.held -eq 0 -and $priorFactory.Count -eq 1 -and $priorFactory[0].hp -gt 0) 'held/lost production completed'}
+            else{Require ($factory.Count -eq 1 -and $factory[0].hp -eq 0) 'live factory job disappeared without logged cancellation'}
+        }
+    }
     $ledger=[Collections.Generic.List[object]]::new(); $mutatingRevisions=@{}
-    # Existing frozen model costs; this validator changes no balance values.
-    $commandCosts=@{2=50;3=100;4=150}
     foreach($c in $commands) {
         if($c.revision -le $anchor.revision){continue}
-        # Spawn commands also bump revision inside AddUnit; no one-step assumption.
         Require ($c.revisionBefore -ge $anchor.revision -and $(if($c.accepted -eq 1){$c.revision -gt $c.revisionBefore}else{$c.revision -eq $c.revisionBefore})) 'command ledger revision step'
-        $cost=if($c.accepted -eq 1 -and $commandCosts.ContainsKey([int]$c.type)){$commandCosts[[int]$c.type]}else{0}
-        Require ($c.gatheredAfter -eq $c.gatheredBefore -and $c.creditsBefore-$c.creditsAfter -eq $cost) 'command ledger economy mutation'
-        if($c.accepted -eq 1) {
-            Require (-not $mutatingRevisions.ContainsKey([string]$c.revision)) 'duplicate authoritative mutation revision'
-            $mutatingRevisions[[string]$c.revision]=$true
-        }
+        if($c.accepted -eq 1){Require (-not $mutatingRevisions.ContainsKey([string]$c.revision)) 'duplicate authoritative mutation revision';$mutatingRevisions[[string]$c.revision]=$true}
         $ledger.Add([pscustomobject]@{revision=[long]$c.revision;order=1;sequence=[long]$c.sequence;kind='command';row=$c})
     }
     foreach($key in $boundaries.Keys) {
         if([long]$key -le $anchor.revision){continue}
-        Require (-not $mutatingRevisions.ContainsKey([string]$key)) 'duplicate authoritative mutation revision'
-        $mutatingRevisions[[string]$key]=$true
-        $ledger.Add([pscustomobject]@{revision=[long]$key;order=0;sequence=0;kind='deposit';row=($boundaries[$key] | ConvertFrom-Json)})
+        Require (-not $mutatingRevisions.ContainsKey([string]$key)) 'duplicate authoritative mutation revision';$mutatingRevisions[[string]$key]=$true
+        $ledger.Add([pscustomobject]@{revision=[long]$key;order=0;sequence=0;kind='deposit';row=($boundaries[$key]|ConvertFrom-Json -Depth 12)})
     }
     foreach($key in $ValidatedStateContext.common) {
         $state=$ValidatedStateContext.maps.host[$key]
         if($state.epoch -ne $anchor.epoch -or $state.revision -le $anchor.revision){continue}
-        $player=@($state.players | Where-Object id -eq 1)
-        Require ($player.Count -eq 1) 'ledger checkpoint missing owner'
-        $ledger.Add([pscustomobject]@{revision=[long]$state.revision;order=2;sequence=0;kind='checkpoint';row=$player[0]})
+        Require (@($state.players|Where-Object id -eq 1).Count -eq 1) 'ledger checkpoint missing owner'
+        $ledger.Add([pscustomobject]@{revision=[long]$state.revision;order=2;sequence=0;kind='checkpoint';row=$state})
     }
-    $ledgerCredits=[long]$anchor.credits; $ledgerGathered=[long]$anchor.gathered
-    foreach($event in @($ledger | Sort-Object revision,order,sequence)) {
+    $initialSpent=[long]0;$initialDeposits=[long]0
+    foreach($c in $commands){if($c.accepted -eq 1 -and $c.revision -le $anchor.revision){if($c.type -eq 3){$initialSpent+=100}elseif($c.type -eq 4){$initialSpent+=150}}}
+    foreach($key in $boundaries.Keys){if([long]$key -le $anchor.revision){$initialDeposits+=($boundaries[$key]|ConvertFrom-Json).sum}}
+    $balance=[long]350-$initialSpent+$initialDeposits;$ledgerGathered=$initialDeposits
+    Require ([long]$anchor.credits+(Investment $start) -eq $balance -and $anchor.gathered -eq $ledgerGathered) 'initial cash/production/deposit accounting'
+    foreach($job in $start.jobs|Where-Object owner -eq 1){Require (@($commands|Where-Object{$_.accepted -eq 1 -and $_.type -eq 2 -and $_.sequence -eq $job.sequence -and $_.unit -eq $job.factory -and $_.revision -le $anchor.revision}).Count -eq 1) 'initial job lacks accepted Produce provenance'}
+    $previousContext=$start;$previousRevision=[long]$anchor.revision
+    foreach($event in @($ledger|Sort-Object revision,order,sequence)) {
         $row=$event.row
         if($event.kind -eq 'checkpoint') {
-            Require ($row.credits -eq $ledgerCredits -and $row.gathered -eq $ledgerGathered) 'published checkpoint disagrees with economy ledger'
+            $player=@($row.players|Where-Object id -eq 1)[0]
+            Require ([long]$player.credits+(Investment $row) -eq $balance -and $player.gathered -eq $ledgerGathered) 'published checkpoint disagrees with cash plus production ledger'
+            ProductionSpan $previousContext $row $previousRevision $event.revision
+            $previousContext=$row;$previousRevision=$event.revision
         } else {
-            Require ($row.creditsBefore -eq $ledgerCredits -and $row.gatheredBefore -eq $ledgerGathered) 'disconnected absolute economy boundary'
-            $ledgerCredits=[long]$row.creditsAfter; $ledgerGathered=[long]$row.gatheredAfter
+            $beforeRevision=if($event.kind -eq 'command'){$row.revisionBefore}else{$row.beforeRevision}
+            Require ([long]$row.creditsBefore+(Investment $row.productionBefore) -eq $balance -and $row.gatheredBefore -eq $ledgerGathered) 'disconnected absolute economy boundary'
+            ProductionSpan $previousContext $row.productionBefore $previousRevision $beforeRevision
+            if($event.kind -eq 'command'){
+                if($row.accepted -eq 1 -and $row.type -eq 3){$balance-=100}elseif($row.accepted -eq 1 -and $row.type -eq 4){$balance-=150}
+            }else{$balance+=$row.sum;$ledgerGathered+=$row.sum}
+            Require ([long]$row.creditsAfter+(Investment $row.productionAfter) -eq $balance -and $row.gatheredAfter -eq $ledgerGathered) 'boundary disagrees with independent cash plus production ledger'
+            $previousContext=$row.productionAfter;$previousRevision=$event.revision
         }
     }
     $resumes=$rows.RESUME; Require ($resumes.Count -eq 3) 'exact saved Gather reload count'
@@ -341,5 +434,5 @@ function Get-ReturnCargoEvidence {
     Require ($captures.Count -eq 1 -and $captures[0].Value -ceq 'PROOF_RETURN_CARGO_CAPTURE name=03-return-cargo.png selectedCount=2 written=1 sharedHandlers=1 nativeCallbackInvoked=0 physicalInputVerified=0 networkTransportVerified=0') 'capture input scope/count'
     $completions=@([regex]::Matches($Log,'PROOF_SKIRMISH_COMPLETE role=client owner=1[^\r\n]*'))
     Require ($completions.Count -eq 1 -and $completions[0].Value -ceq 'PROOF_SKIRMISH_COMPLETE role=client owner=1 status=pass scenario=Victory winnerTeam=0 built=1 gathered=1 produced=1 botBuilt=1 botProduced=1 botAttacked=1 reason=complete_loop physicalInput=unverified') 'ordinary Victory required'
-    return [ordered]@{passed=$true;epoch=$anchor.epoch;miners=@($anchor.a,$anchor.b);refinery=$anchor.refinery;resource=$anchor.resource;returnCommandCount=4;trackedMinerCommandCount=8;sharedHandlers=$true;nativeCallbackInvoked=$false;physicalInputVerified=$false;networkTransportVerified=$false;executionScope='Standalone local-authority shared handlers';phases=$phases;proofs=$proofs;depositBoundary='Immediate authoritative before/after Advance, squared distance <= 1';savedGatherEvidence='Accepted-command provenance plus authoritative reload without intervening miner command';ordinaryVictory=$true}
+    return [ordered]@{passed=$true;epoch=$anchor.epoch;miners=@($anchor.a,$anchor.b);refinery=$anchor.refinery;resource=$anchor.resource;returnCommandCount=4;trackedMinerCommandCount=8;sharedHandlers=$true;nativeCallbackInvoked=$false;physicalInputVerified=$false;networkTransportVerified=$false;executionScope='Standalone local-authority shared handlers';phases=$phases;proofs=$proofs;depositBoundary='Immediate authoritative before/after Advance, squared distance <= 1';savedGatherEvidence='Accepted-command provenance plus authoritative reload without intervening miner command';productionAccounting='Every host Advance checked independently; parser reconciles exact deposit boundaries and cash plus retained Combat cost plus active paid investment, without claiming a per-paid-tick parser audit';ordinaryVictory=$true}
 }

@@ -58,6 +58,11 @@ std::string Visible(const FProofSnapshot& Snapshot)
         Out << 'R' << Resource.ResourceId << ',' << Resource.OwnerId << ',' << Resource.Remaining << ','
             << Resource.Position.X << ',' << Resource.Position.Y << ',' << Resource.Position.Z << ';';
     }
+    for (const auto& Job : Snapshot.ProductionJobs)
+    {
+        Out << 'J' << Job.OwnerId << ',' << Job.StartSequence << ',' << Job.FactoryId << ','
+            << Job.WorkMicroseconds << ',' << Job.PaidCredits << ',' << Job.bHeld << ';';
+    }
     return Out.str();
 }
 
@@ -69,7 +74,7 @@ struct FRun
     int Produces[2] = {};
     int Attacks[2] = {};
     int Guards[2] = {};
-    std::int64_t Spent[2] = {};
+    std::int64_t BuildingSpent[2] = {};
     int Rejected = 0;
     int Ticks = 0;
     std::string Trace;
@@ -99,8 +104,32 @@ void CheckState(const FProofSnapshot& Snapshot, const FRun& Run,
         Check(Player != nullptr, "expected owner record retained");
         if (!Player) { continue; }
         Check(Player->Credits >= 0 && Player->TotalGathered >= 0, "nonnegative credits/income");
+        // This matrix starts with no Combat and never removes an owner. Dead
+        // records remain, so every retained Combat proves one completed paid
+        // job. Active job debits account independently for partial production;
+        // loss refunds remove that liability without inferring it from cash.
+        std::int64_t ProductionSpent = 0;
+        for (const auto& Unit : Snapshot.Units)
+        {
+            if (Unit.OwnerId == Player->OwnerId && Unit.Kind == EProofUnitKind::Combat)
+                ProductionSpent += FProofCommandModel::ProductionCost;
+        }
+        int ActiveJobs = 0;
+        for (const auto& Job : Snapshot.ProductionJobs)
+        {
+            if (Job.OwnerId != Player->OwnerId) { continue; }
+            ++ActiveJobs;
+            ProductionSpent += Job.PaidCredits;
+            Check(Job.StartSequence > 0 && Job.FactoryId > 0, "production identity is positive");
+            Check(Job.WorkMicroseconds >= 0 && Job.WorkMicroseconds <= FProofCommandModel::ProductionWorkMicroseconds,
+                "production work is bounded");
+            Check(Job.PaidCredits == (Job.WorkMicroseconds + FProofCommandModel::ProductionWorkPerCredit - 1)
+                / FProofCommandModel::ProductionWorkPerCredit, "actual payment exactly funds completed work");
+        }
+        Check(ActiveJobs <= 1, "one active generic production line per owner");
         Check(std::int64_t(Player->Credits) == InitialCredits[Index]
-            + std::int64_t(Player->TotalGathered) - Run.Spent[Index], "credits equal initial + mined - spent");
+            + std::int64_t(Player->TotalGathered) - Run.BuildingSpent[Index] - ProductionSpent,
+            "credits equal initial + mined - construction - completed and partial production");
         OreAndCargoAndGathered += Player->TotalGathered;
         int Live = 0;
         for (const auto& Unit : Snapshot.Units)
@@ -187,16 +216,16 @@ FRun RunMatch(const FVector& FirstHQ, const FVector& SecondHQ, bool ReverseSubmi
                 if (!Result.bAccepted) { ++Run.Rejected; continue; }
                 if (Command.Type == EProofCommandType::BuildRefinery)
                 {
-                    ++Run.Refineries[Index]; Run.Spent[Index] += FProofCommandModel::RefineryCost;
+                    ++Run.Refineries[Index]; Run.BuildingSpent[Index] += FProofCommandModel::RefineryCost;
                 }
                 if (Command.Type == EProofCommandType::BuildFactory)
                 {
-                    ++Run.Factories[Index]; Run.Spent[Index] += FProofCommandModel::FactoryCost;
+                    ++Run.Factories[Index]; Run.BuildingSpent[Index] += FProofCommandModel::FactoryCost;
                 }
                 if (Command.Type == EProofCommandType::Gather) { ++Run.Gathers[Index]; }
                 if (Command.Type == EProofCommandType::Produce)
                 {
-                    ++Run.Produces[Index]; Run.Spent[Index] += FProofCommandModel::ProductionCost;
+                    ++Run.Produces[Index];
                 }
                 if (Command.Type == EProofCommandType::Attack) { ++Run.Attacks[Index]; }
                 if (Command.Type == EProofCommandType::AreaGuard)
@@ -238,6 +267,9 @@ FRun RunMatch(const FVector& FirstHQ, const FVector& SecondHQ, bool ReverseSubmi
         Check(Run.Guards[Index] > 0, "each bot issues real pre-grace AreaGuard through the shared validator");
         Check(Run.Gathers[Index] > 0 && Run.Produces[Index] > 0 && Run.Attacks[Index] > 0,
             "each bot gathers, produces, and attacks");
+        Check(Run.Final.Units.ContainsByPredicate([Index](const auto& Unit)
+            { return Unit.OwnerId == Owners[Index] && Unit.Kind == EProofUnitKind::Combat; }),
+            "each bot completes a paid production job, beyond accepted starts");
         const auto* Player = Run.Final.Players.FindByPredicate(
             [Index](const auto& Candidate) { return Candidate.OwnerId == Owners[Index]; });
         Check(Player && Player->TotalGathered > 0, "each bot actually deposits mined cargo");
@@ -273,7 +305,7 @@ int main()
                 [Index](const auto& Candidate) { return Candidate.OwnerId == Owners[Index]; });
             std::cout << " owner" << Owners[Index] << "[refinery=" << First.Refineries[Index]
                 << ",factory=" << First.Factories[Index] << ",gather=" << First.Gathers[Index]
-                << ",produce=" << First.Produces[Index] << ",attack=" << First.Attacks[Index] << ",guard=" << First.Guards[Index]
+                << ",production_starts=" << First.Produces[Index] << ",attack=" << First.Attacks[Index] << ",guard=" << First.Guards[Index]
                 << ",earned=" << (Player ? Player->TotalGathered : -1) << ']';
         }
         std::cout << " rejected=" << First.Rejected << " exact_replay=" << ExactReplay << '\n';

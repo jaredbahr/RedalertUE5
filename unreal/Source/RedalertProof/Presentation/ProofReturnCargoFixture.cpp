@@ -2,6 +2,7 @@
 #include "Runtime/ProofGameMode.h"
 #include "Runtime/ProofGameState.h"
 #include "Runtime/ProofPlayerController.h"
+#include "Runtime/ProofProductionAccounting.h"
 #include "Engine/World.h"
 #include "HAL/FileManager.h"
 #include "HAL/PlatformMisc.h"
@@ -351,12 +352,13 @@ void AProofGameMode::ObserveReturnCargoCommand(int32 TrustedOwnerId, const FProo
     const FVector From = A ? A->Position : FVector::ZeroVector;
     const FVector To = B ? B->Position : FVector::ZeroVector;
     const int32* Resume = ReturnCargoGatherSources.Find(Command.UnitId);
-    UE_LOG(LogTemp, Display, TEXT("PROOF_RETURN_CARGO_COMMAND {\"owner\":%d,\"epoch\":%d,\"sequence\":%d,\"type\":%d,\"unit\":%d,\"target\":%d,\"accepted\":%d,\"revisionBefore\":%d,\"revision\":%d,\"cargoBefore\":%d,\"cargoAfter\":%d,\"creditsBefore\":%d,\"creditsAfter\":%d,\"gatheredBefore\":%d,\"gatheredAfter\":%d,\"xBefore\":%.17g,\"yBefore\":%.17g,\"zBefore\":%.17g,\"x\":%.17g,\"y\":%.17g,\"z\":%.17g,\"resumeResource\":%d,\"conservedBefore\":%lld,\"conservedAfter\":%lld}"),
+    UE_LOG(LogTemp, Display, TEXT("PROOF_RETURN_CARGO_COMMAND {\"owner\":%d,\"epoch\":%d,\"sequence\":%d,\"type\":%d,\"unit\":%d,\"target\":%d,\"accepted\":%d,\"revisionBefore\":%d,\"revision\":%d,\"cargoBefore\":%d,\"cargoAfter\":%d,\"creditsBefore\":%d,\"creditsAfter\":%d,\"gatheredBefore\":%d,\"gatheredAfter\":%d,\"xBefore\":%.17g,\"yBefore\":%.17g,\"zBefore\":%.17g,\"x\":%.17g,\"y\":%.17g,\"z\":%.17g,\"resumeResource\":%d,\"conservedBefore\":%lld,\"conservedAfter\":%lld,\"productionBefore\":%s,\"productionAfter\":%s}"),
         TrustedOwnerId, MatchEpoch, Command.Sequence, static_cast<int32>(Command.Type), Command.UnitId, Command.TargetUnitId,
         Result.bAccepted ? 1 : 0, Before.Revision, After.Revision, A ? A->Cargo : 0, B ? B->Cargo : 0,
         Prior->Credits, Current->Credits, Prior->TotalGathered, Current->TotalGathered,
         From.X, From.Y, From.Z, To.X, To.Y, To.Z, Resume ? *Resume : INDEX_NONE,
-        static_cast<long long>(ReturnAccounted(Before)), static_cast<long long>(ReturnAccounted(After)));
+        static_cast<long long>(ReturnAccounted(Before)), static_cast<long long>(ReturnAccounted(After)),
+        *ProofProductionAccounting::ContextJson(Before), *ProofProductionAccounting::ContextJson(After));
     if (Command.Type == EProofCommandType::ReturnCargo && (Prior->Credits != Current->Credits
         || Prior->TotalGathered != Current->TotalGathered || !A || !B || A->Cargo != B->Cargo
         || A->Position != B->Position || ReturnAccounted(Before) != ReturnAccounted(After)))
@@ -400,7 +402,10 @@ void AProofGameMode::ObserveReturnCargoAdvance(const FProofSnapshot& Before, con
         Contributors += FString::Printf(TEXT("{\"miner\":%d,\"before\":%d,\"after\":%d,\"depot\":%d,\"sequence\":%d}"),
             A.UnitId, A.Cargo, B->Cargo, Depot->UnitId, Forced ? Forced->Sequence : 0);
     }
-    if (Current->Credits - Prior->Credits != Sum || Current->TotalGathered - Prior->TotalGathered != Sum
+    int32 ProductionPayment = 0, ProductionRefund = 0;
+    if (!ProofProductionAccounting::ValidateAdvance(Before, After, 1, ProductionPayment, ProductionRefund)
+        || static_cast<int64>(Current->Credits) - Prior->Credits != static_cast<int64>(Sum) - ProductionPayment + ProductionRefund
+        || Current->TotalGathered - Prior->TotalGathered != Sum
         || ReturnAccounted(Before) != ReturnAccounted(After))
     {
         UE_LOG(LogTemp, Error, TEXT("PROOF_RETURN_CARGO_ERROR deposit_attribution_or_conservation"));
@@ -423,12 +428,13 @@ void AProofGameMode::ObserveReturnCargoAdvance(const FProofSnapshot& Before, con
                 return;
             }
             if (!ReturnCargoEvidenceRow()) return;
-            UE_LOG(LogTemp, Display, TEXT("PROOF_RETURN_CARGO_DEPOSIT {\"owner\":1,\"epoch\":%d,\"revision\":%d,\"sequence\":%d,\"resumeResource\":%d,\"miner\":%d,\"depot\":%d,\"before\":%d,\"after\":%d,\"sum\":%d,\"creditsBefore\":%d,\"creditsAfter\":%d,\"gatheredBefore\":%d,\"gatheredAfter\":%d,\"x\":%.17g,\"y\":%.17g,\"z\":%.17g,\"depotX\":%.17g,\"depotY\":%.17g,\"depotZ\":%.17g,\"conservedBefore\":%lld,\"conservedAfter\":%lld,\"contributors\":[%s]}"),
-                MatchEpoch, After.Revision, Forced ? Forced->Sequence : 0, Forced ? Forced->ResumeResource : INDEX_NONE,
+            UE_LOG(LogTemp, Display, TEXT("PROOF_RETURN_CARGO_DEPOSIT {\"owner\":1,\"epoch\":%d,\"beforeRevision\":%d,\"revision\":%d,\"sequence\":%d,\"resumeResource\":%d,\"miner\":%d,\"depot\":%d,\"before\":%d,\"after\":%d,\"sum\":%d,\"creditsBefore\":%d,\"creditsAfter\":%d,\"gatheredBefore\":%d,\"gatheredAfter\":%d,\"x\":%.17g,\"y\":%.17g,\"z\":%.17g,\"depotX\":%.17g,\"depotY\":%.17g,\"depotZ\":%.17g,\"conservedBefore\":%lld,\"conservedAfter\":%lld,\"contributors\":[%s],\"productionPayment\":%d,\"productionRefund\":%d,\"productionBefore\":%s,\"productionAfter\":%s}"),
+                MatchEpoch, Before.Revision, After.Revision, Forced ? Forced->Sequence : 0, Forced ? Forced->ResumeResource : INDEX_NONE,
                 A.UnitId, Depot->UnitId, A.Cargo, B->Cargo, Sum, Prior->Credits, Current->Credits,
                 Prior->TotalGathered, Current->TotalGathered, B->Position.X, B->Position.Y, B->Position.Z,
                 Depot->Position.X, Depot->Position.Y, Depot->Position.Z,
-                static_cast<long long>(ReturnAccounted(Before)), static_cast<long long>(ReturnAccounted(After)), *Contributors);
+                static_cast<long long>(ReturnAccounted(Before)), static_cast<long long>(ReturnAccounted(After)), *Contributors,
+                ProductionPayment, ProductionRefund, *ProofProductionAccounting::ContextJson(Before), *ProofProductionAccounting::ContextJson(After));
             if (Forced && B->Cargo == 0)
             {
                 if (Forced->ResumeResource != INDEX_NONE) ReturnCargoAwaitingResume.Add(A.UnitId, *Forced);

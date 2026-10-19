@@ -1,4 +1,5 @@
 #include "Runtime/ProofGameMode.h"
+#include "Runtime/ProofProductionAccounting.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
 
@@ -39,7 +40,9 @@ void AProofGameMode::ObserveGroupGatherDeposits(const FProofSnapshot& Before, co
         for (const FProofPlayerRecord& Player : State.Players) Value += Player.TotalGathered;
         return Value;
     };
-    if (Current->Credits - Prior->Credits != Sum || Current->TotalGathered - Prior->TotalGathered != Sum
+    int32 Payment = 0, Refund = 0;
+    if (!ProofProductionAccounting::ValidateAdvance(Before, After, 1, Payment, Refund)
+        || static_cast<int64>(Current->Credits) - Prior->Credits != Sum - Payment + Refund || Current->TotalGathered - Prior->TotalGathered != Sum
         || Accounted(Before) != Accounted(After))
     { UE_LOG(LogTemp, Error, TEXT("PROOF_GROUP_GATHER_ERROR deposit_attribution")); return; }
     for (const FProofUnitRecord& A : Before.Units)
@@ -52,10 +55,10 @@ void AProofGameMode::ObserveGroupGatherDeposits(const FProofSnapshot& Before, co
         if (GroupGatherDepositMiners.Num() >= FProofCommandModel::SkirmishRecordCap)
         { UE_LOG(LogTemp, Error, TEXT("PROOF_GROUP_GATHER_ERROR deposit_row_limit")); return; }
         GroupGatherDepositMiners.Add(A.UnitId);
-        UE_LOG(LogTemp, Display, TEXT("PROOF_GROUP_GATHER_DEPOSIT {\"owner\":1,\"epoch\":%d,\"revision\":%d,\"miner\":%d,\"depot\":%d,\"before\":%d,\"after\":%d,\"sum\":%d,\"creditsBefore\":%d,\"creditsAfter\":%d,\"gatheredBefore\":%d,\"gatheredAfter\":%d,\"x\":%.17g,\"y\":%.17g,\"z\":%.17g,\"depotX\":%.17g,\"depotY\":%.17g,\"depotZ\":%.17g,\"conservedBefore\":%lld,\"conservedAfter\":%lld,\"contributors\":[%s]}"),
-            MatchEpoch, After.Revision, A.UnitId, Depot->UnitId, A.Cargo, B->Cargo, Sum,
+        UE_LOG(LogTemp, Display, TEXT("PROOF_GROUP_GATHER_DEPOSIT {\"owner\":1,\"epoch\":%d,\"beforeRevision\":%d,\"revision\":%d,\"miner\":%d,\"depot\":%d,\"before\":%d,\"after\":%d,\"sum\":%d,\"creditsBefore\":%d,\"creditsAfter\":%d,\"gatheredBefore\":%d,\"gatheredAfter\":%d,\"x\":%.17g,\"y\":%.17g,\"z\":%.17g,\"depotX\":%.17g,\"depotY\":%.17g,\"depotZ\":%.17g,\"conservedBefore\":%lld,\"conservedAfter\":%lld,\"contributors\":[%s],\"productionPayment\":%d,\"productionRefund\":%d,\"productionBefore\":%s,\"productionAfter\":%s}"),
+            MatchEpoch, Before.Revision, After.Revision, A.UnitId, Depot->UnitId, A.Cargo, B->Cargo, Sum,
             Prior->Credits, Current->Credits, Prior->TotalGathered, Current->TotalGathered,
             B->Position.X, B->Position.Y, B->Position.Z, Depot->Position.X, Depot->Position.Y, Depot->Position.Z,
-            static_cast<long long>(Accounted(Before)), static_cast<long long>(Accounted(After)), *Contributors);
+            static_cast<long long>(Accounted(Before)), static_cast<long long>(Accounted(After)), *Contributors, Payment, Refund, *ProofProductionAccounting::ContextJson(Before), *ProofProductionAccounting::ContextJson(After));
     }
 }

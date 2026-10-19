@@ -208,16 +208,19 @@ bool FProofRefineryAutoLossTest::RunTest(const FString&)
 {
     FProofCommandModel Model;
     if (!TestTrue(TEXT("Seed recovery owner"), AutoMinerSeed(Model))
-        || !TestTrue(TEXT("Seed attacking enemy"), Model.SeedSkirmishPlayer(100, 1, FVector(1800, 0, 0)))
-        || !TestTrue(TEXT("Build original refinery"), Model.Submit(1, AutoMinerBuild(1)).bAccepted)) return false;
-    const FProofSnapshot Built = Model.GetSnapshot();
-    const int32 Miner = Built.Units[Built.Units.Num() - 1].UnitId;
-    const int32 Refinery = Built.Units[Built.Units.Num() - 2].UnitId;
+        || !TestTrue(TEXT("Seed attacking enemy"), Model.SeedSkirmishPlayer(100, 1, FVector(1800, 0, 0)))) return false;
     if (!TestTrue(TEXT("Enemy builds actual factory"), Model.Submit(100, AutoMinerCommand(1,
         EProofCommandType::BuildFactory, INDEX_NONE, INDEX_NONE, FVector(1500, 0, 0))).bAccepted)) return false;
     const int32 Factory = Model.GetSnapshot().Units.Last().UnitId;
     if (!TestTrue(TEXT("Enemy pays for combat"), Model.Submit(100, AutoMinerCommand(2, EProofCommandType::Produce, Factory)).bAccepted)) return false;
+    Model.Advance(FProofCommandModel::ProductionDurationSeconds);
     const int32 Attacker = Model.GetSnapshot().Units.Last().UnitId;
+    // Start the first auto-mining trip only after the real enemy is available,
+    // preserving the loss-before-first-deposit premise without stopping Gather.
+    if (!TestTrue(TEXT("Build original refinery"), Model.Submit(1, AutoMinerBuild(1)).bAccepted)) return false;
+    const FProofSnapshot Built = Model.GetSnapshot();
+    const int32 Miner = Built.Units[Built.Units.Num() - 1].UnitId;
+    const int32 Refinery = Built.Units[Built.Units.Num() - 2].UnitId;
     if (!TestTrue(TEXT("Enemy attacks refinery through shared validator"), Model.Submit(100, AutoMinerCommand(3, EProofCommandType::Attack, Attacker, Refinery)).bAccepted)) return false;
     Model.Advance(5.f);
     TestEqual(TEXT("Automatic miner carries its first load"), AutoMinerUnit(Model.GetSnapshot(), Miner).Cargo, 50);

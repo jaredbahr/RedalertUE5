@@ -54,7 +54,7 @@ bool SameVisibleState(const FProofSnapshot& A, const FProofSnapshot& B)
     if (A.Revision != B.Revision || A.MatchEpoch != B.MatchEpoch || A.bSkirmish != B.bSkirmish
         || A.MatchPhase != B.MatchPhase || A.WinnerTeam != B.WinnerTeam
         || A.Players.Num() != B.Players.Num() || A.Units.Num() != B.Units.Num()
-        || A.Resources.Num() != B.Resources.Num()) return false;
+        || A.Resources.Num() != B.Resources.Num() || A.ProductionJobs.Num() != B.ProductionJobs.Num()) return false;
     for (int32 I = 0; I < A.Players.Num(); ++I) {
         const auto& X = A.Players[I]; const auto& Y = B.Players[I];
         if (X.OwnerId != Y.OwnerId || X.Credits != Y.Credits || X.TeamId != Y.TeamId
@@ -64,12 +64,21 @@ bool SameVisibleState(const FProofSnapshot& A, const FProofSnapshot& B)
         const auto& X = A.Units[I]; const auto& Y = B.Units[I];
         if (X.UnitId != Y.UnitId || X.OwnerId != Y.OwnerId || X.Position != Y.Position
             || X.HitPoints != Y.HitPoints || X.Kind != Y.Kind || X.Cargo != Y.Cargo
-            || X.bHasRallyPoint != Y.bHasRallyPoint || X.RallyPoint != Y.RallyPoint) return false;
+            || X.bHasRallyPoint != Y.bHasRallyPoint || X.RallyPoint != Y.RallyPoint
+            || X.LastTravelDirection != Y.LastTravelDirection || X.bAreaGuard != Y.bAreaGuard
+            || X.AreaGuardPost != Y.AreaGuardPost || X.AreaGuardTargetId != Y.AreaGuardTargetId
+            || X.bAreaGuardReturning != Y.bAreaGuardReturning) return false;
     }
     for (int32 I = 0; I < A.Resources.Num(); ++I) {
         const auto& X = A.Resources[I]; const auto& Y = B.Resources[I];
         if (X.ResourceId != Y.ResourceId || X.OwnerId != Y.OwnerId || X.Position != Y.Position
             || X.Remaining != Y.Remaining) return false;
+    }
+    for (int32 I = 0; I < A.ProductionJobs.Num(); ++I) {
+        const auto& X = A.ProductionJobs[I]; const auto& Y = B.ProductionJobs[I];
+        if (X.OwnerId != Y.OwnerId || X.StartSequence != Y.StartSequence || X.FactoryId != Y.FactoryId
+            || X.WorkMicroseconds != Y.WorkMicroseconds || X.PaidCredits != Y.PaidCredits || X.bHeld != Y.bHeld)
+            return false;
     }
     return true;
 }
@@ -165,7 +174,15 @@ void PaidProductionCases()
             Check(Pawn.SkirmishProduceRecordsBefore == 0, "zero own combat records before first production");
             Check(F.Submit(Pawn.Requested).bAccepted, "actual emitted request passes authoritative model");
             auto After = F.Model.GetSnapshot();
-            Check(After.Units.Num() == Before.Units.Num() + 1, "one combat record created");
+            Check(After.Units.Num() == Before.Units.Num() && Credits(After) == Credits(Before),
+                "actual input route starts a job without an immediate unit or debit");
+            Check(After.ProductionJobs.Num() == 1 && After.ProductionJobs[0].FactoryId == Expected
+                && After.ProductionJobs[0].OwnerId == 1 && After.ProductionJobs[0].StartSequence == F.Sequence,
+                "authoritative job preserves routed factory and accepted command identity");
+            F.Model.Advance(FProofCommandModel::ProductionDurationSeconds);
+            After = F.Model.GetSnapshot();
+            Check(After.ProductionJobs.IsEmpty(), "completed timed job is removed");
+            Check(After.Units.Num() == Before.Units.Num() + 1, "one combat record created after paid work");
             const auto Produced = After.Units.Last();
             Check(Produced.Kind == EProofUnitKind::Combat && Produced.OwnerId == 1,
                 "produced unit is owned Combat");
@@ -251,27 +268,40 @@ void OneOrNoFactoryCases()
     CheckNoFactory(Empty);
 }
 
-void RejectedSecondPurchase()
+void BusyAndUnfundedSecondPurchase()
 {
     Fixture F;
     AProofRTSPawn Pawn;
     Pawn.World.State.Snapshot = F.Model.GetSnapshot();
     Pawn.Produce();
     CheckRequest(Pawn, F.FirstFactory);
-    Check(F.Submit(Pawn.Requested).bAccepted, "first purchase spends the remaining 50 credits");
+    Check(F.Submit(Pawn.Requested).bAccepted, "first request starts the 50-credit timed job");
     Pawn.World.State.Snapshot = F.Model.GetSnapshot();
     Pawn.Requests = 0;
     Pawn.Produce();
     CheckRequest(Pawn, F.FirstFactory);
-    Check(Pawn.SkirmishProduceRecordsBefore == 1, "existing own combat counted before rejection");
+    Check(Pawn.SkirmishProduceRecordsBefore == 0, "pending job is not counted as a completed combat record");
     const auto Before = F.Model.GetSnapshot();
     const auto Result = F.Submit(Pawn.Requested);
-    Check(!Result.bAccepted && Result.Reason == FString(TEXT("resources")),
-        "authoritative model still rejects insufficient credits");
-    Check(SameVisibleState(Before, F.Model.GetSnapshot()), "rejected purchase changes no visible state or credits");
+    Check(!Result.bAccepted && Result.Reason == FString(TEXT("production-busy")),
+        "authoritative model rejects a second simultaneous owner job");
+    Check(SameVisibleState(Before, F.Model.GetSnapshot()), "busy rejection changes no visible state or credits");
+    F.Model.Advance(FProofCommandModel::ProductionDurationSeconds);
+    const auto Completed = F.Model.GetSnapshot();
+    Check(Credits(Completed) == 0 && Completed.Units.Num() == Before.Units.Num() + 1
+        && Completed.ProductionJobs.IsEmpty(), "only the original paid job completes");
+    Pawn.World.State.Snapshot = Completed;
+    Pawn.Requests = 0;
+    Pawn.Produce();
+    CheckRequest(Pawn, F.FirstFactory);
+    Check(Pawn.SkirmishProduceRecordsBefore == 1, "completed own combat is counted before another job");
+    Check(F.Submit(Pawn.Requested).bAccepted, "zero cash now accepts an automatically suspended production job");
     F.Model.Advance(1.f);
-    Check(Credits(F.Model.GetSnapshot()) == 0 && F.Model.GetSnapshot().Units.Num() == Before.Units.Num(),
-        "rejection creates no delayed unit or charge");
+    const auto Paused = F.Model.GetSnapshot();
+    Check(Credits(Paused) == 0 && Paused.Units.Num() == Completed.Units.Num()
+        && Paused.ProductionJobs.Num() == 1 && Paused.ProductionJobs[0].WorkMicroseconds == 0
+        && Paused.ProductionJobs[0].PaidCredits == 0,
+        "cash shortage creates no unpaid progress, delayed unit or charge");
 }
 
 void PreserveReceiptCounting()
@@ -328,7 +358,7 @@ int main()
     PaidProductionCases();
     RoutingFilterCases();
     OneOrNoFactoryCases();
-    RejectedSecondPurchase();
+    BusyAndUnfundedSecondPurchase();
     PreserveReceiptCounting();
     PreserveLegacyPaths();
     std::cout << (Failures ? "FAIL: " : "PASS: ") << Checks << " active checks, " << Failures << " failures.\n";

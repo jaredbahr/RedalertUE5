@@ -31,6 +31,7 @@ void IdleCombatPair(FProofCommandModel& Model, int32& A, int32& B)
     Model.Submit(2, IdleCombatOrder(1, EProofCommandType::BuildFactory, INDEX_NONE, INDEX_NONE, FVector(2700, 0, 0)));
     Model.Submit(1, IdleCombatOrder(2, EProofCommandType::Produce, IdleCombatKind(Model.GetSnapshot(), 1, EProofUnitKind::Factory)));
     Model.Submit(2, IdleCombatOrder(2, EProofCommandType::Produce, IdleCombatKind(Model.GetSnapshot(), 2, EProofUnitKind::Factory)));
+    Model.Advance(FProofCommandModel::ProductionDurationSeconds);
     A = IdleCombatKind(Model.GetSnapshot(), 1, EProofUnitKind::Combat);
     B = IdleCombatKind(Model.GetSnapshot(), 2, EProofUnitKind::Combat);
     Model.Submit(1, IdleCombatOrder(3, EProofCommandType::Move, A, INDEX_NONE, FVector(1000, 0, 0)));
@@ -51,6 +52,7 @@ bool FProofIdleRangeTest::RunTest(const FString&)
         Model.SeedSkirmishPlayer(2, Variant == 2 ? 0 : 1, FVector(EnemyX, 0, 0));
         Model.Submit(1, IdleCombatOrder(1, EProofCommandType::BuildFactory, INDEX_NONE, INDEX_NONE, FVector(300, 0, 0)));
         Model.Submit(1, IdleCombatOrder(2, EProofCommandType::Produce, IdleCombatKind(Model.GetSnapshot(), 1, EProofUnitKind::Factory)));
+        Model.Advance(FProofCommandModel::ProductionDurationSeconds);
         const FProofSnapshot Before = Model.GetSnapshot();
         const int32 Combat = IdleCombatKind(Before, 1, EProofUnitKind::Combat);
         const int32 HQ = IdleCombatKind(Before, 2, EProofUnitKind::HQ);
@@ -66,6 +68,7 @@ bool FProofIdleRangeTest::RunTest(const FString&)
     Roles.SeedSkirmishPlayer(2, 1, FVector(900, 0, 0));
     Roles.Submit(1, IdleCombatOrder(1, EProofCommandType::BuildFactory, INDEX_NONE, INDEX_NONE, FVector(300, 0, 0)));
     Roles.Submit(1, IdleCombatOrder(2, EProofCommandType::Produce, IdleCombatKind(Roles.GetSnapshot(), 1, EProofUnitKind::Factory)));
+    Roles.Advance(FProofCommandModel::ProductionDurationSeconds);
     Roles.Submit(2, IdleCombatOrder(1, EProofCommandType::BuildFactory, INDEX_NONE, INDEX_NONE, FVector(700, 0, 0)));
     const int32 Harvester = IdleCombatKind(Roles.GetSnapshot(), 2, EProofUnitKind::Harvester);
     const int32 Combat = IdleCombatKind(Roles.GetSnapshot(), 1, EProofUnitKind::Combat);
@@ -121,6 +124,7 @@ bool FProofIdleOrdersTest::RunTest(const FString&)
     Fractional.SeedSkirmishPlayer(2, 1, FVector(900, 0, 0));
     Fractional.Submit(1, IdleCombatOrder(1, EProofCommandType::BuildFactory, INDEX_NONE, INDEX_NONE, FVector(300, 0, 0)));
     Fractional.Submit(1, IdleCombatOrder(2, EProofCommandType::Produce, IdleCombatKind(Fractional.GetSnapshot(), 1, EProofUnitKind::Factory)));
+    Fractional.Advance(FProofCommandModel::ProductionDurationSeconds);
     const int32 FractionalCombat = IdleCombatKind(Fractional.GetSnapshot(), 1, EProofUnitKind::Combat);
     const FVector Destination(650.000164, 17.3, 0);
     Fractional.Submit(1, IdleCombatOrder(3, EProofCommandType::Move, FractionalCombat, INDEX_NONE, Destination));
@@ -155,6 +159,7 @@ bool FProofIdleNearestTest::RunTest(const FString&)
         Model.SeedSkirmishPlayer(SecondOwner, 1, FVector(600, -300, 0));
         Model.Submit(1, IdleCombatOrder(1, EProofCommandType::BuildFactory, INDEX_NONE, INDEX_NONE, FVector(300, 0, 0)));
         Model.Submit(1, IdleCombatOrder(2, EProofCommandType::Produce, IdleCombatKind(Model.GetSnapshot(), 1, EProofUnitKind::Factory)));
+        Model.Advance(FProofCommandModel::ProductionDurationSeconds);
         const FProofSnapshot Before = Model.GetSnapshot();
         const int32 Combat = IdleCombatKind(Before, 1, EProofUnitKind::Combat);
         TestEqual(TEXT("Combat spawn is centered between equidistant enemies"), IdleCombatUnit(Before, Combat).Position, FVector(600, 0, 0));
@@ -190,6 +195,7 @@ bool FProofIdleCompatibilityTest::RunTest(const FString&)
     Terminal.SeedSkirmishPlayer(2, 1, FVector(900, 0, 0));
     Terminal.Submit(1, IdleCombatOrder(1, EProofCommandType::BuildFactory, INDEX_NONE, INDEX_NONE, FVector(300, 0, 0)));
     Terminal.Submit(1, IdleCombatOrder(2, EProofCommandType::Produce, IdleCombatKind(Terminal.GetSnapshot(), 1, EProofUnitKind::Factory)));
+    Terminal.Advance(FProofCommandModel::ProductionDurationSeconds);
     Terminal.Advance(12.f);
     const FProofSnapshot Finished = Terminal.GetSnapshot();
     TestTrue(TEXT("Idle combat can trigger normal HQ terminal rules"), Finished.MatchPhase == EProofMatchPhase::Finished);
