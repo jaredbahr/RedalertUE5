@@ -259,7 +259,9 @@ TArray<FProofCommand> FProofSkirmishBot::Decide(const FProofSnapshot& Snapshot, 
         }
     }
 
-    if (Factory && SpendableCredits >= CombatCost && PlannedLiveCount < MaxLiveUnitsPerOwner)
+    const bool bHasProduction = Snapshot.ProductionJobs.ContainsByPredicate(
+        [OwnerId](const FProofProductionJob& Job) { return Job.OwnerId == OwnerId; });
+    if (Factory && !bHasProduction && SpendableCredits >= CombatCost && PlannedLiveCount < MaxLiveUnitsPerOwner)
     {
         if (AddCommand(EProofCommandType::Produce, Factory->UnitId, INDEX_NONE, FVector::ZeroVector))
         {

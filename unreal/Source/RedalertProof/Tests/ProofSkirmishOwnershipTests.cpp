@@ -73,6 +73,9 @@ bool FProofSkirmishOwnershipTest::RunTest(const FString&)
             ++StoppedGrants;
         }
         if (!TestEqual(TEXT("Exactly one incidental teammate grant stopped"), StoppedGrants, 1)) return false;
+        // Both public jobs complete together; the teammate grant is already
+        // stopped, while the sender's auto-miner keeps its real gather order.
+        Model.Advance(FProofCommandModel::ProductionDurationSeconds);
         const FProofSnapshot Before = Model.GetSnapshot();
         const int32 ForeignHarvester = OwnershipUnit(Before, 1, EProofUnitKind::Harvester);
         const int32 OwnHarvester = OwnershipUnit(Before, 2, EProofUnitKind::Harvester);

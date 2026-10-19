@@ -17,11 +17,13 @@ FString StopDigest(FProofSnapshot Snapshot, int32 Epoch)
     return Snapshot.ComputeDigest();
 }
 
-// Serialize every visible field, with round-trip precision for FVector doubles
-// and HP floats. Limits bound diagnostic allocations; they are not gameplay caps.
+// Serialize the legacy non-skirmish Stop fixture schema, with round-trip
+// precision for its vectors/HP. The full digest also commits display metadata.
+// Timed skirmish jobs require their separate evidence path; reject them here.
+// Limits bound diagnostic allocations, not gameplay capacity.
 bool StopSnapshotJson(const FProofSnapshot& Snapshot, int32 Epoch, FString& Json)
 {
-    if (Epoch < 0 || Snapshot.Revision < 0 || Snapshot.Units.Num() > 128
+    if (!Snapshot.ProductionJobs.IsEmpty() || Epoch < 0 || Snapshot.Revision < 0 || Snapshot.Units.Num() > 128
         || Snapshot.Players.Num() > 16 || Snapshot.Resources.Num() > 64) { return false; }
     Json = FString::Printf(TEXT("{\"epoch\":%d,\"revision\":%d,\"digest\":\"%s\",\"skirmish\":%d,\"phase\":%d,\"winner\":%d,\"units\":["),
         Epoch, Snapshot.Revision, *StopDigest(Snapshot, Epoch), Snapshot.bSkirmish ? 1 : 0,

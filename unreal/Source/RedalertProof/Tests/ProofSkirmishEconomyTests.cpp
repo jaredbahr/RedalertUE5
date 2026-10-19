@@ -67,6 +67,8 @@ bool FProofSkirmishPlacementTest::RunTest(const FString&)
     const int32 Factory = FirstKind(Built, 1, EProofUnitKind::Factory);
     TestEqual(TEXT("Cannot use teammate factory"), Model.Submit(2, Command(1, EProofCommandType::Produce, Factory)).Reason, FString(TEXT("factory")));
     TestTrue(TEXT("Own factory produces combat"), Model.Submit(1, Command(9, EProofCommandType::Produce, Factory)).bAccepted);
+    // Complete the real paid job before using the resulting Combat record.
+    Model.Advance(FProofCommandModel::ProductionDurationSeconds);
     const FProofSnapshot Produced = Model.GetSnapshot();
     const int32 Combat = FirstKind(Produced, 1, EProofUnitKind::Combat);
     TestEqual(TEXT("Production cost debited"), PlayerById(Produced, 1)->Credits, 50);
@@ -121,6 +123,8 @@ bool FProofSkirmishHarvestTest::RunTest(const FString&)
     for (int32 Index = 0; Index < 7; ++Index)
     {
         TestTrue(TEXT("Produce up to live cap"), Model.Submit(1, Command(6 + Index, EProofCommandType::Produce, Factory)).bAccepted);
+        Model.Advance(FProofCommandModel::ProductionDurationSeconds);
+        TestTrue(TEXT("Paid cap-fixture job completes"), Model.GetSnapshot().ProductionJobs.IsEmpty());
     }
     TestEqual(TEXT("Eighth combat unit is over cap including the granted miner"), Model.Submit(1, Command(13, EProofCommandType::Produce, Factory)).Reason, FString(TEXT("capacity")));
     const FProofSnapshot Capped = Model.GetSnapshot();
@@ -197,7 +201,8 @@ bool FProofSkirmishDeterminismTest::RunTest(const FString&)
         const int32 Harvester = FirstKind(Prepared, 1, EProofUnitKind::Harvester);
         TestTrue(TEXT("Gather command"), Model->Submit(1, Command(3, EProofCommandType::Gather, Harvester, Prepared.Resources[0].ResourceId)).bAccepted);
         TestTrue(TEXT("Produce command"), Model->Submit(1, Command(4, EProofCommandType::Produce, Factory)).bAccepted);
-        Model->Advance(4.f);
+        Model->Advance(FProofCommandModel::ProductionDurationSeconds);
+        TestTrue(TEXT("Deterministic setup completes the real paid job"), Model->GetSnapshot().ProductionJobs.IsEmpty());
     }
     TestEqual(TEXT("Identical command traces have identical digest"), Left.GetSnapshot().ComputeDigest(), Right.GetSnapshot().ComputeDigest());
     FProofSnapshot Altered = Left.GetSnapshot();
@@ -229,6 +234,7 @@ bool FProofSkirmishDeterminismTest::RunTest(const FString&)
     TestTrue(TEXT("Team 1 factory"), Draw.Submit(100, Command(1, EProofCommandType::BuildFactory, INDEX_NONE, INDEX_NONE, FVector(950, 0, 0))).bAccepted);
     TestTrue(TEXT("Team 0 combat"), Draw.Submit(1, Command(2, EProofCommandType::Produce, FirstKind(Draw.GetSnapshot(), 1, EProofUnitKind::Factory))).bAccepted);
     TestTrue(TEXT("Team 1 combat"), Draw.Submit(100, Command(2, EProofCommandType::Produce, FirstKind(Draw.GetSnapshot(), 100, EProofUnitKind::Factory))).bAccepted);
+    Draw.Advance(FProofCommandModel::ProductionDurationSeconds);
     const FProofSnapshot BothArmed = Draw.GetSnapshot();
     TestTrue(TEXT("Team 0 attacks HQ"), Draw.Submit(1, Command(3, EProofCommandType::Attack,
         FirstKind(BothArmed, 1, EProofUnitKind::Combat), FirstKind(BothArmed, 100, EProofUnitKind::HQ))).bAccepted);

@@ -167,6 +167,8 @@ bool FProofStopIdleFireTest::RunTest(const FString&)
     if (!TestTrue(TEXT("Build factory"), Model.Submit(1, StopOrder(1, EProofCommandType::BuildFactory, INDEX_NONE, INDEX_NONE, FVector(300, 0, 0))).bAccepted)) return false;
     const int32 Factory = StopKind(Model.GetSnapshot(), 1, EProofUnitKind::Factory);
     if (!TestTrue(TEXT("Produce actual Combat"), Model.Submit(1, StopOrder(2, EProofCommandType::Produce, Factory)).bAccepted)) return false;
+    // Complete the real paid job before using the resulting Combat record.
+    Model.Advance(FProofCommandModel::ProductionDurationSeconds);
     const int32 Combat = StopKind(Model.GetSnapshot(), 1, EProofUnitKind::Combat);
     const int32 EnemyHQ = StopKind(Model.GetSnapshot(), ProofOwnerIds::Bot, EProofUnitKind::HQ);
     const int32 EnemyMiner = StopKind(Model.GetSnapshot(), ProofOwnerIds::Bot, EProofUnitKind::Harvester);

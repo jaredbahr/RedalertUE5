@@ -365,6 +365,7 @@ bool FProofLastTravelDirectionTest::RunTest(const FString&)
         const int32 Factory = TravelKind(Model.GetSnapshot(), 1, EProofUnitKind::Factory);
         TestTrue(TEXT("factory rally accepted"), Model.Submit(1, TravelCommand(2, EProofCommandType::SetRally, Factory, FVector(-500, 900, 0))).bAccepted);
         TestTrue(TEXT("rallied Produce accepted"), Model.Submit(1, TravelCommand(3, EProofCommandType::Produce, Factory)).bAccepted);
+        Model.Advance(FProofCommandModel::ProductionDurationSeconds);
         const int32 Combat = TravelKind(Model.GetSnapshot(), 1, EProofUnitKind::Combat);
         const FProofUnitRecord Produced = TravelUnit(Model.GetSnapshot(), Combat);
         TestTrue(TEXT("production rally does not fabricate heading"), Produced.LastTravelDirection == FVector::ZeroVector);

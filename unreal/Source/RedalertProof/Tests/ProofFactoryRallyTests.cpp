@@ -60,6 +60,8 @@ bool FProofFactoryRallyProductionTest::RunTest(const FString&)
     TestEqual(TEXT("Rally setting creates no units"), Model.GetSnapshot().Units.Num(), Before.Units.Num());
     TestTrue(TEXT("Normally paid production accepted"), Model.Submit(1, RallyCommand(3, EProofCommandType::Produce, Factory)).bAccepted);
     TestTrue(TEXT("Baseline production accepted"), Baseline.Submit(1, RallyCommand(2, EProofCommandType::Produce, BaselineFactory)).bAccepted);
+    Model.Advance(FProofCommandModel::ProductionDurationSeconds);
+    Baseline.Advance(FProofCommandModel::ProductionDurationSeconds);
     const FProofSnapshot Spawned = Model.GetSnapshot();
     const int32 First = RallyKind(Spawned, 1, EProofUnitKind::Combat);
     TestEqual(TEXT("Exactly ordinary production cost"), RallyCredits(Spawned), RallyCredits(Before) - FProofCommandModel::ProductionCost);
@@ -71,6 +73,8 @@ bool FProofFactoryRallyProductionTest::RunTest(const FString&)
     TestTrue(TEXT("Default factory production stays at spawn"), RallyUnit(Baseline.GetSnapshot(), First).Position.Equals(RallyUnit(Spawned, First).Position, 0.0));
     TestTrue(TEXT("Replace factory rally"), Model.Submit(1, RallyCommand(4, EProofCommandType::SetRally, Factory, SecondTarget)).bAccepted);
     TestTrue(TEXT("Second paid production"), Model.Submit(1, RallyCommand(5, EProofCommandType::Produce, Factory)).bAccepted);
+    // The first Combat keeps moving during the second real production job.
+    Model.Advance(FProofCommandModel::ProductionDurationSeconds);
     const FProofSnapshot Both = Model.GetSnapshot();
     const int32 Second = RallyKind(Both, 1, EProofUnitKind::Combat);
     Model.Advance(0.1f);
@@ -123,6 +127,8 @@ bool FProofFactoryRallyAuthorityTest::RunTest(const FString&)
     const int32 ActualBotFactory = RallyKind(Model.GetSnapshot(), 100, EProofUnitKind::Factory);
     TestTrue(TEXT("Bot uses identical rally validator"), Model.Submit(100, RallyCommand(3, EProofCommandType::SetRally, ActualBotFactory, FVector(4200, 700, 0))).bAccepted);
     TestTrue(TEXT("Bot pays for ordinary rally production"), Model.Submit(100, RallyCommand(4, EProofCommandType::Produce, ActualBotFactory)).bAccepted);
+    // Complete the real paid job before using the resulting Combat record.
+    Model.Advance(FProofCommandModel::ProductionDurationSeconds);
     const int32 BotCombat = RallyKind(Model.GetSnapshot(), 100, EProofUnitKind::Combat);
     const FVector BotSpawn = RallyUnit(Model.GetSnapshot(), BotCombat).Position;
     Model.Advance(0.1f);
@@ -168,22 +174,64 @@ bool FProofFactoryRallyFailureTest::RunTest(const FString&)
             TestTrue(TEXT("Seed ordinary blocker seat"), Model.SeedSkirmishPlayer(Owner++, 0, Center + Direction * (300.0 * Ring)));
     FVector Spawn;
     TestFalse(TEXT("Fixture exhausts actual spawn helper"), FProofCommandModel::FindSkirmishSpawn(Model.GetSnapshot(), Center, Spawn));
-    const FString Before = Model.GetSnapshot().ComputeDigest();
-    TestEqual(TEXT("Rally cannot bypass spawn failure"), Model.Submit(1, RallyCommand(3, EProofCommandType::Produce, Factory)).Reason, FString(TEXT("spawn")));
-    TestEqual(TEXT("Failed production preserves all snapshot state/cost/IDs/rally"), Model.GetSnapshot().ComputeDigest(), Before);
+    const FProofSnapshot Before = Model.GetSnapshot();
+    int32 ExpectedCombatId = 1;
+    for (const FProofUnitRecord& Unit : Before.Units) ExpectedCombatId = FMath::Max(ExpectedCombatId, Unit.UnitId + 1);
+    TestTrue(TEXT("Blocked exit permits a timed job without bypassing the spawn helper"),
+        Model.Submit(1, RallyCommand(3, EProofCommandType::Produce, Factory)).bAccepted);
+    const FProofSnapshot Started = Model.GetSnapshot();
+    TestEqual(TEXT("Blocked job start creates no phantom record"), Started.Units.Num(), Before.Units.Num());
+    TestEqual(TEXT("Blocked job start cannot debit credits"), RallyCredits(Started), RallyCredits(Before));
+    if (!TestEqual(TEXT("Exactly one blocked-exit job is admitted"), Started.ProductionJobs.Num(), 1)) return false;
+    TestTrue(TEXT("Job keeps the actual owner, factory and admitted sequence"), Started.ProductionJobs[0].OwnerId == 1
+        && Started.ProductionJobs[0].FactoryId == Factory && Started.ProductionJobs[0].StartSequence == 3
+        && Started.ProductionJobs[0].PaidCredits == 0 && Started.ProductionJobs[0].WorkMicroseconds == 0
+        && !Started.ProductionJobs[0].bHeld);
+    Model.Advance(FProofCommandModel::ProductionDurationSeconds);
+    const FProofSnapshot Blocked = Model.GetSnapshot();
+    TestEqual(TEXT("Rally cannot release a unit through an obstructed exit"), Blocked.Units.Num(), Before.Units.Num());
+    TestEqual(TEXT("Blocked job pays the ordinary price exactly once"), RallyCredits(Blocked), RallyCredits(Before) - FProofCommandModel::ProductionCost);
+    if (!TestEqual(TEXT("Fully paid blocked job is retained"), Blocked.ProductionJobs.Num(), 1)) return false;
+    TestTrue(TEXT("Ready-blocked job has exact completed work and debit ledger"),
+        Blocked.ProductionJobs[0].WorkMicroseconds == FProofCommandModel::ProductionWorkMicroseconds
+        && Blocked.ProductionJobs[0].PaidCredits == FProofCommandModel::ProductionCost);
+    TestEqual(TEXT("Replay cannot duplicate the blocked job"), Model.Submit(1, RallyCommand(3, EProofCommandType::Produce, Factory)).Reason, FString(TEXT("sequence")));
+    TestEqual(TEXT("A second request cannot bypass the blocked job"), Model.Submit(1, RallyCommand(4, EProofCommandType::Produce, Factory)).Reason, FString(TEXT("production-busy")));
+    TestEqual(TEXT("Rejected production preserves every blocked snapshot field"), Model.GetSnapshot().ComputeDigest(), Blocked.ComputeDigest());
+    Model.Advance(.5f);
+    TestEqual(TEXT("Repeated blocked progress cannot spend again"), RallyCredits(Model.GetSnapshot()), RallyCredits(Blocked));
+    TestEqual(TEXT("Repeated blocked progress cannot allocate a record"), Model.GetSnapshot().Units.Num(), Before.Units.Num());
     for (int32 BlockerOwner = 2; BlockerOwner < Owner; ++BlockerOwner) Model.RemoveSkirmishPlayer(BlockerOwner);
-    TestTrue(TEXT("After room becomes available normal production succeeds"), Model.Submit(1, RallyCommand(4, EProofCommandType::Produce, Factory)).bAccepted);
+    const FProofSnapshot Unblocked = Model.GetSnapshot();
+    Model.Advance(.1f);
     const int32 Combat = RallyKind(Model.GetSnapshot(), 1, EProofUnitKind::Combat);
     const FProofSnapshot Produced = Model.GetSnapshot();
+    TestEqual(TEXT("Unblocked completion creates exactly one record"), Produced.Units.Num(), Unblocked.Units.Num() + 1);
+    TestTrue(TEXT("Successful release removes the job"), Produced.ProductionJobs.IsEmpty());
+    TestEqual(TEXT("Job start, blocked waits and rejected requests consume no IDs"), Combat, ExpectedCombatId);
+    TestEqual(TEXT("Release does not charge twice"), RallyCredits(Produced), RallyCredits(Blocked));
+    TestTrue(TEXT("Blocked waits and failures preserve factory rally"), RallyUnit(Produced, Factory).bHasRallyPoint
+        && RallyUnit(Produced, Factory).RallyPoint == RallyUnit(Before, Factory).RallyPoint);
     Model.Advance(0.1f);
     TestTrue(TEXT("Only successful production receives rally movement"), !RallyUnit(Model.GetSnapshot(), Combat).Position.Equals(RallyUnit(Produced, Combat).Position, 0.0));
-    // Spend remaining funds through ordinary paid production, then verify no
-    // phantom spawn/order/cost change on a rejected production request.
+    // Spend remaining funds through completed ordinary jobs, then prove that
+    // a cash-starved job cannot grant a phantom spawn, movement order or debit.
     for (int32 Sequence = 5; Sequence <= 7; ++Sequence)
+    {
         TestTrue(TEXT("Ordinary paid production spends remaining credits"), Model.Submit(1, RallyCommand(Sequence, EProofCommandType::Produce, Factory)).bAccepted);
-    const FString Empty = Model.GetSnapshot().ComputeDigest();
-    TestEqual(TEXT("Rally cannot bypass production cost"), Model.Submit(1, RallyCommand(8, EProofCommandType::Produce, Factory)).Reason, FString(TEXT("resources")));
-    TestEqual(TEXT("Resource rejection leaves state unchanged"), Model.GetSnapshot().ComputeDigest(), Empty);
+        Model.Advance(FProofCommandModel::ProductionDurationSeconds);
+        if (!TestTrue(TEXT("Each funded rally job completes"), Model.GetSnapshot().ProductionJobs.IsEmpty())) return false;
+    }
+    const FProofSnapshot Empty = Model.GetSnapshot();
+    TestEqual(TEXT("All four completed jobs consume exactly the remaining funds"), RallyCredits(Empty), 0);
+    TestTrue(TEXT("Empty balance permits a suspended job"), Model.Submit(1, RallyCommand(8, EProofCommandType::Produce, Factory)).bAccepted);
+    Model.Advance(FProofCommandModel::ProductionDurationSeconds);
+    const FProofSnapshot Starved = Model.GetSnapshot();
+    TestEqual(TEXT("Rally cannot bypass production cost to create a unit"), Starved.Units.Num(), Empty.Units.Num());
+    TestEqual(TEXT("Cash-starved job cannot make credits negative"), RallyCredits(Starved), 0);
+    if (!TestEqual(TEXT("Cash-starved job is retained for later funding"), Starved.ProductionJobs.Num(), 1)) return false;
+    TestTrue(TEXT("No unpaid work or debit is fabricated"), Starved.ProductionJobs[0].PaidCredits == 0
+        && Starved.ProductionJobs[0].WorkMicroseconds == 0 && Starved.ProductionJobs[0].StartSequence == 8);
     FProofCommandModel Capacity;
     RallySeed(Capacity);
     TestTrue(TEXT("Build ordinary refinery to fund cap fixture"), Capacity.Submit(1, RallyCommand(1, EProofCommandType::BuildRefinery, INDEX_NONE, FVector(350, 0, 0))).bAccepted);
@@ -196,7 +244,11 @@ bool FProofFactoryRallyFailureTest::RunTest(const FString&)
     TestTrue(TEXT("Cap fixture has enough normal resources"), RallyCredits(Capacity.GetSnapshot()) >= 400);
     TestTrue(TEXT("Rally at ordinary capacity fixture"), Capacity.Submit(1, RallyCommand(4, EProofCommandType::SetRally, CapacityFactory, FVector(-900, 600, 0))).bAccepted);
     for (int32 Sequence = 5; Sequence <= 11; ++Sequence)
+    {
         TestTrue(TEXT("Produce up to existing live-unit cap"), Capacity.Submit(1, RallyCommand(Sequence, EProofCommandType::Produce, CapacityFactory)).bAccepted);
+        Capacity.Advance(FProofCommandModel::ProductionDurationSeconds);
+        if (!TestTrue(TEXT("Capacity fixture waits for each actual paid completion"), Capacity.GetSnapshot().ProductionJobs.IsEmpty())) return false;
+    }
     const FString AtCap = Capacity.GetSnapshot().ComputeDigest();
     TestEqual(TEXT("Rally cannot bypass existing cap"), Capacity.Submit(1, RallyCommand(12, EProofCommandType::Produce, CapacityFactory)).Reason, FString(TEXT("capacity")));
     TestEqual(TEXT("Capacity failure preserves credits/units/rally"), Capacity.GetSnapshot().ComputeDigest(), AtCap);
@@ -225,6 +277,8 @@ bool FProofFactoryRallyLifecycleTest::RunTest(const FString&)
     TestTrue(TEXT("Digest commits rally enabled flag even for nonzero disabled point"), Changed.ComputeDigest() != Original.ComputeDigest());
     const int32 BotFactory = RallyBuild(Model, 100);
     TestTrue(TEXT("Produce ordinary enemy attacker"), Model.Submit(100, RallyCommand(2, EProofCommandType::Produce, BotFactory)).bAccepted);
+    // Complete the real paid job before using the resulting Combat record.
+    Model.Advance(FProofCommandModel::ProductionDurationSeconds);
     const int32 Attacker = RallyKind(Model.GetSnapshot(), 100, EProofUnitKind::Combat);
     TestTrue(TEXT("Attack rally factory through ordinary command"), Model.Submit(100, RallyCommand(3, EProofCommandType::Attack, Attacker, FVector::ZeroVector, Factory)).bAccepted);
     for (int32 Tick = 0; Tick < 600; ++Tick) Model.Advance(0.1f);

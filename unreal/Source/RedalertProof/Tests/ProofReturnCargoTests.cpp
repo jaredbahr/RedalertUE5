@@ -58,7 +58,7 @@ bool ReturnSnapshotsEqual(const FProofSnapshot& A, const FProofSnapshot& B)
     if (A.Revision != B.Revision || A.MatchEpoch != B.MatchEpoch || A.bSkirmish != B.bSkirmish
         || A.MatchPhase != B.MatchPhase || A.WinnerTeam != B.WinnerTeam
         || A.Players.Num() != B.Players.Num() || A.Units.Num() != B.Units.Num()
-        || A.Resources.Num() != B.Resources.Num()) { return false; }
+        || A.Resources.Num() != B.Resources.Num() || A.ProductionJobs.Num() != B.ProductionJobs.Num()) { return false; }
     for (int32 Index = 0; Index < A.Players.Num(); ++Index)
     {
         const FProofPlayerRecord& Left = A.Players[Index];
@@ -72,7 +72,10 @@ bool ReturnSnapshotsEqual(const FProofSnapshot& A, const FProofSnapshot& B)
         const FProofUnitRecord& Right = B.Units[Index];
         if (Left.UnitId != Right.UnitId || Left.OwnerId != Right.OwnerId || Left.Position != Right.Position
             || Left.HitPoints != Right.HitPoints || Left.Kind != Right.Kind || Left.Cargo != Right.Cargo
-            || Left.bHasRallyPoint != Right.bHasRallyPoint || Left.RallyPoint != Right.RallyPoint) { return false; }
+            || Left.bHasRallyPoint != Right.bHasRallyPoint || Left.RallyPoint != Right.RallyPoint
+            || Left.LastTravelDirection != Right.LastTravelDirection || Left.bAreaGuard != Right.bAreaGuard
+            || Left.AreaGuardPost != Right.AreaGuardPost || Left.AreaGuardTargetId != Right.AreaGuardTargetId
+            || Left.bAreaGuardReturning != Right.bAreaGuardReturning) { return false; }
     }
     for (int32 Index = 0; Index < A.Resources.Num(); ++Index)
     {
@@ -80,6 +83,14 @@ bool ReturnSnapshotsEqual(const FProofSnapshot& A, const FProofSnapshot& B)
         const FProofResourceRecord& Right = B.Resources[Index];
         if (Left.ResourceId != Right.ResourceId || Left.OwnerId != Right.OwnerId
             || Left.Position != Right.Position || Left.Remaining != Right.Remaining) { return false; }
+    }
+    for (int32 Index = 0; Index < A.ProductionJobs.Num(); ++Index)
+    {
+        const FProofProductionJob& Left = A.ProductionJobs[Index];
+        const FProofProductionJob& Right = B.ProductionJobs[Index];
+        if (Left.OwnerId != Right.OwnerId || Left.StartSequence != Right.StartSequence
+            || Left.FactoryId != Right.FactoryId || Left.WorkMicroseconds != Right.WorkMicroseconds
+            || Left.PaidCredits != Right.PaidCredits || Left.bHeld != Right.bHeld) { return false; }
     }
     return true;
 }
@@ -410,6 +421,15 @@ bool FProofReturnCargoCombatTest::RunTest(const FString&)
             EProofCommandType::BuildFactory, INDEX_NONE, INDEX_NONE, FVector(2700, 0, 0))).bAccepted);
         const int32 Factory = ReturnFirstKind(Test.Model.GetSnapshot(), 100, EProofUnitKind::Factory);
         TestTrue(TEXT("Enemy produces combat"), Test.Model.Submit(100, ReturnCommand(2, EProofCommandType::Produce, Factory)).bAccepted);
+        // This combat-before-deposit case begins with one undelivered load.
+        // A real Stop preserves that load while the enemy's paid job completes;
+        // restore Gather without advancing before ReturnCargo, preserving the
+        // original saved-source cancellation premise on the lethal arrival tick.
+        if (!TestTrue(TEXT("Hold loaded starter through real production setup"),
+            Test.Submit(EProofCommandType::Stop, Test.Harvester).bAccepted)) return false;
+        Test.Model.Advance(FProofCommandModel::ProductionDurationSeconds);
+        TestEqual(TEXT("Production preparation cannot deposit the stopped load"), Test.Owner().TotalGathered, 0);
+        TestEqual(TEXT("Production preparation retains exact loaded cargo"), Test.Miner().Cargo, 50);
         const int32 Enemy = ReturnFirstKind(Test.Model.GetSnapshot(), 100, EProofUnitKind::Combat);
         FProofReturnCargoFixture::Unit(Test.Model, Enemy).Position = FVector(-300, 250, 0);
         if (Victim == 0)
@@ -419,8 +439,12 @@ bool FProofReturnCargoCombatTest::RunTest(const FString&)
                 EProofCommandType::Attack, Enemy, Test.FarRefinery)).bAccepted);
         }
         else { FProofReturnCargoFixture::Unit(Test.Model, Test.Harvester).HitPoints = 25.f; }
+        TestTrue(TEXT("Restore original Gather source after production setup without travel"),
+            Test.Submit(EProofCommandType::Gather, Test.Harvester, Test.Ore).bAccepted);
         TestTrue(TEXT("Return before combat tick"), Test.Submit(EProofCommandType::ReturnCargo,
             Test.Harvester, Test.FarRefinery).bAccepted);
+        TestTrue(TEXT("Forced return retains the original Gather source before lethal arrival"),
+            FProofReturnCargoFixture::IsOrder(Test.Model, Test.Harvester, EProofCommandType::ReturnCargo, Test.FarRefinery, Test.Ore));
         Test.Model.Advance(6.f);
         const int32 VictimId = Victim == 0 ? Test.FarRefinery : Test.Harvester;
         TestEqual(TEXT("Arrival tick applies lethal combat"), FProofReturnCargoFixture::Unit(Test.Model, VictimId).HitPoints, 0.f);

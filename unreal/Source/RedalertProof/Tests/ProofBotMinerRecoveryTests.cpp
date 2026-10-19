@@ -283,10 +283,6 @@ bool FProofBotMinerRecoveryModelTest::RunTest(const FString&)
     TestTrue(TEXT("Seed opposing human"), Model.SeedSkirmishPlayer(1, 0, FVector(5000, 0, 0)));
     TestTrue(TEXT("Seed bot"), Model.SeedSkirmishPlayer(100, 1, FVector::ZeroVector));
     FProofSkirmishBot Bot;
-    for (const FProofCommand& Command : Bot.Decide(Model.GetSnapshot(), 100, 0.0))
-        TestTrue(TEXT("Opening bot build passes shared validator"), Model.Submit(100, Command).bAccepted);
-    TestEqual(TEXT("Opening refinery grants a second miner"), CountLiveKind(Model.GetSnapshot(), 100, EProofUnitKind::Harvester), 2);
-    TestEqual(TEXT("Opening creates one refinery"), CountLiveKind(Model.GetSnapshot(), 100, EProofUnitKind::Refinery), 1);
 
     int32 HumanSequence = 0;
     const auto HumanCommand = [&](EProofCommandType Type, int32 UnitId, int32 TargetId, const FVector& Destination)
@@ -305,6 +301,15 @@ bool FProofBotMinerRecoveryModelTest::RunTest(const FString&)
         { return U.OwnerId == 1 && U.Kind == EProofUnitKind::Factory; });
     if (!Factory) { TestTrue(TEXT("Human factory exists"), false); return false; }
     TestTrue(TEXT("Human produces attacker"), HumanCommand(EProofCommandType::Produce, Factory->UnitId, INDEX_NONE, FVector::ZeroVector));
+    Model.Advance(FProofCommandModel::ProductionDurationSeconds);
+    // Begin the bot economy after the paid attacker is available. This keeps
+    // the original first-load-loss premise without suppressing auto-gather.
+    // Preserve elapsed bot intervals while accounting for real setup time.
+    const double EconomyStartedAt = FProofCommandModel::ProductionDurationSeconds;
+    for (const FProofCommand& Command : Bot.Decide(Model.GetSnapshot(), 100, EconomyStartedAt))
+        TestTrue(TEXT("Opening bot build passes shared validator"), Model.Submit(100, Command).bAccepted);
+    TestEqual(TEXT("Opening refinery grants a second miner"), CountLiveKind(Model.GetSnapshot(), 100, EProofUnitKind::Harvester), 2);
+    TestEqual(TEXT("Opening creates one refinery"), CountLiveKind(Model.GetSnapshot(), 100, EProofUnitKind::Refinery), 1);
     State = Model.GetSnapshot();
     const FProofUnitRecord* Attacker = State.Units.FindByPredicate([](const FProofUnitRecord& U)
         { return U.OwnerId == 1 && U.Kind == EProofUnitKind::Combat; });
@@ -327,7 +332,7 @@ bool FProofBotMinerRecoveryModelTest::RunTest(const FString&)
     TestTrue(TEXT("Bot retains exactly the replacement cost"), Before && Before->Credits == FProofCommandModel::RefineryCost);
     if (!Before) return false;
     const int32 GatheredBefore = Before->TotalGathered;
-    const TArray<FProofCommand> Recovery = Bot.Decide(State, 100, 120.0);
+    const TArray<FProofCommand> Recovery = Bot.Decide(State, 100, EconomyStartedAt + 120.0);
     TestEqual(TEXT("Surviving refinery does not block replacement miner"), CountRecoveryCommands(Recovery), 1);
     for (const FProofCommand& Command : Recovery)
         TestTrue(TEXT("Recovery uses accepted shared command"), Model.Submit(100, Command).bAccepted);
@@ -341,7 +346,7 @@ bool FProofBotMinerRecoveryModelTest::RunTest(const FString&)
     bool bDeposited = false;
     for (int32 Tick = 1; Tick <= 30; ++Tick)
     {
-        for (const FProofCommand& Command : Bot.Decide(Model.GetSnapshot(), 100, 120.0 + Tick))
+        for (const FProofCommand& Command : Bot.Decide(Model.GetSnapshot(), 100, EconomyStartedAt + 120.0 + Tick))
         {
             LaterRefineries += Command.Type == EProofCommandType::BuildRefinery ? 1 : 0;
             bReplacementGather |= Command.Type == EProofCommandType::Gather;
@@ -387,7 +392,7 @@ bool FProofBotMinerRecoveryModelTest::RunTest(const FString&)
             || !DepletedSubmit(1, EProofCommandType::BuildRefinery, INDEX_NONE, INDEX_NONE, FVector(6350, 0, 0))
             || !DepletedSubmit(1, EProofCommandType::BuildFactory, INDEX_NONE, INDEX_NONE, FVector(5650, 0, 0))
             || !DepletedSubmit(1, EProofCommandType::Produce, LiveKindId(1, EProofUnitKind::Factory), INDEX_NONE, FVector::ZeroVector)) return false;
-        const int32 DepletionAttackerId = LiveKindId(1, EProofUnitKind::Combat);
+
         for (const FProofUnitRecord& Record : DepletedModel.GetSnapshot().Units)
             if (Record.Kind == EProofUnitKind::Harvester
                 && !DepletedSubmit(Record.OwnerId, EProofCommandType::Gather, Record.UnitId,
@@ -399,14 +404,22 @@ bool FProofBotMinerRecoveryModelTest::RunTest(const FString&)
             OreRemaining = 0;
             for (const FProofResourceRecord& Resource : DepletedModel.GetSnapshot().Resources) OreRemaining += Resource.Remaining;
         }
+        // Production progresses alongside the actual bounded harvesting loop.
+        const int32 DepletionAttackerId = LiveKindId(1, EProofUnitKind::Combat);
+        if (!TestTrue(TEXT("Actual harvesting time completed the opponent's paid job"), DepletionAttackerId > 0
+            && DepletedModel.GetSnapshot().ProductionJobs.IsEmpty())) return false;
         TestEqual(TEXT("Public harvesting exhausts every real ore patch"), OreRemaining, 0);
         if (OreRemaining != 0) return false;
         if (!bKeepLoadedCargo)
         {
             DepletedModel.Advance(20.f); // Existing Gather unloads the final cargo.
             for (int32 Index = 0; Index < 7; ++Index)
+            {
                 if (!DepletedSubmit(100, EProofCommandType::Produce, LiveKindId(100, EProofUnitKind::Factory),
                     INDEX_NONE, FVector::ZeroVector)) return false;
+                DepletedModel.Advance(FProofCommandModel::ProductionDurationSeconds);
+                if (!TestTrue(TEXT("Each finite-ore-funded job actually completes"), DepletedModel.GetSnapshot().ProductionJobs.IsEmpty())) return false;
+            }
         }
         if (!DepletedSubmit(1, EProofCommandType::Attack, DepletionAttackerId, LostRefineryId, FVector::ZeroVector)) return false;
         // Movement then combat precede deposit: a loaded Gather survives the
@@ -460,7 +473,12 @@ bool FProofBotMinerRecoveryModelTest::RunTest(const FString&)
         for (const FProofCommand& Intent : Intents)
         {
             if (Intent.Type == EProofCommandType::BuildRefinery) ExpectedSpend += FProofCommandModel::RefineryCost;
-            else if (Intent.Type == EProofCommandType::Produce) ExpectedSpend += FProofCommandModel::ProductionCost;
+            else if (Intent.Type == EProofCommandType::Produce)
+            {
+                // The sole next Advance is one second: exactly ten of fifty
+                // credits buy that work; job admission itself is free.
+                ExpectedSpend += 10;
+            }
             else if (Intent.Type == EProofCommandType::AreaGuard)
             {
                 const FProofUnitRecord* Defender = BeforeIntent.Units.FindByPredicate(
@@ -476,6 +494,11 @@ bool FProofBotMinerRecoveryModelTest::RunTest(const FString&)
         const FProofSnapshot AfterIntent = DepletedModel.GetSnapshot();
         const FProofPlayerRecord* AfterOwner = AfterIntent.Players.FindByPredicate(
             [](const FProofPlayerRecord& P) { return P.OwnerId == 100; });
+        const FProofProductionJob* ActiveJob = AfterIntent.ProductionJobs.FindByPredicate(
+            [](const FProofProductionJob& Job) { return Job.OwnerId == 100; });
+        TestTrue(TEXT("One actual second yields exactly ten paid credits and no completion"), ActiveJob
+            && ActiveJob->PaidCredits == 10 && ActiveJob->WorkMicroseconds == 1000000
+            && CountLiveKind(AfterIntent, 100, EProofUnitKind::Combat) == CountLiveKind(BeforeIntent, 100, EProofUnitKind::Combat));
         TestTrue(TEXT("Actual intents charge only their costs and conserve recovered cargo"), AfterOwner
             && AfterOwner->Credits == BeforeOwner->Credits - ExpectedSpend + OwnCargoBefore
             && AfterOwner->TotalGathered == BeforeOwner->TotalGathered + OwnCargoBefore);

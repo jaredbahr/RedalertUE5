@@ -90,7 +90,7 @@ struct FAreaGuardScenario
             return false;
         if (!Model.Submit(1, AreaGuardCommand(2, EProofCommandType::Produce,
             AreaGuardKind(Model.GetSnapshot(), 1, EProofUnitKind::Factory))).bAccepted) return false;
-        Model.Advance(0.f);
+        Model.Advance(FProofCommandModel::ProductionDurationSeconds);
         Guard = AreaGuardKind(Model.GetSnapshot(), 1, EProofUnitKind::Combat);
         Target = AreaGuardKind(Model.GetSnapshot(), 100, EProofUnitKind::Harvester);
         if (!Model.Submit(1, AreaGuardCommand(3, EProofCommandType::Move, Guard, Post)).bAccepted
@@ -466,6 +466,7 @@ bool FProofAreaGuardDamageTest::RunTest(const FString&)
         AreaGuardCommand(Mutual.EnemySequence++, EProofCommandType::BuildFactory, INDEX_NONE, FVector(7700, -8000, 0))).bAccepted);
     TestTrue(TEXT("Enemy Combat produced publicly"), Mutual.Model.Submit(100,
         AreaGuardCommand(Mutual.EnemySequence++, EProofCommandType::Produce, AreaGuardKind(Mutual.Model.GetSnapshot(), 100, EProofUnitKind::Factory))).bAccepted);
+    Mutual.Model.Advance(FProofCommandModel::ProductionDurationSeconds);
     const int32 EnemyCombat = AreaGuardKind(Mutual.Model.GetSnapshot(), 100, EProofUnitKind::Combat);
     TestTrue(TEXT("Enemy Combat positioned without private health edits"), Mutual.Model.Submit(100,
         AreaGuardCommand(Mutual.EnemySequence++, EProofCommandType::Move, EnemyCombat, FVector(450, 0, 0))).bAccepted);
@@ -573,7 +574,11 @@ bool FProofAreaGuardPlannerTest::RunTest(const FString&)
     TestTrue(TEXT("Planner fixture uses earned credits rather than state mutation"), AreaGuardPlayer(Model.GetSnapshot(), 100).Credits >= 400);
     const int32 Factory = AreaGuardKind(Model.GetSnapshot(), 100, EProofUnitKind::Factory);
     for (int32 Index = 0; Index < 7; ++Index)
+    {
         if (!TestTrue(TEXT("Populate seven actual combat records at cap"), Model.Submit(100, AreaGuardCommand(Sequence++, EProofCommandType::Produce, Factory)).bAccepted)) return false;
+        Model.Advance(FProofCommandModel::ProductionDurationSeconds);
+        if (!TestTrue(TEXT("Each paid planner-fixture job completes before the next starts"), Model.GetSnapshot().ProductionJobs.IsEmpty())) return false;
+    }
     const FProofSnapshot Snapshot = Model.GetSnapshot();
     FProofSnapshot Permuted = Snapshot;
     Permuted.Units.Swap(0, Permuted.Units.Num() - 1); Permuted.Players.Swap(0, 1);
@@ -683,7 +688,12 @@ bool FProofAreaGuardPublicPathTest::RunTest(const FString&)
                 TestTrue(TEXT("No offensive Attack before existing twenty-second grace"), Tick >= 20);
                 TestTrue(TEXT("Accepted bot Attack clears preceding guard metadata"), AreaGuardCleared(AreaGuardUnit(Model.GetSnapshot(), Command.UnitId)));
             }
-            if (Command.Type == EProofCommandType::Produce) Spend += FProofCommandModel::ProductionCost;
+            if (Command.Type == EProofCommandType::Produce)
+            {
+                TestEqual(TEXT("Bot job admission cannot spend before simulation"), AreaGuardPlayer(Model.GetSnapshot(), 100).Credits,
+                    AreaGuardPlayer(BeforeCommand, 100).Credits);
+                TestEqual(TEXT("Bot job admission cannot create a Combat immediately"), Model.GetSnapshot().Units.Num(), BeforeCommand.Units.Num());
+            }
             if (Command.Type == EProofCommandType::BuildRefinery) Spend += FProofCommandModel::RefineryCost;
             if (Command.Type == EProofCommandType::BuildFactory) Spend += FProofCommandModel::FactoryCost;
         }
@@ -691,8 +701,17 @@ bool FProofAreaGuardPublicPathTest::RunTest(const FString&)
         const FProofSnapshot After = Model.GetSnapshot();
         TestEqual(TEXT("Real public bot/model replay matches every revision digest"), After.ComputeDigest(), ReplayModel.GetSnapshot().ComputeDigest());
         TestEqual(TEXT("Bot guard cannot change economic conservation"), AreaGuardConservedOre(After), 1000);
-        TestEqual(TEXT("All bot expense remains existing builds and production"), AreaGuardPlayer(After, 100).Credits,
-            350 + AreaGuardPlayer(After, 100).TotalGathered - Spend);
+        // This public trace has no cancelled jobs or owner removal. Each
+        // retained Combat record therefore proves one fully paid completion;
+        // an active job contributes only its actual authoritative debit ledger.
+        int32 ProductionPaid = 0;
+        for (const FProofUnitRecord& Unit : After.Units)
+            if (Unit.OwnerId == 100 && Unit.Kind == EProofUnitKind::Combat)
+                ProductionPaid += FProofCommandModel::ProductionCost;
+        for (const FProofProductionJob& Job : After.ProductionJobs)
+            if (Job.OwnerId == 100) ProductionPaid += Job.PaidCredits;
+        TestEqual(TEXT("All bot expense remains exact builds plus actual production payments"), AreaGuardPlayer(After, 100).Credits,
+            350 + AreaGuardPlayer(After, 100).TotalGathered - Spend - ProductionPaid);
         for (const FProofUnitRecord& Unit : After.Units)
         {
             if (!Unit.bAreaGuard) continue;
