@@ -66,7 +66,8 @@ bool AGWriteMarker(FProofAreaGuardRuntimeState& R, int32 Owner)
     const FString Path = AGMarkerPath(R, Owner);
     if (IFileManager::Get().FileExists(*Path)) return false;
     const FString Payload = FString::Printf(TEXT("owner%d:%s"), Owner, *R.RunToken);
-    return FFileHelper::SaveStringToFile(Payload, *Path) && AGMarkerMatches(R, Owner);
+    return FFileHelper::SaveStringToFile(Payload, *Path, FFileHelper::EEncodingOptions::ForceAnsi)
+        && AGMarkerMatches(R, Owner);
 }
 FProofCommand AGCommand(EProofCommandType Type, int32 Unit = INDEX_NONE, FVector Destination = FVector::ZeroVector)
 {
