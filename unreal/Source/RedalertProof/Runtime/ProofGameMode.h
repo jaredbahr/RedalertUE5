@@ -7,6 +7,8 @@
 #include "Skirmish/ProofSkirmishBot.h"
 #include "ProofGameMode.generated.h"
 
+class AProofPlayerController;
+
 UCLASS()
 class REDALERTPROOF_API AProofGameMode : public AGameModeBase
 {
@@ -15,12 +17,21 @@ public:
     AProofGameMode();
     virtual void BeginPlay() override;
     virtual void PostLogin(APlayerController* NewPlayer) override;
+    virtual void Logout(AController* Exiting) override;
     virtual void Tick(float DeltaSeconds) override;
     FProofCommandResult SubmitForOwner(int32 TrustedOwnerId, const FProofCommand& Command);
+    FProofCommandResult SubmitForController(const AProofPlayerController* Controller, const FProofCommand& Command);
+    bool RequestRematch(const AProofPlayerController* Controller, int32 ExpectedEpoch);
+    int32 GetMatchEpoch() const { return MatchEpoch; }
+    bool IsCurrentController(const AProofPlayerController* Controller) const;
 private:
     FProofCommandModel Model;
     FProofSkirmishBot SkirmishBot;
     FProofHumanOwnerAllocator HumanOwnerIds;
+    TWeakObjectPtr<AProofPlayerController> SkirmishOwner1;
+    TWeakObjectPtr<AProofPlayerController> SkirmishOwner2;
+    TSet<int32> SkirmishSeededOwners;
+    int32 MatchEpoch = 0;
     int32 BotMover = INDEX_NONE;
     int32 BotAttacker = INDEX_NONE;
     int32 BotSequence = 0;
@@ -32,8 +43,11 @@ private:
     bool bControlsAutomation = false;
     bool bSkirmish = false;
     bool bSkirmishFixtureHost = false;
+    bool bLifecycleFixtureHost = false;
+    FString LifecycleControl;
     bool bSkirmishFixtureStarted = false;
     bool bSkirmishTerminalPublished = false;
+    FProofSnapshot SkirmishTerminalSnapshot;
     bool bSkirmishFixtureFinished = false;
     bool bSkirmishHumanRefinery = false;
     bool bSkirmishHumanFactory = false;
@@ -62,6 +76,7 @@ private:
     TMap<int32, FVector> InitialPositions;
     TSet<int32> HumanAttackTargets;
     void Publish();
+    void ResetSkirmishFixtureState();
     void StartBotIfReady();
     void ObserveSkirmish(const FProofSnapshot& Snapshot);
     void ObserveControlsStep(const FProofSnapshot& Before, const FProofSnapshot& After);

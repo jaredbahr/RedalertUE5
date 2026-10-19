@@ -8,6 +8,11 @@ The long-term scope includes Allies, Soviets, and Yuri, with games for up to eig
 
 Jared says multiplayer will likely be internet-based, making internet play the provisional intended mode. Large armies are the ambition; exact per-player and total unit counts remain undetermined. Eight large armies are not yet proven.
 
+## Gameplay fidelity and acceptable modernization
+
+Jared's clarified long-term goal is a modernized full-3D remake that plays and feels like RA2 / Yuri's Revenge. Preserve its pacing, economy, recognizable unit roles and combat. Better presentation, camera panning and modest usability improvements are acceptable; use that discretion to support the original feel, without drifting into a different RTS or RA3 tone.
+
+The small-match prototype is an engineering foundation, not evidence of gameplay parity. Prioritize concrete fidelity gaps after lifecycle correctness and measured scale evidence: responsive selection/orders and camera, recognizable role-specific movement/combat, and an economy/production loop calibrated against private original-game references. Record what is measured or confirmed and keep placeholder values explicit. Check newly filed repository issues between bounded batches.
 ## First proof
 
 Show a Tesla Reactor, Rhino Tank, and Conscript together in the same scene at the intended RTS camera. Supply a normal gameplay view, a zoomed-out view, and motion footage. Jared must approve the blockout proportions, relative scale, silhouettes, and camera readability before asset finishing. This proof is not a commitment to final unit-to-building scale.

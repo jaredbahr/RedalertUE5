@@ -24,8 +24,8 @@ void AProofGameState::Publish(const FProofSnapshot& NewSnapshot)
 
 void AProofGameState::LogSnapshot(const TCHAR* ProofRole, int32 OwnerId) const
 {
-    UE_LOG(LogTemp, Display, TEXT("PROOF_SNAPSHOT role=%s owner=%d revision=%lld digest=%s"),
-        ProofRole, OwnerId, static_cast<long long>(Snapshot.Revision), *Snapshot.ComputeDigest());
+    UE_LOG(LogTemp, Display, TEXT("PROOF_SNAPSHOT role=%s owner=%d epoch=%d revision=%lld digest=%s"),
+        ProofRole, OwnerId, Snapshot.MatchEpoch, static_cast<long long>(Snapshot.Revision), *Snapshot.ComputeDigest());
 }
 
 void AProofGameState::OnRepSnapshot()

@@ -1,5 +1,7 @@
 # Small skirmish prototype
 
+This records PR25's proof and review history. Later bounded local rematch/disconnect behavior and measurements are documented in [Lifecycle and stress baseline](SESSION_LIFECYCLE.md); earlier limits below describe their recorded revisions.
+
 The opt-in small match now supports building a base, harvesting finite ore, producing combat units, fighting an economy-driven bot, and a stable victory/defeat result. This is a functional prototype using existing blockouts, not approved final art or balance.
 
 Jared's earlier “it works. lot of work to do though.” confirms general usability of PR19's opened slice only. Individual manual controls, Alt-Tab, and the new match have not all been human-verified. That practice session exited normally at 17:59:21 UTC on 2026-10-16, before its guard timeout; its close method was not established. No new visible game was opened for this milestone.

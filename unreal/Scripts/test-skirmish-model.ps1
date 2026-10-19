@@ -37,7 +37,13 @@ try {
         if($process.HasExited) { return }
         try {
             $live=Get-Process -Id $process.Id -ErrorAction Stop
-            if($live.StartTime -ne $started -or $live.Path -ne $editor) { throw 'Native process identity changed.' }
+            if($live.StartTime -ne $started) { throw 'Automation process start identity changed.' }
+            for($pathAttempt=0; $pathAttempt -lt 20 -and -not $live.Path -and -not $live.HasExited; $pathAttempt++) {
+                Start-Sleep -Milliseconds 100
+                $live.Refresh()
+            }
+            if($live.HasExited) { return }
+            if($live.Path -ne $editor) { throw 'Automation process executable identity could not be verified.' }
             $beforeMask=$live.ProcessorAffinity.ToInt64(); $beforePriority=[string]$live.PriorityClass
             $live.ProcessorAffinity=[IntPtr]$fixtureMask
             $live.PriorityClass='Normal'
@@ -61,10 +67,10 @@ try {
     $index=Join-Path $report 'index.json'
     if (-not (Test-Path -LiteralPath $index)) { throw 'No fresh Automation index.json report.' }
     $data=Get-Content -LiteralPath $index -Raw | ConvertFrom-Json
-    $expected=@('RedalertProof.Skirmish.Economy.PlacementAndRoles','RedalertProof.Skirmish.Economy.FiniteHarvestAndCapacity','RedalertProof.Skirmish.Economy.DeterminismAndTerminal','RedalertProof.Skirmish.BotPlanner','RedalertProof.Skirmish.BotModelPath','RedalertProof.Skirmish.RulesOutcome','RedalertProof.Skirmish.RulesReadinessAndStability','RedalertProof.Skirmish.Economy.InterruptedFinalCargo','RedalertProof.Skirmish.Lifecycle.RestartAfterOutcomes','RedalertProof.Skirmish.OwnershipIsolation')
+    $expected=@('RedalertProof.Skirmish.Economy.PlacementAndRoles','RedalertProof.Skirmish.Economy.FiniteHarvestAndCapacity','RedalertProof.Skirmish.Economy.DeterminismAndTerminal','RedalertProof.Skirmish.BotPlanner','RedalertProof.Skirmish.BotModelPath','RedalertProof.Skirmish.RulesOutcome','RedalertProof.Skirmish.RulesReadinessAndStability','RedalertProof.Skirmish.Economy.InterruptedFinalCargo','RedalertProof.Skirmish.Lifecycle.RestartAfterOutcomes','RedalertProof.Skirmish.OwnershipIsolation','RedalertProof.Skirmish.Lifecycle.DisconnectAndRejoin','RedalertProof.Skirmish.Lifecycle.TerminalDisconnect','RedalertProof.Skirmish.Lifecycle.LastTeamDisconnect','RedalertProof.Skirmish.Lifecycle.LoadedOreDisconnect')
     $tests=@($data.tests)
     $result.testCount=$tests.Count; $result.succeeded=[int]$data.succeeded; $result.failed=[int]$data.failed
-    if ($tests.Count -ne $expected.Count -or [int]$data.succeeded -ne $expected.Count -or [int]$data.failed -ne 0) { throw 'Expected all ten exact tests successful and zero failures.' }
+    if ($tests.Count -ne $expected.Count -or [int]$data.succeeded -ne $expected.Count -or [int]$data.failed -ne 0) { throw 'Expected all fourteen exact tests successful and zero failures.' }
     foreach($name in $expected){
         $matching=@($tests | Where-Object {$_.fullTestPath -eq $name})
         if ($matching.Count -ne 1 -or $matching[0].state -ne 'Success') { throw "Missing successful exact test $name." }

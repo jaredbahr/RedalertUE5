@@ -311,7 +311,7 @@ try {
             }
         }
         $map=@{}
-        foreach($m in [regex]::Matches($log,'PROOF_SNAPSHOT role=(host|client) owner=\d+ revision=(\d+) digest=([A-Za-z0-9]+)')) {
+        foreach($m in [regex]::Matches($log,'PROOF_SNAPSHOT role=(host|client) owner=\d+(?: epoch=\d+)? revision=(\d+) digest=([A-Za-z0-9]+)')) {
             $revision=$m.Groups[2].Value; $digest=$m.Groups[3].Value
             if($map.ContainsKey($revision) -and $map[$revision] -ne $digest) { throw 'Inconsistent digest within process.' }
             $map[$revision]=$digest

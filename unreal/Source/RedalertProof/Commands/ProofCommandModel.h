@@ -38,6 +38,8 @@ struct REDALERTPROOF_API FProofCommand
 {
     GENERATED_BODY()
     UPROPERTY() int32 Sequence = 0;
+    // The server's match generation, stamped by clients from the replicated snapshot.
+    UPROPERTY() int32 MatchEpoch = 0;
     UPROPERTY() EProofCommandType Type = EProofCommandType::Move;
     UPROPERTY() int32 UnitId = INDEX_NONE;
     UPROPERTY() int32 TargetUnitId = INDEX_NONE;
@@ -71,6 +73,8 @@ struct REDALERTPROOF_API FProofResourceRecord
 {
     GENERATED_BODY()
     UPROPERTY() int32 ResourceId = INDEX_NONE;
+    // The skirmish starter patch belongs to the seeded player for teardown.
+    UPROPERTY() int32 OwnerId = INDEX_NONE;
     UPROPERTY() FVector Position = FVector::ZeroVector;
     UPROPERTY() int32 Remaining = 0;
 };
@@ -80,6 +84,7 @@ struct REDALERTPROOF_API FProofSnapshot
 {
     GENERATED_BODY()
     UPROPERTY() int32 Revision = 0;
+    UPROPERTY() int32 MatchEpoch = 0;
     UPROPERTY() TArray<FProofPlayerRecord> Players;
     UPROPERTY() TArray<FProofUnitRecord> Units;
     UPROPERTY() bool bSkirmish = false;
@@ -98,6 +103,7 @@ struct REDALERTPROOF_API FProofCommandResult
     UPROPERTY() bool bAccepted = false;
     UPROPERTY() FString Reason;
     UPROPERTY() int32 Sequence = 0;
+    UPROPERTY() int32 MatchEpoch = 0;
 };
 
 // Tiny authoritative proof fixture: no collision, pathfinding, or network
@@ -122,6 +128,8 @@ public:
     int32 SeedUnit(int32 OwnerId, FVector Position);
     void StartSkirmish();
     bool SeedSkirmishPlayer(int32 OwnerId, int32 TeamId, const FVector& HQPosition);
+    // Vacate one skirmish seat without disturbing surviving players or the bot.
+    bool RemoveSkirmishPlayer(int32 OwnerId);
     FProofCommandResult Submit(int32 TrustedOwnerId, const FProofCommand& Command);
     // Finite nonnegative advances reset the test command allowance; zero does
     // not simulate. Positive advances compute movement then simultaneous damage.
