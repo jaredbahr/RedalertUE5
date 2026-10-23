@@ -6,7 +6,9 @@ Build a personal full-3D RTS in Unreal Engine 5 that preserves recognizable Red 
 
 The long-term scope includes Allies, Soviets, and Yuri, with games for up to eight friends. Begin with Allies and Soviets on a simple map; establish a complete small skirmish before expanding the roster, faction count, maps, or player count.
 
-Jared says multiplayer will likely be internet-based, making internet play the provisional intended mode. Large armies are the ambition; exact per-player and total unit counts remain undetermined. Eight large armies are not yet proven.
+Jared says multiplayer will likely be internet-based, making internet play the provisional intended mode. The confirmed army-size target is 300+ units per player: 2,400+ units across an eventual eight-player match. This is a design target to prove through combined active workloads, not a supported capacity claim.
+
+Campaigns are an eventual, distant goal. First establish a satisfying, complete skirmish with bots; campaign design and production follow the skirmish, faction and multiplayer gates rather than competing with the first playable slice.
 
 ## Gameplay fidelity and acceptable modernization
 
@@ -25,7 +27,7 @@ These are proposals awaiting validation, not approved architecture:
 - Human players and bots use the same command model for move, attack, build, and production. Bots obey the same validation and resource rules by default.
 - Start with one compact, readable skirmish map, a minimal functional Allied/Soviet roster, and placeholder assets where needed. Prove the full match loop before extending content.
 
-Two-client correctness and active-unit performance are early gates. Scale tests must combine active movement, combat, bot decisions, and network replication in the same workload; measured results will set practical unit budgets. No unit count, frame rate, network latency, or target hardware budget is established yet. Installed UE 5.7.4 is the first-proof baseline; this does not lock a long-term engine support policy. Set measurable acceptance thresholds before calling those gates passed.
+Two-client correctness and active-unit performance are early gates. Scale tests must combine active movement, combat, bot decisions, and network replication in the same workload; measured results will set practical supported unit budgets against the 300+ per-player target. Frame-time, network latency, memory and target hardware budgets remain open. Installed UE 5.7.4 is the first-proof baseline; this does not lock a long-term engine support policy. Set measurable acceptance thresholds before calling those gates passed. Raising a prototype record cap or measuring idle/model-only units does not establish this target.
 
 ## Tools and references
 
@@ -60,6 +62,6 @@ Before any binary upload, review file sizes, expected growth, Git LFS tracking, 
 
 ## Decisions still needed
 
-Determine exact per-player and total unit counts through measurement, confirm hosting/connectivity and any LAN requirement for the provisionally intended internet mode, and agree on target hardware and performance/network budgets, engine version, and the minimum roster. See [Decisions](DECISIONS.md). These choices affect technical feasibility and milestone acceptance, and are not silently resolved by this brief.
+Determine practical supported unit counts and density through measurements against the confirmed army-size target, confirm hosting/connectivity and any LAN requirement for the provisionally intended internet mode, and agree on target hardware and performance/network budgets, engine version, and the minimum roster. See [Decisions](DECISIONS.md). These choices affect technical feasibility and milestone acceptance, and are not silently resolved by this brief.
 
 Asset-tool candidates and their unverified evaluation gates are recorded in [asset pipeline evaluation](ASSET_PIPELINE_EVALUATION.md); asset tooling and lower-priority audio should support this gameplay direction.

@@ -12,7 +12,8 @@ Status vocabulary: **Confirmed** records Jared's direction; **Proposed** is a ca
 | Long-term scope | Allies, Soviets, and Yuri; eventually play with up to eight friends. |
 | First playable scope | Allies and Soviets first, on one simple map. |
 | Multiplayer intent | Jared says likely internet: internet multiplayer is the provisional intended mode; hosting/connectivity details remain open. |
-| Army-size ambition | Jared expects large armies. Exact per-player and total unit counts remain undetermined; practical budgets must follow measured tests. Eight large armies are not proven. |
+| Army-size target | 300+ units per player, or 2,400+ across an eventual eight-player match. This is a confirmed design target; practical supported budgets must follow combined active movement, combat, bot and replication measurements. It is not a demonstrated capacity. |
+| Campaigns | Eventually, far down the roadmap. Complete the skirmish, faction and multiplayer gates first; campaign scope and production are deferred. |
 | First art proof | Tesla Reactor, Rhino Tank, and Conscript together at the RTS camera; include zoomed-out and motion views. Jared approves blockouts before finishing. |
 | Existing tools/references | Blender installed; Jared owns Steam/Origin originals. Ownership does not establish redistribution rights. |
 | Storage | Put project/art/cache/build data on the designated non-system drive; verify effective cache paths and disclose residual system-drive use. |
@@ -35,7 +36,7 @@ Jared subsequently clarified the product goal: a modernized 3D RA2/Yuri-style re
 
 | Question | Needed before |
 | --- | --- |
-| What exact per-player and total unit counts/unit density should typical and worst-case matches support, given the large-army ambition? | Setting practical unit budgets from combined movement, combat, bot, and network-replication measurements. |
+| What unit mix, map density and practical supported budgets meet the 300+ per-player target under typical and worst-case active workloads? | Setting supported limits from combined movement, combat, bot, and network-replication measurements. |
 | With internet provisionally intended, what hosting/connectivity approach is acceptable, and is LAN also required? | Selecting transport/session setup and meaningful internet network tests. |
 | Which hardware, frame-time target, memory limit, and command-latency/traffic budgets define success? | Calling a technical performance gate passed. |
 | Will UE 5.7.4 remain the project baseline, and what future version/toolchain policy is needed? | Creating the engine project; no version or build compatibility assumed. |
