@@ -39,6 +39,7 @@ public:
     ProofCommandCard::Context GetCommandCardContext() const;
     FString GetCommandCardHint(ProofCommandCard::Action Command) const;
     ProofCommandCard::Action GetPendingBuildAction() const { return CommandCardInput.PendingAction(); }
+    bool GetPendingBuildTargetScreen(FVector2D& OutPoint, float& OutRadius) const;
 
 protected:
     virtual void BeginPlay() override;
