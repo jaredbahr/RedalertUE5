@@ -4,7 +4,7 @@ These are ordered gates, not scheduled dates or claims of completed work. Use pl
 
 ## 0. Confirm setup and test budgets
 
-Deliver: selected UE5 version, target hardware, an initial test range toward the large-army ambition (exact per-player and total unit budgets remain undetermined), hosting/connectivity choices for provisionally intended internet play and any LAN requirement, permanent the designated non-system drive paths, cache verification plan, and proposed performance/network thresholds.
+Deliver: selected UE5 version, target hardware, an initial test range toward the confirmed 300+ units-per-player target (2,400+ across eight players), hosting/connectivity choices for provisionally intended internet play and any LAN requirement, permanent designated non-system drive paths, cache verification plan, and proposed performance/network thresholds. The target is distinct from a measured supported budget.
 
 Pass: Jared confirms the unresolved choices; required tools are available without unapproved installs; source/generated-file rules and binary/LFS budget review are ready before content uploads. During the first separately authorized smoke run, record actual cache/temp/output paths and any the system drive use. Do not mark storage behavior verified from folder names alone.
 
@@ -22,7 +22,7 @@ Pass: both players can select and command their owned units; move/attack and a m
 
 ## 3. Measure active-unit performance early
 
-Deliver: a repeatable two-client workload combining active movement/navigation, combat, bot decisions, production activity, and network replication at the same time. Increase active counts through the agreed initial test range toward the large-army ambition; record per-player and total counts. Use measured results to set practical unit budgets rather than selecting an untested cap.
+Deliver: a repeatable two-client workload combining active movement/navigation, combat, bot decisions, production activity, and network replication at the same time. Increase active counts through the agreed initial test range toward 300+ units per player; record per-player and total counts. Use measured results to set practical supported budgets. A prototype cap increase or idle/model-only count does not pass this gate.
 
 Pass: meet the thresholds agreed in milestone 0 on the declared hardware, with recorded frame-time statistics, host simulation/AI cost, pathfinding cost, memory, and network traffic/command latency. Include congested movement and simultaneous combat, not just idle units. Record the tested unit mix, map, session length, topology, and latency/loss conditions. Reduce scope or revise the design when limits fail; no performance pass exists without measurements.
 
@@ -40,9 +40,13 @@ Pass: all three factions can complete matches; bots can operate each included fa
 
 ## 6. Validate eight-player friend sessions
 
-Deliver: sessions with up to eight player slots, a documented human/bot mix, measured per-player and total unit budgets, and connection instructions for the provisionally intended internet mode and any agreed LAN support.
+Deliver: sessions with up to eight player slots, a documented human/bot mix, measured per-player and total unit budgets against the 300+ per-player / 2,400+ aggregate target, and connection instructions for the provisionally intended internet mode and any agreed LAN support.
 
-Pass: complete repeatable eight-slot matches with consistent economy/combat/victory state and no blocking desynchronization, bot stall, or crash; meet the agreed active-unit and network budgets under the chosen conditions. Test connection failure/disconnect behavior and document the supported outcome. Validate actual internet conditions for the provisionally intended internet mode; LAN results alone cannot establish them. Eight human players remain unproven until tested with eight humans. Supporting eight large armies remains an ambition until the combined movement, combat, bot, and network-replication workload passes at that scale.
+Pass: complete repeatable eight-slot matches with consistent economy/combat/victory state and no blocking desynchronization, bot stall, or crash; meet the agreed active-unit and network budgets under the chosen conditions. Test connection failure/disconnect behavior and document the supported outcome. Validate actual internet conditions for the provisionally intended internet mode; LAN results alone cannot establish them. Eight human players remain unproven until tested with eight humans. The army-size target remains unproven until the combined movement, combat, bot, and network-replication workload passes at that scale. If measurements fall short, report the supported limit and obtain a scope/design decision rather than relabeling a smaller test as success.
+
+## 7. Campaigns, distant future
+
+Campaigns are confirmed as an eventual goal, with no delivery date or approved mission scope. Begin campaign planning and production after the skirmish, faction and multiplayer gates above. Define mission, scripting, save/load and completion criteria when that phase is scoped; no current prototype result passes a campaign gate.
 
 ## Current engineering integration order
 

@@ -1,2 +1,2 @@
-param([string]$EngineRoot=$env:UE_ENGINE_ROOT,[ValidateRange(60,1800)][int]$SessionSeconds=900,[switch]$CameraPan,[switch]$CameraEdgePan,[string]$StorageRoot=$env:RA2_STORAGE_ROOT)
-& (Join-Path $PSScriptRoot 'start-local-interactive.ps1') -EngineRoot $EngineRoot -StorageRoot $StorageRoot -SessionSeconds $SessionSeconds -Skirmish -CameraPan:$CameraPan -CameraEdgePan:$CameraEdgePan
+param([string]$EngineRoot=$env:UE_ENGINE_ROOT,[ValidateRange(60,1800)][int]$SessionSeconds=900,[switch]$CameraPan,[switch]$CameraEdgePan,[string]$StorageRoot=$env:RA2_STORAGE_ROOT,[ValidateSet('1280x720','960x540')][string]$Viewport='1280x720')
+& (Join-Path $PSScriptRoot 'start-local-interactive.ps1') -EngineRoot $EngineRoot -StorageRoot $StorageRoot -SessionSeconds $SessionSeconds -Skirmish -CameraPan:$CameraPan -CameraEdgePan:$CameraEdgePan -Viewport $Viewport

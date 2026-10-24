@@ -1,0 +1,72 @@
+[
+  {
+    "relative": "BlockoutGenerated/Maps/VisualProof.umap",
+    "bytes": 22452,
+    "sha256": "852c5fb7bcc5a7885112f14acb4a4d2d32986b32442e01cdb6c5d25ee60f69d8"
+  },
+  {
+    "relative": "BlockoutGenerated/Meshes/Cloth.uasset",
+    "bytes": 4908,
+    "sha256": "4e84fc0bfbf87e83b2ecd005444cd67d8eefdacf13039efa1c0ed2539ccf1a09"
+  },
+  {
+    "relative": "BlockoutGenerated/Meshes/Concrete.uasset",
+    "bytes": 4923,
+    "sha256": "e0b769e0d657aff729151c2d7922bd04202ceee571ab2617fb8ec5f2ffb0b168"
+  },
+  {
+    "relative": "BlockoutGenerated/Meshes/Dark.uasset",
+    "bytes": 4903,
+    "sha256": "e9d8301d095eb77f68b1e2efb85e601255b3958b8937bb562b679ef97a12bfec"
+  },
+  {
+    "relative": "BlockoutGenerated/Meshes/Olive.uasset",
+    "bytes": 4908,
+    "sha256": "8177c92800683277e39e61b9507261663090c483ef0c1be409df2b07dea48455"
+  },
+  {
+    "relative": "BlockoutGenerated/Meshes/Red.uasset",
+    "bytes": 4898,
+    "sha256": "11601e5f89176e897727740ff057e2ca48c5bccac44533ff06194da5e032297e"
+  },
+  {
+    "relative": "BlockoutGenerated/Meshes/Skin.uasset",
+    "bytes": 4903,
+    "sha256": "b8decb007ef719420d317779da48557a7bdb03df39d6296f8e404bde3846a4cd"
+  },
+  {
+    "relative": "BlockoutGenerated/Meshes/SM_Conscript_Blockout.uasset",
+    "bytes": 44401,
+    "sha256": "8560975d4dfa0450ddacb011b1f96935300d7fa8042be503f8e3d748619c94bd"
+  },
+  {
+    "relative": "BlockoutGenerated/Meshes/SM_RhinoTank_Blockout.uasset",
+    "bytes": 33556,
+    "sha256": "07a04de36a31f5cfcdc2d730ce72283b903592946fc5868e330739356ed86fb4"
+  },
+  {
+    "relative": "BlockoutGenerated/Meshes/SM_TeslaReactor_Blockout.uasset",
+    "bytes": 41229,
+    "sha256": "f2b07c8a2863774de2bc38c2818f35ee403150bb62e4464cc3f173d3a8c2fa7f"
+  },
+  {
+    "relative": "BlockoutGenerated/Meshes/Steel.uasset",
+    "bytes": 4908,
+    "sha256": "74849c48f1b57a81c7cb7ad122ac62503b7ce0fc23b978c6373924096fc22a8b"
+  },
+  {
+    "relative": "BlockoutGenerated/Meshes/Track.uasset",
+    "bytes": 4908,
+    "sha256": "42516f7e1b9e4f5ca107b03211763ad240e479f3f191c468374783ff89f25846"
+  },
+  {
+    "relative": "BlockoutGenerated/Meshes/Wood.uasset",
+    "bytes": 4903,
+    "sha256": "e4efc441ecba4e3ec762aacc9e68cd78f1c44b7df12e6c79e4f1eeb763a2a26f"
+  },
+  {
+    "relative": "CommandProofGenerated/Maps/CommandProof.umap",
+    "bytes": 15248,
+    "sha256": "2c9ad0fffed7b5cc5f0d59082077beb73b483a72989ff65a3d406594c69f5f00"
+  }
+]

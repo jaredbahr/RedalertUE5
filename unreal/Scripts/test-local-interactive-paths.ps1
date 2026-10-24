@@ -1,6 +1,7 @@
 # Local filesystem/policy tests only. The fake editor is inert and never executed.
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'local-interactive-paths.ps1')
+. (Join-Path $PSScriptRoot 'interactive-viewport.ps1')
 $repo=(Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 $fixture=Join-Path $repo ('generated/tool-root-policy-'+[Guid]::NewGuid().ToString('N'))
 $checks=0;$junctions=New-Object Collections.Generic.List[string]
@@ -20,6 +21,26 @@ function Remove-Junction([string]$Path){
     $null=$script:junctions.Remove($Path)
 }
 try{
+    foreach($preset in @(@('1280x720',1280,720),@('960x540',960,540))){
+        $view=Get-ProofInteractiveViewport -Viewport $preset[0]
+        Check ($view.Name -ceq $preset[0] -and $view.Width -eq $preset[1] -and $view.Height -eq $preset[2]) 'viewport dimensions match supported preset'
+        Check ($view.ResX -ceq ('-ResX='+$preset[1]) -and $view.ResY -ceq ('-ResY='+$preset[2])) 'viewport yields exactly two numeric engine arguments'
+    }
+    Check ((Get-ProofInteractiveViewport).Name -ceq '1280x720') 'default viewport stays 1280x720'
+    Check ((Get-ProofInteractiveViewport -Viewport '960X540').Name -ceq '960x540') 'viewport casing normalized'
+    foreach($invalid in @('',' ','1920x1080','960x540 -ExecCmds=Quit','1280x720;Quit')){
+        Reject 'unsupported viewport rejected' {Get-ProofInteractiveViewport -Viewport $invalid}
+        foreach($launcher in @('start-local-interactive.ps1','start-small-match.ps1')){
+            $script:forbidden=0;$failed=$false
+            try { & {
+                function Resolve-ProofInteractivePaths {$script:forbidden++;throw 'Unexpected path resolution'}
+                function Start-Process {$script:forbidden++;throw 'Unexpected process launch'}
+                function Start-Sleep {$script:forbidden++;throw 'Unexpected delay'}
+                & (Join-Path $PSScriptRoot $launcher) -Viewport $invalid
+            } | Out-Null } catch { $failed=$true }
+            Check ($failed -and $script:forbidden -eq 0) 'launcher rejects unsupported viewport before side effects'
+        }
+    }
     $storage=Make-Directory (Join-Path $fixture 'designated storage')
     $workspace=Make-Repo (Join-Path $storage 'checkout with spaces')
     $engine=Make-Engine (Join-Path $fixture 'installed engine with spaces')
@@ -96,12 +117,15 @@ try{
     $wrapper=Join-Path $wrapperRoot 'start-small-match.ps1'
     [IO.File]::WriteAllText($wrapper,[IO.File]::ReadAllText((Join-Path $PSScriptRoot 'start-small-match.ps1')))
     $stub=@'
-param([string]$EngineRoot,[int]$SessionSeconds,[switch]$Skirmish,[switch]$CameraPan,[switch]$CameraEdgePan,[string]$StorageRoot)
-[pscustomobject]@{EngineRoot=$EngineRoot;StorageRoot=$StorageRoot;SessionSeconds=$SessionSeconds;Skirmish=[bool]$Skirmish;CameraPan=[bool]$CameraPan;CameraEdgePan=[bool]$CameraEdgePan}
+param([string]$EngineRoot,[int]$SessionSeconds,[switch]$Skirmish,[switch]$CameraPan,[switch]$CameraEdgePan,[string]$StorageRoot,[string]$Viewport)
+[pscustomobject]@{EngineRoot=$EngineRoot;StorageRoot=$StorageRoot;SessionSeconds=$SessionSeconds;Skirmish=[bool]$Skirmish;CameraPan=[bool]$CameraPan;CameraEdgePan=[bool]$CameraEdgePan;Viewport=$Viewport}
 '@
     [IO.File]::WriteAllText((Join-Path $wrapperRoot 'start-local-interactive.ps1'),$stub)
     $forwarded=& $wrapper $engine 900 -StorageRoot $storage -CameraPan -CameraEdgePan
     Check ($forwarded.EngineRoot -eq $engine -and $forwarded.StorageRoot -eq $storage -and $forwarded.SessionSeconds -eq 900 -and $forwarded.Skirmish -and $forwarded.CameraPan -and $forwarded.CameraEdgePan) 'small match positional compatibility and named forwarding'
+    Check ($forwarded.Viewport -ceq '1280x720') 'small match preserves default viewport'
+    $forwarded=& $wrapper $engine 180 -StorageRoot $storage -Viewport '960x540'
+    Check ($forwarded.Viewport -ceq '960x540' -and $forwarded.SessionSeconds -eq 180) 'small match forwards smaller viewport and existing session limit'
     foreach($name in @('start-local-interactive.ps1','start-small-match.ps1')){
         $message=''
         try{& (Join-Path $PSScriptRoot $name) $engine 900 -StorageRoot $systemRoot|Out-Null}catch{$message=$_.Exception.Message}
@@ -134,12 +158,24 @@ param([string]$EngineRoot,[int]$SessionSeconds,[switch]$Skirmish,[switch]$Camera
         Check ($failed -and $script:forbidden -eq 0) "$name fails before side effects"
         foreach($key in $before.Keys){Check ([Environment]::GetEnvironmentVariable($key,'Process') -ceq $before[$key]) "$name preserves process environment"}
     }
-    $baseline=(& git -C $repo show 'c152ec0:unreal/Scripts/start-local-interactive.ps1') -join "`n"
-    if($LASTEXITCODE -ne 0){throw 'Missing source baseline for launcher-tail check'}
+    $baseline=(& git -C $repo show '14dd1e3:unreal/Scripts/start-local-interactive.ps1') -join "`n"
+    if($LASTEXITCODE -ne 0){throw 'Missing reviewed pre-completion-fix baseline'}
     $current=[IO.File]::ReadAllText((Join-Path $PSScriptRoot 'start-local-interactive.ps1')).Replace("`r`n","`n").TrimEnd("`n")
-    $marker='$head=('
-    Check ($current.Substring($current.IndexOf($marker)) -ceq $baseline.Substring($baseline.IndexOf($marker))) 'launcher operational tail unchanged'
-    foreach($name in @('local-interactive-paths.ps1','start-local-interactive.ps1','start-small-match.ps1')){
+    # Completion/identity/deadline handling intentionally changes. Preserve the
+    # unrelated resource/argument/loop regions exactly, not a broad normalization.
+    foreach($region in @(
+        @('$available=','$prior=@{}'),
+        @('    $launchArguments=','    $result.launchStartQpc='),
+        @('    while(-not $process.WaitForExit(200)) {','    # WaitForExit can return true')
+    )){
+        $start=$region[0];$newEnd=$region[1]
+        $oldEnd=if($newEnd -ceq '    $result.launchStartQpc='){'    $process=Start-Process'}elseif($newEnd -ceq '    # WaitForExit can return true'){'    if($process.HasExited) { $result.exitCode'}else{$newEnd}
+        $oldPart=$baseline.Substring($baseline.IndexOf($start),$baseline.IndexOf($oldEnd)-$baseline.IndexOf($start))
+        $newPart=$current.Substring($current.IndexOf($start),$current.IndexOf($newEnd)-$current.IndexOf($start))
+        if($newEnd -ceq '    $result.launchStartQpc='){$newPart=$newPart.Replace("    # Session time starts at launch, including process creation and engine startup.`n",'')}
+        Check ($oldPart -ceq $newPart) 'unrelated CPU/storage/arguments/input-help region remains byte-identical to reviewed baseline'
+    }
+    foreach($name in @('local-interactive-paths.ps1','interactive-viewport.ps1','start-local-interactive.ps1','start-small-match.ps1')){
         $tokens=$null;$errors=$null
         [Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot $name),[ref]$tokens,[ref]$errors)|Out-Null
         Check ($errors.Count -eq 0) "$name syntax"
