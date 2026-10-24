@@ -41,8 +41,8 @@ foreach($name in @('success','failure','timeout','cancelled','overflow','survivo
     if($name -eq 'survivor' -and -not $o.terminationRequested){throw 'Deliberate surviving-child rejection was lost.'}
     $results.Add([ordered]@{case=$name;expectedAccepted=$expected;actualAccepted=$o.passed;zeroSurvivors=$true;acceptanceEvidence=$false})
 }
-# Exercise the actual PowerShell worker's own-console release and fail-closed
-# prerequisite path. Deliberately invalid bindings reject before Git or Unreal.
+# Exercise the actual worker's binding-policy rejection. Its dedicated test host
+# mirrors the controller's late caller-only console release, including failures.
 $workerDir=Join-Path $OutputDirectory 'worker-refusal'
 $workerTemp=Join-Path $workerDir 'temp'
 [IO.Directory]::CreateDirectory($workerTemp)|Out-Null
@@ -51,10 +51,28 @@ $badBinding=Join-Path $workerDir 'INVALID_BINDINGS.json'
 $spec=[ordered]@{mode='interactive';output=$workerDir;bindings=$badBinding;bindingsSha256=(Get-FileHash -LiteralPath $badBinding -Algorithm SHA256).Hash.ToLowerInvariant();review=(Join-Path $workerDir 'ABSENT_REVIEW.json')}
 $specPath=Join-Path $workerDir 'SPEC.json'
 [IO.File]::WriteAllText($specPath,($spec|ConvertTo-Json))
-$workerArguments=@('-NoProfile','-File',(Join-Path $PSScriptRoot 'stage-worker.ps1'),'-SpecPath',$specPath,'-SpecSHA256',(Get-FileHash -LiteralPath $specPath -Algorithm SHA256).Hash.ToLowerInvariant())
+$workerHost=@'
+param([string]$WorkerPath,[string]$SpecPath,[string]$SpecSHA256)
+$ErrorActionPreference='Stop'
+Add-Type -TypeDefinition @"
+using System.Runtime.InteropServices;
+public static class CommandCardControlConsole {
+    [DllImport("kernel32.dll", SetLastError=true)] public static extern bool FreeConsole();
+}
+"@
+try {
+    & $WorkerPath -SpecPath $SpecPath -SpecSHA256 $SpecSHA256
+}finally{
+    if(-not [CommandCardControlConsole]::FreeConsole()){throw ('Own-console release failed: '+[Runtime.InteropServices.Marshal]::GetLastWin32Error())}
+}
+'@
+$workerHostPath=Join-Path $workerDir 'worker-host.ps1'
+[IO.File]::WriteAllText($workerHostPath,$workerHost,[Text.UTF8Encoding]::new($false))
+$workerArguments=@('-NoProfile','-File',$workerHostPath,'-WorkerPath',(Join-Path $PSScriptRoot 'stage-worker.ps1'),'-SpecPath',$specPath,'-SpecSHA256',(Get-FileHash -LiteralPath $specPath -Algorithm SHA256).Hash.ToLowerInvariant())
 $o=[RA2CommandCardStageSupervisor]::Run((Join-Path $PSHOME 'pwsh.exe'),[string[]]$workerArguments,$OutputDirectory,220,$workerDir,'interactive',$workerTemp,[DateTimeOffset]::UtcNow.AddMinutes(20).ToString('o'),[Diagnostics.Stopwatch]::GetTimestamp(),(Join-Path $workerDir 'CANCEL'))
-if($o.passed -or $o.exitCode -eq 0 -or $o.terminationRequested -or -not $o.outputComplete -or -not $o.cleanupSucceeded -or $o.activeOwnedProcessesAfterCleanup -ne 0){throw 'Actual worker refusal/own-console control failed.'}
-$results.Add([ordered]@{case='worker-refusal';expectedAccepted=$false;actualAccepted=$o.passed;zeroSurvivors=$true;acceptanceEvidence=$false})
+$workerError=Get-Content -LiteralPath (Join-Path $workerDir 'interactive.stderr.log') -Raw
+if($o.passed -or $null -eq $o.exitCode -or $o.exitCode -eq 0 -or $o.terminationRequested -or -not $o.outputComplete -or -not $o.cleanupSucceeded -or $o.activeOwnedProcessesAfterCleanup -ne 0 -or $workerError -notmatch 'wrong binding scope' -or $workerError -match 'Own-console release failed'){throw 'Actual worker must reach its intended binding-policy rejection and complete caller-only console cleanup.'}
+$results.Add([ordered]@{case='worker-refusal';expectedAccepted=$false;actualAccepted=$o.passed;intendedBindingRejection=$true;zeroSurvivors=$true;acceptanceEvidence=$false})
 $tokens=$null;$errors=$null
 [Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot 'run-stage.ps1'),[ref]$tokens,[ref]$errors)|Out-Null
 if($errors.Count){throw 'Controller parser errors.'}

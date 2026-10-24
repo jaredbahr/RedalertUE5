@@ -7,15 +7,8 @@ $spec=Get-Content -LiteralPath $SpecPath -Raw|ConvertFrom-Json
 $identity=Get-Content -LiteralPath (Join-Path $spec.output ($spec.mode+'.identity.json')) -Raw|ConvertFrom-Json
 if($identity.pid -ne $PID -or $identity.jobAssignedBeforeResume -ne $true -or $identity.affinityMask -cne '0x44'){throw 'Worker was not launched by its exact owned-job guard.'}
 $spec|Add-Member -NotePropertyName stageStartQpc -NotePropertyValue $identity.deadlineStartQpc -Force
-# Same caller-only FreeConsole operation as the reviewed coordinator bootstrap.
-# Keep redirected output handles; never signal or select a console-host process.
-Add-Type -TypeDefinition @'
-using System.Runtime.InteropServices;
-public static class CommandCardOwnConsole {
-    [DllImport("kernel32.dll", SetLastError=true)] public static extern bool FreeConsole();
-}
-'@
-if(-not [CommandCardOwnConsole]::FreeConsole()){throw ('Own-console release failed: '+[Runtime.InteropServices.Marshal]::GetLastWin32Error())}
+# The whole controller retains its console through every native invocation and
+# releases only its own attachment in its finalizer. This worker shares that host.
 $binding=Get-Content -LiteralPath $spec.bindings -Raw|ConvertFrom-Json
 $python=$binding.executables.python.path
 $policy=Join-Path $PSScriptRoot 'policy.py'
