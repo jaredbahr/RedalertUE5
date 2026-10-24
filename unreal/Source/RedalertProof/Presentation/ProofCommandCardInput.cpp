@@ -6,6 +6,8 @@
 #include "Runtime/ProofPlayerController.h"
 #include "Engine/GameViewportClient.h"
 #include "Engine/World.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
 #include "UnrealClient.h"
 
 ProofCommandCard::Context AProofRTSPawn::GetCommandCardContext() const
@@ -60,6 +62,13 @@ bool AProofRTSPawn::GetPendingBuildTargetScreen(FVector2D& OutPoint, float& OutR
     using namespace ProofCommandCard;
     OutPoint = FVector2D::ZeroVector;
     OutRadius = 0.f;
+    const Action RawPending = CommandCardInput.PendingAction();
+    if ((RawPending != Action::BuildRefinery && RawPending != Action::BuildFactory)
+        || bGraphicsWarmup || !SkirmishScenario.IsEmpty()) return false;
+    // This process-wide fixture flag is also cached by the controller. Its
+    // skirmish observer mode is separate from the generic automation flags.
+    static const bool bScriptedObserver = FParse::Param(FCommandLine::Get(), TEXT("ProofSkirmishObserver"));
+    if (bScriptedObserver) return false;
     const AProofPlayerController* PC = Cast<AProofPlayerController>(GetController());
     if (!PC || !PC->IsLocalController() || PC->IsProofAutomation()
         || PC->IsControlsAutomation() || PC->IsControlsObserver() || bControlsCursor) return false;
