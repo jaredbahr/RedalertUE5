@@ -56,6 +56,36 @@ bool FProofHUDSelectionTextTest::RunTest(const FString&)
                 TestTrue(TEXT("Unset factory rally remains explicit"), Variant.Contains(TEXT("Rally none")));
         }
     }
+    struct FHealthCase
+    {
+        float Value;
+        const TCHAR* Expected;
+    };
+    const FHealthCase HealthCases[] = {
+        {0.01f, TEXT("<1")}, {0.25f, TEXT("<1")}, {0.49f, TEXT("<1")},
+        {0.5f, TEXT("<1")}, {0.99f, TEXT("<1")}, {1.f, TEXT("1")},
+        {123.75f, TEXT("124")}
+    };
+    FProofUnitRecord FragileFactory;
+    FragileFactory.UnitId = 47; FragileFactory.Kind = EProofUnitKind::Factory;
+    FragileFactory.Cargo = 23; FragileFactory.bHasRallyPoint = true;
+    FragileFactory.RallyPoint = FVector(-1400, 600, 0);
+    for (const FHealthCase& HealthCase : HealthCases)
+    {
+        FragileFactory.HitPoints = HealthCase.Value;
+        const TArray<FString> Variants = ProofHUDStatusText::Selection(&FragileFactory, 12);
+        if (!TestEqual(TEXT("Both positive-health variants remain available"), Variants.Num(), 2)) return false;
+        for (const FString& Variant : Variants)
+        {
+            TestTrue(TEXT("Live fractional health stays positive; normal rounding remains"),
+                Variant.Contains(FString::Printf(TEXT("HP %s "), HealthCase.Expected)));
+            TestTrue(TEXT("Primary identity retained with fractional health"), Variant.Contains(TEXT("#47 Factory")));
+            TestTrue(TEXT("Selection count retained with fractional health"),
+                Variant.StartsWith(TEXT("Selected: 12   ")) || Variant.StartsWith(TEXT("12 selected  ")));
+            TestTrue(TEXT("Cargo retained with fractional health"), Variant.Contains(TEXT("Cargo 23")));
+            TestTrue(TEXT("Factory rally retained with fractional health"), Variant.Contains(TEXT("Rally -1400,600")));
+        }
+    }
     return true;
 }
 

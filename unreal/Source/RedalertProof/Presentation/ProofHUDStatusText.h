@@ -42,11 +42,13 @@ inline TArray<FString> Selection(const FProofUnitRecord* Primary, int32 Count)
             RallyCompact = TEXT("  Rally none");
         }
     }
+    const FString Health = Primary->HitPoints < 1.f
+        ? FString(TEXT("<1")) : FString::Printf(TEXT("%.0f"), Primary->HitPoints);
     return {
-        FString::Printf(TEXT("Selected: %d   Primary #%d %s   HP %.0f   Cargo %d%s"),
-            Count, Primary->UnitId, Kind, Primary->HitPoints, Primary->Cargo, *RallyFull),
-        FString::Printf(TEXT("%d selected  #%d %s  HP %.0f  Cargo %d%s"),
-            Count, Primary->UnitId, Kind, Primary->HitPoints, Primary->Cargo, *RallyCompact)
+        FString::Printf(TEXT("Selected: %d   Primary #%d %s   HP %s   Cargo %d%s"),
+            Count, Primary->UnitId, Kind, *Health, Primary->Cargo, *RallyFull),
+        FString::Printf(TEXT("%d selected  #%d %s  HP %s  Cargo %d%s"),
+            Count, Primary->UnitId, Kind, *Health, Primary->Cargo, *RallyCompact)
     };
 }
 }
