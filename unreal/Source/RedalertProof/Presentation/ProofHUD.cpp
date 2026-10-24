@@ -400,22 +400,30 @@ void AProofHUD::DrawHUD()
             DrawRect(FLinearColor(0.15f, 0.17f, 0.19f, 1.f), BarX, BarY, BarWidth, BarHeight);
             DrawRect(Marker.Color, BarX, BarY, BarWidth * FMath::Clamp(Unit.HitPoints / MaxHP, 0.f, 1.f), BarHeight);
         };
-        for (const FUnitMarker& Marker : Units)
+        // Paint low-priority glyphs first, independently of selected-first
+        // label packing, so ore and ordinary brackets cannot cover selection.
+        for (const FResourceMarker& Marker : Resources)
         {
+            const FLinearColor Color = Marker.Resource->Remaining > 0 ? FLinearColor(0.25f, 0.88f, 1.f) : FLinearColor(0.5f, 0.55f, 0.6f);
+            DrawLine(Marker.Screen.X - 7.f, Marker.Screen.Y, Marker.Screen.X + 7.f, Marker.Screen.Y, Color, 2.f);
+            DrawLine(Marker.Screen.X, Marker.Screen.Y - 7.f, Marker.Screen.X, Marker.Screen.Y + 7.f, Color, 2.f);
+        }
+        for (int32 MarkerIndex = Units.Num() - 1; MarkerIndex >= 0; --MarkerIndex)
+        {
+            const FUnitMarker& Marker = Units[MarkerIndex];
             const FVector2D& Screen = Marker.Screen;
             const float Radius = Marker.Radius;
             DrawLine(Screen.X - Radius, Screen.Y - Radius, Screen.X + Radius, Screen.Y - Radius, Marker.Color, 2.f);
             DrawLine(Screen.X - Radius, Screen.Y - Radius, Screen.X - Radius, Screen.Y + Radius, Marker.Color, 2.f);
             DrawLine(Screen.X + Radius, Screen.Y - Radius, Screen.X + Radius, Screen.Y + Radius, Marker.Color, 2.f);
             DrawLine(Screen.X - Radius, Screen.Y + Radius, Screen.X + Radius, Screen.Y + Radius, Marker.Color, 2.f);
-            if (Marker.Priority < 2) DrawUnitGroup(Marker);
         }
+        for (const FUnitMarker& Marker : Units)
+            if (Marker.Priority < 2) DrawUnitGroup(Marker);
         for (const FResourceMarker& Marker : Resources)
         {
             const FProofResourceRecord& Resource = *Marker.Resource;
             const FLinearColor Color = Resource.Remaining > 0 ? FLinearColor(0.25f, 0.88f, 1.f) : FLinearColor(0.5f, 0.55f, 0.6f);
-            DrawLine(Marker.Screen.X - 7.f, Marker.Screen.Y, Marker.Screen.X + 7.f, Marker.Screen.Y, Color, 2.f);
-            DrawLine(Marker.Screen.X, Marker.Screen.Y - 7.f, Marker.Screen.X, Marker.Screen.Y + 7.f, Color, 2.f);
             const FString Name = FString::Printf(TEXT("ORE #%d"), Resource.ResourceId);
             const FString Amount = FString::FromInt(Resource.Remaining);
             const float Scale = 0.86f * UiScale;
