@@ -158,12 +158,23 @@ param([string]$EngineRoot,[int]$SessionSeconds,[switch]$Skirmish,[switch]$Camera
         Check ($failed -and $script:forbidden -eq 0) "$name fails before side effects"
         foreach($key in $before.Keys){Check ([Environment]::GetEnvironmentVariable($key,'Process') -ceq $before[$key]) "$name preserves process environment"}
     }
-    $baseline=(& git -C $repo show 'c152ec0:unreal/Scripts/start-local-interactive.ps1') -join "`n"
-    if($LASTEXITCODE -ne 0){throw 'Missing source baseline for launcher-tail check'}
+    $baseline=(& git -C $repo show '14dd1e3:unreal/Scripts/start-local-interactive.ps1') -join "`n"
+    if($LASTEXITCODE -ne 0){throw 'Missing reviewed pre-completion-fix baseline'}
     $current=[IO.File]::ReadAllText((Join-Path $PSScriptRoot 'start-local-interactive.ps1')).Replace("`r`n","`n").TrimEnd("`n")
-    $marker='$head=('
-    $expectedTail=$baseline.Substring($baseline.IndexOf($marker)).Replace("'-ResX=1280','-ResY=720'",'$viewportConfig.ResX,$viewportConfig.ResY').Replace("mode='standalone local practice';runDirectory=",'mode=''standalone local practice'';requestedViewport=$viewportConfig.Name;runDirectory=')
-    Check ($current.Substring($current.IndexOf($marker)) -ceq $expectedTail) 'launcher tail changes only viewport arguments and requested-viewport metadata; all existing limits and lifecycle code retained'
+    # Completion/identity/deadline handling intentionally changes. Preserve the
+    # unrelated resource/argument/loop regions exactly, not a broad normalization.
+    foreach($region in @(
+        @('$available=','$prior=@{}'),
+        @('    $launchArguments=','    $result.launchStartQpc='),
+        @('    while(-not $process.WaitForExit(200)) {','    # WaitForExit can return true')
+    )){
+        $start=$region[0];$newEnd=$region[1]
+        $oldEnd=if($newEnd -ceq '    $result.launchStartQpc='){'    $process=Start-Process'}elseif($newEnd -ceq '    # WaitForExit can return true'){'    if($process.HasExited) { $result.exitCode'}else{$newEnd}
+        $oldPart=$baseline.Substring($baseline.IndexOf($start),$baseline.IndexOf($oldEnd)-$baseline.IndexOf($start))
+        $newPart=$current.Substring($current.IndexOf($start),$current.IndexOf($newEnd)-$current.IndexOf($start))
+        if($newEnd -ceq '    $result.launchStartQpc='){$newPart=$newPart.Replace("    # Session time starts at launch, including process creation and engine startup.`n",'')}
+        Check ($oldPart -ceq $newPart) 'unrelated CPU/storage/arguments/input-help region remains byte-identical to reviewed baseline'
+    }
     foreach($name in @('local-interactive-paths.ps1','interactive-viewport.ps1','start-local-interactive.ps1','start-small-match.ps1')){
         $tokens=$null;$errors=$null
         [Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot $name),[ref]$tokens,[ref]$errors)|Out-Null

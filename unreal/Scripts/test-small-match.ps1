@@ -83,7 +83,7 @@ $head = (& git -C $repoRoot rev-parse HEAD).Trim()
 if ($LASTEXITCODE -ne 0) { throw 'Cannot record tested HEAD.' }
 $dirty = [bool](& git -C $repoRoot status --porcelain)
 $result = [ordered]@{
-    passed=$false; scenario=$Scenario; head=$head; dirtyWorkingTree=$dirty
+    passed=$false; scenario=$Scenario; head=$head; dirtyWorkingTree=$dirty; forcedCleanup=$false
     startedUtc=[DateTime]::UtcNow.ToString('o'); finishedUtc=$null; elapsedSeconds=0; scenarioElapsedSeconds=0
     scenarioTimeoutSeconds=$TimeoutSeconds; scenarioCoreLimit=2; runDirectory=$run; map='/Game/CommandProofGenerated/Maps/CommandProof'
     topology=$(if($Scenario -eq 'Coop'){'dedicated NullRHI fixture host, one rendered owner-1 client, one NullRHI owner-2 observer'}else{'one rendered standalone match client'})
@@ -279,7 +279,7 @@ function Wait-Marker($Entry,[string]$Pattern) {
 }
 function Stop-OwnedProcesses {
     foreach ($entry in $entries) {
-        try { $live=Get-OwnedLiveProcess $entry; if ($live) { Stop-Process -Id $live.Id -Force -ErrorAction Stop } }
+        try { $live=Get-OwnedLiveProcess $entry; if ($live) { $result.forcedCleanup=$true; Stop-Process -Id $live.Id -Force -ErrorAction Stop } }
         catch { $result.cleanupErrors+=@{role=$entry.Role;pid=$entry.Process.Id;message=$_.Exception.Message}; $result.passed=$false }
     }
     foreach ($worker in $ownedWorkers) {
@@ -287,7 +287,7 @@ function Stop-OwnedProcesses {
             $parentEntry=@($entries | Where-Object {$_.Process.Id -eq $worker.ParentId -and $_.Started -eq $worker.ParentStarted})
             if (-not $parentEntry.Count -and (Get-OwnedWorkerLiveProcess $worker)) { throw 'Owned shader-worker parent identity is unavailable during cleanup.' }
             $live=Get-OwnedWorkerLiveProcess $worker
-            if ($live) { Stop-Process -Id $live.Id -Force -ErrorAction Stop }
+            if ($live) { $result.forcedCleanup=$true; Stop-Process -Id $live.Id -Force -ErrorAction Stop }
         } catch { $result.cleanupErrors+=@{role='shader-worker';pid=$worker.Process.Id;message=$_.Exception.Message}; $result.passed=$false }
     }
 }

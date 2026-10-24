@@ -34,8 +34,11 @@ for($cpu=0; $cpu -lt 63 -and $count -lt 2; $cpu++) {
 }
 if($count -ne 2) { throw 'Two available logical CPUs are required.' }
 $names=@('UE-LocalDataCachePath','UE-SharedDataCachePath','TEMP','TMP')
-$prior=@{}; $process=$null; $started=$null
+$prior=@{}; $process=$null; $started=$null; $watch=$null
 $result=[ordered]@{head=$head;startedUtc=[DateTime]::UtcNow.ToString('o');finishedUtc=$null;mode='standalone local practice';requestedViewport=$viewportConfig.Name;runDirectory=$run;log=(Join-Path $run 'game.log');physicalInputVerified=$false;humanConfirmationRequired=$true;networkTest=$false;sessionLimitSeconds=$SessionSeconds;affinityMask=$mask;priority='Normal';policyPolls=0;affinityRepairs=0;peakObservedWorkingSetBytes=[int64]0;lastObservedCpuSeconds=0;windowTitle=$null;windowHandle=$null;exitCode=$null;expired=$false;error=$null}
+$result.uePid=$null; $result.ueCreationFileTime=$null
+$result.launchStartQpc=$null; $result.exitObservedQpc=$null; $result.qpcFrequency=[Diagnostics.Stopwatch]::Frequency
+$result.cleanup=[ordered]@{nativeExitConfirmed=$false;terminationRequested=$false;elapsedSeconds=0;error=$null}
 try {
     foreach($name in $names) { $prior[$name]=[Environment]::GetEnvironmentVariable($name,'Process') }
     [Environment]::SetEnvironmentVariable('UE-LocalDataCachePath',$cache,'Process')
@@ -55,8 +58,13 @@ try {
     if($CameraPan) { Write-Output 'Optional camera pan enabled (-CameraPan): arrow keys while the game viewport is focused and foreground.' }
     if($CameraEdgePan) { Write-Output 'Optional edge pan enabled (-CameraEdgePan): outer 16 viewport pixels; paused over the HUD, while a mouse button is held, or without viewport focus/foreground.' }
     Start-Sleep -Seconds 5
+    # Session time starts at launch, including process creation and engine startup.
+    $result.launchStartQpc=[Diagnostics.Stopwatch]::GetTimestamp()
+    $watch=[Diagnostics.Stopwatch]::StartNew()
     $process=Start-Process -FilePath $editor -ArgumentList $launchArguments -WorkingDirectory $projectRoot -WindowStyle Normal -PassThru
     $started=$process.StartTime
+    $result.uePid=$process.Id; $result.ueCreationFileTime=$started.ToUniversalTime().ToFileTimeUtc()
+    $null=$process.Handle # Retain the original native process association for cleanup.
     if(-not $process.HasExited) {
         $initial=Get-Process -Id $process.Id -ErrorAction Stop
         if($initial.StartTime -ne $started -or $initial.Path -ne $editor) { throw 'Interactive process identity changed at launch.' }
@@ -66,7 +74,6 @@ try {
         if($initial.ProcessorAffinity.ToInt64() -ne $mask -or $initial.PriorityClass -ne 'Normal') { throw 'Initial interactive CPU policy failed.' }
         $result.policyPolls++
     }
-    $watch=[Diagnostics.Stopwatch]::StartNew()
     $lastStorageCheck=-10.0
     $result.storageGuard=[ordered]@{pollingOnly=$true;maxCacheMiB=2048;maxTempMiB=1024;peakCacheBytes=[int64]0;peakTempBytes=[int64]0}
     while(-not $process.WaitForExit(200)) {
@@ -93,14 +100,42 @@ try {
             if($live.MainWindowHandle -ne 0) { $result.windowTitle=$live.MainWindowTitle; $result.windowHandle=$live.MainWindowHandle.ToInt64() }
         } catch { if(-not $process.HasExited) { throw } }
     }
-    if($process.HasExited) { $result.exitCode=$process.ExitCode }
+    # WaitForExit can return true after the deadline, bypassing the loop body.
+    if($watch.Elapsed.TotalSeconds -ge $SessionSeconds) { $result.expired=$true }
+    if($process.WaitForExit(0)) {
+        $result.exitObservedQpc=[Diagnostics.Stopwatch]::GetTimestamp()
+        $result.exitCode=$process.ExitCode
+        if(($result.exitObservedQpc-$result.launchStartQpc)/[double]$result.qpcFrequency -ge $SessionSeconds) { $result.expired=$true }
+    }
 } catch { $result.error=$_.Exception.Message }
 finally {
-    if($process -and -not $process.HasExited) {
-        $live=Get-Process -Id $process.Id -ErrorAction SilentlyContinue
-        if($live -and $live.StartTime -eq $started -and $live.Path -eq $editor) { Stop-Process -Id $process.Id -Force }
+    $cleanupWatch=[Diagnostics.Stopwatch]::StartNew()
+    try {
+        if($process) {
+            if(-not $process.WaitForExit(0)) {
+                if($process.StartTime -ne $started -or $process.Path -ne $editor) { throw 'Original interactive process identity changed.' }
+                $result.cleanup.terminationRequested=$true
+                $process.Kill() # Original retained Process, never a new PID lookup.
+            }
+            $remaining=[Math]::Max(0,[int]((5-$cleanupWatch.Elapsed.TotalSeconds)*1000))
+            if(-not $process.WaitForExit($remaining)) { throw 'Original interactive process did not signal within cleanup budget.' }
+            $result.cleanup.nativeExitConfirmed=$true
+            if($null -eq $result.exitCode) { $result.exitCode=$process.ExitCode }
+        }
+    } catch { $result.cleanup.error=$_.Exception.Message }
+    foreach($name in $names) {
+        if($prior.ContainsKey($name)) {
+            try { [Environment]::SetEnvironmentVariable($name,$prior[$name],'Process') }
+            catch { if(-not $result.error) { $result.error=$_.Exception.Message } }
+        }
     }
-    foreach($name in $names) { if($prior.ContainsKey($name)) { [Environment]::SetEnvironmentVariable($name,$prior[$name],'Process') } }
+    $result.cleanup.elapsedSeconds=$cleanupWatch.Elapsed.TotalSeconds
+    if($result.cleanup.elapsedSeconds -gt 5 -and -not $result.cleanup.error) { $result.cleanup.error='Aggregate five-second cleanup budget exceeded.' }
+    if(-not $result.error) {
+        if($result.expired) { $result.error='Interactive session expired.' }
+        elseif($null -eq $result.exitCode -or $result.exitCode -ne 0) { $result.error='Interactive UE exit was missing or nonzero.' }
+        elseif($result.cleanup.terminationRequested -or -not $result.cleanup.nativeExitConfirmed -or $result.cleanup.error) { $result.error='Interactive cleanup was forced or incomplete.' }
+    }
     $result.finishedUtc=[DateTime]::UtcNow.ToString('o')
     $result | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $run 'session.json') -Encoding utf8
 }
