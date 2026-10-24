@@ -29,6 +29,8 @@ Bind a clean exact source revision, C++ tree, Config/project inputs, installed e
 
 Require actual UBT success, zero exit, complete supervisor/cleanup outcome and a fresh DLL plus `UnrealEditor.modules`. Record their SHA256, BuildId, source/config identities and creation/modification times inside the build interval. A compatible BuildId or an older DLL alone cannot establish provenance.
 
+Reuse also requires the payload proof, inner result and successful terminal outcome of the entire fresh controller, linked by hashes and the exact reviewed binding digest/C++ tree. A proof written before a later setup/reconciliation failure or stall cannot pass this gate. A valid build may be reused across separate admitted reservations under the same binding. The new whole-controller correction still needs its targeted controls and independent review before adoption.
+
 ## Native and rendered checks
 
 Use that exact built DLL and content throughout these serial payloads:

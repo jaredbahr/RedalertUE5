@@ -4,7 +4,7 @@ import hashlib
 import json
 import subprocess
 from pathlib import Path
-from policy import RESOURCE_PINS, release_own_console
+from policy import RESOURCE_PINS, authored_assets, committed_manifest, release_own_console
 
 
 def digest(path):
@@ -23,6 +23,7 @@ def main():
     p.add_argument("--assets", required=True)
     p.add_argument("--readiness", required=True)
     p.add_argument("--admission", required=True)
+    p.add_argument("--watchdog", required=True)
     p.add_argument("--output", required=True)
     a = p.parse_args()
     root = Path(a.source).resolve()
@@ -33,9 +34,18 @@ def main():
         raise ValueError("Unsupported fsmonitor configuration")
     if git("status", "--porcelain"):
         raise ValueError("Commit the exact candidate before preparing bindings")
-    files = git("ls-files", "-z").split("\0")
-    pins = [{"relative": name, "bytes": (root / name).stat().st_size, "sha256": digest(root / name)}
-            for name in files if name]
+    head = git("rev-parse", "HEAD")
+    manifest = committed_manifest(root, a.git, head)
+    pins = [{"relative": item["relative"], "bytes": (root / item["relative"]).stat().st_size,
+             "sha256": digest(root / item["relative"]), "blobOid": item["blobOid"]}
+            for item in manifest]
+    assets = json.loads(Path(a.assets).read_text(encoding="utf-8-sig"))
+    if assets != authored_assets():
+        raise ValueError("Exact intended authored-content set required")
+    prepared_path = Path(a.watchdog)
+    prepared = json.loads(prepared_path.read_text(encoding="utf-8-sig"))
+    if prepared.get("head") != head:
+        raise ValueError("Prepare the watchdog from this exact committed candidate")
     binaries = {"pwsh": Path(a.pwsh), "python": Path(a.python), "git": Path(a.git),
                 "editor": Path(a.engine) / "Engine/Binaries/Win64/UnrealEditor.exe",
                 "editorCmd": Path(a.engine) / "Engine/Binaries/Win64/UnrealEditor-Cmd.exe"}
@@ -45,13 +55,13 @@ def main():
         if digest(path) != RESOURCE_PINS[key]:
             raise ValueError("Original resource-only sampler changed: " + key)
         resources[key] = {"path": str(path), "sha256": RESOURCE_PINS[key]}
-    binding = dict(scope="PR72", sourceHead=git("rev-parse", "HEAD"),
+    binding = dict(scope="PR72", sourceHead=head,
                    cppTree=git("rev-parse", "HEAD:unreal/Source/RedalertProof"),
                    sourceRoot=str(Path(a.runtime)), storageRoot=str(Path(a.runtime).parent),
-                   engineRoot=a.engine, files=pins,
+                   engineRoot=a.engine, files=pins, committedManifest=manifest,
                    executables={k: {"path": str(v), "sha256": digest(v)} for k, v in binaries.items()},
                    resourceTools=resources,
-                   assets=json.loads(Path(a.assets).read_text(encoding="utf-8-sig")),
+                   assets=assets, preparedWatchdog={"path": str(prepared_path), "sha256": digest(prepared_path)},
                    preparationOnly=True, acceptanceEvidence=False)
     raw = json.dumps(binding, indent=2).encode()
     if len(raw) > 262144:

@@ -8,6 +8,7 @@ import math
 import os
 import re
 import struct
+import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -131,6 +132,8 @@ def validate_outcome(value, mode, expected_frequency):
     require(origin <= end <= final < origin + BOUNDS[mode] * frequency, "late or invalid stage completion")
     for key in ("stdoutBytes", "stderrBytes"):
         require(integer(value.get(key)) and value[key] <= 1024 * 1024, "incomplete/big output")
+    require(number(value.get("cleanupElapsedSeconds")) and value["cleanupElapsedSeconds"] <= 5,
+            "aggregate native cleanup budget")
     interval(value)
 
 
@@ -246,6 +249,39 @@ def regular(path):
     return path
 
 
+def committed_manifest(root, executable, head):
+    command = [str(executable), "--no-optional-locks", "-C", str(root)]
+    actual_head = subprocess.check_output(command + ["rev-parse", "HEAD"], timeout=10).decode().strip()
+    require(actual_head == head, "checkout is not the bound committed head")
+    raw = subprocess.check_output(command + ["ls-tree", "-rz", "--full-tree", head], timeout=10)
+    require(0 < len(raw) <= 262144, "committed source manifest cap")
+    rows = []
+    for row in raw.decode("utf-8", errors="strict").split("\0"):
+        if not row:
+            continue
+        metadata, name = row.split("\t", 1)
+        mode, kind, blob = metadata.split(" ")
+        require(kind == "blob" and mode in ("100644", "100755") and HEAD.fullmatch(blob), "ordinary committed source files required")
+        rows.append(dict(relative=name, mode=mode, blobOid=blob))
+    require(1 <= len(rows) <= 1024, "committed source manifest count")
+    return rows
+
+
+def validate_source_set(files, expected, actual):
+    require(type(expected) is list and expected == actual, "binding manifest differs from committed manifest")
+    names = {item["relative"] for item in actual}
+    require(len(names) == len(actual) and {item["relative"] for item in files} == names
+            and len(files) == len(actual), "binding must cover the entire exact committed source set")
+    by_name = {item["relative"]: item for item in actual}
+    for item in files:
+        require(item.get("blobOid") == by_name[item["relative"]]["blobOid"], "source pin/committed blob mismatch")
+
+
+def authored_assets():
+    raw = Path(__file__).with_name("authored-content.json").read_bytes()
+    return loads(b'{"files":' + raw.decode("utf-8-sig").encode("utf-8") + b'}')["files"]
+
+
 def verify_bindings(path, digest, review_path):
     require(type(digest) is str and SHA.fullmatch(digest), "reviewed binding SHA256 required")
     binding = file_ref({"path": str(regular(path)), "sha256": digest})
@@ -275,18 +311,24 @@ def verify_bindings(path, digest, review_path):
                 and target.stat().st_size == item["bytes"] and type(item.get("sha256")) is str
                 and SHA.fullmatch(item["sha256"]), "source pin shape")
         with target.open("rb") as stream:
-            require(hashlib.file_digest(stream, "sha256").hexdigest() == item["sha256"], "source bytes changed: " + relative)
+            raw = stream.read(16 * 1024**2 + 1)
+        require(len(raw) == item["bytes"] and hashlib.sha256(raw).hexdigest() == item["sha256"], "source bytes changed: " + relative)
+        require(type(item.get("blobOid")) is str and HEAD.fullmatch(item["blobOid"])
+                and hashlib.sha1(b"blob " + str(len(raw)).encode() + b"\0" + raw).hexdigest() == item["blobOid"],
+                "working bytes differ from the pinned committed blob")
     required = {"unreal/Scripts/CommandCardValidation/" + name for name in
-                ("policy.py", "run-stage.ps1", "stage-worker.ps1", "CommandCardStageSupervisor.cs")}
+                ("policy.py", "run-stage.ps1", "stage-controller.ps1", "stage-worker.ps1",
+                 "prepare-watchdog.ps1", "authored-content.json", "CommandCardStageSupervisor.cs")}
     required.update("unreal/Scripts/" + name for name in
                     ("build-native-proof.ps1", "test-hud-layout-model.ps1", "test-small-match.ps1",
                      "start-small-match.ps1", "start-local-interactive.ps1"))
     require({name.casefold() for name in required} <= seen, "incomplete execution-source binding")
     require(type(binding.get("cppTree")) is str and HEAD.fullmatch(binding["cppTree"]), "C++ tree binding required")
     require(regular(binding.get("storageRoot", "")).drive.upper() == "D:", "designated local storage required")
-    regular(binding.get("engineRoot", ""))
+    engine = regular(binding.get("engineRoot", ""))
     assets = binding.get("assets")
     require(type(assets) is list and len(assets) == 14, "exact existing authored-content set required")
+    require(assets == authored_assets(), "intended existing authored-content names/bytes/hashes required, including both maps")
     asset_names = set()
     for asset in assets:
         require(type(asset) is dict, "asset pin object required")
@@ -304,9 +346,25 @@ def verify_bindings(path, digest, review_path):
     for key in ("pwsh", "python", "git", "editor", "editorCmd"):
         entry = binding.get("executables", {}).get(key, {})
         target = regular(entry.get("path", ""))
+        if key in ("editor", "editorCmd"):
+            expected = engine / "Engine/Binaries/Win64" / ("UnrealEditor.exe" if key == "editor" else "UnrealEditor-Cmd.exe")
+            require(str(target).casefold() == str(expected).casefold(), "editor path is not under the bound engine root")
         require(target.is_file() and type(entry.get("sha256")) is str and SHA.fullmatch(entry["sha256"]), "executable pin required")
         with target.open("rb") as stream:
             require(hashlib.file_digest(stream, "sha256").hexdigest() == entry["sha256"], "executable changed")
+    manifest = committed_manifest(root, binding["executables"]["git"]["path"], head)
+    validate_source_set(files, binding.get("committedManifest"), manifest)
+    prepared = file_ref(binding.get("preparedWatchdog"))
+    require(prepared.get("head") == head, "prepared watchdog head mismatch")
+    guard_pin = next(item for item in files if item["relative"] == "unreal/Scripts/CommandCardValidation/CommandCardStageSupervisor.cs")
+    require(prepared.get("supervisorSourceSha256") == guard_pin["sha256"]
+            and prepared.get("pwshPath") == binding["executables"]["pwsh"]["path"], "prepared watchdog source/host mismatch")
+    assembly = regular(prepared.get("assemblyPath", ""))
+    require(assembly.is_file() and type(prepared.get("assemblySha256")) is str
+            and SHA.fullmatch(prepared["assemblySha256"]) and type(prepared.get("moduleVersionId")) is str
+            and bool(prepared["moduleVersionId"]), "prepared watchdog assembly identity required")
+    with assembly.open("rb") as stream:
+        require(hashlib.file_digest(stream, "sha256").hexdigest() == prepared["assemblySha256"], "prepared watchdog assembly changed")
     for key, expected in RESOURCE_PINS.items():
         entry = binding.get("resourceTools", {}).get(key, {})
         target = regular(entry.get("path", ""))
@@ -351,13 +409,33 @@ def validate_payload(mode, value, head, viewport, frequency=None):
     return {"valid": True, "physicalInputVerified": False}
 
 
-def validate_build_reference(prerequisites, head, root, frequency):
-    outer = file_ref(prerequisites.get("buildOutcome"))
+def validate_build_reference(prerequisites, head, root, frequency, binding_sha, cpp_tree):
+    require(type(binding_sha) is str and SHA.fullmatch(binding_sha)
+            and type(cpp_tree) is str and HEAD.fullmatch(cpp_tree), "reviewed build binding/C++ tree required")
+    outer = file_ref(prerequisites.get("buildTerminal"))
     validate_outcome(outer, "build", frequency)
+    flag(outer, "wholeController", True)
     proof = file_ref(prerequisites.get("build"))
-    require(Path(prerequisites["build"]["path"]).parent == Path(prerequisites["buildOutcome"]["path"]).parent,
-            "build proof and native outcome must belong to the same case")
-    identity(proof, head)
+    inner = file_ref(prerequisites.get("buildOutcome"))
+    directory = Path(prerequisites["build"]["path"]).parent
+    require(directory == Path(prerequisites["buildOutcome"]["path"]).parent
+            == Path(prerequisites["buildTerminal"]["path"]).parent, "build proof/inner/terminal must share one case")
+    for record in (proof, inner, outer):
+        identity(record, head)
+        require(record.get("bindingsSha256") == binding_sha and record.get("cppTree") == cpp_tree,
+                "build was produced under a different binding or C++ tree")
+    flag(inner, "passed", True)
+    null(inner, "error")
+    require(inner.get("proofSha256") == prerequisites["build"]["sha256"]
+            == outer.get("payloadProofSha256") and outer.get("innerOutcomeSha256") == prerequisites["buildOutcome"]["sha256"],
+            "terminal outcome must bind the actual proof and inner result hashes")
+    complete = file_ref({"path": str(directory / "CONTROLLER_COMPLETE.json"), "sha256": outer.get("controllerCompletionSha256")})
+    flag(complete, "passed", True)
+    null(complete, "error")
+    identity(complete, head)
+    require(complete.get("bindingsSha256") == binding_sha and complete.get("cppTree") == cpp_tree
+            and complete.get("proofSha256") == outer["payloadProofSha256"]
+            and complete.get("innerOutcomeSha256") == outer["innerOutcomeSha256"], "complete controller/hash binding mismatch")
     flag(proof, "automatedStageValidated", True)
     null(proof, "error")
     require(proof.get("case") == "Build" and proof.get("mode") == "build"
@@ -447,6 +525,8 @@ def main():
     parser.add_argument("--root")
     parser.add_argument("--started")
     parser.add_argument("--stage", choices=list(BOUNDS))
+    parser.add_argument("--bindings-sha256")
+    parser.add_argument("--cpp-tree")
     args = parser.parse_args()
     if args.mode == "bindings":
         binding = verify_bindings(args.receipt, args.sha256, args.review)
@@ -457,7 +537,7 @@ def main():
         validate_prerequisites(prerequisites, args.head, datetime.now(timezone.utc), args.frequency)
         print(json.dumps({"valid": True, "runtimeAcceptance": False}))
     elif args.mode == "build-reference":
-        validate_build_reference(read(args.receipt), args.head, args.root, args.frequency)
+        validate_build_reference(read(args.receipt), args.head, args.root, args.frequency, args.bindings_sha256, args.cpp_tree)
         print(json.dumps({"valid": True, "runtimeAcceptance": False}))
     elif args.mode == "artifacts":
         validate_artifacts(args.receipt, args.head, args.viewport, args.started)

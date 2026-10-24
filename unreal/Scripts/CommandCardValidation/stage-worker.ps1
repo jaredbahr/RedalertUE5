@@ -6,6 +6,7 @@ if((Get-FileHash -LiteralPath $SpecPath -Algorithm SHA256).Hash.ToLowerInvariant
 $spec=Get-Content -LiteralPath $SpecPath -Raw|ConvertFrom-Json
 $identity=Get-Content -LiteralPath (Join-Path $spec.output ($spec.mode+'.identity.json')) -Raw|ConvertFrom-Json
 if($identity.pid -ne $PID -or $identity.jobAssignedBeforeResume -ne $true -or $identity.affinityMask -cne '0x44'){throw 'Worker was not launched by its exact owned-job guard.'}
+$spec|Add-Member -NotePropertyName stageStartQpc -NotePropertyValue $identity.deadlineStartQpc -Force
 # Same caller-only FreeConsole operation as the reviewed coordinator bootstrap.
 # Keep redirected output handles; never signal or select a console-host process.
 Add-Type -TypeDefinition @'
@@ -38,7 +39,7 @@ Check-Deadline
 $dll=Join-Path $root 'unreal/Binaries/Win64/UnrealEditor-RedalertProof.dll'
 $modules=Join-Path $root 'unreal/Binaries/Win64/UnrealEditor.modules'
 $started=[DateTime]::UtcNow
-$proof=[ordered]@{case=$spec.case;mode=$spec.mode;head=$binding.sourceHead;cppTree=$binding.cppTree;sourceRoot=$root;startedUtc=$started.ToString('o');finishedUtc=$null;automatedStageValidated=$false;acceptanceEvidence=$false;physicalInputVerified=$false;rawReceipt=$null;rawReceiptSha256=$null;dllSha256=$null;modulesSha256=$null;error=$null}
+$proof=[ordered]@{case=$spec.case;mode=$spec.mode;head=$binding.sourceHead;bindingsSha256=$spec.bindingsSha256;cppTree=$binding.cppTree;sourceRoot=$root;startedUtc=$started.ToString('o');finishedUtc=$null;automatedStageValidated=$false;acceptanceEvidence=$false;physicalInputVerified=$false;rawReceipt=$null;rawReceiptSha256=$null;dllSha256=$null;modulesSha256=$null;error=$null}
 try{
     if($spec.mode -eq 'build'){
         if(Test-Path -LiteralPath (Join-Path $root 'unreal/Binaries')){throw 'Fresh build requires absent candidate binaries; never reuse the demo DLL.'}
@@ -55,7 +56,7 @@ try{
         $proof.modulesSha256=(Get-FileHash -LiteralPath $modules -Algorithm SHA256).Hash.ToLowerInvariant()
         $proof.buildId=$module.BuildId
     }else{
-        & $python -B $policy build-reference $spec.prerequisites --head $binding.sourceHead --root $root --frequency ([Diagnostics.Stopwatch]::Frequency)
+        & $python -B $policy build-reference $spec.prerequisites --head $binding.sourceHead --root $root --frequency ([Diagnostics.Stopwatch]::Frequency) --bindings-sha256 $spec.bindingsSha256 --cpp-tree $binding.cppTree
         if($LASTEXITCODE -ne 0){throw 'Actual candidate build provenance rejected.'}
         foreach($asset in $binding.assets){
             $path=Join-Path $root ('unreal/Content/'+$asset.relative)

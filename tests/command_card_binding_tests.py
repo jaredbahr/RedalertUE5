@@ -17,6 +17,8 @@ spec.loader.exec_module(policy)
 HEAD = "1" * 40
 NOW = datetime(2026, 1, 1, 0, 20, tzinfo=timezone.utc)
 FREQ = 10_000_000
+BINDING_SHA = "b" * 64
+CPP_TREE = "2" * 40
 
 
 def stamp(value):
@@ -39,7 +41,8 @@ def outcome(mode="interactive"):
                 leaseCancelled=False, terminationRequested=False, error=None, cleanupError=None,
                 exitCode=0, activeOwnedProcessesAfterCleanup=0, pid=99, creationFileTime=123,
                 frequency=FREQ, deadlineStartQpc=100, observedExitQpc=200, completedQpc=300,
-                stdoutBytes=5, stderrBytes=0, startedUtc=stamp(NOW - timedelta(seconds=1)), finishedUtc=stamp(NOW))
+                stdoutBytes=5, stderrBytes=0, cleanupElapsedSeconds=.1,
+                startedUtc=stamp(NOW - timedelta(seconds=1)), finishedUtc=stamp(NOW))
 
 
 def ready():
@@ -249,27 +252,46 @@ class Controls(unittest.TestCase):
         modules.write_text(json.dumps(dict(BuildId="synthetic", Modules=dict(RedalertProof=dll.name))))
         now = datetime.now(timezone.utc)
         start, end = stamp(now - timedelta(seconds=3)), stamp(now + timedelta(seconds=1))
-        proof = dict(head=HEAD, case="Build", mode="build", sourceRoot=str(root), automatedStageValidated=True,
+        proof = dict(head=HEAD, bindingsSha256=BINDING_SHA, cppTree=CPP_TREE,
+                     case="Build", mode="build", sourceRoot=str(root), automatedStageValidated=True,
                      error=None, startedUtc=start, finishedUtc=end, buildId="synthetic",
                      dllSha256=hashlib.sha256(dll.read_bytes()).hexdigest(),
                      modulesSha256=hashlib.sha256(modules.read_bytes()).hexdigest())
-        outer = outcome("build"); outer.update(startedUtc=start, finishedUtc=end)
-        refs = dict(build=self.save_ref(root, "PAYLOAD_RESULT.json", proof),
-                    buildOutcome=self.save_ref(root, "RETURNED_OUTCOME.json", outer))
-        policy.validate_build_reference(refs, HEAD, root, FREQ)
+        proof_ref = self.save_ref(root, "PAYLOAD_RESULT.json", proof)
+        inner = dict(passed=True, error=None, head=HEAD, bindingsSha256=BINDING_SHA, cppTree=CPP_TREE,
+                     proofSha256=proof_ref["sha256"])
+        inner_ref = self.save_ref(root, "INNER_RESULT.json", inner)
+        complete = dict(inner, innerOutcomeSha256=inner_ref["sha256"])
+        complete_ref = self.save_ref(root, "CONTROLLER_COMPLETE.json", complete)
+        outer = outcome("build")
+        outer.update(startedUtc=start, finishedUtc=end, wholeController=True, head=HEAD,
+                     bindingsSha256=BINDING_SHA, cppTree=CPP_TREE, payloadProofSha256=proof_ref["sha256"],
+                     innerOutcomeSha256=inner_ref["sha256"], controllerCompletionSha256=complete_ref["sha256"])
+        refs = dict(build=proof_ref, buildOutcome=inner_ref,
+                    buildTerminal=self.save_ref(root, "RETURNED_OUTCOME.json", outer))
+        policy.validate_build_reference(refs, HEAD, root, FREQ, BINDING_SHA, CPP_TREE)
         for key in refs:
             bad = dict(refs); bad.pop(key)
             with self.subTest(missing=key), self.assertRaises(policy.Rejected):
-                policy.validate_build_reference(bad, HEAD, root, FREQ)
-        bad = dict(refs, buildOutcome=self.save_ref(root, "failed.json", dict(outer, exitCode=1)))
-        with self.assertRaises(policy.Rejected): policy.validate_build_reference(bad, HEAD, root, FREQ)
+                policy.validate_build_reference(bad, HEAD, root, FREQ, BINDING_SHA, CPP_TREE)
+        for changed in (dict(outer, exitCode=1), dict(outer, passed=False), dict(outer, wholeController=False),
+                        dict(outer, bindingsSha256="c" * 64), dict(outer, cppTree="3" * 40),
+                        dict(outer, innerOutcomeSha256="0" * 64), dict(outer, payloadProofSha256="0" * 64)):
+            bad = dict(refs, buildTerminal=self.save_ref(root, "failed.json", changed))
+            with self.assertRaises(policy.Rejected):
+                policy.validate_build_reference(bad, HEAD, root, FREQ, BINDING_SHA, CPP_TREE)
+        # A valid build remains reusable under a different current reservation.
+        policy.validate_build_reference(dict(refs, lease={"newReservation": True}), HEAD, root, FREQ, BINDING_SHA, CPP_TREE)
+        with self.assertRaises(policy.Rejected): policy.validate_build_reference(refs, HEAD, root, FREQ, "c" * 64, CPP_TREE)
+        with self.assertRaises(policy.Rejected): policy.validate_build_reference(refs, HEAD, root, FREQ, BINDING_SHA, "3" * 40)
         dll.write_bytes(b"CHANGED")
-        with self.assertRaises(policy.Rejected): policy.validate_build_reference(refs, HEAD, root, FREQ)
+        with self.assertRaises(policy.Rejected): policy.validate_build_reference(refs, HEAD, root, FREQ, BINDING_SHA, CPP_TREE)
 
     def test_exact_binding_review_and_source_changes(self):
         root = self.temporary()
         names = ["unreal/Scripts/CommandCardValidation/" + name for name in
-                 ("policy.py", "run-stage.ps1", "stage-worker.ps1", "CommandCardStageSupervisor.cs")]
+                 ("policy.py", "run-stage.ps1", "stage-controller.ps1", "stage-worker.ps1",
+                  "prepare-watchdog.ps1", "authored-content.json", "CommandCardStageSupervisor.cs")]
         names += ["unreal/Scripts/" + name for name in
                   ("build-native-proof.ps1", "test-hud-layout-model.ps1", "test-small-match.ps1",
                    "start-small-match.ps1", "start-local-interactive.ps1")]
@@ -277,7 +299,10 @@ class Controls(unittest.TestCase):
         for name in names:
             path = root / name; path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(b"INERT SOURCE PIN")
-            pins.append(dict(relative=name, bytes=path.stat().st_size, sha256=hashlib.sha256(path.read_bytes()).hexdigest()))
+            raw = path.read_bytes()
+            pins.append(dict(relative=name, bytes=len(raw), sha256=hashlib.sha256(raw).hexdigest(),
+                             blobOid=hashlib.sha1(b"blob " + str(len(raw)).encode() + b"\0" + raw).hexdigest()))
+        manifest = [dict(relative=item["relative"], mode="100644", blobOid=item["blobOid"]) for item in pins]
         assets = []
         for index in range(14):
             relative = "inert/" + str(index) + ".uasset"
@@ -286,10 +311,19 @@ class Controls(unittest.TestCase):
             assets.append(dict(relative=relative, bytes=path.stat().st_size, sha256=hashlib.sha256(path.read_bytes()).hexdigest()))
         exe = root / "INERT-NOT-EXECUTABLE"; exe.write_bytes(b"INERT")
         exe_ref = dict(path=str(exe), sha256=hashlib.sha256(exe.read_bytes()).hexdigest())
+        executables = {key: exe_ref for key in ("pwsh", "python", "git")}
+        for key, filename in (("editor", "UnrealEditor.exe"), ("editorCmd", "UnrealEditor-Cmd.exe")):
+            path = root / "Engine/Binaries/Win64" / filename; path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(b"INERT")
+            executables[key] = dict(path=str(path), sha256=exe_ref["sha256"])
+        guard_pin = next(item for item in pins if item["relative"].endswith("CommandCardStageSupervisor.cs"))
+        prepared = dict(head=HEAD, supervisorSourceSha256=guard_pin["sha256"], pwshPath=str(exe),
+                        assemblyPath=str(exe), assemblySha256=exe_ref["sha256"], moduleVersionId="synthetic-module")
+        prepared_ref = self.save_ref(root, "PREPARED_WATCHDOG.json", prepared)
         resource_pins = {key: exe_ref["sha256"] for key in policy.RESOURCE_PINS}
         value = dict(scope="PR72", sourceHead=HEAD, cppTree="2" * 40, sourceRoot=str(root),
-                     engineRoot=str(root), storageRoot=str(root), files=pins, assets=assets,
-                     executables={key: exe_ref for key in ("pwsh", "python", "git", "editor", "editorCmd")},
+                     engineRoot=str(root), storageRoot=str(root), files=pins, committedManifest=manifest, assets=assets,
+                     executables=executables, preparedWatchdog=prepared_ref,
                      resourceTools={key: exe_ref for key in resource_pins})
         def check(candidate, approved=True):
             reference = self.save_ref(root, "BINDINGS.json", candidate)
@@ -299,10 +333,13 @@ class Controls(unittest.TestCase):
             return policy.verify_bindings(reference["path"], reference["sha256"], review_ref["path"])
         # These are data-only fixtures. They cannot launch a real executable or
         # serve as an actual independent review, and the temporary tree is removed.
-        with patch.dict(policy.RESOURCE_PINS, resource_pins, clear=True):
+        with patch.dict(policy.RESOURCE_PINS, resource_pins, clear=True), \
+             patch.object(policy, "committed_manifest", return_value=manifest), \
+             patch.object(policy, "authored_assets", return_value=assets):
             check(value)
             with self.assertRaises(policy.Rejected): check(value, approved=False)
-            for edit in ("missing_source", "duplicate_source", "traversal", "missing_asset", "wrong_scope", "wrong_head"):
+            for edit in ("missing_source", "duplicate_source", "traversal", "missing_asset", "wrong_scope", "wrong_head",
+                         "same_count_wrong_asset", "editor_outside_engine", "manifest_omission"):
                 bad = copy.deepcopy(value)
                 if edit == "missing_source": bad["files"].pop()
                 if edit == "duplicate_source": bad["files"].append(bad["files"][0])
@@ -310,6 +347,9 @@ class Controls(unittest.TestCase):
                 if edit == "missing_asset": bad["assets"].pop()
                 if edit == "wrong_scope": bad["scope"] = "PR71"
                 if edit == "wrong_head": bad["sourceHead"] = "3" * 40
+                if edit == "same_count_wrong_asset": bad["assets"][0]["relative"] = "different-map.uasset"
+                if edit == "editor_outside_engine": bad["executables"]["editor"] = exe_ref
+                if edit == "manifest_omission": bad["committedManifest"].pop()
                 with self.subTest(edit=edit), self.assertRaises(policy.Rejected): check(bad)
             (root / names[0]).write_bytes(b"CHANGED SOURCE")
             with self.assertRaises(policy.Rejected): check(value)

@@ -13,6 +13,7 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Text.Json;
+using System.Security.Cryptography;
 using Microsoft.Win32.SafeHandles;
 
 public static class RA2CommandCardStageSupervisor
@@ -91,6 +92,39 @@ public static class RA2CommandCardStageSupervisor
         using(var f=new FileStream(path,FileMode.CreateNew,FileAccess.Write,FileShare.Read,4096,FileOptions.WriteThrough)) { f.Write(raw,0,raw.Length); f.Flush(true); }
     }
     static void Save(string path,object value) { DurableNew(path,JsonSerializer.Serialize(value,new JsonSerializerOptions { WriteIndented=true })); }
+    static byte[] Metadata(string path) {
+        var info=new FileInfo(path); if(!info.Exists || info.Length<=0 || info.Length>262144) throw new IOException("Complete bounded controller metadata required");
+        using(var file=File.OpenRead(path)) { var raw=new byte[(int)info.Length]; int used=0,n;
+            while(used<raw.Length && (n=file.Read(raw,used,raw.Length-used))>0) used+=n;
+            if(used!=raw.Length || file.ReadByte()!=-1) throw new IOException("Controller metadata changed while reading"); return raw; }
+    }
+    static string Digest(byte[] raw) { return Convert.ToHexString(SHA256.HashData(raw)).ToLowerInvariant(); }
+    static JsonDocument Object(byte[] raw) {
+        var value=JsonDocument.Parse(raw,new JsonDocumentOptions { MaxDepth=16 });
+        if(value.RootElement.ValueKind!=JsonValueKind.Object) { value.Dispose(); throw new IOException("Controller metadata object required"); }
+        var keys=new HashSet<string>(); foreach(var p in value.RootElement.EnumerateObject()) if(!keys.Add(p.Name)) { value.Dispose(); throw new IOException("Duplicate controller property"); } return value;
+    }
+    static void Exact(JsonElement value,string name,string expected) {
+        JsonElement field; if(!value.TryGetProperty(name,out field) || field.ValueKind!=JsonValueKind.String || field.GetString()!=expected) throw new IOException("Controller identity mismatch: "+name);
+    }
+    static void Complete(JsonElement value) {
+        JsonElement passed,error; if(!value.TryGetProperty("passed",out passed) || passed.ValueKind!=JsonValueKind.True || !value.TryGetProperty("error",out error) || error.ValueKind!=JsonValueKind.Null) throw new IOException("Controller did not complete successfully");
+    }
+    static void BindController(Outcome result,string dir,string head,string binding,string cppTree) {
+        byte[] proof=Metadata(Path.Combine(dir,"PAYLOAD_RESULT.json")),inner=Metadata(Path.Combine(dir,"INNER_RESULT.json")),complete=Metadata(Path.Combine(dir,"CONTROLLER_COMPLETE.json"));
+        string proofSha=Digest(proof),innerSha=Digest(inner);
+        using(var p=Object(proof)) using(var i=Object(inner)) using(var c=Object(complete)) {
+            foreach(var value in new [] {p.RootElement,i.RootElement,c.RootElement}) { Exact(value,"head",head); Exact(value,"bindingsSha256",binding); Exact(value,"cppTree",cppTree); }
+            JsonElement validated,error; if(!p.RootElement.TryGetProperty("automatedStageValidated",out validated) || validated.ValueKind!=JsonValueKind.True || !p.RootElement.TryGetProperty("error",out error) || error.ValueKind!=JsonValueKind.Null) throw new IOException("Incomplete payload proof");
+            Complete(i.RootElement); Complete(c.RootElement);
+            Exact(i.RootElement,"proofSha256",proofSha); Exact(c.RootElement,"proofSha256",proofSha); Exact(c.RootElement,"innerOutcomeSha256",innerSha);
+        }
+        result.wholeController=true; result.head=head; result.bindingsSha256=binding; result.cppTree=cppTree;
+        result.payloadProofSha256=proofSha; result.innerOutcomeSha256=innerSha; result.controllerCompletionSha256=Digest(complete);
+    }
+    // The dispatcher exports only the returned, terminal whole-controller outcome.
+    // It performs no later acceptance checks that could invalidate this receipt.
+    public static void ExportReturnedOutcome(string path,Outcome result) { Save(path,result); }
     // Failure-only telemetry, after the unchanged survivor decision. Query handles
     // never grant termination authority and are checked for current job membership.
     static object[] FailureMembers(IntPtr job,out string error) {
@@ -141,6 +175,7 @@ public static class RA2CommandCardStageSupervisor
         public long deadlineStartQpc {get;set;} public long observedExitQpc {get;set;}
         public string startedUtc {get;set;} public string finishedUtc {get;set;}
         public double elapsedSeconds {get;set;} public double? cpuSeconds {get;set;}
+        public double cleanupElapsedSeconds {get;set;}
         public uint? exitCode {get;set;} public bool timedOut {get;set;}
         public string capacityExpiresUtc {get;set;} public bool reservationLost {get;set;} public bool leaseCancelled {get;set;} public long completedQpc {get;set;}
         public bool resumed {get;set;} public bool jobAssigned {get;set;}
@@ -149,10 +184,19 @@ public static class RA2CommandCardStageSupervisor
         public bool outputComplete {get;set;} public long stdoutBytes {get;set;} public long stderrBytes {get;set;}
         public string error {get;set;} public string cleanupError {get;set;}
         public bool originalSurvivorDecision {get;set;} public object[] failureMembers {get;set;} public string failureSnapshotError {get;set;}
+        public bool wholeController {get;set;} public string head {get;set;} public string bindingsSha256 {get;set;} public string cppTree {get;set;}
+        public string payloadProofSha256 {get;set;} public string innerOutcomeSha256 {get;set;} public string controllerCompletionSha256 {get;set;}
         public bool acceptanceEvidence { get { return false; } }
         public bool passed { get { return resumed && jobAssigned && exitCode==0 && !timedOut && !reservationLost && !leaseCancelled && !terminationRequested && activeOwnedProcessesAfterCleanup==0 && error==null && cleanupSucceeded && outputComplete; } }
     }
     public static Outcome Run(string exe,string[] args,string wd,int seconds,string dir,string stem,string temp,string capacityExpiresUtc,long stageStartQpc,string cancellationPath) {
+        return Run(exe,args,wd,seconds,dir,stem,temp,capacityExpiresUtc,stageStartQpc,cancellationPath,null,null,null);
+    }
+    public static Outcome Run(string exe,string[] args,string wd,int seconds,string dir,string stem,string temp,string capacityExpiresUtc,long stageStartQpc,string cancellationPath,string expectedHead,string expectedBindingsSha256,string expectedCppTree) {
+        if(expectedBindingsSha256!=null) {
+            if(Directory.Exists(dir)) throw new IOException("Fresh whole-controller output directory required");
+            Directory.CreateDirectory(temp);
+        }
         if(!((stem=="admission" && seconds==20) || (stem=="build" && seconds==900) || (stem=="native" && seconds==120) || (stem=="qualification" && seconds==650) || (stem=="render" && seconds==220) || (stem=="interactive" && seconds==220)) || !Directory.Exists(dir) || !Directory.Exists(temp)) throw new ArgumentException("Invalid planned acceptance stage bound");
         if(stem!="admission" && stem!="build" && stem!="native" && stem!="qualification" && stem!="render" && stem!="interactive") throw new ArgumentException("Invalid acceptance stage identity");
         if(stageStartQpc<=0 || stageStartQpc>Stopwatch.GetTimestamp() || String.IsNullOrWhiteSpace(cancellationPath)) throw new ArgumentException("Exact monotonic case origin and cancellation path required");
@@ -230,8 +274,10 @@ public static class RA2CommandCardStageSupervisor
                     ACCOUNTING a; Check(QueryInformationJobObject(job,1,out a,(uint)Marshal.SizeOf<ACCOUNTING>(),IntPtr.Zero),"Inspect owned job");
                     if(a.activeProcesses>0 && !r.terminationRequested) {
                         r.terminationRequested=true; r.originalSurvivorDecision=true;
-                        string snapshotError; r.failureMembers=FailureMembers(job,out snapshotError); r.failureSnapshotError=snapshotError;
                         Check(TerminateJobObject(job,0xdead),"Stop owned descendants after root exit"); if(r.error==null) r.error="Owned descendants outlived root";
+                        // Termination always precedes optional diagnostics, within
+                        // the same aggregate cleanup budget. No diagnostic grace.
+                        r.failureSnapshotError="Member query omitted; owned termination and exit confirmation take priority";
                     }
                     do {
                         Check(QueryInformationJobObject(job,1,out a,(uint)Marshal.SizeOf<ACCOUNTING>(),IntPtr.Zero),"Confirm owned job empty");
@@ -264,6 +310,12 @@ public static class RA2CommandCardStageSupervisor
             if(attrs!=IntPtr.Zero) Marshal.FreeHGlobal(attrs);
             if(handles!=IntPtr.Zero) Marshal.FreeHGlobal(handles);
             if(environment!=IntPtr.Zero) Marshal.FreeHGlobal(environment);
+            r.cleanupElapsedSeconds=cleanup.Elapsed.TotalSeconds;
+            if(r.cleanupElapsedSeconds>5) { r.cleanupSucceeded=false; r.cleanupError="Aggregate owned cleanup exceeded five seconds"; }
+            if(expectedBindingsSha256!=null && r.passed) {
+                try { BindController(r,dir,expectedHead,expectedBindingsSha256,expectedCppTree); }
+                catch(Exception e) { r.error=e.Message; }
+            }
             r.elapsedSeconds=clock==null?0:Elapsed(stageStartQpc); r.finishedUtc=DateTime.UtcNow.ToString("o");
             r.completedQpc=Stopwatch.GetTimestamp();
             if(Elapsed(stageStartQpc)>=seconds) r.timedOut=true;

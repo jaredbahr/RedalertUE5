@@ -1,9 +1,10 @@
-param([Parameter(Mandatory)][string]$Python,[Parameter(Mandatory)][string]$OutputDirectory)
+param([Parameter(Mandatory)][string]$Python,[Parameter(Mandatory)][string]$OutputDirectory,[switch]$CapacityAdmitted)
 $ErrorActionPreference='Stop'
+if(-not $CapacityAdmitted){throw 'Owned-process controls require current capacity admission.'}
 if(Test-Path -LiteralPath $OutputDirectory){throw 'Fresh owned control directory required.'}
 [IO.Directory]::CreateDirectory($OutputDirectory)|Out-Null
 $source=Join-Path $PSScriptRoot 'CommandCardStageSupervisor.cs'
-Add-Type -Path $source
+if(-not ('RA2CommandCardStageSupervisor' -as [type])){Add-Type -Path $source}
 $fixture=Join-Path $OutputDirectory 'fixture.py'
 $code=@'
 import subprocess, sys, time
