@@ -9,6 +9,7 @@
 #include "Presentation/ProofSelectionState.h"
 #include "Presentation/ProofTypeSelectGesture.h"
 #include "Presentation/ProofGroupOrderQueue.h"
+#include "Presentation/ProofCommandCard.h"
 #include "ProofRTSPawn.generated.h"
 
 class UCameraComponent;
@@ -35,6 +36,9 @@ public:
     FString GetManualInputStatus() const;
     bool IsInteractiveSession() const { return bInteractiveExitEnabled; }
     bool IsUsingBlockoutMesh() const { return bUsingBlockoutMesh; }
+    ProofCommandCard::Context GetCommandCardContext() const;
+    FString GetCommandCardHint(ProofCommandCard::Action Command) const;
+    ProofCommandCard::Action GetPendingBuildAction() const { return CommandCardInput.PendingAction(); }
 
 protected:
     virtual void BeginPlay() override;
@@ -66,6 +70,8 @@ private:
     FProofSelectionState Selection;
     ProofTypeSelectGesture::State TypeGesture;
     FProofGroupOrderQueue GroupOrders;
+    ProofCommandCard::InputState CommandCardInput;
+    bool HandleCommandCardClick(bool bRightClick);
     FVector CameraGroundCenter = FVector::ZeroVector;
     bool bCameraPanEnabled = false;
     bool bCameraEdgePanEnabled = false;

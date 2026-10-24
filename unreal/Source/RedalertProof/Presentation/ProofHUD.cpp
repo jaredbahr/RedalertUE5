@@ -32,6 +32,7 @@ void AProofHUD::DrawHUD()
     // of the view. Scale its footprint down on smaller windows.
     const bool bSkirmish = GS && GS->Snapshot.bSkirmish;
     const FProofHUDPanelLayout Panel(Canvas->ClipX, bSkirmish);
+    const ProofCommandCard::Layout CommandCard(Canvas->ClipX, Canvas->ClipY);
     const float UiScale = Panel.Scale;
     const float Left = Panel.Left;
     const float Top = Panel.Top;
@@ -223,6 +224,7 @@ void AProofHUD::DrawHUD()
     {
         return;
     }
+    if (bSkirmish && CommandCard.Valid) DrawCommandCard(Pawn, PC);
     FBox2D TerminalHintBounds(ForceInit);
     FString TerminalHint;
     const float HintPadding = 5.f * UiScale;
@@ -237,6 +239,11 @@ void AProofHUD::DrawHUD()
             Layout.Reserve(Bounds);
         };
         Occlude(FBox2D(FVector2D(Left, Top), FVector2D(Left + PanelWidth, Top + PanelHeight)));
+        if (CommandCard.Valid)
+        {
+            const ProofCommandCard::Rect& Card = CommandCard.Panel;
+            Occlude(FBox2D(FVector2D(Card.X, Card.Y), FVector2D(Card.X + Card.Width, Card.Y + Card.Height)));
+        }
 
         // Reserve both the terminal banner and its measured rematch hint before
         // considering world markers. The same geometry is used below to draw it.
