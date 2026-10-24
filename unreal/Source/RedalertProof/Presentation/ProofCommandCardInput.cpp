@@ -4,7 +4,9 @@
 #include "Presentation/ProofPointerBounds.h"
 #include "Runtime/ProofGameState.h"
 #include "Runtime/ProofPlayerController.h"
+#include "Engine/GameViewportClient.h"
 #include "Engine/World.h"
+#include "UnrealClient.h"
 
 ProofCommandCard::Context AProofRTSPawn::GetCommandCardContext() const
 {
@@ -51,6 +53,52 @@ FString AProofRTSPawn::GetCommandCardHint(ProofCommandCard::Action Command) cons
         return TEXT("Click ground; right-click cancels.");
     default: return TEXT("Waiting for a playable match.");
     }
+}
+
+bool AProofRTSPawn::GetPendingBuildTargetScreen(FVector2D& OutPoint, float& OutRadius) const
+{
+    using namespace ProofCommandCard;
+    OutPoint = FVector2D::ZeroVector;
+    OutRadius = 0.f;
+    const AProofPlayerController* PC = Cast<AProofPlayerController>(GetController());
+    if (!PC || !PC->IsLocalController() || PC->IsProofAutomation()
+        || PC->IsControlsAutomation() || PC->IsControlsObserver() || bControlsCursor) return false;
+    const UGameViewportClient* GameViewport = GetWorld() ? GetWorld()->GetGameViewport() : nullptr;
+    const FViewport* Viewport = GameViewport ? GameViewport->Viewport : nullptr;
+    if (!Viewport || !Viewport->HasFocus() || !Viewport->IsForegroundWindow()) return false;
+
+    // Recheck owner, epoch and availability without changing pending input or
+    // sending an order from the draw path.
+    InputState CurrentInput = CommandCardInput;
+    CurrentInput.Synchronize(GetCommandCardContext());
+    const Action Pending = CurrentInput.PendingAction();
+    if (Pending != Action::BuildRefinery && Pending != Action::BuildFactory) return false;
+    int32 Width = 0, Height = 0;
+    PC->GetViewportSize(Width, Height);
+    const Layout Card(Width, Height);
+    if (!Card.Valid) return false;
+    FVector Ground;
+    FVector2D Screen;
+    if (!CursorGroundPoint(Ground) || !FMath::IsFinite(Ground.X) || !FMath::IsFinite(Ground.Y)
+        || !FMath::IsFinite(Ground.Z) || FMath::Abs(Ground.X) > FProofCommandModel::WorldExtent
+        || FMath::Abs(Ground.Y) > FProofCommandModel::WorldExtent
+        || !PC->ProjectWorldLocationToScreen(Ground, Screen) || !Card.PointerValid(Screen.X, Screen.Y)) return false;
+
+    const float Radius = static_cast<float>(12.0 * Card.Scale);
+    const double Extent = Radius + Radius / 12.0; // Includes half the line thickness.
+    const double Left = Screen.X - Extent, Top = Screen.Y - Extent;
+    const double Right = Screen.X + Extent, Bottom = Screen.Y + Extent;
+    if (Left < 0.0 || Top < 0.0 || Right >= Width || Bottom >= Height) return false;
+    const auto Overlaps = [Left, Top, Right, Bottom](double X, double Y, double W, double H)
+    {
+        return Left < X + W && Right > X && Top < Y + H && Bottom > Y;
+    };
+    const FProofHUDPanelLayout Panel(static_cast<float>(Width), true);
+    if (Overlaps(Panel.Left, Panel.Top, Panel.Width, Panel.Height)
+        || Overlaps(Card.Panel.X, Card.Panel.Y, Card.Panel.Width, Card.Panel.Height)) return false;
+    OutPoint = Screen;
+    OutRadius = Radius;
+    return true;
 }
 
 bool AProofRTSPawn::HandleCommandCardClick(bool bRightClick)

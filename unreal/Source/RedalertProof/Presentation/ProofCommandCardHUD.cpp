@@ -11,6 +11,24 @@ void AProofHUD::DrawCommandCard(const AProofRTSPawn* Pawn, AProofPlayerControlle
     if (!Canvas || !PC) return;
     const Layout Card(Canvas->ClipX, Canvas->ClipY);
     if (!Card.Valid) return;
+    FVector2D Target;
+    float TargetRadius = 0.f;
+    int32 ViewWidth = 0, ViewHeight = 0;
+    PC->GetViewportSize(ViewWidth, ViewHeight);
+    if (Pawn && FMath::IsNearlyEqual(Canvas->ClipX, static_cast<float>(ViewWidth))
+        && FMath::IsNearlyEqual(Canvas->ClipY, static_cast<float>(ViewHeight))
+        && Pawn->GetPendingBuildTargetScreen(Target, TargetRadius))
+    {
+        // Neutral request target only. World selection markers are drawn later
+        // and retain priority; the host still decides whether placement is valid.
+        const FLinearColor TargetColor(0.88f, 0.90f, 0.92f);
+        const float Gap = TargetRadius / 3.f;
+        const float Thickness = TargetRadius / 6.f;
+        DrawLine(Target.X - TargetRadius, Target.Y, Target.X - Gap, Target.Y, TargetColor, Thickness);
+        DrawLine(Target.X + Gap, Target.Y, Target.X + TargetRadius, Target.Y, TargetColor, Thickness);
+        DrawLine(Target.X, Target.Y - TargetRadius, Target.X, Target.Y - Gap, TargetColor, Thickness);
+        DrawLine(Target.X, Target.Y + Gap, Target.X, Target.Y + TargetRadius, TargetColor, Thickness);
+    }
     const float Scale = static_cast<float>(Card.Scale);
     const float Pad = 6.f * Scale;
     UFont* Font = GEngine ? GEngine->GetMediumFont() : nullptr;
