@@ -20,7 +20,7 @@ void AProofHUD::DrawCommandCard(const AProofRTSPawn* Pawn, AProofPlayerControlle
     const bool bPointer = PC->GetMousePosition(MouseX, MouseY);
     const Action Hovered = bPointer ? Card.HitTest(MouseX, MouseY) : Action::None;
     const FLinearColor Accent(0.92f, 0.72f, 0.30f);
-    const auto Fill = [this](const Rect& Bounds, const FLinearColor& Color)
+    const auto Fill = [this](const ProofCommandCard::Rect& Bounds, const FLinearColor& Color)
     {
         DrawRect(Color, static_cast<float>(Bounds.X), static_cast<float>(Bounds.Y),
             static_cast<float>(Bounds.Width), static_cast<float>(Bounds.Height));
@@ -59,7 +59,7 @@ void AProofHUD::DrawCommandCard(const AProofRTSPawn* Pawn, AProofPlayerControlle
         const bool bEnabled = Check(State, Command) == Availability::Ready;
         const bool bHovered = Hovered == Command;
         const bool bArmed = Pending == Command;
-        const Rect& Button = Card.Buttons[Index];
+        const ProofCommandCard::Rect& Button = Card.Buttons[Index];
         Fill(Button, bArmed ? Accent : bHovered && bEnabled ? FLinearColor(0.45f, 0.55f, 0.62f)
             : FLinearColor(0.17f, 0.23f, 0.28f));
         const double Inset = Scale;
