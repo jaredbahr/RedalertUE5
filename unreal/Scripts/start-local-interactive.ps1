@@ -4,13 +4,16 @@ param(
     [switch]$Skirmish,
     [switch]$CameraPan,
     [switch]$CameraEdgePan,
-    [string]$StorageRoot = $env:RA2_STORAGE_ROOT
+    [string]$StorageRoot = $env:RA2_STORAGE_ROOT,
+    [ValidateSet('1280x720','960x540')][string]$Viewport = '1280x720'
 )
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'local-interactive-paths.ps1')
+. (Join-Path $PSScriptRoot 'interactive-viewport.ps1')
 $repoRoot=(Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 $localPaths=Resolve-ProofInteractivePaths -RepoRoot $repoRoot -EngineRoot $EngineRoot -StorageRoot $StorageRoot
 $repoRoot=$localPaths.RepoRoot
+$viewportConfig=Get-ProofInteractiveViewport -Viewport $Viewport
 $projectRoot=$localPaths.ProjectRoot
 $project=Join-Path $projectRoot 'RedalertProof.uproject'
 $editor=$localPaths.Editor
@@ -32,14 +35,14 @@ for($cpu=0; $cpu -lt 63 -and $count -lt 2; $cpu++) {
 if($count -ne 2) { throw 'Two available logical CPUs are required.' }
 $names=@('UE-LocalDataCachePath','UE-SharedDataCachePath','TEMP','TMP')
 $prior=@{}; $process=$null; $started=$null
-$result=[ordered]@{head=$head;startedUtc=[DateTime]::UtcNow.ToString('o');finishedUtc=$null;mode='standalone local practice';runDirectory=$run;log=(Join-Path $run 'game.log');physicalInputVerified=$false;humanConfirmationRequired=$true;networkTest=$false;sessionLimitSeconds=$SessionSeconds;affinityMask=$mask;priority='Normal';policyPolls=0;affinityRepairs=0;peakObservedWorkingSetBytes=[int64]0;lastObservedCpuSeconds=0;windowTitle=$null;windowHandle=$null;exitCode=$null;expired=$false;error=$null}
+$result=[ordered]@{head=$head;startedUtc=[DateTime]::UtcNow.ToString('o');finishedUtc=$null;mode='standalone local practice';requestedViewport=$viewportConfig.Name;runDirectory=$run;log=(Join-Path $run 'game.log');physicalInputVerified=$false;humanConfirmationRequired=$true;networkTest=$false;sessionLimitSeconds=$SessionSeconds;affinityMask=$mask;priority='Normal';policyPolls=0;affinityRepairs=0;peakObservedWorkingSetBytes=[int64]0;lastObservedCpuSeconds=0;windowTitle=$null;windowHandle=$null;exitCode=$null;expired=$false;error=$null}
 try {
     foreach($name in $names) { $prior[$name]=[Environment]::GetEnvironmentVariable($name,'Process') }
     [Environment]::SetEnvironmentVariable('UE-LocalDataCachePath',$cache,'Process')
     [Environment]::SetEnvironmentVariable('UE-SharedDataCachePath','None','Process')
     [Environment]::SetEnvironmentVariable('TEMP',$temp,'Process')
     [Environment]::SetEnvironmentVariable('TMP',$temp,'Process')
-    $launchArguments=@(('"'+$project+'"'),'/Game/CommandProofGenerated/Maps/CommandProof','-game','-windowed','-ResX=1280','-ResY=720','-nosound','-nosplash','-unattended','-NoSourceControl','-NoP4','-ddc=BlockoutDDC','-CoreLimit=2','-ProofInteractive','-ExecCmds="DisableAllScreenMessages"','-ini:GameUserSettings:[/Script/Engine.GameUserSettings]:FrameRateLimit=30','-ini:Engine:[AssetRegistry]:EditorGameScansAR=Async,[ConsoleVariables]:t.MaxFPS=30,[DevOptions.Shaders]:WorkerProcessPriority=0,[DevOptions.Shaders]:NumUnusedShaderCompilingThreads=1,[DevOptions.Shaders]:NumUnusedShaderCompilingThreadsDuringGame=1',('-abslog="'+$result.log+'"'))
+    $launchArguments=@(('"'+$project+'"'),'/Game/CommandProofGenerated/Maps/CommandProof','-game','-windowed',$viewportConfig.ResX,$viewportConfig.ResY,'-nosound','-nosplash','-unattended','-NoSourceControl','-NoP4','-ddc=BlockoutDDC','-CoreLimit=2','-ProofInteractive','-ExecCmds="DisableAllScreenMessages"','-ini:GameUserSettings:[/Script/Engine.GameUserSettings]:FrameRateLimit=30','-ini:Engine:[AssetRegistry]:EditorGameScansAR=Async,[ConsoleVariables]:t.MaxFPS=30,[DevOptions.Shaders]:WorkerProcessPriority=0,[DevOptions.Shaders]:NumUnusedShaderCompilingThreads=1,[DevOptions.Shaders]:NumUnusedShaderCompilingThreadsDuringGame=1',('-abslog="'+$result.log+'"'))
     if($Skirmish) { $launchArguments+='-ProofSkirmish' }
     if($CameraPan) { $launchArguments+='-ProofCameraPan' }
     if($CameraEdgePan) { $launchArguments+='-ProofCameraEdgePan' }
