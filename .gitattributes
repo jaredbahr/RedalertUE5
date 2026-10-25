@@ -4,3 +4,5 @@
 *.png binary
 *.uasset binary
 *.umap binary
+# Preserve the exact reviewed/tested sampler bytes, including CRLF.
+unreal/Scripts/AdmissionCpuCandidate/check-admission-strict-cpu.ps1 -text
