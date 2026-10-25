@@ -31,7 +31,7 @@ FProofSnapshot QueueFixture()
     {
         FProofUnitRecord Unit;
         Unit.UnitId = UnitId;
-        Unit.OwnerId = UnitId == 200 ? 3 : (UnitId == 201 ? 2 : 1);
+        Unit.OwnerId = UnitId == 200 ? 3 : (UnitId == 201 ? 3 : 1);
         Unit.Kind = UnitId == 80 ? EProofUnitKind::Harvester
             : (UnitId == 81 ? EProofUnitKind::HQ : EProofUnitKind::Combat);
         Snapshot.Units.Add(Unit);
@@ -144,13 +144,19 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FProofGroupQueueStaleTest, "RedalertProof.Contr
 bool FProofGroupQueueStaleTest::RunTest(const FString&)
 {
     FProofSnapshot Snapshot = QueueFixture();
+    for (FProofUnitRecord& Unit : Snapshot.Units)
+    {
+        if (Unit.UnitId == 81) { Unit.Kind = EProofUnitKind::Combat; }
+    }
     FProofGroupOrderQueue Queue;
     TestTrue(TEXT("Intents can queue before snapshot changes"), Queue.Enqueue(Snapshot, 1,
-        { QueueMoveIntent(1, 100), QueueMoveIntent(80, 100), QueueMoveIntent(81, 100), QueueMoveIntent(201, 100), QueueAttackIntent(2, 200), QueueAttackIntent(3, 201) }));
+        { QueueMoveIntent(1, 100), QueueMoveIntent(80, 100), QueueMoveIntent(81, 100), QueueMoveIntent(4, 100), QueueAttackIntent(2, 200), QueueAttackIntent(3, 201) }));
     for (FProofUnitRecord& Unit : Snapshot.Units)
     {
         if (Unit.UnitId == 1 || Unit.UnitId == 200) { Unit.HitPoints = 0.f; }
         if (Unit.UnitId == 80) { Unit.OwnerId = 3; }
+        if (Unit.UnitId == 81) { Unit.Kind = EProofUnitKind::HQ; }
+        if (Unit.UnitId == 4 || Unit.UnitId == 201) { Unit.OwnerId = 2; }
     }
     TestEqual(TEXT("Dead, foreign, immobile and same-team intents are pruned"), Queue.PopReady(Snapshot, 1, 0.0).Num(), 0);
     TestEqual(TEXT("Pruning empties queue"), Queue.NumPending(), 0);
@@ -167,9 +173,81 @@ bool FProofGroupQueueStaleTest::RunTest(const FString&)
 
     FProofSnapshot Legacy = QueueFixture();
     Legacy.bSkirmish = false;
+    Legacy.Units.FindByPredicate([](const FProofUnitRecord& Unit) { return Unit.UnitId == 201; })->OwnerId = 2;
     FProofGroupOrderQueue LegacyQueue;
     TestTrue(TEXT("Legacy attack enqueues"), LegacyQueue.Enqueue(Legacy, 1, { QueueAttackIntent(2, 201) }));
     TestEqual(TEXT("Legacy attack accepts distinct owner sharing default team"), LegacyQueue.PopReady(Legacy, 1, 0.0).Num(), 1);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FProofGroupQueueInvalidBatchAtomicTest, "RedalertProof.Controls.QueueInvalidBatchIsAtomic",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FProofGroupQueueInvalidBatchAtomicTest::RunTest(const FString&)
+{
+    struct FInvalidIntentCase
+    {
+        const TCHAR* Name;
+        void (*Mutate)(FProofSnapshot&);
+        FProofCommand Invalid;
+    };
+    const FProofCommand ValidReplacement = QueueMoveIntent(3, 999);
+    TArray<FInvalidIntentCase> Cases;
+    Cases.Add({ TEXT("missing Move unit"), [](FProofSnapshot&) {}, QueueMoveIntent(999, 1) });
+    Cases.Add({ TEXT("foreign Move unit"), [](FProofSnapshot& S) { S.Units.FindByPredicate([](const FProofUnitRecord& U) { return U.UnitId == 4; })->OwnerId = 2; }, QueueMoveIntent(4, 1) });
+    Cases.Add({ TEXT("dead Move unit"), [](FProofSnapshot& S) { S.Units.FindByPredicate([](const FProofUnitRecord& U) { return U.UnitId == 4; })->HitPoints = 0.f; }, QueueMoveIntent(4, 1) });
+    Cases.Add({ TEXT("immobile Move unit"), [](FProofSnapshot& S) { S.Units.FindByPredicate([](const FProofUnitRecord& U) { return U.UnitId == 4; })->Kind = EProofUnitKind::HQ; }, QueueMoveIntent(4, 1) });
+    Cases.Add({ TEXT("missing Attack target"), [](FProofSnapshot&) {}, QueueAttackIntent(4, 999) });
+    Cases.Add({ TEXT("invalid replacement Attack target"), [](FProofSnapshot&) {}, QueueAttackIntent(3, 999) });
+    Cases.Add({ TEXT("dead Attack target"), [](FProofSnapshot& S) { S.Units.FindByPredicate([](const FProofUnitRecord& U) { return U.UnitId == 200; })->HitPoints = 0.f; }, QueueAttackIntent(4, 200) });
+    Cases.Add({ TEXT("friendly Attack target"), [](FProofSnapshot&) {}, QueueAttackIntent(4, 1) });
+    Cases.Add({ TEXT("same-team Attack target"), [](FProofSnapshot& S) { S.Units.FindByPredicate([](const FProofUnitRecord& U) { return U.UnitId == 201; })->OwnerId = 2; }, QueueAttackIntent(4, 201) });
+    Cases.Add({ TEXT("missing Attack owner"), [](FProofSnapshot& S) { S.Units.FindByPredicate([](const FProofUnitRecord& U) { return U.UnitId == 200; })->OwnerId = 99; }, QueueAttackIntent(4, 200) });
+
+    for (const FInvalidIntentCase& Case : Cases)
+    {
+        FProofSnapshot Snapshot = QueueFixture();
+        Case.Mutate(Snapshot);
+        const FString Digest = Snapshot.ComputeDigest();
+        FProofGroupOrderQueue Queue;
+        TestTrue(FString::Printf(TEXT("%s: seed intents"), Case.Name), Queue.Enqueue(Snapshot, 1,
+            { QueueMoveIntent(1, 11), QueueMoveIntent(2, 22), QueueMoveIntent(3, 33) }));
+        const TArray<FProofCommand> First = Queue.PopReady(Snapshot, 1, 100.0);
+        TestEqual(FString::Printf(TEXT("%s: first interval dispatches two"), Case.Name), First.Num(), 2);
+        TestFalse(FString::Printf(TEXT("%s: invalid batch rejected"), Case.Name),
+            Queue.Enqueue(Snapshot, 1, { ValidReplacement, Case.Invalid }));
+        TestEqual(FString::Printf(TEXT("%s: rejected batch keeps pending count"), Case.Name), Queue.NumPending(), 1);
+        TestEqual(FString::Printf(TEXT("%s: rejection does not change snapshot"), Case.Name), Snapshot.ComputeDigest(), Digest);
+        TestEqual(FString::Printf(TEXT("%s: rejection preserves dispatch pacing"), Case.Name), Queue.PopReady(Snapshot, 1, 100.05).Num(), 0);
+        const TArray<FProofCommand> Remaining = Queue.PopReady(Snapshot, 1, 100.1);
+        TestEqual(FString::Printf(TEXT("%s: original pending command remains"), Case.Name), Remaining.Num(), 1);
+        if (Remaining.Num() == 1)
+        {
+            TestEqual(FString::Printf(TEXT("%s: original identity remains"), Case.Name), Remaining[0].UnitId, 3);
+            TestEqual(FString::Printf(TEXT("%s: original destination remains"), Case.Name), Remaining[0].Destination.X, 33.0);
+        }
+    }
+
+    const FProofSnapshot Snapshot = QueueFixture();
+    FProofGroupOrderQueue Queue;
+    TestTrue(TEXT("Valid Move and hostile Attack batch enqueues"), Queue.Enqueue(Snapshot, 1,
+        { QueueMoveIntent(1, 1e9), QueueAttackIntent(2, 200) }));
+    const TArray<FProofCommand> Ready = Queue.PopReady(Snapshot, 1, 0.0);
+    TestEqual(TEXT("Valid Move and Attack both dispatch"), Ready.Num(), 2);
+    if (Ready.Num() == 2)
+    {
+        TestEqual(TEXT("Finite out-of-world Move is clamped before validity check"), Ready[0].Destination.X,
+            static_cast<double>(FProofCommandModel::WorldExtent));
+        TestTrue(TEXT("Valid Attack remains an Attack"), Ready[1].Type == EProofCommandType::Attack);
+    }
+
+    FProofSnapshot Legacy = Snapshot;
+    Legacy.bSkirmish = false;
+    Legacy.Players.FindByPredicate([](const FProofPlayerRecord& P) { return P.OwnerId == 2; })->TeamId = 0;
+    Legacy.Units.FindByPredicate([](const FProofUnitRecord& U) { return U.UnitId == 201; })->OwnerId = 2;
+    FProofGroupOrderQueue LegacyQueue;
+    TestTrue(TEXT("Legacy distinct-owner same-team Attack remains valid"),
+        LegacyQueue.Enqueue(Legacy, 1, { QueueAttackIntent(1, 201) }));
+    TestEqual(TEXT("Legacy same-team Attack dispatches"), LegacyQueue.PopReady(Legacy, 1, 0.0).Num(), 1);
     return true;
 }
 

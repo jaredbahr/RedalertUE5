@@ -14,6 +14,8 @@ public:
 
     // Move/Attack/Stop/Gather batches replace matching units atomically without
     // changing the dispatch clock or reserving command sequences.
+    // Each normalized intent must be valid in the current snapshot. Context
+    // synchronization and pruning of stale pending orders still happen first.
     bool Enqueue(const FProofSnapshot& Snapshot, int32 OwnerId, const TArray<FProofCommand>& Commands);
     TArray<FProofCommand> PopReady(const FProofSnapshot& Snapshot, int32 OwnerId, double WallSeconds);
     int32 NumPending() const { return Pending.Num(); }
