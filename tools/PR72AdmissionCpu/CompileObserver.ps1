@@ -11,7 +11,7 @@ public static class PR72AdmissionCompileOwnConsole {
 }
 '@
 $consoleTypeReady=$true
-$bindings=Assert-ProbeSource $SourceReviewSHA256 -OwnedPayload
+$bindings=Assert-ProbeSource $SourceReviewSHA256 -OwnedPayload -DiagnosticPreparation
 $expected='D:\UserTemp\PR72-Admission-CPU-Attribution-20261025\capability'
 if([IO.Path]::GetFullPath($OutputDirectory) -ine $expected -or (Test-Path -LiteralPath $OutputDirectory)){throw 'Fresh exact diagnostic capability directory required.'}
 if('RA2AdmissionCpuSupervisor' -as [type]){throw 'Fresh PowerShell preparation process required.'}

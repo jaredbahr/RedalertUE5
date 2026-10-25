@@ -67,14 +67,24 @@ returns fail existing clocks. No universal wall-clock or host-ancestry guarantee
 `InvokeProbe.ps1` defaults to a non-executing plan. Source bindings live outside the
 checkout at the fixed probe root. No review, DLL or runtime receipt is fabricated.
 
-`Prepare` requires genuine exact source approval and fresh original successful
-admission with four real hashed references. It uses the already reviewed actual
-C92 component as the 20-second owner, with shared controller-entry origin and the
-same cleanup budget. `CompileObserver.ps1` compiles only this reviewed source into
-a fresh separate diagnostic DLL, verifies loaded location/MVID and records its
-real hash. Its native Git work stays inside the job; its own console is released
-only after native work. This preparation has **not run**. If original admission
-also blocks preparation, preserve that result; no bypass is supplied.
+`Prepare` requires genuine exact source approval, a newly coordinated diagnostic
+preparation window, confirmed drained lanes and a real fresh read-only host/process
+inspection. Its explicit `DiagnosticPreparationAuthorized` and
+`CurrentHostInspectionConfirmed` switches attest those current facts; this source
+package does not assert them. The source review must explicitly cover diagnostic
+preparation and fresh inspection. It uses the already reviewed actual C92 component
+as the 20-second owner, with shared controller-entry origin and the same cleanup
+budget. `CompileObserver.ps1` compiles only this reviewed source into a fresh
+separate diagnostic DLL, verifies loaded location/MVID and records its real hash.
+Native Git work stays inside the job; only its own console is released after work.
+This preparation has **not run** and grants no capacity, game or work acceptance.
+
+The initial source-only draft required a fresh successful plain admission before
+the observer could be compiled. That circular NEW diagnostic prerequisite conflicted
+with the current no-repeat hold and was removed from this candidate after review.
+No original sampler or existing game-admission gate was changed. Diagnostic
+preparation creates no original admission result or build eligibility; the original
+sampler and all its criteria remain authoritative when the observation runs.
 
 `Observe` additionally requires a genuine review of the actual compiled component,
 preparation outcome and normal external caller completion. Unknown future bytes

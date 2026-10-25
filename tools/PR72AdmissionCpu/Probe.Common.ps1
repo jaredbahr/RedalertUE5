@@ -66,11 +66,16 @@ function ConvertTo-ProbeCanonical($Value){
     }
     return ConvertTo-Json -InputObject $Value -Compress -Depth 16
 }
-function Assert-ProbeSource([string]$ReviewSHA256,[switch]$OwnedPayload){
+function Assert-ProbeSource([string]$ReviewSHA256,[switch]$OwnedPayload,[switch]$DiagnosticPreparation){
     $bindingPath="$script:ProbeRoot/PROBE_SOURCE_BINDINGS.json"; $reviewPath="$script:ProbeRoot/SOURCE_REVIEW.json"
     Assert-ProbePin $reviewPath $ReviewSHA256
     $b=Read-ProbeJson $bindingPath; $r=Read-ProbeJson $reviewPath
     Assert-ProbeReview $r 'PR72-admission-cpu-source-review'
+    if($DiagnosticPreparation){
+        Assert-ProbeFields $r @('diagnosticPreparationOnly','freshHostInspectionRequired')
+        Assert-ProbeBool $r.diagnosticPreparationOnly $true 'diagnosticPreparationOnly'
+        Assert-ProbeBool $r.freshHostInspectionRequired $true 'freshHostInspectionRequired'
+    }
     Assert-ProbeBool $r.sourceReviewApproved $true 'sourceReviewApproved'; Assert-ProbeBool $r.runtimeAcceptance $false 'runtimeAcceptance'; Assert-ProbeBool $r.sourceOnly $true 'sourceOnly'; Assert-ProbeBool $b.runtimeApproved $false 'runtimeApproved'
     if($r.sourceReviewApproved -cne $true -or $r.runtimeAcceptance -cne $false -or $r.sourceOnly -cne $true -or $r.sourceBindingsSha256 -cne (Get-ProbeHash $bindingPath)){throw 'Invalid source approval'}
     if($b.scope -cne 'PR72-admission-cpu-source' -or $b.runtimeApproved -cne $false -or $b.parentGameSourceHead -cne '02e08abd10ddc062a0b81c6eb18eb9d939232f3d' -or $b.gameCppTree -cne 'c71f8618bed849de1e11add1d15a6b0dc54aa6b1'){throw 'Wrong source scope'}
