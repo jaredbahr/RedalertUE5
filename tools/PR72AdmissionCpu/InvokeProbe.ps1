@@ -14,6 +14,12 @@ if(!$Execute){
 }
 if(!$OwnedLanesDrained -or !$CoordinatedWindow){throw 'Explicit drained lanes and newly coordinated window required'}
 $b=Assert-ProbeSource $SourceReviewSHA256
+$callerProcess=[Diagnostics.Process]::GetCurrentProcess()
+try {
+    $callerProcess.ProcessorAffinity=[IntPtr]68
+    $callerProcess.PriorityClass=[Diagnostics.ProcessPriorityClass]::Normal
+    if($callerProcess.ProcessorAffinity.ToInt64() -ne 68 -or $callerProcess.PriorityClass -ne [Diagnostics.ProcessPriorityClass]::Normal){throw 'Controller resource policy mismatch'}
+} finally {$callerProcess.Dispose()}
 $bindingsHash=Get-ProbeHash "$script:ProbeRoot/PROBE_SOURCE_BINDINGS.json"
 $caseName=if($Stage -eq 'Prepare'){'preparation'}else{'observation'}
 $case="$script:ProbeRoot/$caseName"; $temp="$case/temp"
