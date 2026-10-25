@@ -239,21 +239,43 @@ TArray<FProofCommand> FProofSkirmishBot::Decide(const FProofSnapshot& Snapshot, 
                     BestDistance = Distance;
                 }
             }
-            if (Resource)
+            EProofCommandType MinerIntent = EProofCommandType::Gather;
+            int32 TargetId = Resource ? Resource->ResourceId : INDEX_NONE;
+            if (!Resource)
             {
-                const FIssuedOrder* Last = IssuedOrders.Find(Harvester->UnitId);
-                if (!Last || Last->Type != EProofCommandType::Gather || Last->TargetId != Resource->ResourceId
-                    || NowSeconds - Last->IssuedAt >= OrderRetrySeconds)
+                if (Harvester->Cargo <= 0) { continue; }
+                // A forced return canceled by refinery loss can leave cargo
+                // without an order after the final ore is gone. Target only a
+                // committed live own refinery, using the model's nearest/ID rule.
+                const FProofUnitRecord* ReturnRefinery = nullptr;
+                double ReturnDistance = 0.0;
+                for (const FProofUnitRecord* Candidate : OwnUnits)
                 {
-                    if (AddCommand(EProofCommandType::Gather, Harvester->UnitId, Resource->ResourceId, FVector::ZeroVector))
+                    if (Candidate->Kind != EProofUnitKind::Refinery) { continue; }
+                    const double Distance = FVector::DistSquared(Harvester->Position, Candidate->Position);
+                    if (!ReturnRefinery || Distance < ReturnDistance
+                        || (Distance == ReturnDistance && Candidate->UnitId < ReturnRefinery->UnitId))
                     {
-                        FIssuedOrder& Issued = IssuedOrders.FindOrAdd(Harvester->UnitId);
-                        Issued.Type = EProofCommandType::Gather;
-                        Issued.TargetId = Resource->ResourceId;
-                        Issued.IssuedAt = NowSeconds;
-                        LastGatherUnitId = Harvester->UnitId;
-                        break;
+                        ReturnRefinery = Candidate;
+                        ReturnDistance = Distance;
                     }
+                }
+                if (!ReturnRefinery) { continue; }
+                MinerIntent = EProofCommandType::ReturnCargo;
+                TargetId = ReturnRefinery->UnitId;
+            }
+            const FIssuedOrder* Last = IssuedOrders.Find(Harvester->UnitId);
+            if (!Last || Last->Type != MinerIntent || Last->TargetId != TargetId
+                || NowSeconds - Last->IssuedAt >= OrderRetrySeconds)
+            {
+                if (AddCommand(MinerIntent, Harvester->UnitId, TargetId, FVector::ZeroVector))
+                {
+                    FIssuedOrder& Issued = IssuedOrders.FindOrAdd(Harvester->UnitId);
+                    Issued.Type = MinerIntent;
+                    Issued.TargetId = TargetId;
+                    Issued.IssuedAt = NowSeconds;
+                    LastGatherUnitId = Harvester->UnitId;
+                    break;
                 }
             }
         }
