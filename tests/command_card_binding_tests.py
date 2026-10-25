@@ -295,6 +295,7 @@ class Controls(unittest.TestCase):
         names += ["unreal/Scripts/" + name for name in
                   ("build-native-proof.ps1", "test-hud-layout-model.ps1", "test-small-match.ps1",
                    "start-small-match.ps1", "start-local-interactive.ps1")]
+        names.append(policy.STRICT_ADMISSION_RELATIVE)
         pins = []
         for name in names:
             path = root / name; path.parent.mkdir(parents=True, exist_ok=True)
@@ -320,11 +321,17 @@ class Controls(unittest.TestCase):
         prepared = dict(head=HEAD, supervisorSourceSha256=guard_pin["sha256"], pwshPath=str(exe),
                         assemblyPath=str(exe), assemblySha256=exe_ref["sha256"], moduleVersionId="synthetic-module")
         prepared_ref = self.save_ref(root, "PREPARED_WATCHDOG.json", prepared)
-        resource_pins = {key: exe_ref["sha256"] for key in policy.RESOURCE_PINS}
+        admission_pin = next(item for item in pins if item["relative"] == policy.STRICT_ADMISSION_RELATIVE)
+        admission_ref = dict(path=str(root / policy.STRICT_ADMISSION_RELATIVE), sha256=admission_pin["sha256"])
+        resource_refs = dict(readiness=exe_ref, admission=admission_ref)
+        resource_pins = {key: ref["sha256"] for key, ref in resource_refs.items()}
+        foreign_admission = root / "FOREIGN-ADMISSION-NOT-EXECUTABLE"
+        foreign_admission.write_bytes((root / policy.STRICT_ADMISSION_RELATIVE).read_bytes())
+        foreign_ref = dict(path=str(foreign_admission), sha256=admission_ref["sha256"])
         value = dict(scope="PR72", sourceHead=HEAD, cppTree="2" * 40, sourceRoot=str(root),
                      engineRoot=str(root), storageRoot=str(root), files=pins, committedManifest=manifest, assets=assets,
                      executables=executables, preparedWatchdog=prepared_ref,
-                     resourceTools={key: exe_ref for key in resource_pins})
+                     resourceTools=resource_refs)
         def check(candidate, approved=True):
             reference = self.save_ref(root, "BINDINGS.json", candidate)
             review = dict(approved=approved, bindingsSha256=reference["sha256"], sourceHead=HEAD,
@@ -339,7 +346,8 @@ class Controls(unittest.TestCase):
             check(value)
             with self.assertRaises(policy.Rejected): check(value, approved=False)
             for edit in ("missing_source", "duplicate_source", "traversal", "missing_asset", "wrong_scope", "wrong_head",
-                         "same_count_wrong_asset", "editor_outside_engine", "manifest_omission"):
+                         "same_count_wrong_asset", "editor_outside_engine", "manifest_omission",
+                         "admission_outside_committed_path", "admission_wrong_pin"):
                 bad = copy.deepcopy(value)
                 if edit == "missing_source": bad["files"].pop()
                 if edit == "duplicate_source": bad["files"].append(bad["files"][0])
@@ -350,6 +358,8 @@ class Controls(unittest.TestCase):
                 if edit == "same_count_wrong_asset": bad["assets"][0]["relative"] = "different-map.uasset"
                 if edit == "editor_outside_engine": bad["executables"]["editor"] = exe_ref
                 if edit == "manifest_omission": bad["committedManifest"].pop()
+                if edit == "admission_outside_committed_path": bad["resourceTools"]["admission"] = foreign_ref
+                if edit == "admission_wrong_pin": bad["resourceTools"]["admission"]["sha256"] = "0" * 64
                 with self.subTest(edit=edit), self.assertRaises(policy.Rejected): check(bad)
             (root / names[0]).write_bytes(b"CHANGED SOURCE")
             with self.assertRaises(policy.Rejected): check(value)
