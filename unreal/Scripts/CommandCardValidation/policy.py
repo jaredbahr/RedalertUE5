@@ -18,8 +18,9 @@ SHA = re.compile(r"[a-f0-9]{64}\Z")
 HEAD = re.compile(r"[a-f0-9]{40}\Z")
 RESOURCE_PINS = {
     "readiness": "4b2953450392581c694bf791efa41d986f198e9de699077d022d3922f1a09e18",
-    "admission": "f891ebaf39f09a738578ce0da9d94fa47352b27e84d8ce0fb56d447e49c5c353",
+    "admission": "02abdc198fcefad1de205040efa1cd8b9844b965e06f104041fd970f99b301ff",
 }
+STRICT_ADMISSION_RELATIVE = "unreal/Scripts/AdmissionCpuCandidate/check-admission-strict-cpu.ps1"
 
 
 class Rejected(ValueError):
@@ -368,7 +369,9 @@ def verify_bindings(path, digest, review_path):
     for key, expected in RESOURCE_PINS.items():
         entry = binding.get("resourceTools", {}).get(key, {})
         target = regular(entry.get("path", ""))
-        require(entry.get("sha256") == expected and target.is_file(), "original resource-only sampler pin required")
+        if key == "admission":
+            require(target == regular(root / STRICT_ADMISSION_RELATIVE), "committed strict admission path required")
+        require(entry.get("sha256") == expected and target.is_file(), "reviewed resource-only sampler pin required")
         with target.open("rb") as stream:
             require(hashlib.file_digest(stream, "sha256").hexdigest() == expected, "resource sampler changed")
     return binding

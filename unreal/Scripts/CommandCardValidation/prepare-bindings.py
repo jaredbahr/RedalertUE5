@@ -4,7 +4,7 @@ import hashlib
 import json
 import subprocess
 from pathlib import Path
-from policy import RESOURCE_PINS, authored_assets, committed_manifest, release_own_console
+from policy import RESOURCE_PINS, STRICT_ADMISSION_RELATIVE, authored_assets, committed_manifest, release_own_console
 
 
 def digest(path):
@@ -52,9 +52,12 @@ def main():
     resources = {}
     for key in RESOURCE_PINS:
         path = Path(getattr(a, key))
+        if key == "admission" and path.resolve() != root / STRICT_ADMISSION_RELATIVE:
+            raise ValueError("Admission input must be this committed candidate's strict sampler")
         if digest(path) != RESOURCE_PINS[key]:
-            raise ValueError("Original resource-only sampler changed: " + key)
-        resources[key] = {"path": str(path), "sha256": RESOURCE_PINS[key]}
+            raise ValueError("Reviewed resource-only sampler changed: " + key)
+        target = Path(a.runtime) / STRICT_ADMISSION_RELATIVE if key == "admission" else path
+        resources[key] = {"path": str(target), "sha256": RESOURCE_PINS[key]}
     binding = dict(scope="PR72", sourceHead=head,
                    cppTree=git("rev-parse", "HEAD:unreal/Source/RedalertProof"),
                    sourceRoot=str(Path(a.runtime)), storageRoot=str(Path(a.runtime).parent),
