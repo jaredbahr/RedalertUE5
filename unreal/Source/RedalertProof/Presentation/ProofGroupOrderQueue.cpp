@@ -141,6 +141,9 @@ bool FProofGroupOrderQueue::Enqueue(const FProofSnapshot& Snapshot, int32 Curren
             Intent.TargetUnitId = INDEX_NONE;
             if (!IsValidIntent(Snapshot, CurrentOwnerId, Intent)) { return false; }
         }
+        // Reject an invalid normalized intent before it can replace a valid
+        // pending order or partially commit another member of this batch.
+        if (!IsValidIntent(Snapshot, CurrentOwnerId, Intent)) { return false; }
         const int32 ExistingIndex = Proposed.IndexOfByPredicate([&Intent](const FProofCommand& PendingCommand)
             { return PendingCommand.UnitId == Intent.UnitId; });
         if (ExistingIndex != INDEX_NONE)
