@@ -93,7 +93,7 @@ bool BaseExpansionBuild(TestType& Test, FProofCommandModel& Model, int32 Sequenc
 {
     const FProofSnapshot Before = Model.GetSnapshot();
     const bool bRefinery = Type == EProofCommandType::BuildRefinery;
-    FVector ExpectedSpawn;
+    FVector ExpectedSpawn = FVector::ZeroVector;
     if (bRefinery && !Test.TestTrue(TEXT("Refinery has a bounded clear grant spawn"),
         FProofCommandModel::FindSkirmishSpawn(Before, Site, ExpectedSpawn))) return false;
     if (!Test.TestTrue(TEXT("Public build command succeeds"),
