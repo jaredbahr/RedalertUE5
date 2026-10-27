@@ -10,6 +10,8 @@ The public recovery history now obtains its opposing attacker after the existing
 
 The planner case additionally checks cargo recovery and rotation while own production is active, held, cash-paused or fully paid awaiting release, plus isolation from another owner's job. These are snapshot-planner checks, not a claim that the explicit-return interruption was observed in an autonomous match.
 
+A second public history copies the real rebuilt model before delivery, starts and holds a paid production job through accepted commands, and submits actual bot ReturnCargo intents. It resumes production after the first deposit, checking the credit ledger after every advance against gathered income minus actual production payments, then requires exactly one completed paid Combat and delivery of all original cargo. This covers held/resumed production concurrent with delivery; it does not establish a zero-cash production resumption case. The original production-free delivery oracle remains unchanged. Both histories retain the 60-step bound within the existing BotFinalCargoPublicRecovery case; no native name is added.
+
 The native manifest requires exactly 71 distinct cases: the 62 common cases, all seven TimedProduction cases and both BotFinalCargo cases. The portable bot runner independently retains its eight exact groups. Timed-production model, fixture migrations, portable support files and policy scripts are inherited unchanged from PR #71.
 
 ## Validation status
