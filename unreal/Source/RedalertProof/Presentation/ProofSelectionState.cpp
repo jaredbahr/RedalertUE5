@@ -48,7 +48,7 @@ bool FProofSelectionState::IsOwnedLiveUnit(const FProofSnapshot& Snapshot, int32
 {
     if (OwnerId < 0 || UnitId <= 0) { return false; }
     const FProofUnitRecord* Unit = FindUnit(Snapshot, UnitId);
-    return Unit && Unit->OwnerId == OwnerId && Unit->HitPoints > 0.f;
+    return Unit && Unit->OwnerId == OwnerId && FMath::IsFinite(Unit->HitPoints) && Unit->HitPoints > 0.f;
 }
 
 void FProofSelectionState::PruneIds(TArray<int32>& Ids, const FProofSnapshot& Snapshot, int32 OwnerId)

@@ -74,6 +74,35 @@ bool FProofSelectionOwnershipTest::RunTest(const FString&)
     TestEqual(TEXT("Current selection prunes dead unit"), Selection.GetSelectedUnitIds().Num(), 0);
     Selection.RecallGroup(1, Snapshot, 1);
     TestEqual(TEXT("Group recall prunes dead unit"), Selection.GetPrimaryUnitId(), INDEX_NONE);
+
+    for (float InvalidHealth : { std::numeric_limits<float>::infinity(),
+        -std::numeric_limits<float>::infinity(), std::numeric_limits<float>::quiet_NaN() })
+    {
+        FProofSnapshot Invalid = SelectionFixture();
+        FProofSelectionState InvalidSelection;
+        InvalidSelection.SelectSingle(Invalid, 1, 10);
+        InvalidSelection.AssignGroup(1, Invalid, 1);
+        Invalid.Units[0].HitPoints = InvalidHealth;
+        TestEqual(TEXT("Latest non-finite health cannot plan movement before pruning"),
+            InvalidSelection.PlanMove(Invalid, 1, FVector(800, 0, 0)).Num(), 0);
+        TestEqual(TEXT("Latest non-finite health cannot plan an attack before pruning"),
+            InvalidSelection.PlanAttack(Invalid, 1, 50).Num(), 0);
+        InvalidSelection.Synchronize(Invalid, 1);
+        TestEqual(TEXT("Synchronization prunes non-finite health"), InvalidSelection.GetSelectedUnitIds().Num(), 0);
+        InvalidSelection.RecallGroup(1, Invalid, 1);
+        TestEqual(TEXT("Saved group prunes non-finite health"), InvalidSelection.GetPrimaryUnitId(), INDEX_NONE);
+        InvalidSelection.SelectSingle(Invalid, 1, 10);
+        TestEqual(TEXT("Click does not select non-finite health"), InvalidSelection.GetSelectedUnitIds().Num(), 0);
+        FProofSelectionState ToggleSelection;
+        ToggleSelection.Toggle(Invalid, 1, 10);
+        TestEqual(TEXT("Toggle does not select non-finite health"), ToggleSelection.GetSelectedUnitIds().Num(), 0);
+    }
+    FProofSnapshot Fractional = SelectionFixture();
+    Fractional.Units[0].HitPoints = 0.01f;
+    Selection.SelectSingle(Fractional, 1, 10);
+    TestEqual(TEXT("Positive finite fractional health remains selectable"), Selection.GetPrimaryUnitId(), 10);
+    TestEqual(TEXT("Positive finite fractional health remains commandable"),
+        Selection.PlanMove(Fractional, 1, FVector(800, 0, 0)).Num(), 1);
     return true;
 }
 
