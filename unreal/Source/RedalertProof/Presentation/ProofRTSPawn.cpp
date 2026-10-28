@@ -1604,15 +1604,16 @@ void AProofRTSPawn::TickSkirmishScenario(float DeltaSeconds)
             FinishSkirmishScenario(false, *Receipt.Reason);
             return;
         }
-        if (LastRequestedType == TEXT("Produce") && SkirmishProduceRecordsBefore >= 0)
-        {
-            int32 ReplicatedRecords = 0;
-            for (const FProofUnitRecord& Unit : Snapshot.Units)
-                if (Unit.OwnerId == PC->OwnerId && Unit.Kind == EProofUnitKind::Combat) ++ReplicatedRecords;
-            // A receipt acknowledges validation, not delivery of the next
-            // snapshot. Wait for the accepted spawn before reading its budget.
-            if (ReplicatedRecords <= SkirmishProduceRecordsBefore) return;
-        }
+    }
+    if (SkirmishProduceRecordsBefore >= 0)
+    {
+        int32 ReplicatedRecords = 0;
+        for (const FProofUnitRecord& Unit : Snapshot.Units)
+            if (Unit.OwnerId == PC->OwnerId && Unit.Kind == EProofUnitKind::Combat) ++ReplicatedRecords;
+        // Keep the production barrier until the accepted spawn replicates,
+        // independently of later combat receipts. Existing units must still
+        // receive defense orders while a paid production job is running.
+        if (ReplicatedRecords > SkirmishProduceRecordsBefore) SkirmishProduceRecordsBefore = -1;
     }
     if (SkirmishElapsed < SkirmishNextDecision) return;
     SkirmishNextDecision = SkirmishElapsed + 0.1f;
@@ -1684,6 +1685,8 @@ void AProofRTSPawn::TickSkirmishScenario(float DeltaSeconds)
     }
     const bool bDefeat = SkirmishScenario == TEXT("Defeat");
     const bool bShouldProduce = (!FactoryProduction.bEnabled || FactoryProduction.Complete())
+        && SkirmishProduceRecordsBefore < 0
+        && !Snapshot.ProductionJobs.ContainsByPredicate([PC](const FProofProductionJob& Job) { return Job.OwnerId == PC->OwnerId; })
         && Factory && LocalRecord->Credits >= FProofCommandModel::ProductionCost
         && LiveCount < FProofCommandModel::SkirmishRecordCap && (!bDefeat || !bSkirmishProduced);
     if (bDefeat || !bSkirmishGathered)
