@@ -7,17 +7,20 @@ function Get-FactoryProductionEvidence {
     function Integer($Value,[long]$Min=0) { return $null -ne $Value -and $Value -isnot [string] -and $Value -isnot [bool] -and $Value -isnot [array] -and [double]::IsFinite([double]$Value) -and [double]$Value -ge $Min -and [double]$Value -le 2147483647 -and [double]$Value -eq [math]::Truncate([double]$Value) }
     function Number($Value) { return $null -ne $Value -and $Value -isnot [string] -and $Value -isnot [bool] -and $Value -isnot [array] -and [double]::IsFinite([double]$Value) }
     function Row([string]$Text,[int]$MaxLength=131072) {
-        Require ($Text.Length -le $MaxLength) 'oversized row'
+        if(-not ($Text.Length -le $MaxLength)){throw 'Factory production evidence: oversized row'}
         $stack=[Collections.Generic.List[object]]::new()
+        # Cache only pure key-token decoding in this bounded row. Object and
+        # duplicate checks still run for every occurrence; rows share no cache.
+        $decodedJsonKeyTokens=[Collections.Generic.Dictionary[string,object]]::new([StringComparer]::Ordinal)
         foreach($m in [regex]::Matches($Text,'"(?:\\.|[^"\\])*"\s*:|[{}\[\]]')) {
             $t=$m.Value
             if($t -eq '{'){$stack.Add(@{})} elseif($t -eq '['){$stack.Add($null)}
-            elseif($t -in @('}',']')){Require ($stack.Count -gt 0) 'unbalanced JSON';$stack.RemoveAt($stack.Count-1)}
-            else {Require ($stack.Count -gt 0 -and $null -ne $stack[$stack.Count-1]) 'key outside object';$k=($t -replace '\s*:$',''|ConvertFrom-Json);Require (-not $stack[$stack.Count-1].ContainsKey($k)) 'duplicate key';$stack[$stack.Count-1][$k]=$true}
+            elseif($t -in @('}',']')){if(-not ($stack.Count -gt 0)){throw 'Factory production evidence: unbalanced JSON'};$stack.RemoveAt($stack.Count-1)}
+            else {if(-not ($stack.Count -gt 0 -and $null -ne $stack[$stack.Count-1])){throw 'Factory production evidence: key outside object'};if(-not $decodedJsonKeyTokens.ContainsKey($t)){$decodedJsonKeyTokens[$t]=($t -replace '\s*:$',''|ConvertFrom-Json)};$k=$decodedJsonKeyTokens[$t];if(-not (-not $stack[$stack.Count-1].ContainsKey($k))){throw 'Factory production evidence: duplicate key'};$stack[$stack.Count-1][$k]=$true}
         }
-        Require ($stack.Count -eq 0) 'unbalanced JSON'
+        if(-not ($stack.Count -eq 0)){throw 'Factory production evidence: unbalanced JSON'}
         $v=$Text|ConvertFrom-Json -Depth 8 -NoEnumerate -ErrorAction Stop
-        Require ($null -ne $v -and $v -isnot [array] -and $v -isnot [string] -and $v -isnot [ValueType]) 'object required'
+        if(-not ($null -ne $v -and $v -isnot [array] -and $v -isnot [string] -and $v -isnot [ValueType])){throw 'Factory production evidence: object required'}
         return $v
     }
     function Distance($A,$B,[string]$Prefix='') {
