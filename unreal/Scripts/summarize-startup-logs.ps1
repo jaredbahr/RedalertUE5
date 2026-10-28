@@ -62,6 +62,11 @@ function Find-Marker($Evidence,[string]$Pattern,$NotBefore) {
 
 function Get-ProcessStart([string]$Raw) {
     if (-not $Raw) { return @{raw=$Raw;utc=$null;basis=$null;error='missing-process-start'} }
+    # TryParse can infer today's date or midnight for incomplete values. Require
+    # the runner's complete ISO date/time before applying timezone normalization.
+    if ($Raw -notmatch '^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?$') {
+        return @{raw=$Raw;utc=$null;basis=$null;error='invalid-process-start'}
+    }
     $parsed = [datetimeoffset]::MinValue
     if ($Raw -match '(Z|[+-]\d{2}:\d{2})$') {
         if ([datetimeoffset]::TryParse($Raw,$culture,[Globalization.DateTimeStyles]::None,[ref]$parsed)) {

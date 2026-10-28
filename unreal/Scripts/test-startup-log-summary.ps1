@@ -50,6 +50,27 @@ untimestamped preamble
     $qualified = & $parser -RunDirectory $fixtureRoot -ProcessTimeZoneId UTC | ConvertFrom-Json
     Assert-Policy ($qualified.roles[0].seconds.processToInit -eq 8) 'Explicit timezone must permit local-time correlation.'
 
+    # Missing components must never be filled from the current date or midnight.
+    foreach ($raw in @('12:34:56Z','12:34:56+02:00','12:34:56','10-17T00:00:00Z','2026-10-17','2026-10-17Z','2026-10-17T00:00Z','2026-02-30T00:00:00Z','2026-10-17T25:00:00')) {
+        Write-Result @(@{role='host';startUtc=$raw})
+        $invalid = & $parser -RunDirectory $fixtureRoot -ProcessTimeZoneId UTC | ConvertFrom-Json
+        $record = $invalid.roles[0]
+        Assert-Policy ($record.processStart.raw -eq $raw -and $null -eq $record.processStart.utc -and $record.processStart.error -eq 'invalid-process-start' -and $record.missingFields -contains 'invalid-process-start') "Incomplete process timestamp must be rejected: $raw"
+        Assert-Policy ($null -eq $record.seconds.processToFirstLog -and $null -eq $record.seconds.processToInit -and $null -eq $record.seconds.processToEndpoint) "Incomplete process timestamp must leave process intervals unavailable: $raw"
+    }
+    foreach ($raw in @('2026-10-17T00:00:00Z','2026-10-17T02:00:00+02:00','2026-10-16T19:00:00-05:00','2026-10-17 00:00:00Z','2026-10-17T00:00:00','2026-10-17 00:00:00','2026-10-17T00:00:00.1250000Z','2026-10-17T02:00:00.125+02:00','2026-10-17 00:00:00.125')) {
+        Write-Result @(@{role='host';startUtc=$raw})
+        $valid = & $parser -RunDirectory $fixtureRoot -ProcessTimeZoneId UTC | ConvertFrom-Json
+        $expected = if ($raw -like '*.125*') { 7.875 } else { 8 }
+        Assert-Policy ($null -eq $valid.roles[0].processStart.error -and $valid.roles[0].seconds.processToInit -eq $expected) "Complete process timestamp must retain UTC/fractional correlation: $raw"
+    }
+    foreach ($raw in @('2026-03-08T02:30:00','2026-11-01T01:30:00')) {
+        Write-Result @(@{role='host';startUtc=$raw})
+        $dst = & $parser -RunDirectory $fixtureRoot -ProcessTimeZoneId America/New_York | ConvertFrom-Json
+        Assert-Policy ($null -eq $dst.roles[0].processStart.utc -and $dst.roles[0].processStart.error -eq 'invalid-or-ambiguous-local-process-time') "Invalid/ambiguous local time must remain rejected: $raw"
+    }
+    Write-Result @(@{role='host';startUtc='2026-10-17T00:00:00'})
+
     @'
 [2026.10.17-00.00.02:000][0]LogInit: first
 [2026.10.17-00.00.01:000][0]LogInit: regression
