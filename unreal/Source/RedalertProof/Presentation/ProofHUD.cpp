@@ -3,6 +3,7 @@
 #include "Presentation/ProofHUDStatusText.h"
 #include "Presentation/ProofHUDTextChoice.h"
 #include "Presentation/ProofMarkerLayout.h"
+#include "Presentation/ProofHUDPlacementCapture.h"
 #include "Presentation/ProofLegacyLabelLayout.h"
 #include "Presentation/ProofRTSPawn.h"
 #include "Engine/Canvas.h"
@@ -43,6 +44,9 @@ void AProofHUD::DrawHUD()
         && FScreenshotRequest::IsScreenshotRequested() && FScreenshotRequest::ShouldShowUI()
         && !LoggedHUDLayoutCaptures.Contains(FScreenshotRequest::GetFilename());
     const FString CaptureFilename = bCaptureLayout ? FScreenshotRequest::GetFilename() : FString();
+    FProofHUDPlacementCapture PlacementCapture(bCaptureLayout
+        && LoggedHUDLayoutCaptures.Num() < FProofHUDPlacementCapture::MaxCaptureRows,
+        LoggedHUDLayoutCaptures.Num() + 1);
     struct FLayoutCaptureStats
     {
         int32 LiveUnits = 0;
@@ -227,13 +231,16 @@ void AProofHUD::DrawHUD()
     const float HintPadding = 5.f * UiScale;
     if (bSkirmish)
     {
-        FProofMarkerLayout Layout(FVector2D(Canvas->ClipX, Canvas->ClipY),
-            4.f * UiScale, 2.f * UiScale, 64.f * UiScale);
+        const FVector2D LayoutViewport(Canvas->ClipX, Canvas->ClipY);
+        const float LayoutMargin = 4.f * UiScale, LayoutGap = 2.f * UiScale, LayoutDisplacement = 64.f * UiScale;
+        FProofMarkerLayout Layout(LayoutViewport, LayoutMargin, LayoutGap, LayoutDisplacement);
+        PlacementCapture.Configure(LayoutViewport, LayoutMargin, LayoutGap, LayoutDisplacement);
         TArray<FBox2D> Occluders;
-        const auto Occlude = [&Layout, &Occluders](const FBox2D& Bounds)
+        const auto Occlude = [&Layout, &Occluders, &PlacementCapture](const FBox2D& Bounds)
         {
             Occluders.Add(Bounds);
-            Layout.Reserve(Bounds);
+            const int32 Source = Layout.Reserve(Bounds);
+            PlacementCapture.Source(Source, Bounds, TEXT("ui"), Occluders.Num() - 1);
         };
         Occlude(FBox2D(FVector2D(Left, Top), FVector2D(Left + PanelWidth, Top + PanelHeight)));
 
@@ -323,7 +330,12 @@ void AProofHUD::DrawHUD()
                 ++CaptureStats.VisibleUnitGlyphs;
                 CaptureStats.bPrimaryGlyphVisible |= bPrimary;
             }
-            Units.Add({&Unit, Screen, Color, Radius, bPrimary ? 0 : (bSelected ? 1 : 2), Layout.Reserve(Footprint)});
+            const int32 Priority = bPrimary ? 0 : (bSelected ? 1 : 2);
+            const int32 Source = Layout.Reserve(Footprint);
+            Units.Add({&Unit, Screen, Color, Radius, Priority, Source});
+            PlacementCapture.Source(Source, Footprint, TEXT("unit"), Unit.UnitId);
+            PlacementCapture.Unit(Unit.UnitId, Unit.OwnerId, UnitOwnerRecord ? UnitOwnerRecord->TeamId : INDEX_NONE,
+                static_cast<int32>(Unit.Kind), Unit.HitPoints, bSelected, Priority, Screen, Radius, Footprint, Source);
         }
         for (const FProofResourceRecord& Resource : GS->Snapshot.Resources)
         {
@@ -332,7 +344,10 @@ void AProofHUD::DrawHUD()
             const FBox2D Footprint(Screen - FVector2D(8.f, 8.f), Screen + FVector2D(8.f, 8.f));
             if (ClassifyFootprint(Footprint) != 0) continue;
             if (bCaptureLayout) ++CaptureStats.VisibleResourceGlyphs;
-            Resources.Add({&Resource, Screen, Layout.Reserve(Footprint)});
+            const int32 Source = Layout.Reserve(Footprint);
+            Resources.Add({&Resource, Screen, Source});
+            PlacementCapture.Source(Source, Footprint, TEXT("resource"), Resource.ResourceId);
+            PlacementCapture.Resource(Resource.ResourceId, Resource.Remaining, Screen, Footprint, Source);
         }
         Units.Sort([](const FUnitMarker& A, const FUnitMarker& B)
         {
@@ -342,7 +357,7 @@ void AProofHUD::DrawHUD()
         {
             return A.Resource->ResourceId < B.Resource->ResourceId;
         });
-        const auto DrawUnitGroup = [this, &Layout, &CaptureStats, bCaptureLayout, Font, UiScale](const FUnitMarker& Marker)
+        const auto DrawUnitGroup = [this, &Layout, &PlacementCapture, &CaptureStats, bCaptureLayout, Font, UiScale](const FUnitMarker& Marker)
         {
             const FProofUnitRecord& Unit = *Marker.Unit;
             const float Scale = 0.88f * UiScale;
@@ -371,7 +386,10 @@ void AProofHUD::DrawHUD()
                 Marker.Priority == 0 ? Marker.Screen.Y - Marker.Radius - 4.f - Size.Y : Marker.Screen.Y + Marker.Radius + 4.f);
             FBox2D Bounds;
             FVector2D LeaderStart, LeaderEnd;
-            if (!Layout.TryPlaceLinked(Preferred, Size, Marker.SourceReservation, Bounds, LeaderStart, LeaderEnd))
+            const bool bPlaced = Layout.TryPlaceLinked(Preferred, Size, Marker.SourceReservation, Bounds, LeaderStart, LeaderEnd);
+            PlacementCapture.Placement(TEXT("unit"), Unit.UnitId, Marker.SourceReservation, Marker.Priority,
+                Label, Preferred, Size, bPlaced, Bounds, LeaderStart, LeaderEnd);
+            if (!bPlaced)
             {
                 if (bCaptureLayout) ++CaptureStats.OmittedUnitGroups;
                 return;
@@ -419,7 +437,10 @@ void AProofHUD::DrawHUD()
             const FVector2D Preferred(Marker.Screen.X - Size.X * 0.5f, Marker.Screen.Y + 10.f);
             FBox2D Bounds;
             FVector2D LeaderStart, LeaderEnd;
-            if (!Layout.TryPlaceLinked(Preferred, Size, Marker.SourceReservation, Bounds, LeaderStart, LeaderEnd))
+            const bool bPlaced = Layout.TryPlaceLinked(Preferred, Size, Marker.SourceReservation, Bounds, LeaderStart, LeaderEnd);
+            PlacementCapture.Placement(TEXT("resource"), Resource.ResourceId, Marker.SourceReservation, INDEX_NONE,
+                Name + TEXT("\n") + Amount, Preferred, Size, bPlaced, Bounds, LeaderStart, LeaderEnd);
+            if (!bPlaced)
             {
                 if (bCaptureLayout) ++CaptureStats.OmittedResourceGroups;
                 continue;
@@ -526,5 +547,9 @@ void AProofHUD::DrawHUD()
             CaptureStats.PlacedUnitGroups, CaptureStats.OmittedUnitGroups,
             CaptureStats.bPrimaryGlyphVisible ? 1 : 0, CaptureStats.bPrimaryGroupPlaced ? 1 : 0,
             CaptureStats.VisibleResourceGlyphs, CaptureStats.PlacedResourceGroups, CaptureStats.OmittedResourceGroups);
+        FString GeometryJson;
+        if (PlacementCapture.BuildJson(FPaths::GetCleanFilename(CaptureFilename), GS->Snapshot.MatchEpoch,
+            GS->Snapshot.Revision, static_cast<int32>(GS->Snapshot.MatchPhase), GeometryJson))
+            UE_LOG(LogTemp, Display, TEXT("PROOF_HUD_PLACEMENT_CAPTURE %s"), *GeometryJson);
     }
 }
