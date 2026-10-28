@@ -44,9 +44,10 @@ foreach($name in @('success','setup-stall','post-inner-stall','nonzero-after-inn
     # production dispatch never shifts its origin and no functional bound changes.
     if($name -in @('setup-stall','post-inner-stall')){$origin-=[long](217*[Diagnostics.Stopwatch]::Frequency)}
     $outcome=[RA2CommandCardStageSupervisor]::Run($Python,[string[]]@('-B',$fixture,$name,$directory,$cancel),$OutputDirectory,220,$directory,'interactive',$temp,[DateTimeOffset]::UtcNow.AddMinutes(20).ToString('o'),$origin,$cancel,('1'*40),('b'*64),('2'*40))
-    [RA2CommandCardStageSupervisor]::ExportReturnedOutcome((Join-Path $directory 'RETURNED_OUTCOME.json'),$outcome)
+    $export=[RA2CommandCardStageSupervisor]::ExportReturnedOutcome((Join-Path $directory 'RETURNED_OUTCOME.json'),$outcome,$cancel)
     $expected=$name -eq 'success'
     if($outcome.passed -ne $expected -or $outcome.wholeController -ne $expected){throw "Unexpected terminal whole-controller result: $name"}
+    if($expected -and -not $export.passed){throw 'Successful controller lacked a timely terminal export.'}
     if(-not $outcome.cleanupSucceeded -or $outcome.activeOwnedProcessesAfterCleanup -ne 0 -or $outcome.cleanupElapsedSeconds -gt 5){throw "Shared cleanup failed: $name"}
     if(-not (Test-Path -LiteralPath (Join-Path $directory 'SETUP_STARTED.json'))){throw 'Fixture did not reach its intended observation point.'}
     if($name -eq 'setup-stall' -and (Test-Path -LiteralPath (Join-Path $directory 'PAYLOAD_RESULT.json'))){throw 'Setup-stall control ran payload unexpectedly.'}

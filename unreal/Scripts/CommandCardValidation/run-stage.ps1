@@ -34,6 +34,8 @@ $arguments=@('-NoProfile','-File',(Join-Path $PSScriptRoot 'stage-controller.ps1
 # runs in this dispatcher after the origin; the entire fresh controller is guarded.
 $outcome=[RA2CommandCardStageSupervisor]::Run($prepared.pwshPath,[string[]]$arguments,$sourceRoot,$seconds,$caseRoot,$mode,$temp,$CapacityExpiresUtc,$origin,$CancellationPath,$SourceHead,$ReviewedBindingsSHA256,$CppTree)
 $terminal=Join-Path $caseRoot 'RETURNED_OUTCOME.json'
-[RA2CommandCardStageSupervisor]::ExportReturnedOutcome($terminal,$outcome)
-if(-not $outcome.passed -or -not $outcome.wholeController){throw 'Terminal whole-controller outcome failed; payload/inner files cannot be reused as success.'}
-Write-Output $terminal
+$export=[RA2CommandCardStageSupervisor]::ExportReturnedOutcome($terminal,$outcome,$CancellationPath)
+if(-not $export.passed -or -not $outcome.passed -or -not $outcome.wholeController){throw 'Terminal whole-controller/export outcome failed; provisional files cannot be reused as success.'}
+# This is handoff metadata about the already completed write, not another stage
+# receipt. Copy the actual returned attestation into prerequisites; do not infer it.
+[pscustomobject]@{terminal=@{path=$terminal;sha256=$export.terminalSha256};terminalExport=$export}

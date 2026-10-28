@@ -42,7 +42,8 @@ def outcome(mode="interactive"):
                 exitCode=0, activeOwnedProcessesAfterCleanup=0, pid=99, creationFileTime=123,
                 frequency=FREQ, deadlineStartQpc=100, observedExitQpc=200, completedQpc=300,
                 stdoutBytes=5, stderrBytes=0, cleanupElapsedSeconds=.1,
-                startedUtc=stamp(NOW - timedelta(seconds=1)), finishedUtc=stamp(NOW))
+                startedUtc=stamp(NOW - timedelta(seconds=1)), finishedUtc=stamp(NOW),
+                capacityExpiresUtc=stamp(NOW + timedelta(minutes=20)))
 
 
 def ready():
@@ -68,6 +69,34 @@ def admission():
 
 
 class Controls(unittest.TestCase):
+    def terminal_ref(self, root, name, value):
+        reference = self.save_ref(root, name, dict(schemaVersion=1, provisionalTerminal=True, outcome=value))
+        exported = dict(schemaVersion=1, passed=True, completed=True, timedOut=False,
+                        leaseCancelled=False, reservationLost=False, terminalSha256=reference["sha256"],
+                        deadlineStartQpc=value["deadlineStartQpc"], frequency=value["frequency"],
+                        boundSeconds=value["boundSeconds"], completedQpc=value["completedQpc"] + 1,
+                        finishedUtc=value["finishedUtc"], capacityExpiresUtc=value["capacityExpiresUtc"])
+        return reference, exported
+
+    def test_terminal_export_requires_actual_post_write_handoff(self):
+        root = self.temporary()
+        outer = outcome("build")
+        reference, exported = self.terminal_ref(root, "provisional.json", outer)
+        self.assertEqual(policy.validate_terminal_export(reference, exported, "build", FREQ), outer)
+        for change in (None, {}, dict(exported, completed=False), dict(exported, passed=False),
+                       dict(exported, timedOut=True), dict(exported, leaseCancelled=True),
+                       dict(exported, reservationLost=True), dict(exported, terminalSha256="0" * 64),
+                       dict(exported, completedQpc=outer["deadlineStartQpc"] + 900 * FREQ),
+                       dict(exported, completedQpc=outer["completedQpc"] - 1),
+                       dict(exported, frequency=FREQ + 1), dict(exported, boundSeconds=901),
+                       dict(exported, finishedUtc=outer["capacityExpiresUtc"])):
+            with self.subTest(attestation=change), self.assertRaises(policy.Rejected):
+                policy.validate_terminal_export(reference, change, "build", FREQ)
+        # Old successful outcomes and orphaned provisional writes cannot pass.
+        legacy = self.save_ref(root, "legacy.json", outer)
+        with self.assertRaises(policy.Rejected):
+            policy.validate_terminal_export(legacy, exported, "build", FREQ)
+
     def reject_session(self, value):
         with self.assertRaises(policy.Rejected):
             policy.validate_session(value, HEAD, "1280x720", FREQ)
@@ -264,11 +293,12 @@ class Controls(unittest.TestCase):
         complete = dict(inner, innerOutcomeSha256=inner_ref["sha256"])
         complete_ref = self.save_ref(root, "CONTROLLER_COMPLETE.json", complete)
         outer = outcome("build")
-        outer.update(startedUtc=start, finishedUtc=end, wholeController=True, head=HEAD,
+        outer.update(startedUtc=start, finishedUtc=end, capacityExpiresUtc=stamp(now + timedelta(minutes=20)), wholeController=True, head=HEAD,
                      bindingsSha256=BINDING_SHA, cppTree=CPP_TREE, payloadProofSha256=proof_ref["sha256"],
                      innerOutcomeSha256=inner_ref["sha256"], controllerCompletionSha256=complete_ref["sha256"])
+        terminal, exported = self.terminal_ref(root, "RETURNED_OUTCOME.json", outer)
         refs = dict(build=proof_ref, buildOutcome=inner_ref,
-                    buildTerminal=self.save_ref(root, "RETURNED_OUTCOME.json", outer))
+                    buildTerminal=terminal, buildTerminalExport=exported)
         policy.validate_build_reference(refs, HEAD, root, FREQ, BINDING_SHA, CPP_TREE)
         for key in refs:
             bad = dict(refs); bad.pop(key)
@@ -277,7 +307,8 @@ class Controls(unittest.TestCase):
         for changed in (dict(outer, exitCode=1), dict(outer, passed=False), dict(outer, wholeController=False),
                         dict(outer, bindingsSha256="c" * 64), dict(outer, cppTree="3" * 40),
                         dict(outer, innerOutcomeSha256="0" * 64), dict(outer, payloadProofSha256="0" * 64)):
-            bad = dict(refs, buildTerminal=self.save_ref(root, "failed.json", changed))
+            terminal, exported = self.terminal_ref(root, "failed.json", changed)
+            bad = dict(refs, buildTerminal=terminal, buildTerminalExport=exported)
             with self.assertRaises(policy.Rejected):
                 policy.validate_build_reference(bad, HEAD, root, FREQ, BINDING_SHA, CPP_TREE)
         # A valid build remains reusable under a different current reservation.

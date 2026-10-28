@@ -9,7 +9,7 @@ import os
 import re
 import struct
 import subprocess
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 BOUNDS = {"admission": 20, "qualification": 650, "build": 900, "native": 120, "render": 220, "interactive": 220}
@@ -409,11 +409,40 @@ def validate_payload(mode, value, head, viewport, frequency=None):
     return {"valid": True, "physicalInputVerified": False}
 
 
+def validate_terminal_export(reference, attestation, mode, frequency):
+    envelope = file_ref(reference)
+    require(type(envelope.get("schemaVersion")) is int and envelope["schemaVersion"] == 1,
+            "terminal envelope schema required")
+    flag(envelope, "provisionalTerminal", True)
+    outer = envelope.get("outcome")
+    require(type(outer) is dict, "provisional terminal outcome required")
+    validate_outcome(outer, mode, frequency)
+    require(type(attestation) is dict and type(attestation.get("schemaVersion")) is int
+            and attestation["schemaVersion"] == 1, "actual returned terminal export attestation required")
+    for key in ("passed", "completed"):
+        flag(attestation, key, True)
+    for key in ("timedOut", "leaseCancelled", "reservationLost"):
+        flag(attestation, key, False)
+    require(attestation.get("terminalSha256") == reference["sha256"], "terminal export bytes mismatch")
+    for key in ("deadlineStartQpc", "frequency", "boundSeconds"):
+        require(type(attestation.get(key)) is int and attestation[key] == outer[key],
+                "terminal export clock/bound mismatch")
+    completed = attestation.get("completedQpc")
+    require(integer(completed, 1) and outer["completedQpc"] <= completed
+            < outer["deadlineStartQpc"] + BOUNDS[mode] * frequency, "late terminal export completion")
+    require(attestation.get("capacityExpiresUtc") == outer.get("capacityExpiresUtc"),
+            "terminal export lease mismatch")
+    finished = utc(attestation.get("finishedUtc"))
+    require(utc(outer["finishedUtc"]) <= finished < utc(outer.get("capacityExpiresUtc")) - timedelta(seconds=5),
+            "terminal export outside lease/owned outcome interval")
+    return outer
+
+
 def validate_build_reference(prerequisites, head, root, frequency, binding_sha, cpp_tree):
     require(type(binding_sha) is str and SHA.fullmatch(binding_sha)
             and type(cpp_tree) is str and HEAD.fullmatch(cpp_tree), "reviewed build binding/C++ tree required")
-    outer = file_ref(prerequisites.get("buildTerminal"))
-    validate_outcome(outer, "build", frequency)
+    outer = validate_terminal_export(prerequisites.get("buildTerminal"),
+                                     prerequisites.get("buildTerminalExport"), "build", frequency)
     flag(outer, "wholeController", True)
     proof = file_ref(prerequisites.get("build"))
     inner = file_ref(prerequisites.get("buildOutcome"))

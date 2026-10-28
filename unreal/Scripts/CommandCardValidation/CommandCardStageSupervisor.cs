@@ -122,9 +122,12 @@ public static class RA2CommandCardStageSupervisor
         result.wholeController=true; result.head=head; result.bindingsSha256=binding; result.cppTree=cppTree;
         result.payloadProofSha256=proofSha; result.innerOutcomeSha256=innerSha; result.controllerCompletionSha256=Digest(complete);
     }
-    // The dispatcher exports only the returned, terminal whole-controller outcome.
-    // It performs no later acceptance checks that could invalidate this receipt.
-    public static void ExportReturnedOutcome(string path,Outcome result) { Save(path,result); }
+    // The on-disk envelope is provisional forever. Only the returned post-write
+    // attestation can establish export completion; never reconstruct it from files.
+    public static RA2CommandCardTerminalExport.Attestation ExportReturnedOutcome(string path,Outcome result,string cancellationPath) {
+        return RA2CommandCardTerminalExport.Export(path,JsonSerializer.Serialize(result),result.deadlineStartQpc,
+            result.boundSeconds,result.frequency,result.capacityExpiresUtc,cancellationPath);
+    }
     // Failure-only telemetry, after the unchanged survivor decision. Query handles
     // never grant termination authority and are checked for current job membership.
     static object[] FailureMembers(IntPtr job,out string error) {
@@ -330,3 +333,62 @@ public static class RA2CommandCardStageSupervisor
         return r;
     }
 }
+
+// BEGIN PURE TERMINAL EXPORT HELPER
+// Kept in the pinned supervisor source. Unit tests compile these exact bytes,
+// without the native watchdog, P/Invoke declarations or controller preparation.
+public static class RA2CommandCardTerminalExport
+{
+    public sealed class Attestation {
+        public int schemaVersion {get;set;} = 1;
+        public string terminalSha256 {get;set;}
+        public long deadlineStartQpc {get;set;} public long completedQpc {get;set;} public long frequency {get;set;}
+        public int boundSeconds {get;set;} public string finishedUtc {get;set;} public string capacityExpiresUtc {get;set;}
+        public bool completed {get;set;} public bool timedOut {get;set;} public bool leaseCancelled {get;set;} public bool reservationLost {get;set;}
+        public bool passed { get { return completed && !timedOut && !leaseCancelled && !reservationLost; } }
+    }
+    public static Attestation Export(string path,string outcomeJson,long origin,int seconds,long frequency,string expiry,string cancelPath) {
+        return ExportObserved(path,outcomeJson,origin,seconds,frequency,expiry,cancelPath,
+            (target,raw)=> {
+                using(var f=new FileStream(target,FileMode.CreateNew,FileAccess.Write,FileShare.Read,4096,FileOptions.WriteThrough)) {
+                    f.Write(raw,0,raw.Length); f.Flush(true);
+                }
+            },()=>Stopwatch.GetTimestamp(),()=>DateTimeOffset.UtcNow,File.Exists);
+    }
+    // Injection is only for inert unit observations, not a second launch route.
+    internal static Attestation ExportObserved(string path,string outcomeJson,long origin,int seconds,long frequency,string expiry,string cancelPath,
+        Action<string,byte[]> write,Func<long> qpc,Func<DateTimeOffset> utc,Func<string,bool> cancelled) {
+        if(origin<=0 || seconds<=0 || frequency<=0 || String.IsNullOrWhiteSpace(cancelPath)) throw new ArgumentException("Exact terminal export clock and cancellation identity required");
+        DateTimeOffset reservation=DateTimeOffset.Parse(expiry,System.Globalization.CultureInfo.InvariantCulture);
+        long deadline=checked(origin+checked((long)seconds*frequency));
+        var result=new Attestation { deadlineStartQpc=origin,boundSeconds=seconds,frequency=frequency,capacityExpiresUtc=expiry };
+        Action observe=()=> {
+            // File.Exists can block. Observe the monotonic deadline last, after
+            // cancellation and lease observations; no later filesystem work follows.
+            result.leaseCancelled |= cancelled(cancelPath);
+            DateTimeOffset now=utc();
+            result.reservationLost |= now>=reservation.AddSeconds(-5);
+            result.finishedUtc=now.UtcDateTime.ToString("o");
+            result.completedQpc=qpc();
+            result.timedOut |= result.completedQpc<origin || result.completedQpc>=deadline;
+        };
+        observe();
+        if(result.timedOut || result.leaseCancelled || result.reservationLost) return result;
+        byte[] raw;
+        using(var outcome=JsonDocument.Parse(outcomeJson)) {
+            if(outcome.RootElement.ValueKind!=JsonValueKind.Object) throw new IOException("Terminal outcome object required");
+            raw=JsonSerializer.SerializeToUtf8Bytes(new {schemaVersion=1,provisionalTerminal=true,outcome=outcome.RootElement});
+        }
+        if(raw.Length>262144) throw new IOException("Metadata receipt exceeded 256 KiB cap");
+        result.terminalSha256=Convert.ToHexString(SHA256.HashData(raw)).ToLowerInvariant();
+        observe();
+        if(result.timedOut || result.leaseCancelled || result.reservationLost) return result;
+        write(path,raw);
+        // A late/failed export leaves only a non-acceptable provisional envelope.
+        // No delete/rewrite is needed to invalidate it, including on I/O failure.
+        observe();
+        result.completed=true;
+        return result;
+    }
+}
+// END PURE TERMINAL EXPORT HELPER
