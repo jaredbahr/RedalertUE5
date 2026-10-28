@@ -20,6 +20,10 @@ Unreal's dated log prefix is parsed as UTC. Process timestamp strings retain the
 explicit UTC/offset semantics. Unqualified local process timestamps are unavailable
 unless `-ProcessTimeZoneId` names their timezone; ambiguous or invalid local times
 are rejected. The parser never substitutes the machine's current timezone.
+Process starts require a complete ISO date and time (`yyyy-MM-ddTHH:mm:ss`, also
+accepting a space separator and fractional seconds), followed by an optional `Z`
+or `+/-HH:mm` offset. Incomplete values are `invalid-process-start`, with no UTC
+start or process-based intervals; the parser never supplies today's date or midnight.
 
 SHA-256 hashes describe the exact result/log bytes parsed. Marker/gap entries
 include source paths and one-based line numbers. Input is bounded to 16 process
@@ -44,8 +48,16 @@ change is proposed. See [the retained timing review](LIFECYCLE_TIMING_REVIEW.md)
 
 ## Offline validation
 
-The synthetic policy script passed 21 assertions. Both retained integration-checkout
-runs parsed all five roles with no missing fields: failed
+The synthetic policy script passed 50 assertions, including rejection of time-only,
+partial/date-only and invalid timestamps, full timestamp/fraction/offset controls,
+and invalid/ambiguous supplied-zone DST controls. The new incomplete-timestamp
+regression failed against the original parser at `12:34:56Z`; the original parser
+accepted all three reproduced time-only forms (`12:34:56Z`, `12:34:56+02:00`, and
+`12:34:56` with the UTC zone) and inferred a current date. No engine was launched.
+This fixes diagnostic determinism only; issue #33's startup cause remains open.
+
+During the original validation, both retained integration-checkout runs parsed all
+five roles with no missing fields: failed
 `session-lifecycle-<local-run>` and passing
 `session-lifecycle-<local-run>`. No engine was launched.
 
