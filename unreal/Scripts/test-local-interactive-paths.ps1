@@ -134,7 +134,7 @@ param([string]$EngineRoot,[int]$SessionSeconds,[switch]$Skirmish,[switch]$Camera
         Check ($failed -and $script:forbidden -eq 0) "$name fails before side effects"
         foreach($key in $before.Keys){Check ([Environment]::GetEnvironmentVariable($key,'Process') -ceq $before[$key]) "$name preserves process environment"}
     }
-    $baseline=(& git -C $repo show 'c152ec0:unreal/Scripts/start-local-interactive.ps1') -join "`n"
+    $baseline=(& git -C $repo show '9197c74b2137fbdef1cf460db94789213e8200e2:unreal/Scripts/start-local-interactive.ps1') -join "`n"
     if($LASTEXITCODE -ne 0){throw 'Missing source baseline for launcher-tail check'}
     $current=[IO.File]::ReadAllText((Join-Path $PSScriptRoot 'start-local-interactive.ps1')).Replace("`r`n","`n").TrimEnd("`n")
     $marker='$head=('
