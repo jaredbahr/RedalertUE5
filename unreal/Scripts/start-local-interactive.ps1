@@ -54,9 +54,27 @@ try {
     Start-Sleep -Seconds 5
     $process=Start-Process -FilePath $editor -ArgumentList $launchArguments -WorkingDirectory $projectRoot -WindowStyle Normal -PassThru
     $started=$process.StartTime
+    $result.processId=$process.Id
+    $result.processStartUtc=$started.ToUniversalTime().ToString('o')
+    $result.startupIdentityPathWaits=0
     if(-not $process.HasExited) {
         $initial=Get-Process -Id $process.Id -ErrorAction Stop
-        if($initial.StartTime -ne $started -or $initial.Path -ne $editor) { throw 'Interactive process identity changed at launch.' }
+        # MainModule/Path may not be available immediately after process creation.
+        # Retain the creation identity while waiting; a different readable path
+        # remains an immediate failure, never permission to control that PID.
+        for($attempt=0;$attempt -lt 20;$attempt++) {
+            $initial.Refresh()
+            if($initial.HasExited) { throw 'Interactive process exited before launch identity was verified.' }
+            if($initial.StartTime -ne $started) { throw 'Interactive process creation identity changed at launch.' }
+            if($initial.Path) {
+                if($initial.Path -ne $editor) { throw 'Interactive executable identity changed at launch.' }
+                break
+            }
+            $result.startupIdentityPathWaits++
+            Start-Sleep -Milliseconds 100
+        }
+        $initial.Refresh()
+        if($initial.HasExited -or $initial.StartTime -ne $started -or $initial.Path -ne $editor) { throw 'Interactive launch identity could not be verified within the bounded startup wait.' }
         $initial.ProcessorAffinity=[IntPtr]$mask
         $initial.PriorityClass='Normal'
         $initial.Refresh()
