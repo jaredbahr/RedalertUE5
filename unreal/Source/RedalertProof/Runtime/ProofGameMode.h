@@ -11,6 +11,7 @@
 #include "Runtime/ProofFactoryProductionEvidence.h"
 #include "Runtime/ProofAttackMoveEvidence.h"
 #include "Runtime/ProofAttackMoveRuntimeState.h"
+#include "Runtime/ProofJobControlDiagnostic.h"
 #include "ProofGameMode.generated.h"
 
 class AProofPlayerController;
@@ -31,6 +32,8 @@ public:
     int32 GetMatchEpoch() const { return MatchEpoch; }
     bool IsCurrentController(const AProofPlayerController* Controller) const;
 private:
+    friend struct FProofJobControlDiagnostic;
+    FProofJobControlDiagnostic JobControlDiagnostic;
     FProofCommandModel Model;
     FProofAttackMoveRuntimeState AttackMoveRuntime;
     FProofAttackMoveEvidence AttackMoveEvidence;

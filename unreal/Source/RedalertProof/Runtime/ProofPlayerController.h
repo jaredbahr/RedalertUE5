@@ -7,6 +7,7 @@
 #include "Commands/ProofIngressBudget.h"
 #include "Runtime/ProofRefineryMinerEvidence.h"
 #include "Runtime/ProofStopEvidence.h"
+#include "Runtime/ProofJobControlDiagnostic.h"
 #include "ProofPlayerController.generated.h"
 
 class AProofGameState;
@@ -31,6 +32,11 @@ public:
     UFUNCTION(Server, Reliable) void ServerRequestRematch(int32 ExpectedEpoch);
     UFUNCTION(Client, Reliable) void ClientCommandResult(FProofCommandResult Result);
     UFUNCTION(Client, Reliable) void ClientLifecycleRejected();
+    UFUNCTION(Client, Reliable) void ClientJobControlCue(const FString& Run, int32 Phase, int32 Seat,
+        int32 Epoch, int32 Revision, const FString& Digest, bool bSend, FProofCommand Command);
+    UFUNCTION(Server, Reliable) void ServerJobControlAck(const FString& Run, int32 Phase,
+        int32 Epoch, int32 Revision, const FString& Digest);
+    UFUNCTION(Client, Reliable) void ClientJobControlFinish(const FString& Run);
     virtual void Tick(float DeltaSeconds) override;
     virtual void BuildInputStack(TArray<UInputComponent*>& InputStack) override;
     virtual void ProcessPlayerInput(float DeltaTime, bool bGamePaused) override;
@@ -40,6 +46,8 @@ public:
     }
     virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 private:
+    friend struct FProofJobControlDiagnostic;
+    FProofJobControlClientState JobControlDiagnostic;
     FProofAttackMoveRuntimeState AttackMoveRuntime;
     void TickAttackMoveRuntime(float DeltaSeconds);
     // Opt-in fixture observation only; normal input always runs through Super.

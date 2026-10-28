@@ -25,6 +25,7 @@ AProofGameMode::AProofGameMode()
     bTypeSelectionControls = FParse::Param(FCommandLine::Get(), TEXT("ProofTypeSelectionControls"));
     bReturnCargoEvidence = FParse::Param(FCommandLine::Get(), TEXT("ProofReturnCargoEvidence"));
     bSkirmish = FParse::Param(FCommandLine::Get(), TEXT("ProofSkirmish"));
+    JobControlDiagnostic.bEnabled = FParse::Param(FCommandLine::Get(), TEXT("ProofJobControlDiagnostic"));
     AttackMoveRuntime.bEnabled = FParse::Param(FCommandLine::Get(), TEXT("ProofAttackMoveFixtureHost"));
     bLifecycleFixtureHost = bSkirmish && FParse::Param(FCommandLine::Get(), TEXT("ProofLifecycleFixtureHost"));
     FParse::Value(FCommandLine::Get(), TEXT("ProofLifecycleControl="), LifecycleControl);
@@ -37,6 +38,11 @@ AProofGameMode::AProofGameMode()
 void AProofGameMode::BeginPlay()
 {
     Super::BeginPlay();
+    if (JobControlDiagnostic.bEnabled)
+    {
+        JobControlDiagnostic.Initialize(*this);
+        if (JobControlDiagnostic.bFailed) return;
+    }
     if (bTypeSelectionControls && (!bControlsAutomation || bSkirmish || FParse::Param(FCommandLine::Get(), TEXT("ProofStopControls"))))
     {
         UE_LOG(LogTemp, Error, TEXT("PROOF_TYPE_SELECTION_ERROR incompatible_fixture_flags"));
@@ -516,6 +522,7 @@ void AProofGameMode::ObserveSkirmish(const FProofSnapshot& Snapshot)
 void AProofGameMode::Tick(float DeltaSeconds)
 {
     Super::Tick(DeltaSeconds);
+    if (JobControlDiagnostic.bEnabled) { JobControlDiagnostic.Tick(*this); return; }
     if (AttackMoveRuntime.bEnabled) { TickAttackMoveRuntime(DeltaSeconds); return; }
     if (bLifecycleFixtureHost && !LifecycleControl.IsEmpty() &&
         IFileManager::Get().FileExists(*FPaths::Combine(LifecycleControl, TEXT("finish"))))

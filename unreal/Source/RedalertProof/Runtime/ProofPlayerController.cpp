@@ -17,6 +17,7 @@
 AProofPlayerController::AProofPlayerController()
 {
     PrimaryActorTick.bCanEverTick = true;
+    JobControlDiagnostic.bEnabled = FParse::Param(FCommandLine::Get(), TEXT("ProofJobControlDiagnostic"));
     const bool bSkirmishMode = FParse::Param(FCommandLine::Get(), TEXT("ProofSkirmish"));
     AttackMoveRuntime.bEnabled = FParse::Param(FCommandLine::Get(), TEXT("ProofAttackMoveFixture"));
     bAutomation = !bSkirmishMode && FParse::Param(FCommandLine::Get(), TEXT("ProofAutomation"));
@@ -131,6 +132,7 @@ void AProofPlayerController::ServerSubmitCommand_Implementation(FProofCommand Co
     if (AProofGameMode* Mode = GetWorld()->GetAuthGameMode<AProofGameMode>())
     {
         // OwnerId is assigned by PostLogin on the server, never supplied by the RPC.
+        if (FProofJobControlDiagnostic::TrySubmitRpc(*Mode, *this, Command)) return;
         ClientCommandResult(Mode->SubmitForController(this, Command));
     }
 }
@@ -174,6 +176,7 @@ void AProofPlayerController::ClientCommandResult_Implementation(FProofCommandRes
     }
     UE_LOG(LogTemp, Display, TEXT("PROOF_RESULT owner=%d sequence=%lld accepted=%d reason=%s"),
         OwnerId, static_cast<long long>(Result.Sequence), Result.bAccepted ? 1 : 0, *Result.Reason);
+    FProofJobControlDiagnostic::Receipt(*this, Result);
     if (bLifecycleFixture) UE_LOG(LogTemp, Display, TEXT("PROOF_LIFECYCLE_CLIENT_RESULT owner=%d epoch=%d sequence=%d accepted=%d reason=%s"),
         OwnerId, Result.MatchEpoch, Result.Sequence, Result.bAccepted ? 1 : 0, *Result.Reason);
     if (bSkirmishObserver) return;
@@ -199,6 +202,7 @@ void AProofPlayerController::Tick(float DeltaSeconds)
 {
     Super::Tick(DeltaSeconds);
     if (!IsLocalController()) return;
+    if (JobControlDiagnostic.bEnabled) { FProofJobControlDiagnostic::TickClient(*this); return; }
     Lifetime += DeltaSeconds;
     AProofGameState* State = GetWorld()->GetGameState<AProofGameState>();
     SynchronizeMatchEpoch();
