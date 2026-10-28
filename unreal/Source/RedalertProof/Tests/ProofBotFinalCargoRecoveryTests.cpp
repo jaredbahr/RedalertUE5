@@ -183,6 +183,11 @@ bool FProofBotFinalCargoPublicRecoveryTest::RunTest(const FString&)
         && RebuiltOwner->TotalGathered == GatheredAtExhaustion
         && PublicFinalCargoLoadedAmount(Rebuilt, 100) == CargoAtExhaustion)) return false;
     const int32 CreditsAfterRecovery = RebuiltOwner->Credits;
+    // Fork the real public history before delivery so a separate trace can
+    // retain a production job while miners return, without weakening the
+    // original production-free conservation oracle below.
+    FProofCommandModel Concurrent = Model;
+    int32 ConcurrentSequence = BotSequence;
 
     // Submit only ReturnCargo intents during delivery so production/attack
     // choices cannot obscure the exact cargo-to-credit conservation check.
@@ -223,6 +228,74 @@ bool FProofBotFinalCargoPublicRecoveryTest::RunTest(const FString&)
     TestEqual(TEXT("Recovery and delivery create no new ore"), PublicFinalCargoOreRemaining(Final), 0);
     TestEqual(TEXT("Exactly one live replacement refinery remains"), PublicFinalCargoLiveKindCount(Final, 100, EProofUnitKind::Refinery), 1);
     TestTrue(TEXT("Public final cargo recovery leaves a playing match"), Final.MatchPhase == EProofMatchPhase::Playing);
+
+    const int32 ConcurrentFactory = PublicFinalCargoLiveKindId(Concurrent.GetSnapshot(), 100, EProofUnitKind::Factory);
+    const int32 InitialCombat = PublicFinalCargoLiveKindCount(Concurrent.GetSnapshot(), 100, EProofUnitKind::Combat);
+    const auto ConcurrentSubmit = [&](EProofCommandType Type, int32 UnitId, int32 TargetId)
+    {
+        FProofCommand Command;
+        Command.Sequence = ++ConcurrentSequence;
+        Command.Type = Type;
+        Command.UnitId = UnitId;
+        Command.TargetUnitId = TargetId;
+        return TestTrue(TEXT("Concurrent public command accepted"), Concurrent.Submit(100, Command).bAccepted);
+    };
+    if (!TestTrue(TEXT("Concurrent history can afford one real production job"),
+        CreditsAfterRecovery >= FProofCommandModel::ProductionCost && ConcurrentFactory > 0)
+        || !ConcurrentSubmit(EProofCommandType::Produce, ConcurrentFactory, INDEX_NONE)) return false;
+    const int32 ProductionSequence = ConcurrentSequence;
+    if (!ConcurrentSubmit(EProofCommandType::HoldProduction, ConcurrentFactory, ProductionSequence)) return false;
+    FProofSkirmishBot ConcurrentBot;
+    bool bResumedAfterDeposit = false;
+    for (int32 Tick = 0; Tick < 60; ++Tick)
+    {
+        const FProofSnapshot Before = Concurrent.GetSnapshot();
+        if (PublicFinalCargoLoadedAmount(Before, 100) == 0 && Before.ProductionJobs.IsEmpty()) break;
+        const TArray<FProofCommand> Intents = ConcurrentBot.Decide(Before, 100, static_cast<double>(Tick));
+        int32 ReturnCount = 0;
+        if (!TestTrue(TEXT("Concurrent delivery keeps the shared command bound"), Intents.Num() <= 4)) return false;
+        for (const FProofCommand& Intent : Intents)
+        {
+            if (!Before.ProductionJobs.IsEmpty()
+                && !TestTrue(TEXT("A real held or active job suppresses duplicate bot production"),
+                    Intent.Type != EProofCommandType::Produce)) return false;
+            if (Intent.Type != EProofCommandType::ReturnCargo) continue;
+            ++ReturnCount;
+            if (!ConcurrentSubmit(Intent.Type, Intent.UnitId, Intent.TargetUnitId)) return false;
+        }
+        if (!TestTrue(TEXT("Concurrent delivery retains one miner slot"), ReturnCount <= 1)) return false;
+        if (PublicFinalCargoLoadedAmount(Before, 100) == 0
+            && !TestEqual(TEXT("Empty miners receive no further ReturnCargo while production finishes"), ReturnCount, 0)) return false;
+        Concurrent.Advance(1.f);
+        const FProofSnapshot After = Concurrent.GetSnapshot();
+        const FProofPlayerRecord* Owner = PublicFinalCargoPlayer(After, 100);
+        const FProofProductionJob* Job = After.ProductionJobs.FindByPredicate(
+            [](const FProofProductionJob& Candidate) { return Candidate.OwnerId == 100; });
+        if (!TestTrue(TEXT("Concurrent owner and playing phase survive"),
+            Owner && After.MatchPhase == EProofMatchPhase::Playing)) return false;
+        const int32 Paid = Job ? Job->PaidCredits : FProofCommandModel::ProductionCost;
+        if (!TestEqual(TEXT("Each concurrent step conserves deposits minus actual production payments"),
+            Owner->Credits, CreditsAfterRecovery + Owner->TotalGathered - GatheredAtExhaustion - Paid)) return false;
+        if (!bResumedAfterDeposit && Owner->TotalGathered > GatheredAtExhaustion)
+        {
+            if (!TestTrue(TEXT("Bot cargo reaches a real held job without advancing its ledger"),
+                Job && Job->bHeld && Job->PaidCredits == 0 && Job->WorkMicroseconds == 0)) return false;
+            if (!ConcurrentSubmit(EProofCommandType::ResumeProduction, ConcurrentFactory, ProductionSequence)) return false;
+            bResumedAfterDeposit = true;
+        }
+    }
+    const FProofSnapshot ConcurrentFinal = Concurrent.GetSnapshot();
+    const FProofPlayerRecord* ConcurrentOwner = PublicFinalCargoPlayer(ConcurrentFinal, 100);
+    if (!TestTrue(TEXT("Concurrent delivery and resumed production both finish within the original bound"),
+        bResumedAfterDeposit && ConcurrentFinal.ProductionJobs.IsEmpty() && ConcurrentOwner
+        && PublicFinalCargoLoadedAmount(ConcurrentFinal, 100) == 0)) return false;
+    TestEqual(TEXT("Concurrent history delivers exactly the original cargo"),
+        ConcurrentOwner->TotalGathered, GatheredAtExhaustion + CargoAtExhaustion);
+    TestEqual(TEXT("Concurrent history charges one completed production cost"),
+        ConcurrentOwner->Credits, CreditsAfterRecovery + CargoAtExhaustion - FProofCommandModel::ProductionCost);
+    TestEqual(TEXT("Concurrent history creates exactly one paid Combat"),
+        PublicFinalCargoLiveKindCount(ConcurrentFinal, 100, EProofUnitKind::Combat), InitialCombat + 1);
+    TestEqual(TEXT("Concurrent recovery creates no new ore"), PublicFinalCargoOreRemaining(ConcurrentFinal), 0);
     return true;
 }
 #endif
