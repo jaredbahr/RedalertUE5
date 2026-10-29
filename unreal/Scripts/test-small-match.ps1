@@ -11,12 +11,19 @@ param(
     [switch]$CoopContextEvidence,
     [switch]$ReadabilityCaptures,
     [switch]$CameraEdgeCaptures,
+    [switch]$PrimaryLabelFallbackCapture,
     [ValidateSet('1280x720','960x540')][string]$Viewport = '1280x720',
     [switch]$FactoryProductionEvidence,
     [switch]$GroupGatherEvidence,
     [switch]$ReturnCargoEvidence
 )
 $ErrorActionPreference = 'Stop'
+if ($PrimaryLabelFallbackCapture -and ($Scenario -ne 'Victory' -or -not $ReadabilityCaptures -or
+    -not $CleanPresentation -or $Viewport -ne '1280x720' -or $RefineryMinerEvidence -or
+    $FactoryRallyEvidence -or $CoopContextEvidence -or $FactoryProductionEvidence -or
+    $GroupGatherEvidence -or $ReturnCargoEvidence)) {
+    throw 'PrimaryLabelFallbackCapture requires plain clean 1280x720 Victory readability captures.'
+}
 . (Join-Path $PSScriptRoot 'RefineryMinerEvidence.ps1')
 . (Join-Path $PSScriptRoot 'GroupGatherEvidence.ps1')
 . (Join-Path $PSScriptRoot 'ReturnCargoEvidence.ps1')
@@ -253,6 +260,7 @@ function Start-Role([string]$Role,[string]$Destination,[string[]]$Mode) {
     if ($CoopContextEvidence) { $launchArguments+='-ProofCoopContextEvidence' }
     if ($ReadabilityCaptures -and $Role -eq 'rendered') { $launchArguments+='-ProofHUDReadabilityCaptures' }
     if ($CameraEdgeCaptures -and $Role -eq 'rendered') { $launchArguments+='-ProofCameraEdgeCaptures' }
+    if ($PrimaryLabelFallbackCapture -and $Role -eq 'rendered') { $launchArguments+='-ProofPrimaryLabelFallbackCapture' }
     $needsLiteralLoopback = $Scenario -eq 'Coop' -and $Role -in @('rendered','observer')
     if ($needsLiteralLoopback) {
         if ($Destination -notmatch '^127\.0\.0\.1:\d+$') { throw 'Literal-client CVar override is restricted to loopback destinations.' }
@@ -384,6 +392,23 @@ try {
     $retryLog=Read-Log $client
     if($Scenario -eq 'Coop'){$retryLog=(Read-Log $serverEntry)+[Environment]::NewLine+$retryLog}
     $result.ownershipRetryEvidence=Get-SkirmishOwnershipRetryEvidence -Log $retryLog -RequireSemanticEvidence:$RefineryMinerEvidence
+    if ($PrimaryLabelFallbackCapture) {
+        $geometry=@(foreach($line in ((Read-Log $client) -split '\r?\n')) {
+            if($line -match 'PROOF_HUD_PLACEMENT_CAPTURE (\{.*\})$') { $Matches[1]|ConvertFrom-Json }
+        })
+        $fixture=@($geometry|Where-Object{$_.name -ceq '05-panel-edge.png' -and $_.fixture -ceq 'visible-above-obstruction'})
+        if($fixture.Count -ne 1 -or -not $fixture[0].complete -or $fixture[0].fixtureSnapshotDigest -notmatch '^[a-fA-F0-9]{32}$') {
+            throw 'Need one complete identified controlled-obstruction capture.'
+        }
+        $primary=@($fixture[0].placements|Where-Object{$_.priority -eq 0})
+        if($primary.Count -ne 1 -or -not $primary[0].placed -or $primary[0].passesAttempted -ne 2 -or
+            $primary[0].id -ne $fixture[0].fixtureUnit -or $primary[0].anchorStrategy -cne 'above-then-below') {
+            throw 'Controlled capture must show the actual primary group placed by pass2.'
+        }
+        $result['primaryLabelFallbackEvidence']=[ordered]@{controlledObstruction=$true;normalReadabilityAcceptance=$false;
+            capture='05-panel-edge.png';unit=$primary[0].id;passes=2;snapshotDigest=$fixture[0].fixtureSnapshotDigest;
+            preferred=$primary[0].preferred;bounds=$primary[0].bounds;leaderStart=$primary[0].leaderStart;leaderEnd=$primary[0].leaderEnd}
+    }
     $result.passed=$true
 } catch { $result.error=$_.Exception.Message }
 finally {

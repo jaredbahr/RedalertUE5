@@ -4,6 +4,7 @@
 #include "Presentation/ProofHUDTextChoice.h"
 #include "Presentation/ProofMarkerLayout.h"
 #include "Presentation/ProofPrimaryLabelLayout.h"
+#include "Presentation/ProofPrimaryLabelCaptureFixture.h"
 #include "Presentation/ProofHUDPlacementCapture.h"
 #include "Presentation/ProofLegacyLabelLayout.h"
 #include "Presentation/ProofRTSPawn.h"
@@ -267,7 +268,27 @@ void AProofHUD::DrawHUD()
             Occlude(FBox2D(FVector2D(BannerX, BannerY), FVector2D(BannerX + BannerWidth, BannerY + BannerHeight)));
             Occlude(TerminalHintBounds);
         }
-        // 0 visible, 1 outside viewport, 2 hidden by HUD/banner/hint.
+        TArray<FBox2D> PrimaryCaptureMasks;
+        if (bCaptureLayout && GetNetMode() == NM_Standalone
+            && GS->Snapshot.MatchPhase == EProofMatchPhase::Finished
+            && FParse::Param(FCommandLine::Get(), TEXT("ProofPrimaryLabelFallbackCapture"))
+            && FPaths::GetCleanFilename(CaptureFilename) == TEXT("05-panel-edge.png")
+            && SelectedUnit && SelectedUnit->OwnerId == PC->OwnerId && SelectedUnit->Kind == EProofUnitKind::Combat)
+        {
+            FVector2D Screen;
+            float TextWidth = 0.f, TextHeight = 0.f;
+            const FString Label = FString::Printf(TEXT("C#%d"), SelectedUnit->UnitId);
+            GetTextSize(Label, TextWidth, TextHeight, Font, 0.88f * UiScale);
+            const FVector2D Size(FMath::Max(TextWidth, 24.f * UiScale) + 6.f * UiScale,
+                TextHeight + 12.f * UiScale);
+            if (PC->ProjectWorldLocationToScreen(SelectedUnit->Position, Screen)
+                && FProofPrimaryLabelCaptureFixture::Build(Screen, Size, LayoutViewport, PrimaryCaptureMasks))
+            {
+                for (const FBox2D& Mask : PrimaryCaptureMasks) Occlude(Mask);
+                PlacementCapture.ControlledFixture(SelectedUnit->UnitId, GS->Snapshot.ComputeDigest());
+            }
+        }
+        // 0 visible, 1 outside viewport, 2 hidden by HUD/banner/hint/fixture UI.
         const auto ClassifyFootprint = [&Layout, &Occluders](const FBox2D& Bounds)
         {
             if (!Layout.IsAnchorVisible(Bounds.Min) || !Layout.IsAnchorVisible(Bounds.Max)) return 1;
@@ -467,6 +488,14 @@ void AProofHUD::DrawHUD()
         }
         for (const FUnitMarker& Marker : Units)
             if (Marker.Priority == 2) DrawUnitGroup(Marker);
+        // Draw the same opaque UI geometry that was reserved before classifying
+        // glyphs. This is visible setup, not an invisible exclusion or image edit.
+        for (const FBox2D& Mask : PrimaryCaptureMasks)
+            DrawRect(FLinearColor(0.19f, 0.08f, 0.22f, 1.f), Mask.Min.X, Mask.Min.Y,
+                Mask.GetSize().X, Mask.GetSize().Y);
+        if (!PrimaryCaptureMasks.IsEmpty())
+            DrawText(TEXT("CONTROLLED ABOVE-LABEL OBSTRUCTION"), FLinearColor::White,
+                PrimaryCaptureMasks[0].Min.X + 8.f, PrimaryCaptureMasks[0].Min.Y + 8.f, Font, 0.8f);
     }
     // Legacy proof labels share bounded placement, retaining full ID and HP text.
     if (!bSkirmish)

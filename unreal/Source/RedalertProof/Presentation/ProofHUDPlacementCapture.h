@@ -96,10 +96,23 @@ public:
         Placements.Add(MakeShared<FJsonValueObject>(Row));
     }
 
+    void ControlledFixture(int32 UnitId, const FString& Digest)
+    {
+        if (!bEnabled) return;
+        FixtureUnit = UnitId;
+        FixtureDigest = Digest;
+    }
+
     bool BuildJson(const FString& CaptureName, int32 Epoch, int64 Revision, int32 Phase, FString& Out)
     {
         if (!bEnabled || !bConfigured) return false;
         TSharedRef<FJsonObject> Row = Metadata(CaptureName, Epoch, Revision, Phase);
+        if (FixtureUnit != INDEX_NONE)
+        {
+            Row->SetStringField(TEXT("fixture"), TEXT("visible-above-obstruction"));
+            Row->SetNumberField(TEXT("fixtureUnit"), FixtureUnit);
+            Row->SetStringField(TEXT("fixtureSnapshotDigest"), FixtureDigest);
+        }
         Row->SetArrayField(TEXT("viewport"), Point(Viewport));
         Row->SetField(TEXT("margin"), Number(Margin)); Row->SetField(TEXT("gap"), Number(Gap));
         Row->SetField(TEXT("maxDisplacement"), Number(Displacement));
@@ -130,6 +143,8 @@ public:
     }
 
 private:
+    int32 FixtureUnit = INDEX_NONE;
+    FString FixtureDigest;
     bool AddEntry()
     {
         if (!bEnabled) return false;

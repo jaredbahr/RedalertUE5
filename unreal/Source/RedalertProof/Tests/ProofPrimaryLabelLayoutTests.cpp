@@ -1,6 +1,7 @@
 #if WITH_DEV_AUTOMATION_TESTS
 #include "Misc/AutomationTest.h"
 #include "Presentation/ProofPrimaryLabelLayout.h"
+#include "Presentation/ProofPrimaryLabelCaptureFixture.h"
 
 #include <limits>
 
@@ -197,6 +198,29 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FProofPrimaryLabelsSafetyAndPriorityTest,
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FProofPrimaryLabelsSafetyAndPriorityTest::RunTest(const FString&)
 {
+    {
+        const FVector2D Screen(384.0, 233.0), GroupSize(32.0, 25.0);
+        TArray<FBox2D> Masks;
+        TestTrue(TEXT("Rendered obstruction fixture has explicit geometry"),
+            FProofPrimaryLabelCaptureFixture::Build(Screen, GroupSize, FVector2D(1280.0, 720.0), Masks));
+        TestEqual(TEXT("Exactly three visible UI obstructions"), Masks.Num(), 3);
+        FProofMarkerLayout Layout(FVector2D(1280.0, 720.0));
+        for (const FBox2D& Mask : Masks) Layout.Reserve(Mask);
+        const int32 Token = Layout.Reserve(FBox2D(Screen - FVector2D(19.0, 19.0), Screen + FVector2D(19.0, 19.0)));
+        FBox2D Bounds;
+        FVector2D Start, End;
+        TestFalse(TEXT("Visible U blocks the complete original above search"),
+            Layout.TryPlaceLinked(FVector2D(368.0, 186.0), GroupSize, Token, Bounds, Start, End));
+        FPrimaryPlacement Out;
+        TestTrue(TEXT("Same production primary helper renders below the visible obstruction"),
+            FProofPrimaryLabelLayout::TryPlace(Layout, Screen, 18.f, GroupSize, Token, Out));
+        TestEqual(TEXT("Rendered fixture requires the second pass"), Out.Passes, 2);
+        TestTrue(TEXT("Clear bottom preference retains complete group"),
+            Out.Bounds.Min.Equals(FVector2D(368.0, 255.0), 0.0) && Out.Bounds.GetSize().Equals(GroupSize, 0.0));
+        TestFalse(TEXT("Other font dimensions cannot silently change this fixture"),
+            FProofPrimaryLabelCaptureFixture::Build(Screen, FVector2D(31.0, 25.0), FVector2D(1280.0, 720.0), Masks));
+        TestTrue(TEXT("Rejected fixture clears previous UI geometry"), Masks.IsEmpty());
+    }
     static_assert(FProofPrimaryLabelLayout::MaxPasses == 2, "Primary anchor attempts must stay bounded");
     static_assert(FProofPrimaryLabelLayout::MaxCandidateCount == 132, "Primary candidate bound must stay explicit");
     static_assert(FProofPrimaryLabelLayout::MaxCandidateCount == 2 * FProofMarkerLayout::MaxCandidateCount,
