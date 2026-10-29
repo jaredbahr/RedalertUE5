@@ -3,6 +3,7 @@
 #include "Presentation/ProofHUDStatusText.h"
 #include "Presentation/ProofHUDTextChoice.h"
 #include "Presentation/ProofMarkerLayout.h"
+#include "Presentation/ProofPrimaryLabelLayout.h"
 #include "Presentation/ProofHUDPlacementCapture.h"
 #include "Presentation/ProofLegacyLabelLayout.h"
 #include "Presentation/ProofRTSPawn.h"
@@ -382,13 +383,26 @@ void AProofHUD::DrawHUD()
             }
             const FVector2D Size(FMath::Max(TextWidth, BarWidth) + Padding * 2.f,
                 TextHeight + (Label.IsEmpty() ? 0.f : Padding) + BarHeight + Padding * 2.f);
-            const FVector2D Preferred(Marker.Screen.X - Size.X * 0.5f,
+            FVector2D Preferred(Marker.Screen.X - Size.X * 0.5f,
                 Marker.Priority == 0 ? Marker.Screen.Y - Marker.Radius - 4.f - Size.Y : Marker.Screen.Y + Marker.Radius + 4.f);
             FBox2D Bounds;
             FVector2D LeaderStart, LeaderEnd;
-            const bool bPlaced = Layout.TryPlaceLinked(Preferred, Size, Marker.SourceReservation, Bounds, LeaderStart, LeaderEnd);
+            bool bPlaced = false;
+            int32 PlacementPasses = 1;
+            if (Marker.Priority == 0)
+            {
+                FProofPrimaryLabelLayout::FPlacement Placement;
+                bPlaced = FProofPrimaryLabelLayout::TryPlace(Layout, Marker.Screen, Marker.Radius,
+                    Size, Marker.SourceReservation, Placement);
+                Bounds = Placement.Bounds;
+                LeaderStart = Placement.Start;
+                LeaderEnd = Placement.End;
+                Preferred = Placement.Preferred;
+                PlacementPasses = Placement.Passes;
+            }
+            else bPlaced = Layout.TryPlaceLinked(Preferred, Size, Marker.SourceReservation, Bounds, LeaderStart, LeaderEnd);
             PlacementCapture.Placement(TEXT("unit"), Unit.UnitId, Marker.SourceReservation, Marker.Priority,
-                Label, Preferred, Size, bPlaced, Bounds, LeaderStart, LeaderEnd);
+                Label, Preferred, Size, bPlaced, Bounds, LeaderStart, LeaderEnd, PlacementPasses, Marker.Priority == 0);
             if (!bPlaced)
             {
                 if (bCaptureLayout) ++CaptureStats.OmittedUnitGroups;

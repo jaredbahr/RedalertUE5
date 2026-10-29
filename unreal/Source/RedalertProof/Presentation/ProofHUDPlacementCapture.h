@@ -4,6 +4,7 @@
 #include "Containers/StringConv.h"
 #include "Dom/JsonObject.h"
 #include "Presentation/ProofMarkerLayout.h"
+#include "Presentation/ProofPrimaryLabelLayout.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
 
@@ -64,7 +65,8 @@ public:
 
     void Placement(const TCHAR* Kind, int32 Id, int32 Token, int32 Priority, const FString& Label,
         const FVector2D& Preferred, const FVector2D& Size, bool bPlaced, const FBox2D& Bounds,
-        const FVector2D& LeaderStart, const FVector2D& LeaderEnd)
+        const FVector2D& LeaderStart, const FVector2D& LeaderEnd,
+        int32 PassesAttempted = 1, bool bPrimaryAlternates = false)
     {
         if (!bEnabled) return;
         const int32 Ordinal = ++DrawOrdinal;
@@ -75,6 +77,10 @@ public:
         Row->SetNumberField(TEXT("priority"), Priority); Row->SetStringField(TEXT("label"), Label.Left(64));
         Row->SetArrayField(TEXT("preferred"), Point(Preferred)); Row->SetArrayField(TEXT("size"), Point(Size));
         Row->SetBoolField(TEXT("placed"), bPlaced);
+        Row->SetStringField(TEXT("anchorStrategy"), bPrimaryAlternates ? TEXT("above-then-below") : TEXT("single"));
+        Row->SetNumberField(TEXT("passesAttempted"), PassesAttempted);
+        Row->SetNumberField(TEXT("maxCandidatesPerPlacement"), bPrimaryAlternates
+            ? FProofPrimaryLabelLayout::MaxCandidateCount : FProofMarkerLayout::MaxCandidateCount);
         if (bPlaced)
         {
             Row->SetObjectField(TEXT("bounds"), Box(Bounds));
@@ -97,7 +103,9 @@ public:
         Row->SetArrayField(TEXT("viewport"), Point(Viewport));
         Row->SetField(TEXT("margin"), Number(Margin)); Row->SetField(TEXT("gap"), Number(Gap));
         Row->SetField(TEXT("maxDisplacement"), Number(Displacement));
-        Row->SetNumberField(TEXT("maxCandidatesPerPlacement"), FProofMarkerLayout::MaxCandidateCount);
+        Row->SetStringField(TEXT("displacementOrigin"), TEXT("per-anchor-preferred"));
+        Row->SetNumberField(TEXT("maxCandidatesPerPass"), FProofMarkerLayout::MaxCandidateCount);
+        Row->SetNumberField(TEXT("maxCandidatesPerPlacement"), FProofPrimaryLabelLayout::MaxCandidateCount);
         Row->SetArrayField(TEXT("sources"), Sources); Row->SetArrayField(TEXT("glyphs"), Glyphs);
         Row->SetArrayField(TEXT("placements"), Placements);
         Row->SetNumberField(TEXT("entries"), EntryCount); Row->SetNumberField(TEXT("droppedEntries"), DroppedEntries);
@@ -151,7 +159,7 @@ private:
     TSharedRef<FJsonObject> Metadata(const FString& Name, int32 Epoch, int64 Revision, int32 Phase) const
     {
         const TSharedRef<FJsonObject> Row = MakeShared<FJsonObject>();
-        Row->SetStringField(TEXT("schema"), TEXT("RedalertProof.HUDPlacement.v1"));
+        Row->SetStringField(TEXT("schema"), TEXT("RedalertProof.HUDPlacement.v2"));
         Row->SetStringField(TEXT("glyphScope"), TEXT("reserved-visible-only"));
         Row->SetStringField(TEXT("name"), Name.Left(64)); Row->SetNumberField(TEXT("captureOrdinal"), CaptureOrdinal);
         Row->SetNumberField(TEXT("epoch"), Epoch);
