@@ -198,10 +198,12 @@ void AProofRTSPawn::Tick(float DeltaSeconds)
             {
                 const AProofGameState* CameraState = GetWorld()->GetGameState<AProofGameState>();
                 const FProofHUDPanelLayout Panel(static_cast<float>(Width), CameraState && CameraState->Snapshot.bSkirmish);
+                const ProofCommandCard::Layout Card(Width, Height);
+                const bool bOverCommandCard = CameraState && CameraState->Snapshot.bSkirmish && Card.Contains(MouseX, MouseY);
                 const bool bMouseHeld = PC->IsInputKeyDown(EKeys::LeftMouseButton)
                     || PC->IsInputKeyDown(EKeys::RightMouseButton) || PC->IsInputKeyDown(EKeys::MiddleMouseButton);
                 Direction += FProofCameraPan::EdgeInput(FVector2D(MouseX, MouseY), FVector2D(Width, Height),
-                    Panel.Bounds(), true, Viewport->Viewport->HasFocus(), bViewportForeground, bMouseHeld);
+                    Panel.Bounds(), !bOverCommandCard, Viewport->Viewport->HasFocus(), bViewportForeground, bMouseHeld);
             }
         }
         ApplyCameraPanInput(Direction, DeltaSeconds);
@@ -231,6 +233,7 @@ void AProofRTSPawn::Tick(float DeltaSeconds)
         }
         UnitViews.Reset();
         SelectedUnitId = INDEX_NONE;
+        CommandCardInput.Cancel();
         LastRequestedSequence = 0;
         LastRequestedUnitId = INDEX_NONE;
         bLastRequestedSourceWasOwnedLive = false;
@@ -250,6 +253,7 @@ void AProofRTSPawn::Tick(float DeltaSeconds)
     }
     Selection.Synchronize(GS->Snapshot, PC->OwnerId);
     SelectedUnitId = Selection.GetPrimaryUnitId();
+    CommandCardInput.Synchronize(GetCommandCardContext());
     TSet<int32> LiveIds;
     bool bSelectionAliveAndOwned = false;
     for (const FProofUnitRecord& Unit : GS->Snapshot.Units)
@@ -365,10 +369,10 @@ void AProofRTSPawn::ObserveViewportFocus()
 {
     const UGameViewportClient* GameViewport = GetWorld() ? GetWorld()->GetGameViewport() : nullptr;
     const FViewport* Viewport = GameViewport ? GameViewport->Viewport : nullptr;
-    if (!Viewport) { TypeGesture.Cancel(); bViewportFocused = bViewportForeground = false; bFocusObserved = false; return; }
+    if (!Viewport) { TypeGesture.Cancel(); CommandCardInput.Cancel(); bViewportFocused = bViewportForeground = false; bFocusObserved = false; return; }
     const bool bFocused = Viewport->HasFocus();
     const bool bForeground = Viewport->IsForegroundWindow();
-    if (!bFocused || !bForeground) TypeGesture.Cancel();
+    if (!bFocused || !bForeground) { TypeGesture.Cancel(); CommandCardInput.Cancel(); }
     if (!bFocusObserved || bFocused != bViewportFocused || bForeground != bViewportForeground)
     {
         bFocusObserved = true;
@@ -406,6 +410,11 @@ void AProofRTSPawn::RecordManualInput(const TCHAR* Key, int32& Count, const FStr
 
 void AProofRTSPawn::OnManualSelect()
 {
+    if (HandleCommandCardClick(false))
+    {
+        RecordManualInput(TEXT("LMB"), ManualLeftPresses, RequestStatus);
+        return;
+    }
     const AProofPlayerController* PC = Cast<AProofPlayerController>(GetController());
     const AProofGameState* GS = GetWorld()->GetGameState<AProofGameState>();
     if (PC && GS && (PC->IsInputKeyDown(EKeys::LeftShift) || PC->IsInputKeyDown(EKeys::RightShift)))
@@ -492,6 +501,11 @@ void AProofRTSPawn::HandleManualGroup(int32 Slot)
 
 void AProofRTSPawn::OnManualOrder()
 {
+    if (HandleCommandCardClick(true))
+    {
+        RecordManualInput(TEXT("RMB"), ManualRightPresses, RequestStatus);
+        return;
+    }
     const int32 BeforeSequence = LastRequestedSequence;
     const AProofPlayerController* PC = Cast<AProofPlayerController>(GetController());
     const bool bControl = PC && (PC->IsInputKeyDown(EKeys::LeftControl) || PC->IsInputKeyDown(EKeys::RightControl));
@@ -506,6 +520,7 @@ void AProofRTSPawn::OnManualOrder()
 
 void AProofRTSPawn::OnManualProduce()
 {
+    CommandCardInput.Cancel();
     const int32 BeforeSequence = LastRequestedSequence;
     Produce();
     RecordManualInput(TEXT("P"), ManualProducePresses,
@@ -516,6 +531,7 @@ void AProofRTSPawn::OnManualProduce()
 
 void AProofRTSPawn::OnManualStop()
 {
+    CommandCardInput.Cancel();
     StopSelected();
     RecordManualInput(TEXT("S"), ManualStopPresses, RequestStatus);
 }
@@ -536,6 +552,12 @@ void AProofRTSPawn::OnManualZoomOut()
 
 void AProofRTSPawn::OnInteractiveEscape()
 {
+    if (CommandCardInput.PendingAction() != ProofCommandCard::Action::None)
+    {
+        CommandCardInput.Cancel();
+        RequestStatus = TEXT("Building placement cancelled.");
+        return;
+    }
     if (!bInteractiveExitEnabled) return;
     UE_LOG(LogTemp, Display, TEXT("PROOF_MANUAL_EXIT key=Escape physicalInput=unverified"));
     FPlatformMisc::RequestExit(false);
@@ -1279,6 +1301,21 @@ void AProofRTSPawn::BuildUnderCursor(EProofCommandType Type)
 {
     const AProofGameState* GS = GetWorld()->GetGameState<AProofGameState>();
     if (!GS || !GS->Snapshot.bSkirmish) { RequestStatus = TEXT("Base building is available in the small-match mode."); return; }
+    const AProofPlayerController* PC = Cast<AProofPlayerController>(GetController());
+    FVector2D Point;
+    if (PC && GetPointerScreenPosition(Point))
+    {
+        int32 Width = 0, Height = 0;
+        PC->GetViewportSize(Width, Height);
+        const FProofHUDPanelLayout Panel(static_cast<float>(Width), true);
+        const ProofCommandCard::Layout Card(Width, Height);
+        if (Card.Contains(Point.X, Point.Y) || FProofPointerBounds::Contains(Point.X, Point.Y,
+            Panel.Left, Panel.Top, Panel.Left + Panel.Width, Panel.Top + Panel.Height))
+        {
+            RequestStatus = TEXT("Choose ground outside the HUD to place a building.");
+            return;
+        }
+    }
     FProofCommand Command;
     Command.Type = Type;
     if (!CursorGroundPoint(Command.Destination)) { RequestStatus = TEXT("Point at ground near your HQ."); return; }
@@ -1287,12 +1324,14 @@ void AProofRTSPawn::BuildUnderCursor(EProofCommandType Type)
 
 void AProofRTSPawn::OnManualRefinery()
 {
+    CommandCardInput.Cancel();
     BuildUnderCursor(EProofCommandType::BuildRefinery);
     RecordManualInput(TEXT("R"), ManualBuildPresses, RequestStatus);
 }
 
 void AProofRTSPawn::OnManualFactory()
 {
+    CommandCardInput.Cancel();
     BuildUnderCursor(EProofCommandType::BuildFactory);
     RecordManualInput(TEXT("F"), ManualBuildPresses, RequestStatus);
 }

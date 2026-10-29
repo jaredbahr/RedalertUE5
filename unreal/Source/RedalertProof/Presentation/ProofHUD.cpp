@@ -32,6 +32,7 @@ void AProofHUD::DrawHUD()
     // of the view. Scale its footprint down on smaller windows.
     const bool bSkirmish = GS && GS->Snapshot.bSkirmish;
     const FProofHUDPanelLayout Panel(Canvas->ClipX, bSkirmish);
+    const ProofCommandCard::Layout CommandCard(Canvas->ClipX, Canvas->ClipY);
     const float UiScale = Panel.Scale;
     const float Left = Panel.Left;
     const float Top = Panel.Top;
@@ -178,7 +179,8 @@ void AProofHUD::DrawHUD()
         DrawHudLine(Pawn ? Pawn->GetManualInputStatus() : TEXT("Manual input unavailable."),
             FLinearColor(0.85f, 0.78f, 1.f), Top + Pad + Row * 4.f);
         DrawHudLine(PC->GetReceiptStatus(), FLinearColor(0.65f, 0.88f, 1.f), Top + Pad + Row * 5.f);
-        DrawHudLine(TEXT("Build: R refinery 100   F factory 150   P combat unit 50   Ore markers show remaining resources"),
+        DrawHudLine(FString::Printf(TEXT("R refinery %d | F factory %d (at cursor) | P combat %d"),
+            FProofCommandModel::RefineryCost, FProofCommandModel::FactoryCost, FProofCommandModel::ProductionCost),
             FLinearColor(0.72f, 0.88f, 0.96f), Top + Pad + Row * 6.f);
         // Full/compact variants retain primary identity, role, health, cargo,
         // group count and factory rally even when its world label is occluded.
@@ -222,6 +224,7 @@ void AProofHUD::DrawHUD()
     {
         return;
     }
+    if (bSkirmish && CommandCard.Valid) DrawCommandCard(Pawn, PC);
     FBox2D TerminalHintBounds(ForceInit);
     FString TerminalHint;
     const float HintPadding = 5.f * UiScale;
@@ -236,6 +239,11 @@ void AProofHUD::DrawHUD()
             Layout.Reserve(Bounds);
         };
         Occlude(FBox2D(FVector2D(Left, Top), FVector2D(Left + PanelWidth, Top + PanelHeight)));
+        if (CommandCard.Valid)
+        {
+            const ProofCommandCard::Rect& Card = CommandCard.Panel;
+            Occlude(FBox2D(FVector2D(Card.X, Card.Y), FVector2D(Card.X + Card.Width, Card.Y + Card.Height)));
+        }
 
         // Reserve both the terminal banner and its measured rematch hint before
         // considering world markers. The same geometry is used below to draw it.
