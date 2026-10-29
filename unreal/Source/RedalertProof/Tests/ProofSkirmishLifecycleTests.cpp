@@ -59,7 +59,7 @@ bool FProofSkirmishLifecycleTest::RunTest(const FString&)
             TestTrue(TEXT("Produce through commands"), Model.Submit(Owner, LifecycleCommand(4,
                 EProofCommandType::Produce, LifecycleUnit(Built, Owner, EProofUnitKind::Factory))).bAccepted);
         }
-        Model.Advance(4.f);
+        Model.Advance(FProofCommandModel::ProductionDurationSeconds);
         const FProofSnapshot Armed = Model.GetSnapshot();
         TestEqual(TEXT("Preparation spends starting credits"), Armed.Players[0].Credits, 50);
         TestTrue(TEXT("Preparation mutates finite ore"), Armed.Resources[0].Remaining < 500);

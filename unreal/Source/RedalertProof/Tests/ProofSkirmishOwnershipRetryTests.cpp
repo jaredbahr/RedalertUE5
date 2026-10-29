@@ -42,6 +42,7 @@ struct FOwnershipRaceFixture
         const int32 BotFactory = RaceKind(Model.GetSnapshot(), ProofOwnerIds::Bot, EProofUnitKind::Factory);
         if (!Model.Submit(1, RaceCommand(2, EProofCommandType::Produce, Factory)).bAccepted
             || !Model.Submit(ProofOwnerIds::Bot, RaceCommand(2, EProofCommandType::Produce, BotFactory)).bAccepted) return false;
+        Model.Advance(FProofCommandModel::ProductionDurationSeconds);
         const FProofSnapshot Armed = Model.GetSnapshot();
         Attacker = RaceKind(Armed, 1, EProofUnitKind::Combat);
         EnemyHQ = RaceKind(Armed, ProofOwnerIds::Bot, EProofUnitKind::HQ);
@@ -114,6 +115,7 @@ bool FProofOwnershipRaceRecoveryTest::RunTest(const FString&)
     // Ordinary next-sequence production spends normal credits; recovery cannot
     // grant a replacement unit or reset the server's per-owner sequence.
     if (!TestTrue(TEXT("Next ordinary sequence still accepted"), F.Model.Submit(1, RaceCommand(5, EProofCommandType::Produce, F.Factory)).bAccepted)) return false;
+    F.Model.Advance(FProofCommandModel::ProductionDurationSeconds);
     const FProofSnapshot Replaced = F.Model.GetSnapshot();
     const FProofUnitRecord* Replacement = Replaced.Units.FindByPredicate([&F](const FProofUnitRecord& U)
         { return U.OwnerId == 1 && U.Kind == EProofUnitKind::Combat && U.UnitId != F.Attacker && U.HitPoints > 0.f; });

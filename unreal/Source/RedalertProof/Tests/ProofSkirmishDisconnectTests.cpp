@@ -50,19 +50,22 @@ bool FProofSkirmishDisconnectTest::RunTest(const FString&)
     const int32 DepartingFactory = FindDisconnectUnit(Model.GetSnapshot(), 1, EProofUnitKind::Factory);
     if (!TestTrue(TEXT("Departing player produces combat unit"), Model.Submit(1,
         MakeDisconnectCommand(2, EProofCommandType::Produce, DepartingFactory)).bAccepted)) return false;
-    const int32 DepartingCombat = FindDisconnectUnit(Model.GetSnapshot(), 1, EProofUnitKind::Combat);
-    TestTrue(TEXT("Departing attack queued"), Model.Submit(1,
-        MakeDisconnectCommand(3, EProofCommandType::Attack, DepartingCombat, BotHQ)).bAccepted);
 
     TestTrue(TEXT("Survivor builds refinery"), Model.Submit(2, MakeDisconnectCommand(1,
         EProofCommandType::BuildRefinery, INDEX_NONE, INDEX_NONE, FVector(300, 2000, 0))).bAccepted);
-    TestTrue(TEXT("Survivor can target departing starter ore"), Model.Submit(2,
-        MakeDisconnectCommand(2, EProofCommandType::Gather, SurvivingHarvester, DepartingOre)).bAccepted);
     TestTrue(TEXT("Bot builds factory"), Model.Submit(100, MakeDisconnectCommand(1,
         EProofCommandType::BuildFactory, INDEX_NONE, INDEX_NONE, FVector(4700, 0, 0))).bAccepted);
     const int32 BotFactory = FindDisconnectUnit(Model.GetSnapshot(), 100, EProofUnitKind::Factory);
     TestTrue(TEXT("Bot produces combat unit"), Model.Submit(100,
         MakeDisconnectCommand(2, EProofCommandType::Produce, BotFactory)).bAccepted);
+    // Complete both paid jobs before queuing the references tested by removal.
+    // The incidental refinery grant may mine during this real preparation step.
+    Model.Advance(FProofCommandModel::ProductionDurationSeconds);
+    const int32 DepartingCombat = FindDisconnectUnit(Model.GetSnapshot(), 1, EProofUnitKind::Combat);
+    TestTrue(TEXT("Departing attack queued"), Model.Submit(1,
+        MakeDisconnectCommand(3, EProofCommandType::Attack, DepartingCombat, BotHQ)).bAccepted);
+    TestTrue(TEXT("Survivor can target departing starter ore"), Model.Submit(2,
+        MakeDisconnectCommand(2, EProofCommandType::Gather, SurvivingHarvester, DepartingOre)).bAccepted);
     const int32 BotCombat = FindDisconnectUnit(Model.GetSnapshot(), 100, EProofUnitKind::Combat);
     TestTrue(TEXT("Incoming attack queued"), Model.Submit(100,
         MakeDisconnectCommand(3, EProofCommandType::Attack, BotCombat, DepartingHQ)).bAccepted);
@@ -150,6 +153,8 @@ bool FProofSkirmishTerminalDisconnectTest::RunTest(const FString&)
         EProofCommandType::BuildFactory, INDEX_NONE, INDEX_NONE, FVector(950, 0, 0))).bAccepted);
     const int32 Factory = FindDisconnectUnit(Model.GetSnapshot(), 100, EProofUnitKind::Factory);
     TestTrue(TEXT("Bot combat"), Model.Submit(100, MakeDisconnectCommand(2, EProofCommandType::Produce, Factory)).bAccepted);
+    // Complete the real paid job before using the resulting Combat record.
+    Model.Advance(FProofCommandModel::ProductionDurationSeconds);
     const FProofSnapshot Armed = Model.GetSnapshot();
     TestTrue(TEXT("Bot attacks HQ"), Model.Submit(100, MakeDisconnectCommand(3, EProofCommandType::Attack,
         FindDisconnectUnit(Armed, 100, EProofUnitKind::Combat), FindDisconnectUnit(Armed, 1, EProofUnitKind::HQ))).bAccepted);

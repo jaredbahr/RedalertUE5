@@ -2,9 +2,73 @@
 # No process launch, installation, file output, screenshots or native pass claim.
 # Run with an already installed PowerShell 7: pwsh -NoProfile -File <this script>.
 $ErrorActionPreference='Stop'
+. (Join-Path $PSScriptRoot 'RefineryMinerEvidence.ps1')
 . (Join-Path $PSScriptRoot 'ReturnCargoEvidence.ps1')
+function Copy-RC($Value) { return ,(ConvertFrom-Json -InputObject (ConvertTo-Json -InputObject $Value -Depth 12) -Depth 12 -NoEnumerate) }
+function New-RCContext($Case,[int]$Revision,[int]$Credits,[int]$Gathered) {
+    $state=@($Case.context.maps.host.Values|Where-Object revision -le $Revision|Sort-Object revision|Select-Object -Last 1)
+    if($state.Count -eq 0){$state=@($Case.context.maps.host.Values|Sort-Object revision|Select-Object -First 1)}
+    return [pscustomobject][ordered]@{phase=1;jobs=@();units=(Copy-RC $state[0].units);players=@([pscustomobject]@{id=1;credits=$Credits;gathered=$Gathered})}
+}
+function Initialize-RCContexts($Case) {
+    foreach($c in $Case.commands) {
+        $c|Add-Member -Force -NotePropertyName productionBefore -NotePropertyValue (New-RCContext $Case $c.revisionBefore $c.creditsBefore $c.gatheredBefore)
+        $c|Add-Member -Force -NotePropertyName productionAfter -NotePropertyValue (Copy-RC $c.productionBefore)
+        $c.productionAfter.players[0].credits=$c.creditsAfter;$c.productionAfter.players[0].gathered=$c.gatheredAfter
+    }
+    $previousDeposit=$null
+    foreach($d in $Case.deposits) {
+        $d|Add-Member -Force -NotePropertyName beforeRevision -NotePropertyValue ($d.revision-1)
+        $d|Add-Member -Force -NotePropertyName productionPayment -NotePropertyValue 0
+        $d|Add-Member -Force -NotePropertyName productionRefund -NotePropertyValue 0
+        $before=if($previousDeposit -and $previousDeposit.revision -eq $d.beforeRevision){Copy-RC $previousDeposit.productionAfter}else{New-RCContext $Case $d.beforeRevision $d.creditsBefore $d.gatheredBefore}
+        $before.players[0].credits=$d.creditsBefore;$before.players[0].gathered=$d.gatheredBefore;$after=Copy-RC $before
+        $after.players[0].credits=$d.creditsAfter;$after.players[0].gathered=$d.gatheredAfter
+        foreach($member in $d.contributors){($before.units|Where-Object id -eq $member.miner).cargo=$member.before;($after.units|Where-Object id -eq $member.miner).cargo=$member.after;($after.units|Where-Object id -eq $member.miner).x=0}
+        $d|Add-Member -Force -NotePropertyName productionBefore -NotePropertyValue $before
+        $d|Add-Member -Force -NotePropertyName productionAfter -NotePropertyValue $after
+        $previousDeposit=$d
+    }
+}
+function Add-RCTimedProduction($Case,[switch]$Cancel,[switch]$Deposit) {
+    $context=New-RCContext $Case 94 300 200
+    $start=Copy-RC $Case.commands[-1];$start.sequence=11;$start.type=2;$start.unit=5;$start.target=-1;$start.revisionBefore=95;$start.revision=96
+    $start.cargoBefore=$start.cargoAfter=0;$start.xBefore=$start.x=0;$start.yBefore=$start.y=500;$start.resumeResource=-1
+    $start.productionBefore=Copy-RC $context
+    $context.jobs=@([pscustomobject][ordered]@{owner=1;sequence=11;factory=5;work=0;paid=0;held=0})
+    $start.productionAfter=Copy-RC $context;$Case.commands.Add($start)
+    $last=if($Cancel){1}else{50}
+    for($i=1;$i -le $last;$i++) {
+        $before=Copy-RC $context;$context.jobs[0].work=$i*100000;$context.jobs[0].paid=$i;$context.players[0].credits--
+        $sum=0
+        if($Deposit -and $i -eq 2){$sum=50;$context.players[0].credits+=50;$context.players[0].gathered+=50;($context.units|Where-Object id -eq 2).cargo=0;($context.units|Where-Object id -eq 2).x=0}
+        $rev=96+$i
+        if($i -eq 50){$rev++;$context.jobs=@();$context.units+=,[pscustomobject]@{id=6;owner=1;kind=0;hp=100;cargo=0;x=300;y=500;z=0;rally=0;rallyX=0;rallyY=0;rallyZ=0}}
+        $row=[pscustomobject][ordered]@{owner=1;epoch=1;beforeRevision=95+$i;revision=$rev;sum=$sum;creditsBefore=$before.players[0].credits;creditsAfter=$context.players[0].credits;gatheredBefore=$before.players[0].gathered;gatheredAfter=$context.players[0].gathered;conservedBefore=1000;conservedAfter=1000;productionPayment=1;productionRefund=0;productionBefore=$before;productionAfter=(Copy-RC $context)}
+        if($sum -gt 0){
+            foreach($entry in @{sequence=0;resumeResource=-1;miner=2;depot=3;before=50;after=0;x=0;y=0;z=0;depotX=0;depotY=0;depotZ=0;contributors=@([pscustomobject]@{miner=2;before=50;after=0;depot=3;sequence=0})}.GetEnumerator()){$row|Add-Member -NotePropertyName $entry.Key -NotePropertyValue $entry.Value}
+            $Case.deposits.Add($row)
+        }else{$Case.productions.Add($row)}
+        # Stand in for ordinary published snapshots; no production-only event is
+        # emitted and the policy does not require every paid tick to publish.
+        $checkpoint=Copy-RC $Case.context.maps.host['1:94'];$checkpoint.revision=$rev
+        $checkpoint.units=Copy-RC $context.units;$checkpoint.jobs=Copy-RC $context.jobs;$checkpoint.players=Copy-RC $context.players
+        $key="1:$rev";$Case.context.maps.host[$key]=$checkpoint;$Case.context.maps.rendered[$key]=$checkpoint;$Case.context.common+=,$key
+    }
+    if($Cancel) {
+        foreach($type in @(11,12,13)){
+            $c=Copy-RC $start;$c.sequence=$Case.commands.Count+1;$c.type=$type;$c.target=11;$c.revisionBefore=97+($type-11);$c.revision=$c.revisionBefore+1
+            $c.creditsBefore=$context.players[0].credits;$c.productionBefore=Copy-RC $context
+            if($type -eq 13){$context.players[0].credits+=$context.jobs[0].paid;$context.jobs=@()}else{$context.jobs[0].held=$(if($type -eq 11){1}else{0})}
+            $c.creditsAfter=$context.players[0].credits;$c.productionAfter=Copy-RC $context;$Case.commands.Add($c)
+        }
+    }
+    $state=Copy-RC $Case.context.maps.host['1:94'];$state.revision=$(if($Cancel){101}else{148});$state.units=Copy-RC $context.units;$state.jobs=Copy-RC $context.jobs;$state.players=Copy-RC $context.players
+    $key="1:$($state.revision)";$Case.context.maps.host[$key]=$state;$Case.context.maps.rendered[$key]=$state;$Case.context.common+=,$key
+}
+
 function New-SyntheticCase {
-    $case=@{phases=[Collections.Generic.List[object]]::new();commands=[Collections.Generic.List[object]]::new();travels=[Collections.Generic.List[object]]::new();deposits=[Collections.Generic.List[object]]::new();resumes=[Collections.Generic.List[object]]::new();extra='';transform=$null}
+    $case=@{phases=[Collections.Generic.List[object]]::new();commands=[Collections.Generic.List[object]]::new();travels=[Collections.Generic.List[object]]::new();deposits=[Collections.Generic.List[object]]::new();resumes=[Collections.Generic.List[object]]::new();productions=[Collections.Generic.List[object]]::new();extra='';transform=$null}
     $case.context=@{maps=@{host=@{};rendered=@{}};common=@();roles=@('host','rendered')}
     # Deliberately a companion-policy unit seam. Get-RefineryMinerEvidence is
     # tested separately and is mandatory in the real launcher. These synthetic
@@ -13,7 +77,7 @@ function New-SyntheticCase {
     function Add-Phase($Name,$Rev,$Before,$Next,$Now,$Last,$Queue,$Count,$A,$B,$Gathered,$AX,$BX) {
         $p=[pscustomobject][ordered]@{phase=$Name;owner=1;epoch=1;revision=$Rev;a=1;b=2;refinery=3;resource=1;beforeSequence=$Before;nextBefore=$Next;nextNow=$Now;lastSequence=$Last;queue=$Queue;count=$Count;cargoA=$A;cargoB=$B;credits=100+$Gathered;gathered=$Gathered;elapsed=$case.phases.Count;physicalInputVerified=0;nativeCallbackInvoked=0;sharedHandlers=1;networkTransportVerified=0}
         $case.phases.Add($p)
-        $s=[pscustomobject]@{epoch=1;revision=$Rev;digest=('0'*32);phase=1;winner=-1;units=@(
+        $s=[pscustomobject]@{epoch=1;revision=$Rev;digest=('0'*32);phase=1;winner=-1;jobs=@();units=@(
             [pscustomobject]@{id=1;owner=1;kind=1;hp=100;cargo=$A;x=$AX;y=0;z=0},
             [pscustomobject]@{id=2;owner=1;kind=1;hp=100;cargo=$B;x=$BX;y=0;z=0},
             [pscustomobject]@{id=3;owner=1;kind=3;hp=100;cargo=0;x=0;y=0;z=0},
@@ -70,6 +134,13 @@ function New-SyntheticCase {
     foreach($s in @(@(4,1,40,950,900),@(5,1,60,900,850),@(9,2,90,800,750))) {
         $case.resumes.Add([pscustomobject][ordered]@{owner=1;epoch=1;revision=$s[2];sequence=$s[0];miner=$s[1];resource=1;cargoBefore=0;cargoAfter=50;remainingBefore=$s[3];remainingAfter=$s[4];x=1000;y=0;z=0;resourceX=1000;resourceY=0;resourceZ=0})
     }
+    foreach($state in $case.context.maps.host.Values){
+        $state.units+=,[pscustomobject]@{id=5;owner=1;kind=4;hp=200;cargo=0;x=0;y=500;z=0}
+        foreach($unit in $state.units){foreach($field in @('rally','rallyX','rallyY','rallyZ')){$unit|Add-Member -NotePropertyName $field -NotePropertyValue 0}}
+    }
+    $case.commands[0].creditsBefore=350;$case.commands[0].creditsAfter=250
+    $case.commands[1].creditsBefore=250;$case.commands[1].creditsAfter=100
+    Initialize-RCContexts $case
     return $case
 }
 function Get-SyntheticLog($Case) {
@@ -77,7 +148,7 @@ function Get-SyntheticLog($Case) {
     foreach($pair in @(@('phases','PHASE'),@('commands','COMMAND'),@('travels','TRAVEL'),@('deposits','DEPOSIT'),@('resumes','RESUME'))) {
         foreach($row in $Case[$pair[0]]){$lines.Add('PROOF_RETURN_CARGO_'+$pair[1]+' '+($row | ConvertTo-Json -Compress -Depth 8))}
     }
-    $types=@('Move','Attack','Produce','BuildRefinery','BuildFactory','Gather','Stop','SetRally','AttackMove','ReturnCargo')
+    $types=@('Move','Attack','Produce','BuildRefinery','BuildFactory','Gather','Stop','SetRally','AttackMove','ReturnCargo','AreaGuard','HoldProduction','ResumeProduction','CancelProduction')
     foreach($c in $Case.commands) {
         $lines.Add('PROOF_SKIRMISH_REQUEST owner=1 sequence='+$c.sequence+' type='+$types[$c.type]+' unit='+$c.unit+' target='+$c.target)
         $lines.Add('PROOF_RESULT owner=1 sequence='+$c.sequence+' accepted='+$c.accepted+' reason='+$(if($c.accepted -eq 1){'accepted'}else{'cargo'}))
@@ -98,10 +169,11 @@ Case 'separate group deposit boundaries in arrival order' $true {
     $a.sum=50; $a.creditsBefore=250; $a.gatheredBefore=150; $a.contributors=@($a.contributors[0])
     $b.revision=79; $b.sum=50; $b.creditsAfter=250; $b.gatheredAfter=150; $b.contributors=@($b.contributors[1])
     $c.deposits[2]=$b; $c.deposits[3]=$a
+    Initialize-RCContexts $c
 }
 Case 'unrelated factory command creates an allowed sequence gap' $true {
     param($c)
-    $other=$c.commands[3] | ConvertTo-Json | ConvertFrom-Json
+    $other=$c.commands[3] | ConvertTo-Json -Depth 12 | ConvertFrom-Json -Depth 12
     $other.type=7; $other.unit=5; $other.target=-1; $other.revisionBefore=15; $other.revision=16
     $other.cargoBefore=0; $other.cargoAfter=0; $other.xBefore=0; $other.x=0; $other.resumeResource=-1
     foreach($command in $c.commands){if($command.sequence -ge 4){$command.sequence++}}
@@ -109,24 +181,32 @@ Case 'unrelated factory command creates an allowed sequence gap' $true {
     for($i=2;$i -lt $c.phases.Count;$i++) { foreach($field in @('beforeSequence','nextBefore','nextNow','lastSequence')){$c.phases[$i].$field++} }
     foreach($list in @('travels','deposits','resumes')){foreach($row in $c[$list]){$row.sequence++}}
     foreach($d in $c.deposits){foreach($contributor in $d.contributors){$contributor.sequence++}}
-    foreach($state in $c.context.maps.host.Values){$state.units+=,[pscustomobject]@{id=5;owner=1;kind=4;hp=100;cargo=0;x=0;y=500;z=0}}
+    Initialize-RCContexts $c
 }
-Case 'ordinary Produce spends between phase publications' $true {
-    param($c)
-    $other=$c.commands[3] | ConvertTo-Json | ConvertFrom-Json
-    $other.type=2; $other.unit=5; $other.target=-1; $other.revisionBefore=16; $other.revision=18
-    $other.cargoBefore=0; $other.cargoAfter=0; $other.xBefore=0; $other.x=0; $other.resumeResource=-1
-    $other.creditsAfter=50
-    foreach($command in $c.commands){if($command.sequence -ge 4){$command.sequence++; $command.creditsBefore-=50; $command.creditsAfter-=50}}
-    $c.commands.Insert(3,$other)
-    for($i=2;$i -lt $c.phases.Count;$i++) { foreach($field in @('beforeSequence','nextBefore','nextNow','lastSequence')){$c.phases[$i].$field++}; $c.phases[$i].credits-=50 }
-    foreach($list in @('travels','deposits','resumes')){foreach($row in $c[$list]){$row.sequence++}}
-    foreach($d in $c.deposits){$d.creditsBefore-=50; $d.creditsAfter-=50; foreach($contributor in $d.contributors){$contributor.sequence++}}
-    foreach($state in $c.context.maps.host.Values){
-        $state.units+=,[pscustomobject]@{id=5;owner=1;kind=4;hp=100;cargo=0;x=0;y=500;z=0}
-        if($state.revision -ge 18){$state.players[0].credits-=50}
-    }
-}
+Case 'ordinary Produce starts unpaid then pays on fifty later Advances' $true {param($c)Add-RCTimedProduction $c}
+Case 'production payment shares an actual deposit boundary' $true {param($c)Add-RCTimedProduction $c -Deposit}
+Case 'paid progress hold resume and cancellation refund' $true {param($c)Add-RCTimedProduction $c -Cancel}
+Case 'Produce immediate debit remains rejected' $false {param($c)Add-RCTimedProduction $c;$c.commands[10].creditsAfter-=50}
+Case 'Produce immediate spawn remains rejected' $false {param($c)Add-RCTimedProduction $c;$c.commands[10].productionAfter.units+=,(Copy-RC $c.productions[-1].productionAfter.units[-1])}
+Case 'paid work mismatch rejected' $false {param($c)Add-RCTimedProduction $c;$c.context.maps.host['1:97'].jobs[0].paid=2}
+Case 'paid progress sequence replacement rejected' $false {param($c)Add-RCTimedProduction $c;$c.context.maps.host['1:97'].jobs[0].sequence=12}
+Case 'held state without logged control rejected' $false {param($c)Add-RCTimedProduction $c;$c.context.maps.host['1:97'].jobs[0].held=1}
+Case 'lost factory liability cannot continue paid work' $false {param($c)Add-RCTimedProduction $c;foreach($rev in 97..98){($c.context.maps.host["1:$rev"].units|Where-Object id -eq 5).hp=0}}
+Case 'terminal job cannot continue paid work' $false {param($c)Add-RCTimedProduction $c;foreach($rev in 97..98){$c.context.maps.host["1:$rev"].phase=2}}
+Case 'unaccounted cash hidden during paid progress rejected' $false {param($c)Add-RCTimedProduction $c;$c.context.maps.host['1:97'].players[0].credits--}
+Case 'unpublished no-deposit paid tick is covered by investment invariant' $true {param($c)Add-RCTimedProduction $c;$c.context.common=@($c.context.common|Where-Object{$_ -ne '1:97'});$c.context.maps.host.Remove('1:97');$c.context.maps.rendered.Remove('1:97')}
+Case 'completion spawn identity replacement rejected' $false {param($c)Add-RCTimedProduction $c;$c.context.maps.host['1:147'].units[-1].id=5}
+Case 'completion duplicate spawn rejected' $false {param($c)Add-RCTimedProduction $c;$u=Copy-RC $c.context.maps.host['1:147'].units[-1];$u.id=7;$c.context.maps.host['1:147'].units+=,$u}
+Case 'retained factory identity cannot disappear on completion' $false {param($c)Add-RCTimedProduction $c;$c.context.maps.host['1:147'].units=@($c.context.maps.host['1:147'].units|Where-Object id -ne 5)}
+Case 'live-factory job disappearance despite balanced refund rejected' $false {param($c)Add-RCTimedProduction $c;$c.context.maps.host['1:98'].jobs=@();$c.context.maps.host['1:98'].players[0].credits=300}
+Case 'cancel wrong production identity rejected' $false {param($c)Add-RCTimedProduction $c -Cancel;$c.commands[-1].target=10}
+Case 'cancel refunds unspent price rejected' $false {param($c)Add-RCTimedProduction $c -Cancel;$c.commands[-1].creditsAfter+=49;$c.commands[-1].productionAfter.players[0].credits+=49}
+Case 'hold changed payment rejected' $false {param($c)Add-RCTimedProduction $c -Cancel;$c.commands[-3].productionAfter.jobs[0].work=200000;$c.commands[-3].productionAfter.jobs[0].paid=2}
+Case 'deposit production identity forged rejected' $false {param($c)Add-RCTimedProduction $c -Deposit;$c.deposits[-1].productionAfter.jobs[0].factory=4}
+Case 'dead retained Combat stays in production investment' $true {param($c)Add-RCTimedProduction $c;$c.context.maps.host['1:148'].units[-1].hp=0}
+Case 'dead retained Combat cannot be removed for a fake refund' $false {param($c)Add-RCTimedProduction $c;$c.context.maps.host['1:147'].units[-1].hp=0;$c.context.maps.host['1:148'].units=@($c.context.maps.host['1:148'].units|Where-Object id -ne 6);$c.context.maps.host['1:148'].players[0].credits+=50}
+Case 'balanced paid job still needs accepted Produce provenance' $false {param($c)$c.context.maps.host['1:22'].jobs=@([pscustomobject]@{owner=1;sequence=4;factory=5;work=100000;paid=1;held=0});$c.context.maps.host['1:22'].players[0].credits--;$c.phases[3].credits--}
+Case 'deposit wrong before revision rejected' $false {param($c)$c.deposits[0].beforeRevision--}
 Case 'missing prerequisite' $false { param($c) $c.refinery.passed=$false }
 Case 'phase missing' $false { param($c) $c.phases.RemoveAt(4) }
 Case 'phase reordered' $false { param($c) $c.phases[3].phase='single-deposited' }
@@ -186,7 +266,7 @@ Case 'duplicate travel' $false { param($c) $c.travels[1].sequence=4 }
 Case 'missing authoritative deposit' $false { param($c) $c.deposits.RemoveAt(0) }
 Case 'duplicate credit row' $false { param($c) $c.deposits.Add($c.deposits[0]) }
 Case 'deposit outside exact tolerance' $false { param($c) $c.deposits[0].x=1.000001 }
-Case 'deposit exact tolerance retained' $true { param($c) $c.deposits[0].x=1.0 }
+Case 'deposit exact tolerance retained' $true { param($c) $c.deposits[0].x=1.0;($c.deposits[0].productionAfter.units|Where-Object id -eq 1).x=1.0 }
 Case 'nonfinite deposit coordinate' $false { param($c) $c.deposits[0].x=[double]::PositiveInfinity }
 Case 'invented depot position' $false { param($c) $c.deposits[0].depotX=100; $c.deposits[0].x=100 }
 Case 'wrong deposit sequence' $false { param($c) $c.deposits[0].sequence=5 }

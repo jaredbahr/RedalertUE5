@@ -140,6 +140,7 @@ bool BaseExpansionEnemyAttack(FProofCommandModel& Model, int32 Target)
         || !Model.Submit(3, BaseExpansionCommand(1, EProofCommandType::BuildFactory, FVector(-1200, 0, 0))).bAccepted) return false;
     const int32 Factory = BaseExpansionKindId(Model.GetSnapshot(), 3, EProofUnitKind::Factory);
     if (!Model.Submit(3, BaseExpansionCommand(2, EProofCommandType::Produce, FVector::ZeroVector, Factory)).bAccepted) return false;
+    Model.Advance(FProofCommandModel::ProductionDurationSeconds);
     const int32 Attacker = BaseExpansionKindId(Model.GetSnapshot(), 3, EProofUnitKind::Combat);
     if (!Model.Submit(3, BaseExpansionCommand(3, EProofCommandType::Attack, FVector::ZeroVector, Attacker, Target)).bAccepted) return false;
     Model.Advance(30.f);
@@ -197,12 +198,15 @@ bool FProofBaseExpansionChainTest::RunTest(const FString&)
             FProofCommandModel::FindSkirmishSpawn(Mined, BaseExpansionUnit(Mined, Factory).Position, ExpectedSpawn))) return false;
         if (!TestTrue(TEXT("Expansion factory produces with earned credits"),
             Model.Submit(1, BaseExpansionCommand(4, EProofCommandType::Produce, FVector::ZeroVector, Factory)).bAccepted)) return false;
+        TestEqual(TEXT("Production submission allocates no ID"), BaseExpansionMaximumId(Model.GetSnapshot()), BaseExpansionMaximumId(Mined));
+        TestEqual(TEXT("Production submission is free"), BaseExpansionPlayer(Model.GetSnapshot()).Credits, 500);
+        Model.Advance(FProofCommandModel::ProductionDurationSeconds);
         const FProofSnapshot Produced = Model.GetSnapshot();
         TestEqual(TEXT("Factory preserves production price"), BaseExpansionPlayer(Produced).Credits, 500 - FProofCommandModel::ProductionCost);
         TestEqual(TEXT("Factory preserves production spawn"), Produced.Units[Produced.Units.Num() - 1].Position, ExpectedSpawn);
         TestEqual(TEXT("Factory produces exactly one combat record"), Produced.Units[Produced.Units.Num() - 1].Kind, EProofUnitKind::Combat);
         TestEqual(TEXT("Production consumes exactly next ID"), Produced.Units[Produced.Units.Num() - 1].UnitId, BaseExpansionMaximumId(Mined) + 1);
-        TestEqual(TEXT("Production keeps existing revision semantics"), Produced.Revision, Mined.Revision + 2);
+        TestEqual(TEXT("Production start, completed allocation and positive Advance each revise once"), Produced.Revision, Mined.Revision + 3);
     }
     return true;
 }
@@ -289,6 +293,7 @@ bool FProofBaseExpansionOwnershipTest::RunTest(const FString&)
             if (!BaseExpansionBuild(*this, Model, Sequence++, EProofCommandType::BuildFactory, FVector(-300, 0, 0))) return false;
             if (!TestTrue(TEXT("Produce owned combat non-anchor"), Model.Submit(1, BaseExpansionCommand(Sequence++, EProofCommandType::Produce,
                 FVector::ZeroVector, BaseExpansionKindId(Model.GetSnapshot(), 1, EProofUnitKind::Factory))).bAccepted)) return false;
+            Model.Advance(FProofCommandModel::ProductionDurationSeconds);
         }
         const int32 Mobile = BaseExpansionKindId(Model.GetSnapshot(), 1, Kind);
         if (!TestTrue(TEXT("Move own mobile to remote site"), Model.Submit(1,
@@ -419,8 +424,12 @@ bool FProofBaseExpansionAtomicityTest::RunTest(const FString&)
     const int32 Factory = BaseExpansionKindId(Full.GetSnapshot(), 1, EProofUnitKind::Factory);
     int32 Sequence = 3;
     for (int32 Count = 0; Count < 6; ++Count)
+    {
         if (!TestTrue(TEXT("Fill capacity using ordinary production"), Full.Submit(1,
             BaseExpansionCommand(Sequence++, EProofCommandType::Produce, FVector::ZeroVector, Factory)).bAccepted)) return false;
+        Full.Advance(FProofCommandModel::ProductionDurationSeconds);
+        if (!TestTrue(TEXT("Capacity setup job completes before the next starts"), Full.GetSnapshot().ProductionJobs.IsEmpty())) return false;
+    }
     TestEqual(TEXT("Exactly one live slot remains"), Full.GetSnapshot().Units.Num(), FProofCommandModel::SkirmishRecordCap - 1);
     BaseExpansionReject(*this, Full, 1, BaseExpansionCommand(Sequence++, EProofCommandType::BuildRefinery, FVector(2400, 0, 0)), TEXT("capacity"));
     BaseExpansionReject(*this, Full, 1, BaseExpansionCommand(Sequence++, EProofCommandType::BuildFactory, FVector(3200, 0, 0)), TEXT("placement"));

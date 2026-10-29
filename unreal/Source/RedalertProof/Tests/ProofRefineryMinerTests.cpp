@@ -60,6 +60,8 @@ bool PrepareMinerCapacity(FProofCommandModel& Model, int32 CombatCount)
     for (int32 Index = 0; Index < CombatCount; ++Index)
     {
         if (!Model.Submit(1, MinerCommand(4 + Index, EProofCommandType::Produce, FVector::ZeroVector, Factory)).bAccepted) { return false; }
+        Model.Advance(FProofCommandModel::ProductionDurationSeconds);
+        if (!Model.GetSnapshot().ProductionJobs.IsEmpty()) { return false; }
     }
     return true;
 }
@@ -141,7 +143,9 @@ bool FProofRefineryMinerCapacityTest::RunTest(const FString&)
             TestEqual(TEXT("Rejected build leaves snapshot unchanged"), Model.GetSnapshot().ComputeDigest(), Before.ComputeDigest());
             const int32 Factory = MinerKindId(Before, EProofUnitKind::Factory);
             TestTrue(TEXT("Rejected envelope consumes normal sequence only"), Model.Submit(1, MinerCommand(NextSequence + 1, EProofCommandType::Produce, FVector::ZeroVector, Factory)).bAccepted);
-            TestEqual(TEXT("Rejected build consumes no IDs"), MaximumMinerId(Model.GetSnapshot()), MaximumMinerId(Before) + 1);
+            TestEqual(TEXT("Neither rejected build nor production start consumes IDs"), MaximumMinerId(Model.GetSnapshot()), MaximumMinerId(Before));
+            Model.Advance(FProofCommandModel::ProductionDurationSeconds);
+            TestEqual(TEXT("Rejected build consumes no IDs before real production completes"), MaximumMinerId(Model.GetSnapshot()), MaximumMinerId(Before) + 1);
         }
     }
     return true;

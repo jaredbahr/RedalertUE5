@@ -565,6 +565,8 @@ void AProofGameMode::Tick(float DeltaSeconds)
                 if (StopEvidence.Enabled()) { StopEvidence.ObserveAdvance(MatchEpoch, 0.1f); }
                 SkirmishSeconds += 0.1;
                 const FProofSnapshot After = Model.GetSnapshot();
+                FactoryProductionEvidence.ObserveAdvance(MatchEpoch, EvidenceBeforeAdvance, After);
+                FactoryRallyEvidence.ObserveAdvance(MatchEpoch, EvidenceBeforeAdvance, After);
                 if (RefineryEvidence.Enabled()) RefineryEvidence.ObserveAdvance(MatchEpoch, EvidenceBeforeAdvance, After);
                 if (FParse::Param(FCommandLine::Get(), TEXT("ProofGroupGatherEvidence")))
                     ObserveGroupGatherDeposits(EvidenceBeforeAdvance, After);

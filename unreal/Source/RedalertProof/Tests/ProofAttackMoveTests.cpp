@@ -28,6 +28,7 @@ bool AttackMoveSetup(FProofCommandModel& M, int32& Combat, int32& Enemy)
     if (!M.Submit(1, AttackMoveOrder(1, EProofCommandType::BuildFactory, INDEX_NONE, FVector(0, 300, 0))).bAccepted) return false;
     const int32 Factory = AttackMoveKind(M.GetSnapshot(), 1, EProofUnitKind::Factory);
     if (!M.Submit(1, AttackMoveOrder(2, EProofCommandType::Produce, Factory)).bAccepted) return false;
+    M.Advance(FProofCommandModel::ProductionDurationSeconds);
     Combat = AttackMoveKind(M.GetSnapshot(), 1, EProofUnitKind::Combat);
     Enemy = AttackMoveKind(M.GetSnapshot(), 100, EProofUnitKind::Harvester);
     if (!M.Submit(100, AttackMoveOrder(1, EProofCommandType::Move, Enemy, FVector(900, 300, 0))).bAccepted) return false;
@@ -92,6 +93,7 @@ bool FProofAttackMoveTieTest::RunTest(const FString&)
     TestTrue(TEXT("Second enemy"), M.SeedSkirmishPlayer(200, 1, FVector(500, 500, 0)));
     TestTrue(TEXT("Factory"), M.Submit(1, AttackMoveOrder(1, EProofCommandType::BuildFactory, INDEX_NONE, FVector(0, 300, 0))).bAccepted);
     TestTrue(TEXT("Combat"), M.Submit(1, AttackMoveOrder(2, EProofCommandType::Produce, AttackMoveKind(M.GetSnapshot(), 1, EProofUnitKind::Factory))).bAccepted);
+    M.Advance(FProofCommandModel::ProductionDurationSeconds);
     const int32 Combat = AttackMoveKind(M.GetSnapshot(), 1, EProofUnitKind::Combat);
     TestEqual(TEXT("Exact setup spawn"), AttackMoveUnit(M.GetSnapshot(), Combat).Position, FVector(300, 300, 0));
     TestTrue(TEXT("Attack Move"), M.Submit(1, AttackMoveOrder(3, EProofCommandType::AttackMove, Combat, FVector(1200, 300, 0))).bAccepted);
@@ -111,6 +113,7 @@ bool FProofAttackMoveTieTest::RunTest(const FString&)
     Friends.SeedSkirmishPlayer(1, 0, FVector::ZeroVector); Friends.SeedSkirmishPlayer(2, 0, FVector(300, 600, 0)); Friends.SeedSkirmishPlayer(100, 1, FVector(5000, 0, 0));
     Friends.Submit(1, AttackMoveOrder(1, EProofCommandType::BuildFactory, INDEX_NONE, FVector(0, 300, 0)));
     Friends.Submit(1, AttackMoveOrder(2, EProofCommandType::Produce, AttackMoveKind(Friends.GetSnapshot(), 1, EProofUnitKind::Factory)));
+    Friends.Advance(FProofCommandModel::ProductionDurationSeconds);
     const int32 FriendlyCombat = AttackMoveKind(Friends.GetSnapshot(), 1, EProofUnitKind::Combat);
     TestTrue(TEXT("Friendly-only nearby route"), Friends.Submit(1, AttackMoveOrder(3, EProofCommandType::AttackMove, FriendlyCombat, FVector(300, 1000, 0))).bAccepted);
     Friends.Advance(1.f);
@@ -172,7 +175,7 @@ bool FProofAttackMoveRateTest::RunTest(const FString&)
     if (!TestTrue(TEXT("Setup"), AttackMoveSetup(M, Combat, Enemy))) return false;
     TestTrue(TEXT("Bot factory via same trusted route"), M.Submit(100, AttackMoveOrder(2, EProofCommandType::BuildFactory, INDEX_NONE, FVector(1800, 600, 0))).bAccepted);
     TestTrue(TEXT("Bot combat via same trusted route"), M.Submit(100, AttackMoveOrder(3, EProofCommandType::Produce, AttackMoveKind(M.GetSnapshot(), 100, EProofUnitKind::Factory))).bAccepted);
-    M.Advance(0.f);
+    M.Advance(FProofCommandModel::ProductionDurationSeconds);
     const int32 Bot = AttackMoveKind(M.GetSnapshot(), 100, EProofUnitKind::Combat);
     TestTrue(TEXT("Human Attack Move accepted"), M.Submit(1, AttackMoveOrder(3, EProofCommandType::AttackMove, Combat, FVector(-1000, 300, 0))).bAccepted);
     TestTrue(TEXT("Bot Attack Move accepted"), M.Submit(100, AttackMoveOrder(4, EProofCommandType::AttackMove, Bot, FVector(3000, 600, 0))).bAccepted);

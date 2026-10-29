@@ -3,6 +3,7 @@
 #include "Runtime/ProofGameMode.h"
 #include "Runtime/ProofGameState.h"
 #include "Runtime/ProofPlayerController.h"
+#include "Runtime/ProofProductionAccounting.h"
 #include "Presentation/ProofRTSPawn.h"
 #include "Engine/World.h"
 #include "AssetCompilingManager.h"
@@ -148,6 +149,25 @@ void AProofGameMode::TickAttackMoveRuntime(float DeltaSeconds)
         R.SimulatedSeconds += static_cast<double>(0.1f); // Only actual advances contribute.
         const FProofSnapshot After = Model.GetSnapshot();
         RefineryEvidence.ObserveAdvance(MatchEpoch, Before, After);
+        int32 Payment = 0, Refund = 0;
+        if (!ProofProductionAccounting::ValidateAdvance(Before, After, 1, Payment, Refund))
+        { AMRuntimeFail(TEXT("host"), TEXT("production_advance")); return; }
+        const auto* PriorJob = Before.ProductionJobs.FindByPredicate([](const FProofProductionJob& J) { return J.OwnerId == 1; });
+        const auto* CurrentJob = After.ProductionJobs.FindByPredicate([](const FProofProductionJob& J) { return J.OwnerId == 1; });
+        if (PriorJob || CurrentJob)
+        {
+            const auto* PriorPlayer = AMRuntimePlayer(Before, 1); const auto* CurrentPlayer = AMRuntimePlayer(After, 1);
+            // The fixture's accepted Stop precedes Produce. Production must be
+            // reconciled without borrowing any subsequently deposited credits.
+            if (!PriorPlayer || !CurrentPlayer || CurrentPlayer->TotalGathered != PriorPlayer->TotalGathered
+                || static_cast<int64>(CurrentPlayer->Credits) - PriorPlayer->Credits != -Payment + Refund)
+            { AMRuntimeFail(TEXT("host"), TEXT("production_credit_attribution")); return; }
+            FProofSnapshot StampedBefore = Before, StampedAfter = After;
+            StampedBefore.MatchEpoch = StampedAfter.MatchEpoch = MatchEpoch;
+            UE_LOG(LogTemp, Display, TEXT("PROOF_ATTACK_MOVE_PRODUCTION {\"owner\":1,\"epoch\":%d,\"beforeRevision\":%d,\"revision\":%d,\"beforeDigest\":\"%s\",\"digest\":\"%s\",\"simulatedSeconds\":%.17g,\"productionPayment\":%d,\"productionRefund\":%d,\"productionBefore\":%s,\"productionAfter\":%s}"),
+                MatchEpoch, Before.Revision, After.Revision, *StampedBefore.ComputeDigest(), *StampedAfter.ComputeDigest(), R.SimulatedSeconds,
+                Payment, Refund, *ProofProductionAccounting::ContextJson(Before), *ProofProductionAccounting::ContextJson(After));
+        }
         R.Accumulator -= 0.1f;
         if (++R.PublishSteps >= 2) { Publish(); R.PublishSteps = 0; }
     }

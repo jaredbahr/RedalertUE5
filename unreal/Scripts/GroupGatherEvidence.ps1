@@ -8,8 +8,8 @@ function Get-GroupGatherEvidence {
         return $null -ne $Value -and $Value -isnot [string] -and $Value -isnot [bool] -and $Value -isnot [array] -and
             [double]$Value -ge $Min -and [double]$Value -le 2147483647 -and [double]$Value -eq [math]::Truncate([double]$Value)
     }
-    function Row([string]$Text) {
-        Require ($Text.Length -le 4096) 'oversized event'
+    function Row([string]$Text,[int]$Maximum=4096) {
+        Require ($Text.Length -le $Maximum) 'oversized event'
         $stack=[Collections.Generic.List[object]]::new()
         foreach($m in [regex]::Matches($Text,'"(?:\\.|[^"\\])*"\s*:|[{}\[\]]')) {
             $t=$m.Value
@@ -59,17 +59,27 @@ function Get-GroupGatherEvidence {
     Require ($commands[1].revision -gt $commands[0].revision) 'commands must be ordered'
     $grants=@($RefineryEvidence.grants|Where-Object {$_.owner -eq 1 -and $_.epoch -eq $anchor.epoch})
     Require ($grants.Count -eq 1 -and $grants[0].miner -eq $anchor.b -and $grants[0].resource -eq $anchor.resource -and $grants[0].gatherSequence -eq $anchor.nextBefore+1) 'missing real refinery-granted miner'
-    $grantRows=@([regex]::Matches($Log,'PROOF_REFINERY_EVENT([^\r\n]*)')|ForEach-Object{Row $_.Groups[1].Value}|Where-Object {$_.event -eq 'grant' -and $_.owner -eq 1 -and $_.epoch -eq $anchor.epoch})
+    $grantRows=@([regex]::Matches($Log,'PROOF_REFINERY_EVENT([^\r\n]*)')|ForEach-Object{Row $_.Groups[1].Value 131072}|Where-Object {$_.event -eq 'grant' -and $_.owner -eq 1 -and $_.epoch -eq $anchor.epoch})
     Require ($grantRows.Count -eq 1 -and $anchor.a -in $grantRows[0].beforeIds -and $anchor.b -notin $grantRows[0].beforeIds) 'starter/granted provenance'
     $start=$ValidatedStateContext.maps.rendered["$($anchor.epoch):$($anchor.revision)"]
     $accounted=[long]0
     foreach($r in $start.resources){$accounted+=$r.remaining};foreach($u in $start.units){$accounted+=$u.cargo};foreach($p in $start.players){$accounted+=$p.gathered}
-    $deposits=@([regex]::Matches($Log,'PROOF_GROUP_GATHER_DEPOSIT([^\r\n]*)')|ForEach-Object{Row $_.Groups[1].Value})
+    $deposits=@([regex]::Matches($Log,'PROOF_GROUP_GATHER_DEPOSIT([^\r\n]*)')|ForEach-Object{Row $_.Groups[1].Value 131072})
     Require ($deposits.Count -eq 2) 'exactly two authoritative deposit boundaries required'
-    $depositByMiner=@{}
+    $depositByMiner=@{};$representedContexts=@{}
     foreach($d in $deposits) {
-        foreach($n in @('owner','epoch','revision','miner','depot','before','after','sum','creditsBefore','creditsAfter','gatheredBefore','gatheredAfter','conservedBefore','conservedAfter')){Require (Integer $d.$n) "invalid deposit integer $n"}
-        Require ($d.owner -eq 1 -and $d.epoch -eq $anchor.epoch -and $d.miner -in @($anchor.a,$anchor.b) -and -not $depositByMiner.ContainsKey([string]$d.miner) -and $d.depot -gt 0 -and $d.before -ge 1 -and $d.before -le 50 -and $d.after -eq 0 -and $d.sum -ge $d.before -and $d.creditsAfter-$d.creditsBefore -eq $d.sum -and $d.gatheredAfter-$d.gatheredBefore -eq $d.sum -and $d.conservedBefore -eq $d.conservedAfter -and $d.conservedBefore -eq $accounted) 'deposit identity/attribution/conservation'
+        foreach($n in @('owner','epoch','beforeRevision','revision','miner','depot','before','after','sum','creditsBefore','creditsAfter','gatheredBefore','gatheredAfter','conservedBefore','conservedAfter')){Require (Integer $d.$n) "invalid deposit integer $n"}
+        Require ($d.owner -eq 1 -and $d.epoch -eq $anchor.epoch -and $d.miner -in @($anchor.a,$anchor.b) -and -not $depositByMiner.ContainsKey([string]$d.miner) -and $d.depot -gt 0 -and $d.before -ge 1 -and $d.before -le 50 -and $d.after -eq 0 -and $d.sum -ge $d.before -and $d.creditsAfter-$d.creditsBefore -eq $d.sum-$d.productionPayment+$d.productionRefund -and $d.gatheredAfter-$d.gatheredBefore -eq $d.sum -and $d.conservedBefore -eq $d.conservedAfter -and $d.conservedBefore -eq $accounted) 'deposit identity/attribution/conservation'
+        Assert-ProductionAdvance $d.productionBefore $d.productionAfter $d.owner $d.productionPayment $d.productionRefund
+        Require ($d.revision -eq $d.beforeRevision+1+@($d.productionAfter.units|Where-Object{$_.id -notin $d.productionBefore.units.id}).Count) 'deposit Advance exact revision'
+        foreach($side in @(@('beforeRevision','productionBefore'),@('revision','productionAfter'))){
+            $contextKey="$($d.epoch):$($d.($side[0]))"
+            $represented=Get-ProductionContextKey $d.($side[1])
+            if($representedContexts.ContainsKey($contextKey)){Require ($representedContexts[$contextKey] -ceq $represented) 'contradictory represented deposit contexts at one epoch/revision'}else{$representedContexts[$contextKey]=$represented}
+            if($ValidatedStateContext.maps.host.ContainsKey($contextKey)){Require ($represented -ceq (Get-ProductionContextKey $ValidatedStateContext.maps.host[$contextKey])) 'deposit context contradicts exact published state'}
+        }
+        $pb=@($d.productionBefore.players|Where-Object id -eq $d.owner)[0];$pa=@($d.productionAfter.players|Where-Object id -eq $d.owner)[0]
+        Require ($pb.credits -eq $d.creditsBefore -and $pa.credits -eq $d.creditsAfter -and $pb.gathered -eq $d.gatheredBefore -and $pa.gathered -eq $d.gatheredAfter) 'deposit production context identity'
         Require ($d.revision -gt $commands[1].revision -and $d.revision -le $phases[3].revision) 'deposit chronology'
         foreach($n in @('x','y','z','depotX','depotY','depotZ')){Require ($null -ne $d.$n -and $d.$n -isnot [string] -and $d.$n -isnot [bool] -and $d.$n -isnot [array] -and [double]::IsFinite([double]$d.$n) -and [math]::Abs([double]$d.$n) -le 10000) 'deposit coordinate'}
         $point=[pscustomobject]@{x=$d.depotX;y=$d.depotY;z=$d.depotZ}
@@ -78,6 +88,10 @@ function Get-GroupGatherEvidence {
         $contributors=@{};$sum=0
         foreach($c in $d.contributors){foreach($n in @('miner','depot','before','after')){Require (Integer $c.$n) 'invalid contributor integer'};Require ($c.miner -in @($anchor.a,$anchor.b) -and $c.depot -gt 0 -and $c.before -ge 1 -and $c.before -le 50 -and $c.after -ge 0 -and $c.after -lt $c.before -and -not $contributors.ContainsKey([string]$c.miner)) 'invalid/duplicate contributor';$contributors[[string]$c.miner]=$c;$sum+=$c.before-$c.after}
         foreach($c in $d.contributors){$cm=Unit $start $c.miner;$cd=Unit $start $c.depot;Require ($cm.Count -eq 1 -and $cm[0].owner -eq 1 -and $cm[0].kind -eq 1 -and $cm[0].hp -gt 0 -and $cd.Count -eq 1 -and $cd[0].owner -eq 1 -and $cd[0].kind -eq 3 -and $cd[0].hp -gt 0) 'contributor lacks validated own miner/depot identity'}
+        foreach($c in $d.contributors){
+            $a=Unit $d.productionBefore $c.miner;$b=Unit $d.productionAfter $c.miner;$depot=Unit $d.productionAfter $c.depot
+            Require ($a.Count -eq 1 -and $b.Count -eq 1 -and $depot.Count -eq 1 -and $a[0].owner -eq $d.owner -and $b[0].owner -eq $d.owner -and $a[0].kind -eq 1 -and $b[0].kind -eq 1 -and $a[0].hp -gt 0 -and $b[0].hp -gt 0 -and $a[0].cargo -eq $c.before -and $b[0].cargo -eq $c.after -and $depot[0].owner -eq $d.owner -and $depot[0].kind -eq 3 -and $depot[0].hp -gt 0 -and (DistanceSquared $b[0] $depot[0]) -le 1) 'contributor differs from complete production/deposit context'
+        }
         Require ($sum -eq $d.sum -and $contributors.ContainsKey([string]$d.miner)) 'contributor attribution sum'
         $mine=$contributors[[string]$d.miner];Require ($mine.depot -eq $d.depot -and $mine.before -eq $d.before -and $mine.after -eq 0) 'tracked contributor mismatch'
         $depositByMiner[[string]$d.miner]=$d

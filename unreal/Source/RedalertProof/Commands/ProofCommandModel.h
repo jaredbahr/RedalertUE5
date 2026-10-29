@@ -16,7 +16,10 @@ enum class EProofCommandType : uint8
     SetRally = 7,
     AttackMove = 8,
     ReturnCargo = 9,
-    AreaGuard = 10
+    AreaGuard = 10,
+    HoldProduction = 11,
+    ResumeProduction = 12,
+    CancelProduction = 13
 };
 
 UENUM()
@@ -95,6 +98,20 @@ struct REDALERTPROOF_API FProofResourceRecord
     UPROPERTY() int32 Remaining = 0;
 };
 
+// One generic-unit production line per owner. Progress and its debit ledger
+// are authoritative; clients never advance an independent production clock.
+USTRUCT()
+struct REDALERTPROOF_API FProofProductionJob
+{
+    GENERATED_BODY()
+    UPROPERTY() int32 OwnerId = INDEX_NONE;
+    UPROPERTY() int32 StartSequence = 0;
+    UPROPERTY() int32 FactoryId = INDEX_NONE;
+    UPROPERTY() int32 WorkMicroseconds = 0;
+    UPROPERTY() int32 PaidCredits = 0;
+    UPROPERTY() bool bHeld = false;
+};
+
 USTRUCT()
 struct REDALERTPROOF_API FProofSnapshot
 {
@@ -107,6 +124,7 @@ struct REDALERTPROOF_API FProofSnapshot
     UPROPERTY() EProofMatchPhase MatchPhase = EProofMatchPhase::Inactive;
     UPROPERTY() int32 WinnerTeam = INDEX_NONE;
     UPROPERTY() TArray<FProofResourceRecord> Resources;
+    UPROPERTY() TArray<FProofProductionJob> ProductionJobs;
 
     // Diagnostic equality of visible state, not authentication or lockstep proof.
     FString ComputeDigest() const;
@@ -128,6 +146,10 @@ class REDALERTPROOF_API FProofCommandModel
 {
 public:
     static constexpr int32 ProductionCost = 50;
+    // Deliberate generic-unit prototype calibration, not measured RA2 timing.
+    static constexpr int32 ProductionWorkPerCredit = 100000;
+    static constexpr int32 ProductionWorkMicroseconds = ProductionCost * ProductionWorkPerCredit;
+    static constexpr float ProductionDurationSeconds = 5.f;
     static constexpr float MovementSpeed = 150.f;
     static constexpr float AttackRange = 300.f;
     static constexpr float DamagePerSecond = 25.f;
@@ -164,6 +186,7 @@ private:
     friend struct FProofOreReselectionFixture;
     friend struct FProofReturnCargoFixture;
     friend struct FProofLastTravelDirectionFixture;
+    friend struct FProofTimedProductionFixture;
 #endif
     struct FOrder
     {
@@ -185,6 +208,7 @@ private:
     int32 CommandsPerAdvance = 32;
 
     void BumpRevision();
+    void AdvanceProduction(float DeltaSeconds);
     static void ClearAreaGuard(FProofUnitRecord& Unit);
     void ClearAllAreaGuards();
     const FProofUnitRecord* FindAreaGuardTarget(const TArray<FProofUnitRecord>& Units,

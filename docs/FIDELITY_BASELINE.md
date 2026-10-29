@@ -15,7 +15,7 @@ Authorized local lookup found a residual RA2 folder in an existing Steam library
 | S stops selected units. | Original manuals: Basic Keyboard Functions, Stop | [Validated Stop slice](STOP_COMMAND.md) cancels orders through the shared validator and bounded group queue. Clean b10e1ff passed 62 models, Stop/default controls, three matches and lifecycle; the earlier failure remains recorded. Existing stationary idle fire remains; physical S is unverified. |
 | Full miners unload at a friendly refinery and resume harvesting. | RA2 pp16-17 | Travel, finite extraction, deposit and repeat on the selected patch already exist; extraction/unloading happen instantly on arrival. |
 | Structure placement is near the player's other structures; the Construction Yard enables construction. | RA2 pp18,38 | [Base expansion](BASE_EXPANSION.md) permits placement off owned live HQ/refinery/factory records while still requiring an own live HQ. Its 800 cm center radius is an existing prototype calibration, not original grid/foundation parity. |
-| Production takes time; funds shortages suspend it until money returns. | RA2 p17 | `Submit` immediately debits the full price and creates the record. No production job, progress, hold/resume or queue. |
+| Production takes time; funds shortages suspend it until money returns. | RA2 printed p19, production controls | [Timed generic production](TIMED_PRODUCTION.md) has one authoritative job per owner, staged payment, shortage auto-resume and public hold/resume/cancel commands. Five seconds is prototype calibration; queued backlog, physical control bindings, progress HUD and original timing parity remain pending. |
 | Power shortages affect production and some defenses/radar. | RA2 p18 | No power model; a Tesla mesh is only a display proxy. |
 | Idle units engage approaching enemies; Guard adds return-to-position behavior. | RA2 pp21,23 | Stationary idle fire is implemented. The [bounded AreaGuard prototype](AREA_GUARD.md) adds an explicit authoritative defend/chase/return order and a pre-attack bot producer; human G input and exact original disengagement calibration remain pending. |
 | Refineries include a miner; Barracks and War Factories produce different categories. | RA2 pp38,41 | One starter Harvester is seeded independently. The [validated refinery-miner slice](REFINERY_MINER.md) adds one unarmed Harvester per accepted refinery; exact-source model, mining/deposit and co-op replication evidence is recorded. Prices, timing and art remain prototype values. One Factory still produces only generic Combat. |
@@ -30,6 +30,7 @@ Source: `Commands/ProofCommandModel.h/.cpp` and `Skirmish/ProofSkirmishBot.cpp`.
 | --- | --- |
 | Start | 350 credits, one HQ, one Harvester, one 500-unit ore patch per seeded owner |
 | Costs | Refinery 100, Factory 150, Combat 50 |
+| Generic production | One owner-level job, 5 simulated seconds when funded; 100 ms work per credit; cash debited as work progresses |
 | Health | HQ 300; constructed Refinery/Factory 200; Harvester/Combat 100 |
 | Movement/combat | 150 cm/s; 300 cm closed attack sphere; 25 damage/s with simultaneous damage application |
 | Economy | Cargo 50; one extracted ore unit becomes one credit; instant extraction and deposit at arrival |
@@ -37,7 +38,7 @@ Source: `Commands/ProofCommandModel.h/.cpp` and `Skirmish/ProofSkirmishBot.cpp`.
 | Proof capacity | 12 live records per owner, including structures; not an army budget |
 | Bot pacing | 1-second decisions, up to four commands/decision, 5-second retry, 20-second initial attack grace |
 
-These values are retained in this slice. There is no established conversion from original map cells, game-speed settings, weapon rules or production ticks to UE centimeters/seconds. No verified credit-storage cap is inferred from other C&C games. Armor, weapon versus target multipliers, projectile/cooldown behavior, miner differences, prerequisites and faction costs remain uncalibrated.
+Existing economy/combat values remain unchanged; the timed-production slice adds the explicitly labeled generic production calibration above. There is no established conversion from original map cells, game-speed settings, weapon rules or production ticks to UE centimeters/seconds. No verified credit-storage cap is inferred from other C&C games. Armor, weapon versus target multipliers, projectile/cooldown behavior, miner differences, prerequisites and faction costs remain uncalibrated.
 
 ## Bounded implementation: stationary idle fire
 
@@ -75,4 +76,4 @@ The first build at `319dd9c` passed in 43.89s; independent review then found tha
 
 Fourteen existing ignored content files were reused with matching SHA256. No proprietary assets or binaries were uploaded. The eight-root the system drive audit since the previous controls observation found UE5.7 Saved -2 bytes, D3DSCache -32768 bytes, and six roots unchanged; this shared-PC byte-count observation is neither exhaustive nor exclusive attribution (`c-drive-after-fidelity.json`). It does not establish zero system-drive writes. The earlier legacy model stress measurements are not new idle-acquisition or combined-scale evidence.
 
-Next, measure original production and economy under declared version, map, faction and game-speed conditions before replacing instant jobs or assigning role-specific balance values. Keep the Allied/Soviet loop and bots ahead of Yuri expansion. [Input automation planning](INPUT_AUTOMATION_PLAN.md) addresses the separate remaining controls acceptance gap.
+Next, measure original production and economy under declared version, map, faction and game-speed conditions before claiming timing parity or assigning role-specific balance values. The timed-production prototype is deliberately calibrated independently pending those measurements. Keep the Allied/Soviet loop and bots ahead of Yuri expansion. [Input automation planning](INPUT_AUTOMATION_PLAN.md) addresses the separate remaining controls acceptance gap.
