@@ -244,7 +244,8 @@ bool FProofPrimaryLabelsSafetyAndPriorityTest::RunTest(const FString&)
     for (float InvalidRadius : {FloatNaN, FloatInfinity, 0.f, -1.f}) RejectInput(Center, InvalidRadius, Size);
     RejectInput(FVector2D(NaN, 100.0), 10.f, Size);
     RejectInput(FVector2D(100.0, Infinity), 10.f, Size);
-    for (int32 InvalidSource : {INDEX_NONE, 99})
+    const int32 InvalidSources[] = {INDEX_NONE, 99};
+    for (int32 InvalidSource : InvalidSources)
     {
         FProofMarkerLayout Layout(Viewport);
         Layout.Reserve(Glyph);
