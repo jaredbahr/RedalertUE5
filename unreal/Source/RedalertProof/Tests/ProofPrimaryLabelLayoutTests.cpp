@@ -95,8 +95,9 @@ struct FCapturedPrimaryFixture
 
 TArray<FCapturedPrimaryFixture> CapturedPrimaryFixtures()
 {
-    // clean-captures-20261029-140533-646/1280x720.geometry.json, revision 885,
-    // epoch 1. Preserve doubles and source ordering, including coincident glyphs.
+    // Captured at source 1c057572bbba05dca6beec69a3944c2332fefb1b,
+    // viewport 1280x720, revision 885, epoch 1. Preserve exact doubles and
+    // source ordering, including coincident glyphs. Full provenance stays private.
     // C#32 is drawOrdinal 1: these failures need no earlier label/leader history.
     // The 960x540 clean run selected C#30; it is not this failure's reproduction.
     return {

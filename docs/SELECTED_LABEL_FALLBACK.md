@@ -1,15 +1,15 @@
 # Selected world-label placement
 
-Related to issue #18. This change belongs to the existing HUD coordinator on
-`fix/hud-selected-label-fallback-20261029`, based on observer `1c05757`.
+Related to issue #18. This change belongs to the existing HUD coordinator and
+builds on observer source `1c057572bbba05dca6beec69a3944c2332fefb1b`.
 It is separate from PR #72's terminal/export repair and selected-glyph draw order,
 and from PR #79's input integration. The observer branch and captured evidence
 remain historical inputs; this is not evidence that the observer caused a regression.
 
 ## Observed failure
 
-At observer `1c057572bbba05dca6beec69a3944c2332fefb1b`, the clean 1280x720
-capture run `small-match-victory-20261029-140647-950` omitted the selected C#32
+At observer `1c057572bbba05dca6beec69a3944c2332fefb1b`, clean 1280x720
+Victory captures omitted the selected C#32
 world ID/HP group in `03-left-edge.png`, `05-panel-edge.png` and
 `06-camera-before.png`. The matching complete placement rows report priority 0,
 `placed=false`. The latter two frames have identical relevant reservations.
