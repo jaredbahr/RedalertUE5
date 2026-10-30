@@ -4,9 +4,9 @@ These are ordered gates, not scheduled dates or claims of completed work. Use pl
 
 ## 0. Confirm setup and test budgets
 
-Deliver: selected UE5 version, target hardware, an initial test range toward the large-army ambition (exact per-player and total unit budgets remain undetermined), hosting/connectivity choices for provisionally intended internet play and any LAN requirement, permanent the designated non-system drive paths, cache verification plan, and proposed performance/network thresholds.
+Deliver: selected UE5 version, target hardware, an initial test range toward the large-army ambition (exact per-player and total unit budgets remain undetermined), hosting/connectivity choices for provisionally intended internet play and any LAN requirement, permanent designated non-system drive paths, cache verification plan, and proposed performance/network thresholds.
 
-Pass: Jared confirms the unresolved choices; required tools are available without unapproved installs; source/generated-file rules and binary/LFS budget review are ready before content uploads. During the first separately authorized smoke run, record actual cache/temp/output paths and any the system drive use. Do not mark storage behavior verified from folder names alone.
+Pass: Jared confirms the unresolved choices; required tools are available without unapproved installs; source/generated-file rules and binary/LFS budget review are ready before content uploads. During the first separately authorized smoke run, record actual cache/temp/output paths and any system-drive use. Do not mark storage behavior verified from folder names alone.
 
 ## 1. Approve the visual blockout
 
@@ -44,20 +44,50 @@ Deliver: sessions with up to eight player slots, a documented human/bot mix, mea
 
 Pass: complete repeatable eight-slot matches with consistent economy/combat/victory state and no blocking desynchronization, bot stall, or crash; meet the agreed active-unit and network budgets under the chosen conditions. Test connection failure/disconnect behavior and document the supported outcome. Validate actual internet conditions for the provisionally intended internet mode; LAN results alone cannot establish them. Eight human players remain unproven until tested with eight humans. Supporting eight large armies remains an ambition until the combined movement, combat, bot, and network-replication workload passes at that scale.
 
-## Current engineering integration order
+## Current engineering and future-goal order (2026-10-30)
 
-The [current player-feature validation](PLAYER_FEATURES.md) records 84 functional native cases, 13 runtime passes and 36 reviewed engine captures across exact c54/42 bindings. This is a scoped generic-unit engineering pass; the product/visual/performance pass criteria above remain unchanged. The older preparation ordering immediately below is historical and is superseded for this integrated slice; it must not be read as the current GitHub status of those PRs.
+The live [roadmap/dependency/claim index is issue #85](https://github.com/jaredbahr/RedalertUE5/issues/85).
+The [design plan](DESIGN_PLAN.md) explains the incremental boundaries and acceptance
+matrix. This section supersedes the older draft-stack ordering, not the numbered
+product gates above or retained historical test evidence. This publication prepares
+backlog only; no implementation, native job, formal approval or merge is requested.
 
-The native proof and small match are a foundation using generic units and placeholder values. The milestone pass criteria above still govern; the model-only stress result does not pass the combined active-scale gate.
+Closed #21–24 retain their scoped generic base/economy/bot/terminal achievement.
+Full faction fidelity, art approval, physical input, representative performance
+and Internet gates remain open. Old open PRs are not automatically the current
+integration path; always re-read current refs, comments and source evidence.
 
-1. Review the draft stack in dependency order: shared command/controls proof, ingress protection, small skirmish (PR25), local lifecycle (PR26), then the selection/groups branch. Integration requires explicit merge approval; none of these branches changes main. Keep issues 17/18 (input/HUD), 21-24 (small-match loop/economy/bot/result) and 11 (broader lifecycle) mapped to their actual evidence and outstanding gaps rather than closing them from a partial pass.
-2. Finish the controls acceptance gap: a bounded rendered session must demonstrate multiple selection highlights, group recall and group Move/Attack through real host acknowledgements; a human must check Shift/Ctrl input and optional pan/focus behavior. Keep the default camera and existing single-unit actions as compatibility gates. See [group controls](GROUP_CONTROLS.md).
-3. Establish a private original-game reference baseline for economy, construction/production timing, movement, range and infantry/vehicle roles. Record observed conditions and agreed tolerances before replacing placeholder rules; validate the revised loop and bots through shared commands. Do not upload proprietary assets or infer parity from unit names.
-4. Run the combined rendered two-client active workload from milestone 3, including bots, production, movement, combat and replication together. Measure frame times, simulation/AI cost, memory and command/network latency before choosing practical army limits. Then complete the scoped Allied/Soviet roster and repeat bot matches before Yuri and four/eight players.
+| Stage | Existing or new issue | Ready / blocked and exit |
+| --- | --- | --- |
+| A — reconcile current generic candidate | #17 input/focus, #18 HUD; PR71 → 75 → 76, independent77, sibling79/80 | Preserve exact open production/control/native/physical gates and coordinator reservations. #79/#80 are siblings on #76, not a tested combined chain. Any composition requires independent review and affected exact-head acceptance. |
+| B — reference/rules/feasibility | #81 measured fidelity; #82 minimum Allied/Soviet contract; #2 combined workload | Ready to plan when the future goal starts. Measurements require permitted private references; roster commitments require owner acceptance; runtime requires declared budgets/hardware and a native allocation. |
+| C — production player interaction | #83 | Blocked on applicable #71/#75/#76 production-control acceptance plus reviewed UI contract; coordinate shared Pawn/HUD changes with #17/#18/#72/#79/#80. |
+| D — first role-specific loop | #84 | Blocked on accepted #81/#82 and #2 preliminary feasibility/protocol, plus mapped current acceptance. Remeasure representative role/assets afterward; don't create a circular final-scale prerequisite. |
+| E — visual approval/pilot | #1; #6/#7 evidence gates | Existing blockout review first; finishing requires Jared approval, agreed subject/scale/zoom, rights and binary/LFS budget. Keep ART_DIRECTION and ASSET_PIPELINE_EVALUATION gates. |
+| F — wider sessions/transport | #11/#12 | Existing local cleanup/epochs and controller ingress protection are partial successes. Wider design/implementation needs hosting/connectivity/identity choices, budgets and actual adverse-network acceptance. |
+| G — expansion | Numbered milestones5–6 above | Yuri/four/eight players remain deferred behind the scoped Allied/Soviet loop and representative scale/Internet gates. |
 
-No paid infrastructure, hosted workflow runs, roster expansion or new asset generation is needed to review the current branch. Internet conditions, authenticated reconnect, final unit scale, visual approval and practical army budgets remain separate open gates.
+Native acceptance is distinct from cloud/source review: exact installed Windows
+UHT/MSVC, affected native suites, real two-client state/digest agreement, actual
+rendered inspection and observed physical controls each retain their own scope.
+Private diagnostic results do not automatically validate a public PR head. Keep
+pending permissions, failed receipts and cleanup failures intact.
 
-The [fidelity baseline](FIDELITY_BASELINE.md) now records manual-supported behavior separately from prototype values and exact idle-fire test evidence. Production/economy calibration remains the next reference-measurement task. The [engine input automation plan](INPUT_AUTOMATION_PLAN.md) defines a synthetic binding test for the controls gap without claiming real desktop focus or hardware input.
+### Shared execution protocol for the later goal
+
+Before edits, re-read repository instructions and current issue/PR comments,
+resolve existing reservations, post a bounded GitHub claim on the work issue and
+verify it exists. Include public worker/goal handle, UTC time, scope, branch/base,
+files, dependencies, status and blocker; omit private local task/session IDs.
+Re-read to detect races. Ambiguous/conflicting/denied claims block dependent
+edits; never silently take over a stale claim.
+
+GitHub comments are the shared source of truth, not private notes or an empty
+assignee field. Native work separately needs the allocated heavy slot, fresh
+unchanged resource admission and any app-control approval. Publish draft PRs,
+report exact passed/failed/unrun gates, preserve failures, and close only the
+accepted observable issue scope before releasing the claim/updating dependents.
+The full protocol and current PR snapshot live in #85.
 
 ## Evidence discipline
 
