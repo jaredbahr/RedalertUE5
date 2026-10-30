@@ -33,6 +33,9 @@ At 960x540, four reviewed frames omit the selected unit's world ID/HP annotation
 
 ## Project documents
 
+- [Live roadmap and future-goal backlog](https://github.com/jaredbahr/RedalertUE5/issues/85): dependency-ordered work, ready/blocked gates and verified GitHub claims; planning only, no implementation started.
+- [Design plan](docs/DESIGN_PLAN.md): faithful-feeling RTS boundaries, incremental work and Windows/native/visual acceptance.
+
 - [Fidelity baseline](docs/FIDELITY_BASELINE.md): sourced economy/combat behavior, explicit prototype defaults, and tested stationary idle fire. [Input automation plan](docs/INPUT_AUTOMATION_PLAN.md) separates synthetic binding coverage from physical/focus acceptance.
 - [Selection groups and camera pan](docs/GROUP_CONTROLS.md): controls, exact tested source, retained failures, and remaining human acceptance.
 - [Project brief](docs/PROJECT_BRIEF.md): goals, initial scope, constraints, and storage policy.
