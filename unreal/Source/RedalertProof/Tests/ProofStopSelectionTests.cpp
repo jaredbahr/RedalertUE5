@@ -2,6 +2,7 @@
 #include "Misc/AutomationTest.h"
 #include "Presentation/ProofSelectionState.h"
 #include "Presentation/ProofGroupOrderQueue.h"
+#include <limits>
 
 namespace
 {
@@ -106,6 +107,33 @@ bool FProofStopSelectionPolicyTest::RunTest(const FString&)
     FProofSnapshot Legacy = S;
     Legacy.bSkirmish = false;
     TestEqual(TEXT("Legacy owned mobile selection can Stop"), Selection.PlanStop(Legacy, 1).Num(), 2);
+
+    FProofSnapshot Mixed = StopSelectionFixture();
+    FProofSelectionState MixedSelection;
+    for (int32 Id : {60, 20, 10}) MixedSelection.Toggle(Mixed, 1, Id);
+    const TArray<FProofCommand> HealthyStops = MixedSelection.PlanStop(Mixed, 1);
+    TestEqual(TEXT("Healthy selected movers all plan Stop"), HealthyStops.Num(), 3);
+    if (HealthyStops.Num() == 3)
+    {
+        TestTrue(TEXT("Healthy Stop control retains exact sorted IDs and types"),
+            HealthyStops[0].UnitId == 10 && HealthyStops[1].UnitId == 20 && HealthyStops[2].UnitId == 60
+            && HealthyStops[0].Type == EProofCommandType::Stop && HealthyStops[1].Type == EProofCommandType::Stop
+            && HealthyStops[2].Type == EProofCommandType::Stop);
+    }
+    Mixed.Units.FindByPredicate([](const FProofUnitRecord& Unit) { return Unit.UnitId == 60; })->HitPoints
+        = std::numeric_limits<float>::infinity();
+    const TArray<FProofCommand> MixedStops = MixedSelection.PlanStop(Mixed, 1);
+    TestEqual(TEXT("Infinite mover excluded from Stop before synchronization"), MixedStops.Num(), 2);
+    if (MixedStops.Num() == 2)
+    {
+        TestTrue(TEXT("Mixed Stop keeps exact healthy combat and harvester IDs"),
+            MixedStops[0].UnitId == 10 && MixedStops[1].UnitId == 20);
+        TestTrue(TEXT("Mixed Stop keeps Stop command type"),
+            MixedStops[0].Type == EProofCommandType::Stop && MixedStops[1].Type == EProofCommandType::Stop);
+    }
+    TestTrue(TEXT("Mixed Stop planning leaves selection unpruned"),
+        MixedSelection.GetSelectedUnitIds() == TArray<int32>({10, 20, 60}));
+
     S.MatchPhase = EProofMatchPhase::Finished;
     TestEqual(TEXT("Terminal skirmish plans no Stop"), Selection.PlanStop(S, 1).Num(), 0);
     S.MatchPhase = EProofMatchPhase::Playing;

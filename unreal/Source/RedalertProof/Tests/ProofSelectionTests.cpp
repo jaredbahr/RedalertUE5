@@ -122,6 +122,33 @@ bool FProofSelectionGroupsTest::RunTest(const FString&)
     TestEqual(TEXT("Recall restores assigned primary"), Selection.GetPrimaryUnitId(), 10);
     TestEqual(TEXT("Recall never changes snapshot"), Snapshot.ComputeDigest(), BeforeRecall);
 
+    // Keep recall independent of pruning the active selection: the saved group
+    // must revalidate its own IDs when its primary becomes non-finite.
+    FProofSnapshot Mixed = SelectionFixture();
+    FProofSelectionState MixedSelection;
+    MixedSelection.SelectSingle(Mixed, 1, 20);
+    MixedSelection.Toggle(Mixed, 1, 10);
+    MixedSelection.Toggle(Mixed, 1, 30);
+    MixedSelection.AssignGroup(3, Mixed, 1);
+    MixedSelection.RecallGroup(3, Mixed, 1);
+    TestTrue(TEXT("Healthy mixed group retains exact IDs"),
+        MixedSelection.GetSelectedUnitIds() == TArray<int32>({10, 20, 30}));
+    TestEqual(TEXT("Healthy mixed group retains nonlowest primary"), MixedSelection.GetPrimaryUnitId(), 30);
+    FProofSelectionState RecallSelection = MixedSelection;
+    RecallSelection.SelectSingle(Mixed, 1, 20);
+    Mixed.Units.FindByPredicate([](const FProofUnitRecord& Unit) { return Unit.UnitId == 30; })->HitPoints
+        = std::numeric_limits<float>::infinity();
+    MixedSelection.Synchronize(Mixed, 1);
+    TestTrue(TEXT("Mixed synchronization retains exact healthy IDs"),
+        MixedSelection.GetSelectedUnitIds() == TArray<int32>({10, 20}));
+    TestEqual(TEXT("Mixed synchronization replaces infinite primary with lowest survivor"),
+        MixedSelection.GetPrimaryUnitId(), 10);
+    RecallSelection.RecallGroup(3, Mixed, 1);
+    TestTrue(TEXT("Independent saved recall retains exact healthy IDs"),
+        RecallSelection.GetSelectedUnitIds() == TArray<int32>({10, 20}));
+    TestEqual(TEXT("Independent saved recall replaces infinite primary with lowest survivor"),
+        RecallSelection.GetPrimaryUnitId(), 10);
+
     for (FProofUnitRecord& Unit : Snapshot.Units)
     {
         if (Unit.UnitId == 20) { Unit.OwnerId = 2; }
@@ -189,6 +216,47 @@ bool FProofSelectionPlansTest::RunTest(const FString&)
     TestEqual(TEXT("Own target yields no attack"), Selection.PlanAttack(Snapshot, 1, 10).Num(), 0);
     TestEqual(TEXT("Planning does not mutate snapshot"), Snapshot.ComputeDigest(), BeforePlans);
     TestEqual(TEXT("Planning does not mutate selection"), Selection.GetSelectedUnitIds().Num(), 3);
+
+    FProofSnapshot Mixed = SelectionFixture();
+    AddUnit(Mixed, 70, 1, EProofUnitKind::Combat, FVector(300, 200, 0));
+    FProofSelectionState MixedSelection;
+    MixedSelection.SelectSingle(Mixed, 1, 70);
+    MixedSelection.Toggle(Mixed, 1, 10);
+    FProofSnapshot Changed = Mixed;
+    Changed.Units.FindByPredicate([](const FProofUnitRecord& Unit) { return Unit.UnitId == 10; })->HitPoints
+        = std::numeric_limits<float>::infinity();
+    const FVector Destination(10000, 500, 0);
+    for (EProofCommandType Type : {EProofCommandType::Move, EProofCommandType::AttackMove})
+    {
+        const TArray<FProofCommand> Healthy = Type == EProofCommandType::Move
+            ? MixedSelection.PlanMove(Mixed, 1, Destination) : MixedSelection.PlanAttackMove(Mixed, 1, Destination);
+        TestEqual(TEXT("Healthy combat pair plans both travel orders"), Healthy.Num(), 2);
+        if (Healthy.Num() == 2)
+        {
+            TestEqual(TEXT("Healthy travel pair starts with exact lower ID"), Healthy[0].UnitId, 10);
+            TestEqual(TEXT("Healthy travel pair retains exact higher ID"), Healthy[1].UnitId, 70);
+            TestTrue(TEXT("Healthy travel pair retains requested command type"),
+                Healthy[0].Type == Type && Healthy[1].Type == Type);
+            TestTrue(TEXT("Healthy travel pair retains bounded formation offsets"),
+                Healthy[0].Destination.Equals(FVector(9800, 400, 0), .001)
+                && Healthy[1].Destination.Equals(FVector(10000, 600, 0), .001));
+        }
+        // Do not synchronize first: planning must filter before computing the
+        // formation center, without letting the infinite peer shift the survivor.
+        const TArray<FProofCommand> Surviving = Type == EProofCommandType::Move
+            ? MixedSelection.PlanMove(Changed, 1, Destination) : MixedSelection.PlanAttackMove(Changed, 1, Destination);
+        TestEqual(TEXT("Mixed travel pair plans only healthy survivor"), Surviving.Num(), 1);
+        if (Surviving.Num() == 1)
+        {
+            TestEqual(TEXT("Mixed travel pair keeps exact healthy ID"), Surviving[0].UnitId, 70);
+            TestTrue(TEXT("Mixed travel pair keeps requested command type"), Surviving[0].Type == Type);
+            TestTrue(TEXT("Infinite peer cannot affect survivor formation placement"),
+                Surviving[0].Destination.Equals(Destination, .001));
+        }
+    }
+    TestTrue(TEXT("Mixed travel planning leaves stale selection available for normal synchronization"),
+        MixedSelection.GetSelectedUnitIds() == TArray<int32>({10, 70}));
+
     FProofSnapshot Legacy = Snapshot;
     Legacy.bSkirmish = false;
     TestEqual(TEXT("Legacy attack permits a different owner with the same default team"),

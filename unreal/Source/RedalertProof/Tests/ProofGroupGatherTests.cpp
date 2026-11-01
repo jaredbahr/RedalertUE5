@@ -99,6 +99,28 @@ bool FProofGroupGatherSelectionTest::RunTest(const FString&)
     TestTrue(TEXT("Mixed selection plans no Gather"), Selection.PlanGather(Snapshot, 1, Patch).IsEmpty());
     TestEqual(TEXT("Existing mixed Move still moves two miners"), Selection.PlanMove(Snapshot, 1, FVector(600, 600, 0)).Num(), 2);
     Selection = GatherTestSelection(Snapshot, Starter, Granted);
+    TestTrue(TEXT("Healthy two-miner control is all harvesters"), Selection.IsAllHarvesters(Snapshot, 1));
+    const TArray<FProofCommand> HealthyGather = Selection.PlanGather(Snapshot, 1, Patch);
+    TestEqual(TEXT("Healthy two-miner control retains both Gather commands"), HealthyGather.Num(), 2);
+    if (HealthyGather.Num() == 2)
+    {
+        TestTrue(TEXT("Healthy Gather control retains exact sorted miner IDs"),
+            HealthyGather[0].UnitId == FMath::Min(Starter, Granted)
+            && HealthyGather[1].UnitId == FMath::Max(Starter, Granted));
+        for (const FProofCommand& Command : HealthyGather)
+        {
+            TestTrue(TEXT("Healthy Gather control retains command type"), Command.Type == EProofCommandType::Gather);
+            TestEqual(TEXT("Healthy Gather control retains resource target"), Command.TargetUnitId, Patch);
+        }
+    }
+    FProofSnapshot InfiniteMiner = Snapshot;
+    GatherTestUnit(InfiniteMiner, Granted).HitPoints = std::numeric_limits<float>::infinity();
+    TestFalse(TEXT("Infinite selected miner invalidates all-harvester group before synchronization"),
+        Selection.IsAllHarvesters(InfiniteMiner, 1));
+    TestTrue(TEXT("Infinite selected miner blocks entire Gather plan before synchronization"),
+        Selection.PlanGather(InfiniteMiner, 1, Patch).IsEmpty());
+    TestTrue(TEXT("Rejected mixed-health Gather leaves selection unpruned"),
+        Selection.GetSelectedUnitIds() == TArray<int32>({FMath::Min(Starter, Granted), FMath::Max(Starter, Granted)}));
     FProofSnapshot Changed = Snapshot;
     Changed.MatchEpoch++;
     TestTrue(TEXT("Epoch-stale selection cannot Gather"), Selection.PlanGather(Changed, 1, Patch).IsEmpty());
